@@ -1,0 +1,325 @@
+// Vehicle Booking System schema.
+// See claude_code_implementation_plan.md section 4 for entity descriptions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  REQUESTER
+  APPROVER
+  ADMIN
+  DRIVER
+  GARAGE_COORDINATOR
+}
+
+enum VehicleType {
+  SEDAN
+  PICKUP
+  VAN
+  OTHER
+}
+
+enum DriverPool {
+  PUBLIC
+  PRIVATE
+}
+
+enum BookingStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ASSIGNED
+  DENIED
+  CANCELLED
+  COMPLETED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+enum EvaluationRating {
+  NOT_GOOD
+  SLIGHTLY_NOT_GOOD
+  GOOD
+  VERY_GOOD
+}
+
+// ---------- NextAuth core tables ----------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Domain entities ----------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  thaiName      String?
+  image         String?
+  phone         String?
+  lineUserId    String?   @unique
+
+  departmentId String?
+  department   Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
+
+  signatureImageUrl String?
+
+  delegatedToUserId String?
+  delegatedTo       User?   @relation("Delegation", fields: [delegatedToUserId], references: [id])
+  delegatedBy       User[]  @relation("Delegation")
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles            UserRole[]
+  accounts         Account[]
+  sessions         Session[]
+  driverProfile    Driver?
+  headedDepartment Department?    @relation("DepartmentHead")
+  bookings         Booking[]      @relation("BookingRequester")
+  approvals        Approval[]
+  cancellations    Cancellation[]
+  auditLogs        AuditLog[]
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  role   Role
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model Department {
+  id         String  @id @default(cuid())
+  nameEn     String
+  nameTh     String
+  headUserId String? @unique
+  head       User?   @relation("DepartmentHead", fields: [headUserId], references: [id])
+
+  members  User[]    @relation("DepartmentMembers")
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vehicle {
+  id                 String      @id @default(cuid())
+  registrationNumber String      @unique
+  type               VehicleType
+  capacity           Int
+  isReserved         Boolean     @default(false)
+  notes              String?
+  isActive           Boolean     @default(true)
+
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Driver {
+  id               String     @id @default(cuid())
+  userId           String     @unique
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pool             DriverPool
+  licenseNumber    String?
+  licenseExpiresAt DateTime?
+  isActive         Boolean    @default(true)
+
+  primaryBookings   Booking[] @relation("PrimaryDriver")
+  secondaryBookings Booking[] @relation("SecondaryDriver")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Booking {
+  id        String @id @default(cuid())
+  jobNumber String @unique
+
+  requesterId  String
+  requester    User       @relation("BookingRequester", fields: [requesterId], references: [id])
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  purpose          String
+  destination      String
+  province         String
+  startAt          DateTime
+  endAt            DateTime
+  passengerCount   Int
+  passengerNotes   String?
+  needsOutsourcing Boolean  @default(false)
+
+  status       BookingStatus @default(DRAFT)
+  denialReason String?
+
+  vehicleId         String?
+  vehicle           Vehicle? @relation(fields: [vehicleId], references: [id])
+  primaryDriverId   String?
+  primaryDriver     Driver?  @relation("PrimaryDriver", fields: [primaryDriverId], references: [id])
+  secondaryDriverId String?
+  secondaryDriver   Driver?  @relation("SecondaryDriver", fields: [secondaryDriverId], references: [id])
+
+  estimatedDistance Int?
+
+  recurrenceParentId String?
+  recurrenceParent   Booking?        @relation("BookingRecurrence", fields: [recurrenceParentId], references: [id])
+  recurrenceChildren Booking[]       @relation("BookingRecurrence")
+  recurrenceRule     RecurrenceRule?
+
+  outsourceVendor    String?
+  outsourceCost      Decimal? @db.Decimal(10, 2)
+  outsourceReference String?
+
+  pdfUrl String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  decidedAt   DateTime?
+  completedAt DateTime?
+
+  approvals     Approval[]
+  trip          Trip?
+  cancellations Cancellation[]
+  auditLogs     AuditLog[]
+
+  @@index([status, createdAt])
+  @@index([startAt])
+}
+
+model RecurrenceRule {
+  id              String   @id @default(cuid())
+  parentBookingId String   @unique
+  parentBooking   Booking  @relation(fields: [parentBookingId], references: [id], onDelete: Cascade)
+  rrule           String
+  startDate       DateTime
+  endDate         DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Approval {
+  id                String         @id @default(cuid())
+  bookingId         String
+  booking           Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  approverId        String
+  approver          User           @relation(fields: [approverId], references: [id])
+  status            ApprovalStatus @default(PENDING)
+  signatureImageUrl String?
+  comment           String?
+  decidedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Trip {
+  id             String    @id @default(cuid())
+  bookingId      String    @unique
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  startMileage   Int
+  endMileage     Int?
+  distanceKm     Int?
+  fuelCost       Decimal?  @db.Decimal(10, 2)
+  tollwayCost    Decimal?  @db.Decimal(10, 2)
+  usedExpressway Boolean   @default(false)
+  driverNotes    String?
+  startedAt      DateTime
+  endedAt        DateTime?
+
+  evaluation Evaluation?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Cancellation {
+  id                String   @id @default(cuid())
+  bookingId         String
+  booking           Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  cancelledByUserId String
+  cancelledByUser   User     @relation(fields: [cancelledByUserId], references: [id])
+  reason            String
+  cancelledAt       DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Evaluation {
+  id          String           @id @default(cuid())
+  tripId      String           @unique
+  trip        Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  rating      EvaluationRating
+  comment     String?
+  submittedAt DateTime         @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String         @id @default(cuid())
+  bookingId   String
+  booking     Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  actorUserId String
+  actor       User           @relation(fields: [actorUserId], references: [id])
+  fromStatus  BookingStatus?
+  toStatus    BookingStatus?
+  action      String
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  @@index([bookingId, createdAt])
+}

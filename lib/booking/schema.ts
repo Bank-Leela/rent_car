@@ -1,0 +1,48 @@
+import { z } from "zod";
+
+const datetimeLocal = z
+  .string()
+  .min(1, "Required")
+  .transform((v) => new Date(v))
+  .refine((d) => !Number.isNaN(d.getTime()), "Invalid date");
+
+export const newBookingSchema = z
+  .object({
+    purpose: z.string().min(3, "Describe the trip purpose"),
+    destination: z.string().min(2, "Required"),
+    province: z.string().min(2, "Required"),
+    startAt: datetimeLocal,
+    endAt: datetimeLocal,
+    passengerCount: z.coerce.number().int().min(1).max(60),
+    passengerNotes: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
+    estimatedDistance: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    needsOutsourcing: z.coerce.boolean().optional().default(false),
+  })
+  .refine((data) => data.endAt.getTime() > data.startAt.getTime(), {
+    path: ["endAt"],
+    message: "End time must be after start time",
+  });
+
+export type NewBookingInput = z.infer<typeof newBookingSchema>;
+
+export const assignBookingSchema = z.object({
+  bookingId: z.string().min(1),
+  vehicleId: z.string().min(1, "Pick a vehicle"),
+  primaryDriverId: z.string().min(1, "Pick a primary driver"),
+  secondaryDriverId: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
+});
+
+export const denyBookingSchema = z.object({
+  bookingId: z.string().min(1),
+  reason: z.string().min(3, "Reason is required"),
+});

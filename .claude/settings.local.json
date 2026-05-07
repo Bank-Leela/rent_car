@@ -3,7 +3,19 @@
     "allow": [
       "Bash(npm --version)",
       "Bash(psql --version)",
-      "Bash(npx --yes create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm --turbopack --yes)"
+      "Bash(npx --yes create-next-app@latest . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm --turbopack --yes)",
+      "Bash(npm install *)",
+      "Bash(brew list *)",
+      "Bash(npx --yes shadcn@latest init --yes --base-color slate)",
+      "Bash(npx --yes shadcn@latest init --yes)",
+      "Bash(npx --yes shadcn@latest init --yes --defaults)",
+      "Bash(npx --yes shadcn@latest add card input label form select textarea badge table dialog dropdown-menu sonner separator --yes)",
+      "Bash(npx prisma *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(docker compose *)",
+      "Bash(/usr/local/opt/postgresql@16/bin/psql -d postgres -c \"CREATE ROLE postgres LOGIN PASSWORD 'postgres' SUPERUSER;\")",
+      "Bash(/usr/local/opt/postgresql@16/bin/psql -d postgres -c \"CREATE DATABASE rent_car OWNER postgres;\")"
     ]
   }
 }
