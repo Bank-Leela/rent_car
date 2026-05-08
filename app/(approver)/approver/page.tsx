@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { Card, CardContent } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 
 export default async function ApproverInbox() {
   const session = await requireRole("APPROVER");
 
-  // Approvable departments: ones where I'm the head, or the head delegates to me.
   const ownDepts = await prisma.department.findMany({
     where: {
       OR: [
@@ -29,46 +30,48 @@ export default async function ApproverInbox() {
     : [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pending approvals</h1>
-        <p className="text-muted-foreground">
-          {pending.length === 0 ? "Inbox empty." : `${pending.length} awaiting your decision.`}
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Pending approvals"
+        description={
+          pending.length === 0
+            ? "Nothing to review right now."
+            : `${pending.length} booking${pending.length === 1 ? "" : "s"} awaiting your decision.`
+        }
+      />
 
       {pending.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Nothing to approve right now.
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={CheckCircle2}
+          title="Inbox empty"
+          description="When someone in your department submits a booking, it'll land here."
+        />
       ) : (
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {pending.map((b) => (
-            <Link
-              key={b.id}
-              href={`/approver/${b.id}`}
-              className="block rounded-lg border bg-card p-4 hover:bg-muted/40"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm text-muted-foreground">{b.jobNumber}</span>
+            <li key={b.id}>
+              <Link
+                href={`/approver/${b.id}`}
+                className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                     <BookingStatusBadge status={b.status} />
                   </div>
-                  <div className="mt-1 font-medium">{b.purpose}</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="mt-1 font-medium truncate">{b.purpose}</div>
+                  <div className="mt-0.5 text-sm text-muted-foreground">
                     {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="mt-1 text-xs text-muted-foreground">
                     {b.requester.name ?? b.requester.email} · {b.department.nameEn} · submitted {format(b.createdAt, "d MMM HH:mm")}
                   </div>
                 </div>
-              </div>
-            </Link>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

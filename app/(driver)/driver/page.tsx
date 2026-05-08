@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { format, startOfDay, endOfDay, addDays } from "date-fns";
+import { Coffee, ChevronRight, MapPin } from "lucide-react";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { Card, CardContent } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { EmptyState } from "@/components/empty-state";
 
 export default async function DriverHome() {
   const session = await requireRole("DRIVER");
   const driverProfile = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!driverProfile) {
-    return <p className="text-sm text-muted-foreground">No driver profile found for your account. Ask the admin to set one up.</p>;
+    return (
+      <EmptyState
+        icon={Coffee}
+        title="No driver profile"
+        description="Your account isn't attached to a driver record yet. Ask the admin to create one."
+      />
+    );
   }
   const driverId = driverProfile.id;
-
   const now = new Date();
+
   const driverFilter = {
     OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
   };
@@ -40,15 +47,15 @@ export default async function DriverHome() {
   ]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Today</h1>
-        <p className="text-base text-muted-foreground">{format(now, "EEEE d MMMM yyyy")}</p>
+        <p className="mt-1 text-base text-muted-foreground">{format(now, "EEEE d MMMM yyyy")}</p>
       </div>
 
       <Section title="Today">
         {today.length === 0 ? (
-          <Card><CardContent className="py-8 text-center text-base text-muted-foreground">No trips today.</CardContent></Card>
+          <EmptyState icon={Coffee} title="No trips today" description="Enjoy the day off." />
         ) : (
           today.map((b) => <AssignmentCard key={b.id} booking={b} />)
         )}
@@ -56,7 +63,7 @@ export default async function DriverHome() {
 
       <Section title="Tomorrow">
         {tomorrow.length === 0 ? (
-          <Card><CardContent className="py-8 text-center text-base text-muted-foreground">Nothing scheduled for tomorrow.</CardContent></Card>
+          <EmptyState icon={Coffee} title="Nothing scheduled" description="Tomorrow's clear so far." />
         ) : (
           tomorrow.map((b) => <AssignmentCard key={b.id} booking={b} />)
         )}
@@ -68,7 +75,7 @@ export default async function DriverHome() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-lg font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h2>
       <div className="space-y-3">{children}</div>
     </section>
   );
@@ -85,26 +92,30 @@ function AssignmentCard({ booking }: { booking: AssignmentRow }) {
   return (
     <Link
       href={`/driver/${booking.id}`}
-      className="block rounded-xl border bg-card p-5 hover:bg-muted/40"
+      className="group flex items-start justify-between gap-4 rounded-2xl border bg-card p-5 shadow-sm transition-colors hover:bg-muted/40"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-sm text-muted-foreground">{booking.jobNumber}</span>
-            <BookingStatusBadge status={booking.status} />
-          </div>
-          <div className="mt-1 text-xl font-semibold">
-            {format(booking.startAt, "HH:mm")} → {booking.destination}
-          </div>
-          <div className="text-base text-muted-foreground">
-            {booking.vehicle?.registrationNumber ?? "—"} · {booking.passengerCount} pax
-          </div>
-          <div className="text-sm text-muted-foreground">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs text-muted-foreground">{booking.jobNumber}</span>
+          <BookingStatusBadge status={booking.status} />
+        </div>
+        <div className="mt-2 flex items-baseline gap-3">
+          <span className="text-3xl font-semibold tabular-nums">{format(booking.startAt, "HH:mm")}</span>
+          <span className="text-lg font-medium truncate">{booking.destination}</span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" />
+            {booking.vehicle?.registrationNumber ?? "—"}
+          </span>
+          <span>{booking.passengerCount} pax</span>
+          <span>
             {booking.requester.name ?? booking.requester.email}
             {booking.requester.phone ? ` · ${booking.requester.phone}` : ""}
-          </div>
+          </span>
         </div>
       </div>
+      <ChevronRight className="h-6 w-6 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
 }

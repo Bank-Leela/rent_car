@@ -49,29 +49,32 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Surface */
+  --background: oklch(0.985 0.005 280);
+  --foreground: oklch(0.18 0.02 270);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.18 0.02 270);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --popover-foreground: oklch(0.18 0.02 270);
+  /* Primary = a confident indigo */
+  --primary: oklch(0.45 0.18 270);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.012 280);
+  --secondary-foreground: oklch(0.25 0.04 270);
+  --muted: oklch(0.96 0.008 280);
+  --muted-foreground: oklch(0.5 0.02 270);
+  --accent: oklch(0.94 0.04 320);
+  --accent-foreground: oklch(0.3 0.1 320);
+  --destructive: oklch(0.58 0.22 25);
+  --border: oklch(0.91 0.012 280);
+  --input: oklch(0.91 0.012 280);
+  --ring: oklch(0.55 0.18 270);
+  /* Charts: complementary set, distinguishable */
+  --chart-1: oklch(0.55 0.18 270); /* indigo */
+  --chart-2: oklch(0.62 0.16 200); /* teal */
+  --chart-3: oklch(0.7 0.18 145);  /* green */
+  --chart-4: oklch(0.72 0.18 70);  /* amber */
+  --chart-5: oklch(0.62 0.2 25);   /* coral */
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -84,29 +87,29 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: oklch(0.16 0.015 270);
+  --foreground: oklch(0.97 0.005 280);
+  --card: oklch(0.22 0.018 270);
+  --card-foreground: oklch(0.97 0.005 280);
+  --popover: oklch(0.22 0.018 270);
+  --popover-foreground: oklch(0.97 0.005 280);
+  --primary: oklch(0.7 0.18 270);
+  --primary-foreground: oklch(0.16 0.02 270);
+  --secondary: oklch(0.28 0.025 270);
+  --secondary-foreground: oklch(0.95 0.005 280);
+  --muted: oklch(0.27 0.02 270);
+  --muted-foreground: oklch(0.7 0.02 270);
+  --accent: oklch(0.32 0.06 320);
+  --accent-foreground: oklch(0.95 0.04 320);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.6 0.18 270);
+  --chart-1: oklch(0.7 0.18 270);
+  --chart-2: oklch(0.7 0.16 200);
+  --chart-3: oklch(0.78 0.18 145);
+  --chart-4: oklch(0.78 0.18 70);
+  --chart-5: oklch(0.7 0.2 25);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -122,7 +125,16 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(at 0% 0%, oklch(0.93 0.05 320 / 0.4) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, oklch(0.93 0.06 270 / 0.35) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+  .dark body {
+    background-image:
+      radial-gradient(at 0% 0%, oklch(0.3 0.08 320 / 0.4) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, oklch(0.3 0.1 270 / 0.4) 0px, transparent 50%);
   }
   html {
     @apply font-sans;
