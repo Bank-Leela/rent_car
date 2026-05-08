@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { Plus, FileText, ChevronRight } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -9,42 +10,37 @@ import { EmptyState } from "@/components/empty-state";
 
 export default async function RequesterHome() {
   const session = await requireRole("REQUESTER");
+  const t = await getTranslations("requester");
   const bookings = await prisma.booking.findMany({
     where: { requesterId: session.user.id },
     orderBy: { createdAt: "desc" },
     include: { vehicle: true },
   });
 
+  const newBookingButton = (
+    <Link
+      href="/requester/new"
+      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+    >
+      <Plus className="h-4 w-4" />
+      {t("newBooking")}
+    </Link>
+  );
+
   return (
     <div className="space-y-8">
       <PageHeader
-        title="My bookings"
-        description="Submit and track your vehicle requests."
-        actions={
-          <Link
-            href="/requester/new"
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            New booking
-          </Link>
-        }
+        title={t("title")}
+        description={t("description")}
+        actions={newBookingButton}
       />
 
       {bookings.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title="No bookings yet"
-          description="Submit your first request and it'll show up here while it's in flight."
-          action={
-            <Link
-              href="/requester/new"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              New booking
-            </Link>
-          }
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
+          action={newBookingButton}
         />
       ) : (
         <ul className="space-y-2">

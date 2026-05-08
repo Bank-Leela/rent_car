@@ -1,11 +1,13 @@
 import { signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import { Car } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { homePathFor } from "@/lib/auth-helpers";
 import { getSession } from "@/lib/session";
 import { DEV_ENABLED } from "@/lib/dev-auth";
 import { prisma } from "@/lib/db";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 const ROLE_TINT: Record<string, string> = {
   ADMIN:
@@ -18,6 +20,8 @@ const ROLE_TINT: Record<string, string> = {
     "border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 dark:border-sky-900/40 dark:bg-sky-950/30",
 };
 
+const DOMAIN = "@chula.ac.th";
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -26,6 +30,7 @@ export default async function LoginPage({
   const session = await getSession();
   if (session?.user) redirect(homePathFor(session.user.roles));
   const { error, callbackUrl } = await searchParams;
+  const t = await getTranslations();
 
   const devUsers = DEV_ENABLED
     ? await prisma.user.findMany({
@@ -38,27 +43,28 @@ export default async function LoginPage({
 
   return (
     <div className="min-h-screen grid place-items-center p-4">
+      <div className="absolute right-4 top-4">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
             <Car className="h-6 w-6" aria-hidden />
           </div>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Vehicle Booking</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Faculty fleet booking, approvals, and dispatch in one place.
-          </p>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">{t("login.title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("login.tagline")}</p>
         </div>
 
         <div className="rounded-2xl border bg-card p-6 shadow-sm">
           <div className="space-y-4">
             {error === "DomainNotAllowed" && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                Only @chula.ac.th accounts can sign in.
+                {t("login.domainNotAllowed", { domain: DOMAIN })}
               </div>
             )}
             {error && error !== "DomainNotAllowed" && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                Sign-in failed. Please try again.
+                {t("login.signInFailed")}
               </div>
             )}
 
@@ -69,11 +75,11 @@ export default async function LoginPage({
               }}
             >
               <Button type="submit" className="w-full" size="lg">
-                Continue with Google
+                {t("login.continueWithGoogle")}
               </Button>
             </form>
             <p className="text-center text-xs text-muted-foreground">
-              Restricted to <code className="rounded bg-muted px-1 py-0.5 font-mono">@chula.ac.th</code> accounts.
+              {t("login.domainNote", { domain: DOMAIN })}
             </p>
 
             {DEV_ENABLED && devUsers.length > 0 && (
@@ -81,13 +87,13 @@ export default async function LoginPage({
                 <div className="relative pt-3">
                   <div className="h-px bg-border" />
                   <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-card px-2 text-xs uppercase tracking-wider text-muted-foreground">
-                    Preview as
+                    {t("login.previewAs")}
                   </span>
                 </div>
 
                 {previewMode && (
                   <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-                    ⚠ Preview mode is on in this deployment. Disable <code>ENABLE_DEV_AUTH</code> before sharing publicly.
+                    {t("login.previewBanner")}
                   </div>
                 )}
 
@@ -103,8 +109,8 @@ export default async function LoginPage({
                             ROLE_TINT[role] ?? "bg-muted/40 hover:bg-muted"
                           }`}
                         >
-                          <span className="block text-sm font-medium capitalize">
-                            {role.toLowerCase().replace(/_/g, " ") || "user"}
+                          <span className="block text-sm font-medium">
+                            {role ? t(`roles.${role}` as `roles.${"REQUESTER"|"APPROVER"|"ADMIN"|"DRIVER"}`) : "user"}
                           </span>
                           <span className="block text-xs text-muted-foreground truncate">
                             {u.email}

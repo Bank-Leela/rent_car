@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { CheckCircle2, ChevronRight } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -9,6 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 
 export default async function ApproverInbox() {
   const session = await requireRole("APPROVER");
+  const t = await getTranslations("approver");
 
   const ownDepts = await prisma.department.findMany({
     where: {
@@ -32,19 +34,15 @@ export default async function ApproverInbox() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Pending approvals"
-        description={
-          pending.length === 0
-            ? "Nothing to review right now."
-            : `${pending.length} booking${pending.length === 1 ? "" : "s"} awaiting your decision.`
-        }
+        title={t("title")}
+        description={pending.length === 0 ? t("subEmpty") : t("subWithCount", { count: pending.length })}
       />
 
       {pending.length === 0 ? (
         <EmptyState
           icon={CheckCircle2}
-          title="Inbox empty"
-          description="When someone in your department submits a booking, it'll land here."
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
         />
       ) : (
         <ul className="space-y-2">

@@ -1,0 +1,97 @@
+{
+  "brand": {
+    "name": "ระบบจองรถ"
+  },
+  "common": {
+    "back": "ย้อนกลับ",
+    "cancel": "ยกเลิก",
+    "confirm": "ยืนยัน",
+    "save": "บันทึก",
+    "submit": "ส่ง",
+    "signIn": "เข้าสู่ระบบ",
+    "signOut": "ออกจากระบบ",
+    "delete": "ลบ",
+    "edit": "แก้ไข",
+    "view": "ดู",
+    "next": "ถัดไป",
+    "previous": "ก่อนหน้า",
+    "today": "วันนี้",
+    "tomorrow": "พรุ่งนี้",
+    "loading": "กำลังโหลด…",
+    "search": "ค้นหา"
+  },
+  "language": {
+    "label": "ภาษา",
+    "english": "English",
+    "thai": "ไทย"
+  },
+  "roles": {
+    "REQUESTER": "ผู้ขอใช้รถ",
+    "APPROVER": "หัวหน้าภาควิชา",
+    "ADMIN": "ผู้ดูแลระบบ",
+    "DRIVER": "พนักงานขับรถ"
+  },
+  "nav": {
+    "queue": "คิวงาน",
+    "calendar": "ปฏิทิน",
+    "dashboard": "แดชบอร์ด",
+    "myBookings": "การจองของฉัน",
+    "newBooking": "จองใหม่",
+    "pendingApprovals": "รออนุมัติ",
+    "departmentUsage": "การใช้งานของภาควิชา",
+    "profile": "โปรไฟล์"
+  },
+  "status": {
+    "DRAFT": "ฉบับร่าง",
+    "PENDING_APPROVAL": "รออนุมัติ",
+    "APPROVED": "อนุมัติแล้ว",
+    "ASSIGNED": "จัดรถแล้ว",
+    "DENIED": "ไม่อนุมัติ",
+    "CANCELLED": "ยกเลิก",
+    "COMPLETED": "เสร็จสิ้น"
+  },
+  "login": {
+    "title": "ระบบจองรถ",
+    "tagline": "จอง อนุมัติ และจัดการรถของคณะ ในที่เดียว",
+    "continueWithGoogle": "เข้าสู่ระบบด้วย Google",
+    "domainNote": "เฉพาะบัญชี {domain} เท่านั้น",
+    "domainNotAllowed": "อนุญาตเฉพาะบัญชี {domain} เท่านั้น",
+    "signInFailed": "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+    "previewBanner": "⚠ โหมดพรีวิวเปิดอยู่ ปิด ENABLE_DEV_AUTH ก่อนนำไปใช้งานจริง",
+    "previewAs": "เข้าใช้ในบทบาท"
+  },
+  "requester": {
+    "title": "การจองของฉัน",
+    "description": "ส่งคำขอและติดตามสถานะการจองรถ",
+    "newBooking": "จองใหม่",
+    "emptyTitle": "ยังไม่มีการจอง",
+    "emptyDescription": "ส่งคำขอแรกของคุณ แล้วการจองจะปรากฏที่นี่ระหว่างรอการอนุมัติ"
+  },
+  "approver": {
+    "title": "รออนุมัติ",
+    "subEmpty": "ไม่มีรายการที่ต้องตรวจสอบในขณะนี้",
+    "subWithCount": "มีการจอง {count} รายการรอการตัดสินใจของคุณ",
+    "emptyTitle": "กล่องเข้าว่างเปล่า",
+    "emptyDescription": "เมื่อมีคนในภาควิชาส่งคำขอจองรถ รายการจะปรากฏที่นี่"
+  },
+  "admin": {
+    "title": "คิวการจอง",
+    "description": "ใครมาก่อนได้ก่อน · มี {count} รายการรอจัดรถ",
+    "awaitingAssignment": "รอจัดรถ",
+    "upcomingTrips": "ทริปที่จัดรถแล้วในอนาคต",
+    "queueEmptyTitle": "คิวว่าง",
+    "queueEmptyDescription": "การจองที่อนุมัติแล้วจะแสดงที่นี่ เรียงจากเก่าสุดก่อน",
+    "upcomingEmptyTitle": "ยังไม่มีกำหนดการ",
+    "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่"
+  },
+  "driver": {
+    "todayHeading": "วันนี้",
+    "tomorrowHeading": "พรุ่งนี้",
+    "noTripsToday": "ไม่มีทริปวันนี้",
+    "noTripsTodayDescription": "พักผ่อนได้ตามสบาย",
+    "noTripsTomorrow": "ยังไม่มีกำหนด",
+    "noTripsTomorrowDescription": "พรุ่งนี้ยังว่าง",
+    "noProfileTitle": "ยังไม่มีข้อมูลพนักงานขับรถ",
+    "noProfileDescription": "บัญชีของคุณยังไม่ได้ผูกกับข้อมูลพนักงานขับรถ กรุณาแจ้งผู้ดูแลระบบเพื่อสร้างให้"
+  }
+}

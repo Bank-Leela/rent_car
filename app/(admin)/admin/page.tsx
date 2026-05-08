@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { Inbox, CalendarClock, ChevronRight } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -9,9 +10,8 @@ import { EmptyState } from "@/components/empty-state";
 
 export default async function AdminQueue() {
   await requireRole("ADMIN");
+  const t = await getTranslations("admin");
 
-  // Phase 2: admin sees only bookings that have cleared department-head approval.
-  // FCFS per plan §5.6 — order by createdAt asc, no admin override.
   const pending = await prisma.booking.findMany({
     where: { status: "APPROVED" },
     orderBy: { createdAt: "asc" },
@@ -28,16 +28,16 @@ export default async function AdminQueue() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Booking queue"
-        description={`First-come-first-served. ${pending.length} awaiting assignment.`}
+        title={t("title")}
+        description={t("description", { count: pending.length })}
       />
 
-      <Section title="Awaiting assignment" icon={<Inbox className="h-4 w-4" />}>
+      <Section title={t("awaitingAssignment")} icon={<Inbox className="h-4 w-4" />}>
         {pending.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title="Queue is empty"
-            description="Approved bookings will appear here, oldest first."
+            title={t("queueEmptyTitle")}
+            description={t("queueEmptyDescription")}
           />
         ) : (
           <ul className="space-y-2">
@@ -68,12 +68,12 @@ export default async function AdminQueue() {
         )}
       </Section>
 
-      <Section title="Upcoming assigned trips" icon={<CalendarClock className="h-4 w-4" />}>
+      <Section title={t("upcomingTrips")} icon={<CalendarClock className="h-4 w-4" />}>
         {upcoming.length === 0 ? (
           <EmptyState
             icon={CalendarClock}
-            title="Nothing scheduled"
-            description="Once you assign vehicles, the next 20 trips will show up here."
+            title={t("upcomingEmptyTitle")}
+            description={t("upcomingEmptyDescription")}
           />
         ) : (
           <ul className="space-y-2">

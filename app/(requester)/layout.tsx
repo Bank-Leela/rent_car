@@ -1,16 +1,17 @@
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { AppShell } from "@/components/app-shell";
 
 export default async function RequesterLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("REQUESTER");
+  const t = await getTranslations("nav");
   return (
     <AppShell
-      title="Vehicle Booking"
-      roleBadge="Requester"
+      badgeRole="REQUESTER"
       user={session.user}
       nav={[
-        { href: "/requester", label: "My bookings" },
-        { href: "/requester/new", label: "New booking" },
+        { href: "/requester", label: t("myBookings") },
+        { href: "/requester/new", label: t("newBooking") },
       ]}
     >
       {children}

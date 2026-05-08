@@ -1,0 +1,97 @@
+{
+  "brand": {
+    "name": "Vehicle Booking"
+  },
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "submit": "Submit",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "next": "Next",
+    "previous": "Previous",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "loading": "Loading…",
+    "search": "Search"
+  },
+  "language": {
+    "label": "Language",
+    "english": "English",
+    "thai": "ไทย"
+  },
+  "roles": {
+    "REQUESTER": "Requester",
+    "APPROVER": "Department Head",
+    "ADMIN": "Administrator",
+    "DRIVER": "Driver"
+  },
+  "nav": {
+    "queue": "Queue",
+    "calendar": "Calendar",
+    "dashboard": "Dashboard",
+    "myBookings": "My bookings",
+    "newBooking": "New booking",
+    "pendingApprovals": "Pending approvals",
+    "departmentUsage": "Department usage",
+    "profile": "Profile"
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "PENDING_APPROVAL": "Pending approval",
+    "APPROVED": "Approved",
+    "ASSIGNED": "Assigned",
+    "DENIED": "Denied",
+    "CANCELLED": "Cancelled",
+    "COMPLETED": "Completed"
+  },
+  "login": {
+    "title": "Vehicle Booking",
+    "tagline": "Faculty fleet booking, approvals, and dispatch in one place.",
+    "continueWithGoogle": "Continue with Google",
+    "domainNote": "Restricted to {domain} accounts.",
+    "domainNotAllowed": "Only {domain} accounts can sign in.",
+    "signInFailed": "Sign-in failed. Please try again.",
+    "previewBanner": "⚠ Preview mode is on in this deployment. Disable ENABLE_DEV_AUTH before sharing publicly.",
+    "previewAs": "Preview as"
+  },
+  "requester": {
+    "title": "My bookings",
+    "description": "Submit and track your vehicle requests.",
+    "newBooking": "New booking",
+    "emptyTitle": "No bookings yet",
+    "emptyDescription": "Submit your first request and it'll show up here while it's in flight."
+  },
+  "approver": {
+    "title": "Pending approvals",
+    "subEmpty": "Nothing to review right now.",
+    "subWithCount": "{count, plural, one {# booking} other {# bookings}} awaiting your decision.",
+    "emptyTitle": "Inbox empty",
+    "emptyDescription": "When someone in your department submits a booking, it'll land here."
+  },
+  "admin": {
+    "title": "Booking queue",
+    "description": "First-come-first-served. {count} awaiting assignment.",
+    "awaitingAssignment": "Awaiting assignment",
+    "upcomingTrips": "Upcoming assigned trips",
+    "queueEmptyTitle": "Queue is empty",
+    "queueEmptyDescription": "Approved bookings will appear here, oldest first.",
+    "upcomingEmptyTitle": "Nothing scheduled",
+    "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here."
+  },
+  "driver": {
+    "todayHeading": "Today",
+    "tomorrowHeading": "Tomorrow",
+    "noTripsToday": "No trips today",
+    "noTripsTodayDescription": "Enjoy the day off.",
+    "noTripsTomorrow": "Nothing scheduled",
+    "noTripsTomorrowDescription": "Tomorrow's clear so far.",
+    "noProfileTitle": "No driver profile",
+    "noProfileDescription": "Your account isn't attached to a driver record yet. Ask the admin to create one."
+  }
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { format, startOfDay, endOfDay, addDays } from "date-fns";
 import { Coffee, ChevronRight, MapPin } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -8,13 +9,15 @@ import { EmptyState } from "@/components/empty-state";
 
 export default async function DriverHome() {
   const session = await requireRole("DRIVER");
+  const t = await getTranslations("driver");
+
   const driverProfile = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!driverProfile) {
     return (
       <EmptyState
         icon={Coffee}
-        title="No driver profile"
-        description="Your account isn't attached to a driver record yet. Ask the admin to create one."
+        title={t("noProfileTitle")}
+        description={t("noProfileDescription")}
       />
     );
   }
@@ -49,21 +52,21 @@ export default async function DriverHome() {
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Today</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("todayHeading")}</h1>
         <p className="mt-1 text-base text-muted-foreground">{format(now, "EEEE d MMMM yyyy")}</p>
       </div>
 
-      <Section title="Today">
+      <Section title={t("todayHeading")}>
         {today.length === 0 ? (
-          <EmptyState icon={Coffee} title="No trips today" description="Enjoy the day off." />
+          <EmptyState icon={Coffee} title={t("noTripsToday")} description={t("noTripsTodayDescription")} />
         ) : (
           today.map((b) => <AssignmentCard key={b.id} booking={b} />)
         )}
       </Section>
 
-      <Section title="Tomorrow">
+      <Section title={t("tomorrowHeading")}>
         {tomorrow.length === 0 ? (
-          <EmptyState icon={Coffee} title="Nothing scheduled" description="Tomorrow's clear so far." />
+          <EmptyState icon={Coffee} title={t("noTripsTomorrow")} description={t("noTripsTomorrowDescription")} />
         ) : (
           tomorrow.map((b) => <AssignmentCard key={b.id} booking={b} />)
         )}
