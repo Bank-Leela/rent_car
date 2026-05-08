@@ -95,7 +95,7 @@ export async function submitEvaluationAction(formData: FormData): Promise<Action
 
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
-    include: { booking: { select: { requesterId: true } } },
+    include: { booking: { select: { id: true, requesterId: true } } },
   });
   if (!trip) return { ok: false, error: "Trip not found" };
   if (trip.booking.requesterId !== userId) return { ok: false, error: "Not your trip." };
@@ -107,6 +107,7 @@ export async function submitEvaluationAction(formData: FormData): Promise<Action
   });
 
   revalidatePath("/requester");
+  revalidatePath(`/requester/${trip.booking.id}`);
   return { ok: true };
 }
 

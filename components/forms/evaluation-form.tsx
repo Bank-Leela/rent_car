@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,10 +16,26 @@ const RATINGS = [
 ] as const;
 
 export function EvaluationForm({ tripId }: { tripId: string }) {
+  const router = useRouter();
   const [rating, setRating] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [pending, startTransition] = useTransition();
   const requiresComment = rating === "NOT_GOOD" || rating === "SLIGHTLY_NOT_GOOD";
+
+  if (submitted) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+        <CheckCircle2 className="h-5 w-5" aria-hidden />
+        <div>
+          <p className="font-medium">Thanks for the feedback.</p>
+          <p className="text-emerald-800/80 dark:text-emerald-300/80">
+            You can submit new bookings again.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -26,7 +44,12 @@ export function EvaluationForm({ tripId }: { tripId: string }) {
         formData.set("tripId", tripId);
         startTransition(async () => {
           const res = await submitEvaluationAction(formData);
-          if (res && !res.ok) setError(res.error);
+          if (res && !res.ok) {
+            setError(res.error);
+            return;
+          }
+          setSubmitted(true);
+          router.refresh();
         });
       }}
       className="space-y-4"
