@@ -19,6 +19,8 @@ import {
   requesterAssignedEmail,
   requesterDeniedEmail,
 } from "@/lib/email/templates";
+import { sendLineNotification } from "@/lib/line/client";
+import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
 
 const bookingDetailInclude = {
   requester: true,
@@ -100,7 +102,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
 
   const created = await prisma.$transaction(async (tx) => {
     const jobNumber = await nextJobNumber(tx);
-    const booking = await tx.booking.create({
+    const parent = await tx.booking.create({
       data: {
         jobNumber,
         requesterId: userId,
@@ -118,14 +120,70 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       },
     });
     await logTransition({
-      bookingId: booking.id,
+      bookingId: parent.id,
       actorUserId: userId,
       fromStatus: null,
       toStatus: "PENDING_APPROVAL",
       action: "BOOKING_SUBMITTED",
       tx,
     });
-    return booking;
+
+    // Recurrence (Phase 5): expand weekdays + until date into child bookings.
+    if (data.recurringWeekdays.length > 0 && data.recurringUntil) {
+      const trip = data.endAt.getTime() - data.startAt.getTime();
+      const dates = expandRecurringDates({
+        startDate: data.startAt,
+        endDate: data.recurringUntil,
+        weekdays: data.recurringWeekdays,
+      });
+      // Skip the parent's own date — it's already created.
+      const childDates = dates.filter((d) => d.toDateString() !== data.startAt.toDateString());
+      await tx.recurrenceRule.create({
+        data: {
+          parentBookingId: parent.id,
+          rrule: buildRrule(data.recurringWeekdays),
+          startDate: data.startAt,
+          endDate: data.recurringUntil,
+        },
+      });
+      let seq = 1;
+      for (const d of childDates) {
+        const childStart = new Date(d);
+        childStart.setHours(data.startAt.getHours(), data.startAt.getMinutes(), 0, 0);
+        const childEnd = new Date(childStart.getTime() + trip);
+        const childJob = await nextJobNumber(tx);
+        const child = await tx.booking.create({
+          data: {
+            jobNumber: childJob,
+            requesterId: userId,
+            departmentId: requester.departmentId!,
+            purpose: data.purpose,
+            destination: data.destination,
+            province: data.province,
+            startAt: childStart,
+            endAt: childEnd,
+            passengerCount: data.passengerCount,
+            passengerNotes: data.passengerNotes,
+            estimatedDistance: data.estimatedDistance,
+            needsOutsourcing: data.needsOutsourcing,
+            status: "PENDING_APPROVAL",
+            recurrenceParentId: parent.id,
+          },
+        });
+        await logTransition({
+          bookingId: child.id,
+          actorUserId: userId,
+          fromStatus: null,
+          toStatus: "PENDING_APPROVAL",
+          action: "BOOKING_SUBMITTED",
+          metadata: { recurrenceParentId: parent.id, occurrence: seq },
+          tx,
+        });
+        seq += 1;
+      }
+    }
+
+    return parent;
   });
 
   const detailed = await prisma.booking.findUniqueOrThrow({
@@ -133,18 +191,22 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     include: bookingDetailInclude,
   });
 
-  // Notify all admins.
-  const admins = await prisma.user.findMany({
-    where: { roles: { some: { role: "ADMIN" } }, isActive: true },
-    select: { email: true },
+  // Phase 2: notify the department head + their delegate (not admins; admins
+  // see the booking only after it's approved).
+  const dept = await prisma.department.findUnique({
+    where: { id: requester.departmentId! },
+    select: {
+      head: { select: { email: true, delegatedTo: { select: { email: true } } } },
+    },
   });
-  const adminEmails = admins.map((a) => a.email).filter((e): e is string => !!e);
-  if (adminEmails.length > 0) {
-    await sendEmail({ to: adminEmails, ...adminNewBookingEmail(detailed) });
+  const approverEmails = [dept?.head?.email, dept?.head?.delegatedTo?.email]
+    .filter((e): e is string => !!e);
+  if (approverEmails.length > 0) {
+    await sendEmail({ to: approverEmails, ...adminNewBookingEmail(detailed) });
   }
 
   revalidatePath("/requester");
-  revalidatePath("/admin");
+  revalidatePath("/approver");
   redirect(`/requester/${created.id}`);
 }
 
@@ -165,7 +227,8 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
     where: { id: data.bookingId },
   });
   if (!booking) return { ok: false, error: "Booking not found" };
-  if (booking.status !== "PENDING_APPROVAL" && booking.status !== "APPROVED") {
+  // Phase 2: admin only assigns after department-head approval.
+  if (booking.status !== "APPROVED") {
     return { ok: false, error: `Cannot assign a booking in status ${booking.status}` };
   }
 
@@ -238,11 +301,22 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
   if (detailed.requester.email) {
     await sendEmail({ to: detailed.requester.email, ...requesterAssignedEmail(detailed) });
   }
+  // LINE notification to drivers (stub today; real client in Phase 5).
+  for (const drv of [detailed.primaryDriver, detailed.secondaryDriver]) {
+    if (drv?.user.lineUserId) {
+      await sendLineNotification({
+        toLineUserId: drv.user.lineUserId,
+        message: `New trip assigned: ${detailed.jobNumber} · ${detailed.destination} · ${detailed.startAt.toISOString()}`,
+        context: { bookingId: detailed.id, kind: "ASSIGNED" },
+      });
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${data.bookingId}`);
   revalidatePath("/requester");
   revalidatePath(`/requester/${data.bookingId}`);
+  revalidatePath("/driver");
   return { ok: true };
 }
 

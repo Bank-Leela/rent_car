@@ -4,8 +4,9 @@ import { format } from "date-fns";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { CancelForm } from "@/components/forms/cancel-form";
+import { EvaluationForm } from "@/components/forms/evaluation-form";
 
 export default async function RequesterBookingDetail({
   params,
@@ -22,10 +23,13 @@ export default async function RequesterBookingDetail({
       vehicle: true,
       primaryDriver: { include: { user: true } },
       secondaryDriver: { include: { user: true } },
+      trip: { include: { evaluation: true } },
       auditLogs: { orderBy: { createdAt: "asc" }, include: { actor: true } },
     },
   });
   if (!booking || booking.requesterId !== session.user.id) notFound();
+  const canCancel = !["COMPLETED", "CANCELLED", "DENIED"].includes(booking.status);
+  const needsEval = booking.trip && !booking.trip.evaluation;
 
   return (
     <div className="space-y-6">
@@ -81,6 +85,44 @@ export default async function RequesterBookingDetail({
                 value={booking.secondaryDriver.user.name ?? booking.secondaryDriver.user.email!}
               />
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {needsEval && booking.trip && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Trip evaluation</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EvaluationForm tripId={booking.trip.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {canCancel && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cancel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CancelForm bookingId={booking.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {booking.pdfUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Approval document</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href={`/api/files/booking-pdf/${booking.id}`}
+              className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              Download PDF
+            </Link>
           </CardContent>
         </Card>
       )}

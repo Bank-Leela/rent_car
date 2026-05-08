@@ -8,9 +8,10 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 export default async function AdminQueue() {
   await requireRole("ADMIN");
 
-  // First-come-first-served per plan §5.6 — order by createdAt asc, no admin override.
+  // Phase 2: admin sees only bookings that have cleared department-head approval.
+  // FCFS per plan §5.6 — order by createdAt asc, no admin override.
   const pending = await prisma.booking.findMany({
-    where: { status: { in: ["PENDING_APPROVAL", "APPROVED"] } },
+    where: { status: "APPROVED" },
     orderBy: { createdAt: "asc" },
     include: {
       requester: true,

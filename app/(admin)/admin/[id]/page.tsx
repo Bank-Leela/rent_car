@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
+import { OutsourceForm } from "@/components/forms/outsource-form";
 import { subDays } from "date-fns";
 
 export default async function AdminBookingDetail({
@@ -150,6 +151,22 @@ export default async function AdminBookingDetail({
         </Card>
       )}
 
+      {booking.pdfUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Approval document</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href={`/api/files/booking-pdf/${booking.id}`}
+              className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              Download PDF
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       {booking.status === "DENIED" && booking.denialReason && (
         <Card>
           <CardHeader>
@@ -181,6 +198,15 @@ export default async function AdminBookingDetail({
             </CardHeader>
             <CardContent>
               <DenyForm bookingId={booking.id} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Outsource</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OutsourceForm bookingId={booking.id} />
             </CardContent>
           </Card>
         </>

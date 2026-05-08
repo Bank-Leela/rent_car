@@ -17,6 +17,6 @@ export async function requireRole(role: Role) {
 export function homePathFor(roles: Role[]): string {
   if (roles.includes("ADMIN")) return "/admin";
   if (roles.includes("APPROVER")) return "/approver";
-  if (roles.includes("DRIVER")) return "/driver";
+  if (roles.includes("DRIVER") || roles.includes("GARAGE_COORDINATOR")) return "/driver";
   return "/requester";
 }

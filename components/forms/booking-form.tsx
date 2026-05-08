@@ -17,6 +17,46 @@ import { createBookingAction } from "@/lib/booking/actions";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
+const WEEKDAYS = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 0, label: "Sun" },
+];
+
+function RecurrenceWeekdays() {
+  const [picked, setPicked] = useState<number[]>([]);
+  return (
+    <div className="space-y-2">
+      <input type="hidden" name="recurringWeekdays" value={picked.join(",")} />
+      <div className="flex flex-wrap gap-1">
+        {WEEKDAYS.map((d) => {
+          const active = picked.includes(d.value);
+          return (
+            <button
+              key={d.value}
+              type="button"
+              onClick={() =>
+                setPicked((cur) =>
+                  cur.includes(d.value) ? cur.filter((v) => v !== d.value) : [...cur, d.value],
+                )
+              }
+              className={`rounded-md border px-3 py-1 text-sm ${
+                active ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+              }`}
+            >
+              {d.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function BookingForm() {
   const now = new Date();
   const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
@@ -126,6 +166,22 @@ export function BookingForm() {
             <input type="checkbox" name="needsOutsourcing" value="true" />
             Flag this trip as potentially needing outsourcing
           </label>
+
+          <details className="rounded-md border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Make this recurring (optional)</summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Select the weekdays that should also generate bookings, and the date the recurrence ends. The first occurrence above stays as-is; one child booking is created per matching weekday up to the end date.
+              </p>
+              <RecurrenceWeekdays />
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="recurringUntil">Repeat until</Label>
+                  <Input id="recurringUntil" name="recurringUntil" type="date" />
+                </div>
+              </div>
+            </div>
+          </details>
 
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

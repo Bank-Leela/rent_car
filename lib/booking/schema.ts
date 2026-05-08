@@ -23,6 +23,22 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     needsOutsourcing: z.coerce.boolean().optional().default(false),
+    recurringWeekdays: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => {
+        if (!v) return [] as number[];
+        return v
+          .split(",")
+          .map((s) => Number.parseInt(s.trim(), 10))
+          .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+      }),
+    recurringUntil: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? new Date(v) : undefined)),
   })
   .refine((data) => data.endAt.getTime() > data.startAt.getTime(), {
     path: ["endAt"],

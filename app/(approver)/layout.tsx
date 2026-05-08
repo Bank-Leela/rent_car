@@ -11,6 +11,7 @@ export default async function ApproverLayout({ children }: { children: React.Rea
       nav={[
         { href: "/approver", label: "Pending approvals" },
         { href: "/approver/department", label: "Department usage" },
+        { href: "/approver/profile", label: "Profile" },
       ]}
     >
       {children}

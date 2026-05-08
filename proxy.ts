@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/dev"];
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/dev", "/api/line"];
 const DEV_COOKIE = "dev_user_id";
 const DEV_ENABLED = process.env.NODE_ENV !== "production";
 
