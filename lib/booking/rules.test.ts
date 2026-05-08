@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addHours, addMinutes } from "date-fns";
+import { addDays, addHours, addMinutes, startOfDay } from "date-fns";
 import {
   BANGKOK_PROVINCE,
   checkDriverAssignment,
@@ -33,13 +33,22 @@ describe("checkLeadTime", () => {
     expect(checkLeadTime({ startAt: exactlyAtMin, province: "เชียงใหม่", now: NOW }).ok).toBe(true);
   });
 
-  it("returns the minimum allowed start when too soon", () => {
+  it("returns the minimum allowed start when too soon (midnight on the lead-time day)", () => {
     const result = checkLeadTime({ startAt: NOW, province: BANGKOK_PROVINCE, now: NOW });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.minimumDays).toBe(LEAD_TIME_BANGKOK_DAYS);
-      expect(result.minimumStartAt.getTime()).toBe(addDays(NOW, LEAD_TIME_BANGKOK_DAYS).getTime());
+      expect(result.minimumStartAt.getTime()).toBe(
+        startOfDay(addDays(NOW, LEAD_TIME_BANGKOK_DAYS)).getTime(),
+      );
     }
+  });
+
+  it("allows any time on the lead-time boundary day", () => {
+    const earlyOnBoundaryDay = startOfDay(addDays(NOW, LEAD_TIME_BANGKOK_DAYS));
+    const lateOnBoundaryDay = addHours(earlyOnBoundaryDay, 23);
+    expect(checkLeadTime({ startAt: earlyOnBoundaryDay, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(true);
+    expect(checkLeadTime({ startAt: lateOnBoundaryDay, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(true);
   });
 });
 

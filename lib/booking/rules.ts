@@ -1,4 +1,4 @@
-import { addDays, differenceInMinutes } from "date-fns";
+import { addDays, differenceInMinutes, startOfDay } from "date-fns";
 
 // Province name for Bangkok in Thai. Used for the lead-time short list.
 export const BANGKOK_PROVINCE = "กรุงเทพมหานคร";
@@ -24,11 +24,12 @@ export type LeadTimeResult =
 
 /**
  * Lead time check (plan §5.2). Bangkok = ≥7d, anywhere else = ≥15d.
- * Inclusive: a booking exactly at the minimum boundary is allowed.
+ * Calendar-day rule: the earliest allowed start is midnight on (today + minDays);
+ * any time on that day is fine.
  */
 export function checkLeadTime({ startAt, province, now }: LeadTimeInput): LeadTimeResult {
   const minDays = province === BANGKOK_PROVINCE ? LEAD_TIME_BANGKOK_DAYS : LEAD_TIME_OUTSIDE_DAYS;
-  const minimumStartAt = addDays(now, minDays);
+  const minimumStartAt = startOfDay(addDays(now, minDays));
   if (startAt.getTime() < minimumStartAt.getTime()) {
     return { ok: false, reason: "TOO_SOON", minimumDays: minDays, minimumStartAt };
   }

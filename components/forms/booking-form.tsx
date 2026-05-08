@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addDays, format } from "date-fns";
+import { addDays, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,7 +65,8 @@ export function BookingForm() {
 
   const requiredDays =
     province === BANGKOK_PROVINCE ? LEAD_TIME_BANGKOK_DAYS : LEAD_TIME_OUTSIDE_DAYS;
-  const earliestStart = addDays(now, requiredDays);
+  // Earliest is midnight on (today + requiredDays); any time on that day is fine.
+  const earliestStart = startOfDay(addDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
 
   return (
