@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { addDays, addYears, format, startOfDay } from "date-fns";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,16 +19,17 @@ import { createBookingAction } from "@/lib/booking/actions";
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
 const WEEKDAYS = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 0, label: "Sun" },
-];
+  { value: 1, key: "mon" },
+  { value: 2, key: "tue" },
+  { value: 3, key: "wed" },
+  { value: 4, key: "thu" },
+  { value: 5, key: "fri" },
+  { value: 6, key: "sat" },
+  { value: 0, key: "sun" },
+] as const;
 
 function RecurrenceWeekdays() {
+  const t = useTranslations("bookingForm.weekdays");
   const [picked, setPicked] = useState<number[]>([]);
   return (
     <div className="space-y-2">
@@ -48,7 +50,7 @@ function RecurrenceWeekdays() {
                 active ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
               }`}
             >
-              {d.label}
+              {t(d.key)}
             </button>
           );
         })}
@@ -58,6 +60,7 @@ function RecurrenceWeekdays() {
 }
 
 export function BookingForm() {
+  const t = useTranslations("bookingForm");
   const now = new Date();
   const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +73,7 @@ export function BookingForm() {
   const minStart = datetimeLocalValue(earliestStart);
   // Cap typed year so the browser can't accept "20251" or longer.
   const maxStart = datetimeLocalValue(addYears(now, 5));
+  const earliestDateLabel = format(earliestStart, "EEE d MMM yyyy");
 
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
@@ -83,14 +87,18 @@ export function BookingForm() {
     if (endRef.current) endRef.current.value = datetimeLocalValue(end);
   };
 
+  const richStrong = { strong: (chunks: React.ReactNode) => <strong>{chunks}</strong> };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>New booking</CardTitle>
+        <CardTitle>{t("title")}</CardTitle>
         <CardDescription>
-          Lead time: <strong>{requiredDays} days</strong> for{" "}
-          {province === BANGKOK_PROVINCE ? "Bangkok" : "out-of-province"} trips.
-          Earliest you can start: <strong>{format(earliestStart, "EEE d MMM yyyy")}</strong>.
+          {t.rich(province === BANGKOK_PROVINCE ? "leadTimeBangkok" : "leadTimeOutside", {
+            ...richStrong,
+            days: requiredDays,
+          })}{" "}
+          {t.rich("earliestSentence", { ...richStrong, date: earliestDateLabel })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -105,17 +113,17 @@ export function BookingForm() {
           className="space-y-4"
         >
           <div className="grid gap-2">
-            <Label htmlFor="purpose">Purpose</Label>
+            <Label htmlFor="purpose">{t("purpose")}</Label>
             <Input id="purpose" name="purpose" required />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="destination">Destination</Label>
+              <Label htmlFor="destination">{t("destination")}</Label>
               <Input id="destination" name="destination" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="province">Province</Label>
+              <Label htmlFor="province">{t("province")}</Label>
               <select
                 id="province"
                 name="province"
@@ -136,7 +144,7 @@ export function BookingForm() {
           <div className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="startAt">Start (departure)</Label>
+                <Label htmlFor="startAt">{t("startLabel")}</Label>
                 <Input
                   ref={startRef}
                   id="startAt"
@@ -148,7 +156,7 @@ export function BookingForm() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="endAt">End (back at faculty)</Label>
+                <Label htmlFor="endAt">{t("endLabel")}</Label>
                 <Input
                   ref={endRef}
                   id="endAt"
@@ -159,7 +167,7 @@ export function BookingForm() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enter the time you expect to be <strong>back at the faculty</strong>, not the time you leave the destination.
+                  {t.rich("endHelper", richStrong)}
                 </p>
               </div>
             </div>
@@ -168,13 +176,13 @@ export function BookingForm() {
               onClick={fillEarliest}
               className="text-xs font-medium text-primary hover:underline"
             >
-              Use earliest allowed ({format(earliestStart, "EEE d MMM yyyy")} 08:00–12:00)
+              {t("useEarliest", { date: earliestDateLabel })}
             </button>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="passengerCount">Passenger count</Label>
+              <Label htmlFor="passengerCount">{t("passengerCount")}</Label>
               <Input
                 id="passengerCount"
                 name="passengerCount"
@@ -186,37 +194,37 @@ export function BookingForm() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="estimatedDistance">Estimated distance (km, optional)</Label>
+              <Label htmlFor="estimatedDistance">{t("estimatedDistance")}</Label>
               <Input
                 id="estimatedDistance"
                 name="estimatedDistance"
                 type="number"
                 min={0}
-                placeholder="e.g. 250"
+                placeholder={t("estimatedDistancePlaceholder")}
               />
             </div>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="passengerNotes">Passenger notes (optional)</Label>
+            <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
             <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
           </div>
 
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="needsOutsourcing" value="true" />
-            Flag this trip as potentially needing outsourcing
+            {t("flagOutsourcing")}
           </label>
 
           <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm font-medium">Make this recurring (optional)</summary>
+            <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">
-                Select the weekdays that should also generate bookings, and the date the recurrence ends. The first occurrence above stays as-is; one child booking is created per matching weekday up to the end date.
+                {t("recurringDescription")}
               </p>
               <RecurrenceWeekdays />
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="recurringUntil">Repeat until</Label>
+                  <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
                   <Input id="recurringUntil" name="recurringUntil" type="date" />
                 </div>
               </div>
@@ -230,7 +238,7 @@ export function BookingForm() {
           )}
 
           <Button type="submit" disabled={pending} className="w-full sm:w-auto">
-            {pending ? "Submitting…" : "Submit booking"}
+            {pending ? t("submitting") : t("submit")}
           </Button>
         </form>
       </CardContent>

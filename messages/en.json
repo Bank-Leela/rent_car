@@ -84,6 +84,38 @@
     "upcomingEmptyTitle": "Nothing scheduled",
     "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here."
   },
+  "bookingForm": {
+    "title": "New booking",
+    "leadTimeBangkok": "Lead time: <strong>{days} days</strong> for Bangkok trips.",
+    "leadTimeOutside": "Lead time: <strong>{days} days</strong> for out-of-province trips.",
+    "earliestSentence": "Earliest you can start: <strong>{date}</strong>.",
+    "purpose": "Purpose",
+    "destination": "Destination",
+    "province": "Province",
+    "startLabel": "Start (departure)",
+    "endLabel": "End (back at faculty)",
+    "endHelper": "Enter the time you expect to be <strong>back at the faculty</strong>, not the time you leave the destination.",
+    "useEarliest": "Use earliest allowed ({date} 08:00–12:00)",
+    "passengerCount": "Passenger count",
+    "estimatedDistance": "Estimated distance (km, optional)",
+    "estimatedDistancePlaceholder": "e.g. 250",
+    "passengerNotes": "Passenger notes (optional)",
+    "flagOutsourcing": "Flag this trip as potentially needing outsourcing",
+    "recurringSummary": "Make this recurring (optional)",
+    "recurringDescription": "Select the weekdays that should also generate bookings, and the date the recurrence ends. The first occurrence above stays as-is; one child booking is created per matching weekday up to the end date.",
+    "repeatUntil": "Repeat until",
+    "submit": "Submit booking",
+    "submitting": "Submitting…",
+    "weekdays": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    }
+  },
   "driver": {
     "todayHeading": "Today",
     "tomorrowHeading": "Tomorrow",

@@ -84,6 +84,38 @@
     "upcomingEmptyTitle": "ยังไม่มีกำหนดการ",
     "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่"
   },
+  "bookingForm": {
+    "title": "จองใหม่",
+    "leadTimeBangkok": "ระยะเวลาล่วงหน้า: <strong>{days} วัน</strong> สำหรับการเดินทางในกรุงเทพฯ",
+    "leadTimeOutside": "ระยะเวลาล่วงหน้า: <strong>{days} วัน</strong> สำหรับการเดินทางต่างจังหวัด",
+    "earliestSentence": "วันที่เร็วที่สุดที่เริ่มได้: <strong>{date}</strong>",
+    "purpose": "วัตถุประสงค์",
+    "destination": "ปลายทาง",
+    "province": "จังหวัด",
+    "startLabel": "เริ่ม (ออกเดินทาง)",
+    "endLabel": "สิ้นสุด (กลับถึงคณะ)",
+    "endHelper": "กรอกเวลาที่คาดว่าจะ<strong>กลับถึงคณะ</strong> ไม่ใช่เวลาที่ออกจากปลายทาง",
+    "useEarliest": "ใช้วันที่เร็วที่สุดที่อนุญาต ({date} 08:00–12:00)",
+    "passengerCount": "จำนวนผู้โดยสาร",
+    "estimatedDistance": "ระยะทางประมาณ (กม., ไม่บังคับ)",
+    "estimatedDistancePlaceholder": "เช่น 250",
+    "passengerNotes": "หมายเหตุผู้โดยสาร (ไม่บังคับ)",
+    "flagOutsourcing": "ทำเครื่องหมายว่าทริปนี้อาจต้องเช่าจากภายนอก",
+    "recurringSummary": "ทำให้เป็นการจองซ้ำ (ไม่บังคับ)",
+    "recurringDescription": "เลือกวันในสัปดาห์ที่ต้องการให้สร้างการจองเพิ่ม และวันที่สิ้นสุดของการทำซ้ำ ครั้งแรกด้านบนจะคงเดิม ระบบจะสร้างการจองย่อย 1 รายการต่อวันที่ตรงกัน จนถึงวันสิ้นสุด",
+    "repeatUntil": "ทำซ้ำจนถึง",
+    "submit": "ส่งการจอง",
+    "submitting": "กำลังส่ง…",
+    "weekdays": {
+      "mon": "จ.",
+      "tue": "อ.",
+      "wed": "พ.",
+      "thu": "พฤ.",
+      "fri": "ศ.",
+      "sat": "ส.",
+      "sun": "อา."
+    }
+  },
   "driver": {
     "todayHeading": "วันนี้",
     "tomorrowHeading": "พรุ่งนี้",
