@@ -1,56 +1,45 @@
 # Vehicle Booking System (rent_car)
 
-Internal vehicle booking and management app for a Thai university faculty.
-See `claude_code_implementation_plan.md` (lives on the user's machine) for the full
-multi-phase plan; this README covers the **Phase 0** scaffold.
+Internal vehicle booking and management app for a Thai university faculty. All
+five phases of `claude_code_implementation_plan.md` are implemented.
 
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript
-- PostgreSQL via Prisma ORM
+- PostgreSQL via Prisma ORM (v5)
 - NextAuth (Auth.js v5) with Google OAuth, restricted to `@chula.ac.th`
-- Tailwind CSS + shadcn/ui
+- Tailwind CSS + shadcn/ui (with @base-ui/react primitives)
 - React Hook Form + Zod
-- date-fns, next-intl
+- date-fns, next-intl, recharts
+- @react-pdf/renderer for the request PDF
+- Resend for email (console fallback when no API key)
+- LINE Messaging API client (console fallback when no token)
 
 ## Local setup
 
 ### 1. Postgres
 
-If you have Docker:
-
 ```bash
-docker compose up -d
+brew services start postgresql@16   # or `docker compose up -d`
 ```
-
-Otherwise run any local Postgres and update `DATABASE_URL`.
 
 ### 2. Environment
 
 ```bash
 cp .env.example .env
-# edit .env: AUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+# edit .env: AUTH_SECRET (`openssl rand -base64 32`), GOOGLE_CLIENT_ID,
+# GOOGLE_CLIENT_SECRET. The rest are optional.
 ```
 
-Generate a secret:
-
-```bash
-openssl rand -base64 32
-```
-
-Get Google OAuth credentials from the Google Cloud Console. Authorized redirect URI:
+Google OAuth: in the Google Cloud Console, add redirect URI
 `http://localhost:3000/api/auth/callback/google`.
 
 ### 3. Database
 
 ```bash
-npm run db:migrate -- --name init
+npm run db:migrate
 npm run db:seed
 ```
-
-The seed creates one user per role plus a sample department, driver, and three vehicles.
-The four seeded users (`requester@`, `approver@`, `admin@`, `driver@chula.ac.th`) only
-become real on first sign-in via Google — until then they're stub rows for local testing.
 
 ### 4. Dev server
 
@@ -58,40 +47,91 @@ become real on first sign-in via Google — until then they're stub rows for loc
 npm run dev
 ```
 
-Sign in at `http://localhost:3000/login` with a `@chula.ac.th` Google account. New users
-get the `REQUESTER` role automatically; promote yourself to other roles via Prisma Studio
-(`npm run db:studio`) for now.
+Open <http://localhost:3000/login>. In dev mode, four "Dev impersonation"
+buttons let you preview each role view without setting up Google OAuth.
+
+## Phase status
+
+- [x] **Phase 0** — auth, schema, role-based routing
+- [x] **Phase 1** — booking submission, admin queue, email notifications
+- [x] **Phase 2** — approval flow + signature upload + delegation + PDF
+- [x] **Phase 3** — driver workflow (start/end trip, mileage)
+- [x] **Phase 4** — dashboard + CSV export + dept usage view + print
+- [x] **Phase 5** — recurring bookings, cancellation, evaluation, outsourcing, LINE
 
 ## Repository layout
 
 ```
 app/
-  (admin)/        Administrator screens
-  (approver)/     Department head screens
-  (driver)/       Driver screens
-  (requester)/    Requester screens
+  (admin)/        Administrator screens (queue, dashboard, booking detail)
+  (approver)/    Department head screens (inbox, profile, dept usage)
+  (driver)/      Driver screens (today, assignment detail)
+  (requester)/   Requester screens (list, new booking, detail)
   api/
-    auth/         NextAuth handlers
-  login/          Sign-in page
-auth.ts           NextAuth config
-middleware.ts     Auth gate for non-public routes
+    auth/        NextAuth handlers
+    dev/         Dev-only impersonation (disabled in production)
+    files/       Auth-gated PDF download
+    line/        LINE webhook
+    reports/csv/ CSV report exports
+auth.ts          NextAuth config
+proxy.ts         Auth gate
 components/
-  app-shell.tsx   Shared layout chrome
-  ui/             shadcn primitives
+  ui/            shadcn primitives
+  forms/         All form components (booking, assign, approve, etc.)
+  dashboard/     Charts + range filter
+  app-shell.tsx  Shared layout chrome
 lib/
-  db.ts           Prisma singleton
-  auth-helpers.ts Server-side role guards
-  line/client.ts  LINE notifier (stub for now)
+  db.ts          Prisma singleton
+  auth-helpers.ts, dev-auth.ts, session.ts
+  booking/       Rules, schemas, server actions, recurrence
+  email/         Resend client + templates
+  line/client.ts LINE Messaging API client
+  pdf/           react-pdf template + generator
+  reporting/     Dashboard metric queries
+  storage.ts     Local-disk file storage (signatures, PDFs)
 prisma/
-  schema.prisma   Data model (section 4 of the plan)
-  seed.ts         Local dev seed
+  schema.prisma  Data model (section 4 of the plan)
+  seed.ts        Local dev seed
 ```
 
-## Phase status
+## Production deploy (Vercel + Neon)
 
-- [x] **Phase 0** — auth, schema, role-based routing
-- [ ] Phase 1 — booking submission, admin queue, email notifications
-- [ ] Phase 2 — approval flow + PDF
-- [ ] Phase 3 — driver workflow
-- [ ] Phase 4 — dashboard + reporting
-- [ ] Phase 5 — recurring bookings, evaluation, LINE, polish
+The build script runs `prisma migrate deploy && next build`, so first deploy
+sets up the schema automatically. `postinstall` runs `prisma generate`.
+
+### One-time setup
+
+1. **Neon Postgres** — sign up at <https://neon.tech>, create a project, copy
+   the pooled connection string into Vercel env as `DATABASE_URL`.
+2. **Google OAuth** — in Cloud Console, add the production callback URI:
+   `https://YOUR-DOMAIN.vercel.app/api/auth/callback/google`.
+3. **Vercel** — sign up at <https://vercel.com>, import the GitHub repo, set
+   these env vars:
+
+   | Var | Value |
+   |---|---|
+   | `DATABASE_URL` | Neon pooled connection string |
+   | `AUTH_SECRET` | `openssl rand -base64 32` |
+   | `AUTH_TRUST_HOST` | `true` |
+   | `NEXTAUTH_URL` | `https://YOUR-DOMAIN.vercel.app` |
+   | `GOOGLE_CLIENT_ID` | from Google Cloud |
+   | `GOOGLE_CLIENT_SECRET` | from Google Cloud |
+   | `RESEND_API_KEY` | optional — falls back to console logs |
+   | `EMAIL_FROM` | `Vehicle Booking <noreply@yourdomain.com>` |
+   | `LINE_CHANNEL_ACCESS_TOKEN` | optional |
+   | `LINE_CHANNEL_SECRET` | optional |
+
+4. After the first deploy, seed the database from your laptop:
+
+   ```bash
+   DATABASE_URL="<neon connection string>" npm run db:seed
+   ```
+
+### Caveats for v1 demo
+
+- **PDF + signature storage is ephemeral on Vercel.** The runtime filesystem is
+  read-only outside `/tmp`, and `/tmp` doesn't persist across instances. PDFs
+  generated in one request may not be downloadable later. Move `lib/storage.ts`
+  to Vercel Blob or S3 before going live to real users.
+- **Dev impersonation is disabled in production** (`NODE_ENV !== "production"`
+  gate). Real Google sign-in is required.

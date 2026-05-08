@@ -1,10 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-// Local-disk storage for Phase 2. Real deployments will swap this for S3 or
-// equivalent. `UPLOADS_DIR` lives outside `public/` because signatures and
-// generated PDFs need access control.
-const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+// Local-disk storage. On Vercel only `/tmp` is writable at runtime, and even
+// that's ephemeral per instance — durable storage (S3 / Vercel Blob) is the
+// right answer once the demo phase is over.
+const UPLOADS_DIR = process.env.UPLOADS_DIR
+  ? process.env.UPLOADS_DIR
+  : process.env.VERCEL
+    ? "/tmp/rent_car/uploads"
+    : path.join(process.cwd(), "uploads");
 
 export const SIGNATURE_DIR = path.join(UPLOADS_DIR, "signatures");
 export const PDF_DIR = path.join(UPLOADS_DIR, "booking-pdfs");
