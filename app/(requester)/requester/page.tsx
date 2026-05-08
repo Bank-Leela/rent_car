@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Plus, FileText, ChevronRight } from "lucide-react";
+import { Plus, FileText, ChevronRight, Star } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -11,11 +11,21 @@ import { EmptyState } from "@/components/empty-state";
 export default async function RequesterHome() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("requester");
-  const bookings = await prisma.booking.findMany({
-    where: { requesterId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    include: { vehicle: true },
-  });
+  const [bookings, pendingEvalBookings] = await Promise.all([
+    prisma.booking.findMany({
+      where: { requesterId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      include: { vehicle: true },
+    }),
+    prisma.booking.findMany({
+      where: {
+        requesterId: session.user.id,
+        status: "COMPLETED",
+        trip: { is: { evaluation: null } },
+      },
+      select: { id: true, jobNumber: true, purpose: true, destination: true },
+    }),
+  ]);
 
   const newBookingButton = (
     <Link
@@ -34,6 +44,41 @@ export default async function RequesterHome() {
         description={t("description")}
         actions={newBookingButton}
       />
+
+      {pendingEvalBookings.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-200 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+              <Star className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {pendingEvalBookings.length === 1
+                  ? "Evaluate your last trip"
+                  : `Evaluate your ${pendingEvalBookings.length} completed trips`}
+              </h2>
+              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300/90">
+                You can&rsquo;t submit new bookings until you rate completed ones.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {pendingEvalBookings.map((b) => (
+                  <li key={b.id}>
+                    <Link
+                      href={`/requester/${b.id}`}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-amber-900 underline-offset-2 hover:underline dark:text-amber-200"
+                    >
+                      <span className="font-mono text-xs">{b.jobNumber}</span>
+                      <span>·</span>
+                      <span>{b.purpose}</span>
+                      <span className="text-amber-800/80 dark:text-amber-300/80">→ {b.destination}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {bookings.length === 0 ? (
         <EmptyState

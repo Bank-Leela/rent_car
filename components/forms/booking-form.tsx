@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { addDays, format, startOfDay } from "date-fns";
+import { useRef, useState, useTransition } from "react";
+import { addDays, addYears, format, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +68,20 @@ export function BookingForm() {
   // Earliest is midnight on (today + requiredDays); any time on that day is fine.
   const earliestStart = startOfDay(addDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
+  // Cap typed year so the browser can't accept "20251" or longer.
+  const maxStart = datetimeLocalValue(addYears(now, 5));
+
+  const startRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLInputElement>(null);
+
+  const fillEarliest = () => {
+    const start = new Date(earliestStart);
+    start.setHours(8, 0);
+    const end = new Date(start);
+    end.setHours(start.getHours() + 4);
+    if (startRef.current) startRef.current.value = datetimeLocalValue(start);
+    if (endRef.current) endRef.current.value = datetimeLocalValue(end);
+  };
 
   return (
     <Card>
@@ -119,18 +133,43 @@ export function BookingForm() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="startAt">Start (departure)</Label>
-              <Input id="startAt" name="startAt" type="datetime-local" min={minStart} required />
+          <div className="space-y-3">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="startAt">Start (departure)</Label>
+                <Input
+                  ref={startRef}
+                  id="startAt"
+                  name="startAt"
+                  type="datetime-local"
+                  min={minStart}
+                  max={maxStart}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="endAt">End (back at faculty)</Label>
+                <Input
+                  ref={endRef}
+                  id="endAt"
+                  name="endAt"
+                  type="datetime-local"
+                  min={minStart}
+                  max={maxStart}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the time you expect to be <strong>back at the faculty</strong>, not the time you leave the destination.
+                </p>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="endAt">End (back at faculty)</Label>
-              <Input id="endAt" name="endAt" type="datetime-local" min={minStart} required />
-              <p className="text-xs text-muted-foreground">
-                Enter the time you expect to be <strong>back at the faculty</strong>, not the time you leave the destination.
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={fillEarliest}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Use earliest allowed ({format(earliestStart, "EEE d MMM yyyy")} 08:00–12:00)
+            </button>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
