@@ -20,7 +20,6 @@ async function main() {
     { id: "seed-user-approver", email: "approver@chula.ac.th", name: "App Rover", role: Role.APPROVER },
     { id: "seed-user-admin", email: "admin@chula.ac.th", name: "Admin Istrator", role: Role.ADMIN },
     { id: "seed-user-driver", email: "driver@chula.ac.th", name: "Drive R", role: Role.DRIVER },
-    { id: "seed-user-coord", email: "coord@chula.ac.th", name: "Coord Inator", role: Role.GARAGE_COORDINATOR },
   ];
 
   for (const u of users) {

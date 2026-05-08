@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -12,12 +12,8 @@ export default async function DriverBookingDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireUser();
+  const session = await requireRole("DRIVER");
   const { id } = await params;
-
-  const isCoord = session.user.roles.includes("GARAGE_COORDINATOR");
-  const isDriver = session.user.roles.includes("DRIVER");
-  if (!isDriver && !isCoord) notFound();
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -32,12 +28,10 @@ export default async function DriverBookingDetail({
   });
   if (!booking) notFound();
 
-  // Driver may only see their own assignments. Coordinator sees all.
-  if (!isCoord) {
-    const me = await prisma.driver.findUnique({ where: { userId: session.user.id } });
-    const meId = me?.id;
-    if (booking.primaryDriverId !== meId && booking.secondaryDriverId !== meId) notFound();
-  }
+  // Driver may only see their own assignments.
+  const me = await prisma.driver.findUnique({ where: { userId: session.user.id } });
+  const meId = me?.id;
+  if (booking.primaryDriverId !== meId && booking.secondaryDriverId !== meId) notFound();
 
   const tripStarted = !!booking.trip;
   const tripCompleted = !!booking.trip?.endedAt;

@@ -17,7 +17,6 @@ enum Role {
   APPROVER
   ADMIN
   DRIVER
-  GARAGE_COORDINATOR
 }
 
 enum VehicleType {

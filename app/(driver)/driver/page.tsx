@@ -1,37 +1,29 @@
 import Link from "next/link";
 import { format, startOfDay, endOfDay, addDays } from "date-fns";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 
 export default async function DriverHome() {
-  const session = await requireUser();
-  const isCoord = session.user.roles.includes("GARAGE_COORDINATOR");
-  const isDriver = session.user.roles.includes("DRIVER");
-  if (!isDriver && !isCoord) return <p>You don&rsquo;t have driver access.</p>;
-
-  const driverProfile = isDriver
-    ? await prisma.driver.findUnique({ where: { userId: session.user.id } })
-    : null;
-  const driverId = driverProfile?.id;
+  const session = await requireRole("DRIVER");
+  const driverProfile = await prisma.driver.findUnique({ where: { userId: session.user.id } });
+  if (!driverProfile) {
+    return <p className="text-sm text-muted-foreground">No driver profile found for your account. Ask the admin to set one up.</p>;
+  }
+  const driverId = driverProfile.id;
 
   const now = new Date();
-  const startToday = startOfDay(now);
-  const endToday = endOfDay(now);
-  const startTomorrow = startOfDay(addDays(now, 1));
-  const endTomorrow = endOfDay(addDays(now, 1));
-
-  const driverFilter = isCoord
-    ? {} // coordinators see everything
-    : { OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }] };
+  const driverFilter = {
+    OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
+  };
 
   const [today, tomorrow] = await Promise.all([
     prisma.booking.findMany({
       where: {
         ...driverFilter,
         status: { in: ["ASSIGNED", "COMPLETED"] },
-        startAt: { gte: startToday, lte: endToday },
+        startAt: { gte: startOfDay(now), lte: endOfDay(now) },
       },
       orderBy: { startAt: "asc" },
       include: { vehicle: true, requester: true, primaryDriver: { include: { user: true } } },
@@ -40,7 +32,7 @@ export default async function DriverHome() {
       where: {
         ...driverFilter,
         status: "ASSIGNED",
-        startAt: { gte: startTomorrow, lte: endTomorrow },
+        startAt: { gte: startOfDay(addDays(now, 1)), lte: endOfDay(addDays(now, 1)) },
       },
       orderBy: { startAt: "asc" },
       include: { vehicle: true, requester: true, primaryDriver: { include: { user: true } } },
@@ -50,12 +42,8 @@ export default async function DriverHome() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {isCoord ? "All assignments" : "Today"}
-        </h1>
-        <p className="text-base text-muted-foreground">
-          {format(now, "EEEE d MMMM yyyy")}
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">Today</h1>
+        <p className="text-base text-muted-foreground">{format(now, "EEEE d MMMM yyyy")}</p>
       </div>
 
       <Section title="Today">

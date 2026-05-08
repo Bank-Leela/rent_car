@@ -35,26 +35,19 @@ const endSchema = z.object({
     .transform((v) => v || undefined),
 });
 
-/**
- * A user may act on a booking if they are the assigned driver, or they hold
- * GARAGE_COORDINATOR role (the plan allows coordinators to enter mileage on a
- * driver's behalf).
- */
 async function canDriveBooking(userId: string, bookingId: string): Promise<boolean> {
   const [user, booking] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
-      include: { driverProfile: true, roles: true },
+      include: { driverProfile: true },
     }),
     prisma.booking.findUnique({
       where: { id: bookingId },
       select: { primaryDriverId: true, secondaryDriverId: true },
     }),
   ]);
-  if (!user || !booking) return false;
-  if (user.roles.some((r) => r.role === "GARAGE_COORDINATOR")) return true;
-  const driverId = user.driverProfile?.id;
-  if (!driverId) return false;
+  const driverId = user?.driverProfile?.id;
+  if (!driverId || !booking) return false;
   return booking.primaryDriverId === driverId || booking.secondaryDriverId === driverId;
 }
 
