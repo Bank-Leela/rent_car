@@ -65,7 +65,9 @@ export default async function LoginPage({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                These shortcuts only exist in development. Pick a seeded role to preview the corresponding dashboard.
+                {process.env.ENABLE_DEV_AUTH === "true" && process.env.NODE_ENV === "production"
+                  ? "⚠ Preview mode — dev impersonation is enabled in this deployment. Disable ENABLE_DEV_AUTH before sharing publicly."
+                  : "These shortcuts only exist in development. Pick a seeded role to preview the corresponding dashboard."}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {devUsers.map((u) => (

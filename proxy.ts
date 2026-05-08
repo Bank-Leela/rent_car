@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/dev", "/api/line"];
 const DEV_COOKIE = "dev_user_id";
-const DEV_ENABLED = process.env.NODE_ENV !== "production";
+const DEV_ENABLED =
+  process.env.NODE_ENV !== "production" || process.env.ENABLE_DEV_AUTH === "true";
 
 export default auth((req) => {
   const { nextUrl } = req;
