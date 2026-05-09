@@ -71,7 +71,7 @@
     "title": "รออนุมัติ",
     "subEmpty": "ไม่มีรายการที่ต้องตรวจสอบในขณะนี้",
     "subWithCount": "มีการจอง {count} รายการรอการตัดสินใจของคุณ",
-    "emptyTitle": "กล่องเข้าว่างเปล่า",
+    "emptyTitle": "กล่องจดหมายว่างเปล่า",
     "emptyDescription": "เมื่อมีคนในภาควิชาส่งคำขอจองรถ รายการจะปรากฏที่นี่"
   },
   "admin": {
@@ -101,7 +101,7 @@
     "approvalStatusPending": "รอดำเนินการ"
   },
   "approverActions": {
-    "backToInbox": "กลับไปกล่องเข้า",
+    "backToInbox": "กลับไปกล่องจดหมาย",
     "approveTitle": "อนุมัติ",
     "denyTitle": "ไม่อนุมัติ",
     "comment": "ความคิดเห็น",
