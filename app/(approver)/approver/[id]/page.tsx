@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,8 @@ export default async function ApproverBookingDetail({
 }) {
   const session = await requireRole("APPROVER");
   const { id } = await params;
+  const t = await getTranslations("bookingDetail");
+  const ta = await getTranslations("approverActions");
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -38,6 +41,12 @@ export default async function ApproverBookingDetail({
 
   const isPending = booking.status === "PENDING_APPROVAL";
 
+  const approvalStatusLabel = (s: "PENDING" | "APPROVED" | "DENIED") => {
+    if (s === "APPROVED") return t("approvalStatusApproved");
+    if (s === "DENIED") return t("approvalStatusDenied");
+    return t("approvalStatusPending");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -55,24 +64,24 @@ export default async function ApproverBookingDetail({
           href="/approver"
           className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
         >
-          Back to inbox
+          {ta("backToInbox")}
         </Link>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Trip</CardTitle>
+          <CardTitle>{t("trip")}</CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-          <Field label="Destination" value={`${booking.destination}, ${booking.province}`} />
-          <Field label="Passengers" value={String(booking.passengerCount)} />
-          <Field label="Start" value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
-          <Field label="End (back at faculty)" value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("destination")} value={`${booking.destination}, ${booking.province}`} />
+          <Field label={t("passengers")} value={String(booking.passengerCount)} />
+          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
           {booking.estimatedDistance != null && (
-            <Field label="Estimated distance" value={`${booking.estimatedDistance} km`} />
+            <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
           {booking.passengerNotes && (
-            <Field label="Passenger notes" value={booking.passengerNotes} colSpan />
+            <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
           )}
         </CardContent>
       </Card>
@@ -81,7 +90,7 @@ export default async function ApproverBookingDetail({
         <div className="grid sm:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
-              <CardTitle>Approve</CardTitle>
+              <CardTitle>{ta("approveTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <ApproveForm bookingId={booking.id} hasSignature={!!me.signatureImageUrl} />
@@ -89,7 +98,7 @@ export default async function ApproverBookingDetail({
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Deny</CardTitle>
+              <CardTitle>{ta("denyTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <ApproverDenyForm bookingId={booking.id} />
@@ -101,14 +110,14 @@ export default async function ApproverBookingDetail({
       {booking.pdfUrl && (
         <Card>
           <CardHeader>
-            <CardTitle>Approval document</CardTitle>
+            <CardTitle>{t("approvalDocument")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Link
               href={`/api/files/booking-pdf/${booking.id}`}
               className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
             >
-              Download PDF
+              {t("downloadPdf")}
             </Link>
           </CardContent>
         </Card>
@@ -117,7 +126,7 @@ export default async function ApproverBookingDetail({
       {booking.approvals.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Approval history</CardTitle>
+            <CardTitle>{t("approvalHistory")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm">
@@ -127,10 +136,10 @@ export default async function ApproverBookingDetail({
                     {a.decidedAt ? format(a.decidedAt, "d MMM HH:mm") : "—"}
                   </span>
                   <span>
-                    <span className="font-medium">{a.status.toLowerCase()}</span>
+                    <span className="font-medium">{approvalStatusLabel(a.status)}</span>
                     <span className="text-muted-foreground">
                       {" "}
-                      by {a.approver.name ?? a.approver.email}
+                      {t("decidedBy", { name: a.approver.name ?? a.approver.email ?? "" })}
                     </span>
                     {a.comment && <span className="block text-muted-foreground">{a.comment}</span>}
                   </span>

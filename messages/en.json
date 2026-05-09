@@ -84,6 +84,35 @@
     "upcomingEmptyTitle": "Nothing scheduled",
     "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here."
   },
+  "bookingDetail": {
+    "trip": "Trip",
+    "destination": "Destination",
+    "passengers": "Passengers",
+    "start": "Start",
+    "endBackAtFaculty": "End (back at faculty)",
+    "estimatedDistance": "Estimated distance",
+    "passengerNotes": "Passenger notes",
+    "approvalDocument": "Approval document",
+    "downloadPdf": "Download PDF",
+    "approvalHistory": "Approval history",
+    "decidedBy": "by {name}",
+    "approvalStatusApproved": "approved",
+    "approvalStatusDenied": "denied",
+    "approvalStatusPending": "pending"
+  },
+  "approverActions": {
+    "backToInbox": "Back to inbox",
+    "approveTitle": "Approve",
+    "denyTitle": "Deny",
+    "comment": "Comment",
+    "commentOptional": "Comment (optional)",
+    "reason": "Reason",
+    "approve": "Approve",
+    "approving": "Approving…",
+    "deny": "Deny",
+    "denying": "Denying…",
+    "noSignatureWarning": "You don't have a stored signature. The PDF will still generate but the signature field will be blank — upload one in Profile."
+  },
   "bookingForm": {
     "title": "New booking",
     "leadTimeBangkok": "Lead time: <strong>{days} days</strong> for Bangkok trips.",

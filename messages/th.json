@@ -84,6 +84,35 @@
     "upcomingEmptyTitle": "ยังไม่มีกำหนดการ",
     "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่"
   },
+  "bookingDetail": {
+    "trip": "การเดินทาง",
+    "destination": "ปลายทาง",
+    "passengers": "ผู้โดยสาร",
+    "start": "เริ่ม",
+    "endBackAtFaculty": "สิ้นสุด (กลับถึงคณะ)",
+    "estimatedDistance": "ระยะทางประมาณ",
+    "passengerNotes": "หมายเหตุผู้โดยสาร",
+    "approvalDocument": "เอกสารอนุมัติ",
+    "downloadPdf": "ดาวน์โหลด PDF",
+    "approvalHistory": "ประวัติการอนุมัติ",
+    "decidedBy": "โดย {name}",
+    "approvalStatusApproved": "อนุมัติแล้ว",
+    "approvalStatusDenied": "ไม่อนุมัติ",
+    "approvalStatusPending": "รอดำเนินการ"
+  },
+  "approverActions": {
+    "backToInbox": "กลับไปกล่องเข้า",
+    "approveTitle": "อนุมัติ",
+    "denyTitle": "ไม่อนุมัติ",
+    "comment": "ความคิดเห็น",
+    "commentOptional": "ความคิดเห็น (ไม่บังคับ)",
+    "reason": "เหตุผล",
+    "approve": "อนุมัติ",
+    "approving": "กำลังอนุมัติ…",
+    "deny": "ไม่อนุมัติ",
+    "denying": "กำลังปฏิเสธ…",
+    "noSignatureWarning": "คุณยังไม่มีลายเซ็นที่บันทึกไว้ ระบบจะสร้าง PDF ให้แต่ช่องลายเซ็นจะว่างเปล่า — อัปโหลดได้ในหน้าโปรไฟล์"
+  },
   "bookingForm": {
     "title": "จองใหม่",
     "leadTimeBangkok": "ระยะเวลาล่วงหน้า: <strong>{days} วัน</strong> สำหรับการเดินทางในกรุงเทพฯ",

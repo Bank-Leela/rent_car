@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { approveBookingAction, denyByApproverAction } from "@/lib/booking/approval-actions";
 
 export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; hasSignature: boolean }) {
+  const t = useTranslations("approverActions");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -22,13 +24,11 @@ export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; ha
       className="space-y-3"
     >
       <div className="grid gap-2">
-        <Label htmlFor="comment">Comment (optional)</Label>
+        <Label htmlFor="comment">{t("commentOptional")}</Label>
         <Textarea id="comment" name="comment" rows={2} />
       </div>
       {!hasSignature && (
-        <p className="text-xs text-muted-foreground">
-          You don&rsquo;t have a stored signature. The PDF will still generate but the signature field will be blank — upload one in Profile.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("noSignatureWarning")}</p>
       )}
       {error && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -36,13 +36,14 @@ export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; ha
         </div>
       )}
       <Button type="submit" disabled={pending}>
-        {pending ? "Approving…" : "Approve"}
+        {pending ? t("approving") : t("approve")}
       </Button>
     </form>
   );
 }
 
 export function ApproverDenyForm({ bookingId }: { bookingId: string }) {
+  const t = useTranslations("approverActions");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -58,7 +59,7 @@ export function ApproverDenyForm({ bookingId }: { bookingId: string }) {
       className="space-y-3"
     >
       <div className="grid gap-2">
-        <Label htmlFor="comment">Reason</Label>
+        <Label htmlFor="comment">{t("reason")}</Label>
         <Textarea id="comment" name="comment" rows={2} required />
       </div>
       {error && (
@@ -67,7 +68,7 @@ export function ApproverDenyForm({ bookingId }: { bookingId: string }) {
         </div>
       )}
       <Button type="submit" variant="destructive" disabled={pending}>
-        {pending ? "Denying…" : "Deny"}
+        {pending ? t("denying") : t("deny")}
       </Button>
     </form>
   );
