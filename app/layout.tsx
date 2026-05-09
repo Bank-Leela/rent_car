@@ -38,7 +38,12 @@ export default async function RootLayout({
       lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} ${notoThai.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">
+      <body
+        className="min-h-full flex flex-col font-sans"
+        // Browser extensions like Grammarly inject `data-gr-*` attributes onto
+        // <body> after hydration; this stops React's hydration mismatch warning.
+        suppressHydrationWarning
+      >
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>
