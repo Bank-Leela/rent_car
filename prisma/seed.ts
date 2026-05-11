@@ -50,7 +50,7 @@ async function main() {
     data: { headUserId: "seed-user-approver" },
   });
 
-  // Driver profile
+  // Driver profile for the impersonatable driver user
   await prisma.driver.upsert({
     where: { userId: "seed-user-driver" },
     create: {
@@ -60,6 +60,33 @@ async function main() {
     },
     update: {},
   });
+
+  // Additional drivers so the assign-form dropdown isn't a one-liner.
+  // Plan §1: 5 Public drivers, with optional private stand-ins.
+  const extraDrivers = [
+    { id: "seed-driver-2", email: "driver2@chula.ac.th", name: "สมชาย ใจดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0002" },
+    { id: "seed-driver-3", email: "driver3@chula.ac.th", name: "วิชัย รักงาน", pool: DriverPool.PUBLIC, licenseNumber: "DL-0003" },
+    { id: "seed-driver-4", email: "driver4@chula.ac.th", name: "ประยุทธ ขับดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0004" },
+    { id: "seed-driver-5", email: "driver5@chula.ac.th", name: "สุชาติ มั่นคง", pool: DriverPool.PRIVATE, licenseNumber: "DL-0005" },
+  ];
+  for (const d of extraDrivers) {
+    const u = await prisma.user.upsert({
+      where: { email: d.email },
+      create: {
+        id: d.id,
+        email: d.email,
+        name: d.name,
+        departmentId: dept.id,
+        roles: { create: { role: Role.DRIVER } },
+      },
+      update: {},
+    });
+    await prisma.driver.upsert({
+      where: { userId: u.id },
+      create: { userId: u.id, pool: d.pool, licenseNumber: d.licenseNumber },
+      update: {},
+    });
+  }
 
   // A couple of vehicles
   const vehicles = [

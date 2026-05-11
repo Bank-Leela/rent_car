@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
@@ -49,20 +50,22 @@ const bookingDetailInclude = {
 export async function approveBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = approveSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, comment } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
   if (booking.status !== "PENDING_APPROVAL") {
-    return { ok: false, error: `Cannot approve a booking in status ${booking.status}` };
+    return { ok: false, error: te("cannotApproveInStatus", { status: ts(booking.status) }) };
   }
   if (!(await canApprove(userId, booking.departmentId))) {
-    return { ok: false, error: "You are not authorized to approve this booking." };
+    return { ok: false, error: te("notAuthorizedToApprove") };
   }
 
   const approver = await prisma.user.findUniqueOrThrow({
@@ -134,20 +137,22 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
 export async function denyByApproverAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = denySchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, comment } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
   if (booking.status !== "PENDING_APPROVAL") {
-    return { ok: false, error: `Cannot deny a booking in status ${booking.status}` };
+    return { ok: false, error: te("cannotDenyInStatus", { status: ts(booking.status) }) };
   }
   if (!(await canApprove(userId, booking.departmentId))) {
-    return { ok: false, error: "You are not authorized to act on this booking." };
+    return { ok: false, error: te("notAuthorizedToActOnBooking") };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -196,18 +201,19 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
 export async function uploadSignatureAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
 
   const file = formData.get("signature");
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Pick an image file." };
+    return { ok: false, error: te("signaturePickFile") };
   }
   if (file.size > 1_000_000) {
-    return { ok: false, error: "Signature image must be under 1 MB." };
+    return { ok: false, error: te("signatureTooLarge") };
   }
   const isPng = file.type === "image/png";
   const isJpeg = file.type === "image/jpeg" || file.type === "image/jpg";
   if (!isPng && !isJpeg) {
-    return { ok: false, error: "Use a PNG or JPEG image." };
+    return { ok: false, error: te("signatureBadFormat") };
   }
   const bytes = Buffer.from(await file.arrayBuffer());
   const ref = await writeSignature(userId, bytes, isPng ? "png" : "jpg");
@@ -223,18 +229,19 @@ const delegateSchema = z.object({
 export async function setDelegateAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
 
   const parsed = delegateSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid email" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { delegateEmail } = parsed.data;
 
   let delegatedToUserId: string | null = null;
   if (delegateEmail) {
     const target = await prisma.user.findUnique({ where: { email: delegateEmail } });
-    if (!target) return { ok: false, error: `No user with email ${delegateEmail}` };
-    if (target.id === userId) return { ok: false, error: "You cannot delegate to yourself." };
+    if (!target) return { ok: false, error: te("delegateNotFound", { email: delegateEmail }) };
+    if (target.id === userId) return { ok: false, error: te("delegateSelf") };
     delegatedToUserId = target.id;
   }
   await prisma.user.update({ where: { id: userId }, data: { delegatedToUserId } });

@@ -58,47 +58,49 @@ export function AssignForm({
         </select>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="primaryDriverId">{t("primaryDriver")}</Label>
-          <select
-            id="primaryDriverId"
-            name="primaryDriverId"
-            required
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="">{t("select")}</option>
-            {driverOptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-                {d.sublabel ? ` (${d.sublabel})` : ""}
-              </option>
-            ))}
-          </select>
+      <div className="space-y-2">
+        <div className="grid sm:grid-cols-2 gap-4 items-start">
+          <div className="grid gap-2">
+            <Label htmlFor="primaryDriverId">{t("primaryDriver")}</Label>
+            <select
+              id="primaryDriverId"
+              name="primaryDriverId"
+              required
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">{t("select")}</option>
+              {driverOptions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                  {d.sublabel ? ` (${d.sublabel})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="secondaryDriverId">
+              {t("coDriver")} {requiresSecondary && <span className="text-destructive">*</span>}
+            </Label>
+            <select
+              id="secondaryDriverId"
+              name="secondaryDriverId"
+              required={requiresSecondary}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">{requiresSecondary ? t("requiredOver400") : t("noneOption")}</option>
+              {driverOptions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="secondaryDriverId">
-            {t("coDriver")} {requiresSecondary && <span className="text-destructive">*</span>}
-          </Label>
-          <select
-            id="secondaryDriverId"
-            name="secondaryDriverId"
-            required={requiresSecondary}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="">{requiresSecondary ? t("requiredOver400") : t("noneOption")}</option>
-            {driverOptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-          {requiresSecondary && (
-            <p className="text-xs text-muted-foreground">
-              {t("tripOver400Note", { km: TWO_DRIVER_DISTANCE_KM })}
-            </p>
-          )}
-        </div>
+        {requiresSecondary && (
+          <p className="text-xs text-destructive sm:pl-[calc(50%+0.5rem)]">
+            {t("tripOver400Note", { km: TWO_DRIVER_DISTANCE_KM })}
+          </p>
+        )}
       </div>
 
       {error && (

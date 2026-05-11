@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { Prisma, type BookingStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
@@ -61,11 +62,12 @@ async function logTransition(args: {
 export async function createBookingAction(formData: FormData): Promise<ActionResult | void> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
 
   const parsed = newBookingSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    return { ok: false, error: first?.message ?? "Invalid input", field: first?.path.join(".") };
+    return { ok: false, error: first?.message ?? te("invalidInput"), field: first?.path.join(".") };
   }
   const data = parsed.data;
 
@@ -74,7 +76,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     return {
       ok: false,
       field: "startAt",
-      error: `Start must be at least ${lead.minimumDays} days from today (province rule).`,
+      error: te("leadTimeTooSoon", { days: lead.minimumDays }),
     };
   }
 
@@ -86,10 +88,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     },
   });
   if (isBlockedByPendingEvaluation(pendingEvals)) {
-    return {
-      ok: false,
-      error: "You have a completed trip without an evaluation. Submit it before booking again.",
-    };
+    return { ok: false, error: te("pendingEvaluation") };
   }
 
   const requester = await prisma.user.findUniqueOrThrow({
@@ -97,7 +96,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     select: { departmentId: true },
   });
   if (!requester.departmentId) {
-    return { ok: false, error: "Your account is not attached to a department." };
+    return { ok: false, error: te("noDepartment") };
   }
 
   const created = await prisma.$transaction(async (tx) => {
@@ -215,21 +214,23 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
 export async function assignBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
   const adminId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = assignBookingSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
     const first = parsed.error.issues[0];
-    return { ok: false, error: first?.message ?? "Invalid input", field: first?.path.join(".") };
+    return { ok: false, error: first?.message ?? te("invalidInput"), field: first?.path.join(".") };
   }
   const data = parsed.data;
 
   const booking = await prisma.booking.findUnique({
     where: { id: data.bookingId },
   });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
   // Phase 2: admin only assigns after department-head approval.
   if (booking.status !== "APPROVED") {
-    return { ok: false, error: `Cannot assign a booking in status ${booking.status}` };
+    return { ok: false, error: te("cannotAssignInStatus", { status: ts(booking.status) }) };
   }
 
   // Two-driver rule.
@@ -239,12 +240,12 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
     secondaryDriverId: data.secondaryDriverId ?? null,
   });
   if (!driverCheck.ok) {
-    const messages = {
-      PRIMARY_REQUIRED: "Pick a primary driver",
-      SECONDARY_REQUIRED: "Trips over 400 km require a co-driver",
-      DUPLICATE_DRIVER: "Primary and co-driver cannot be the same person",
+    const messageKey = {
+      PRIMARY_REQUIRED: "primaryRequired",
+      SECONDARY_REQUIRED: "secondaryRequired",
+      DUPLICATE_DRIVER: "duplicateDriver",
     } as const;
-    return { ok: false, error: messages[driverCheck.reason] };
+    return { ok: false, error: te(messageKey[driverCheck.reason]) };
   }
 
   // 1-hour buffer rule against other confirmed bookings on the same vehicle.
@@ -261,11 +262,7 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
     otherBookings,
   );
   if (conflicts.length > 0) {
-    return {
-      ok: false,
-      field: "vehicleId",
-      error: `That vehicle has a conflicting booking within the 1-hour buffer.`,
-    };
+    return { ok: false, field: "vehicleId", error: te("vehicleConflict") };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -325,17 +322,19 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
 export async function denyBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
   const adminId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = denyBookingSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, reason } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
   if (booking.status === "DENIED" || booking.status === "CANCELLED" || booking.status === "COMPLETED") {
-    return { ok: false, error: `Cannot deny a booking in status ${booking.status}` };
+    return { ok: false, error: te("cannotDenyInStatus", { status: ts(booking.status) }) };
   }
 
   await prisma.$transaction(async (tx) => {

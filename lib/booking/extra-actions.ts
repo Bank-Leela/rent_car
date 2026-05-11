@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
@@ -18,23 +19,25 @@ const cancelSchema = z.object({
 export async function cancelBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = cancelSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, reason } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
 
   // Requester may cancel their own booking. Admins may cancel any.
   const isAdmin = session.user.roles.includes("ADMIN");
   if (booking.requesterId !== userId && !isAdmin) {
-    return { ok: false, error: "You can only cancel your own bookings." };
+    return { ok: false, error: te("notYourBooking") };
   }
   if (booking.status === "COMPLETED" || booking.status === "CANCELLED") {
-    return { ok: false, error: `Cannot cancel a booking in status ${booking.status}` };
+    return { ok: false, error: te("cannotCancelInStatus", { status: ts(booking.status) }) };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -86,10 +89,11 @@ const evalSchema = z
 export async function submitEvaluationAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
 
   const parsed = evalSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { tripId, rating, comment } = parsed.data;
 
@@ -97,10 +101,10 @@ export async function submitEvaluationAction(formData: FormData): Promise<Action
     where: { id: tripId },
     include: { booking: { select: { id: true, requesterId: true } } },
   });
-  if (!trip) return { ok: false, error: "Trip not found" };
-  if (trip.booking.requesterId !== userId) return { ok: false, error: "Not your trip." };
+  if (!trip) return { ok: false, error: te("tripNotFound") };
+  if (trip.booking.requesterId !== userId) return { ok: false, error: te("notYourTrip") };
   const existing = await prisma.evaluation.findUnique({ where: { tripId } });
-  if (existing) return { ok: false, error: "Already evaluated." };
+  if (existing) return { ok: false, error: te("alreadyEvaluated") };
 
   await prisma.evaluation.create({
     data: { tripId, rating, comment },
@@ -129,17 +133,19 @@ const outsourceSchema = z.object({
 export async function recordOutsourcingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
   const adminId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = outsourceSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, outsourceVendor, outsourceCost, outsourceReference, notify } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
   if (booking.status !== "APPROVED") {
-    return { ok: false, error: `Cannot outsource a booking in status ${booking.status}` };
+    return { ok: false, error: te("cannotOutsourceInStatus", { status: ts(booking.status) }) };
   }
 
   await prisma.$transaction(async (tx) => {

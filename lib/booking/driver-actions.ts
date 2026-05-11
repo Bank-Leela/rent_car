@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
@@ -54,25 +55,27 @@ async function canDriveBooking(userId: string, bookingId: string): Promise<boole
 export async function startTripAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
   const parsed = startSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, startMileage } = parsed.data;
 
   if (!(await canDriveBooking(userId, bookingId))) {
-    return { ok: false, error: "You are not assigned to this trip." };
+    return { ok: false, error: te("notAssignedToTrip") };
   }
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { ok: false, error: "Booking not found" };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
   if (booking.status !== "ASSIGNED") {
-    return { ok: false, error: `Cannot start a trip in status ${booking.status}` };
+    return { ok: false, error: te("cannotStartInStatus", { status: ts(booking.status) }) };
   }
 
   const existingTrip = await prisma.trip.findUnique({ where: { bookingId } });
   if (existingTrip) {
-    return { ok: false, error: "Trip is already started." };
+    return { ok: false, error: te("tripAlreadyStarted") };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -99,21 +102,22 @@ export async function startTripAction(formData: FormData): Promise<ActionResult>
 export async function endTripAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
+  const te = await getTranslations("errors");
   const parsed = endSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, endMileage, fuelCost, tollwayCost, usedExpressway, driverNotes } = parsed.data;
 
   if (!(await canDriveBooking(userId, bookingId))) {
-    return { ok: false, error: "You are not assigned to this trip." };
+    return { ok: false, error: te("notAssignedToTrip") };
   }
 
   const trip = await prisma.trip.findUnique({ where: { bookingId } });
-  if (!trip) return { ok: false, error: "Start the trip first." };
-  if (trip.endedAt) return { ok: false, error: "Trip is already complete." };
+  if (!trip) return { ok: false, error: te("tripStartFirst") };
+  if (trip.endedAt) return { ok: false, error: te("tripAlreadyComplete") };
   if (endMileage < trip.startMileage) {
-    return { ok: false, error: "End mileage must be ≥ start mileage." };
+    return { ok: false, error: te("endMileageLow") };
   }
 
   await prisma.$transaction(async (tx) => {
