@@ -103,21 +103,18 @@
   "approver": {
     "title": "Pending approvals",
     "subEmpty": "Nothing to review right now.",
-    "subWithCount": "{count, plural, one {# booking} other {# bookings}} awaiting your decision.",
+    "subWithCount": "{count, plural, one {# booking} other {# bookings}} to review. Ordered by trip date.",
     "emptyTitle": "Inbox empty",
-    "emptyDescription": "When someone in your department submits a booking, it'll land here."
+    "emptyDescription": "When someone in your department submits a booking, it'll land here.",
+    "tripDate": "trip {date}"
   },
   "admin": {
-    "title": "Booking queue",
-    "description": "First-come-first-served. {pending} awaiting approval · {approved} ready to assign.",
-    "awaitingApproval": "Awaiting approval",
-    "awaitingApprovalNote": "These are still with the department head. You'll be able to assign once approved.",
-    "awaitingAssignment": "Awaiting assignment",
+    "title": "Approval queue",
+    "description": "Decide which vehicle (if any) to assign. Ordered first-come-first-served by submission time — {count} waiting on you.",
+    "queueLogHeading": "Approval log",
     "upcomingTrips": "Upcoming assigned trips",
-    "incomingEmptyTitle": "No incoming requests",
-    "incomingEmptyDescription": "When a faculty member submits a booking, it'll show up here while it's with the department head.",
     "queueEmptyTitle": "Queue is empty",
-    "queueEmptyDescription": "Approved bookings will appear here, oldest first.",
+    "queueEmptyDescription": "Once the department head approves a booking, it shows up here, oldest first.",
     "upcomingEmptyTitle": "Nothing scheduled",
     "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here.",
     "submittedAt": "submitted {date}"

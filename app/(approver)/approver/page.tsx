@@ -23,10 +23,11 @@ export default async function ApproverInbox() {
   });
   const deptIds = ownDepts.map((d) => d.id);
 
+  // Order by trip date — the approver cares about urgency, not submission order.
   const pending = deptIds.length
     ? await prisma.booking.findMany({
         where: { status: "PENDING_APPROVAL", departmentId: { in: deptIds } },
-        orderBy: { createdAt: "asc" },
+        orderBy: { startAt: "asc" },
         include: { requester: true, department: true },
       })
     : [];
@@ -62,7 +63,7 @@ export default async function ApproverInbox() {
                     {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {b.requester.name ?? b.requester.email} · {b.department.nameEn} · submitted {format(b.createdAt, "d MMM HH:mm")}
+                    {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                   </div>
                 </div>
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
