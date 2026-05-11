@@ -118,7 +118,7 @@
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
     "cancellationWarning": "⚠ ผู้ขอใช้รถยกเลิกการจอง {count} ครั้งใน 90 วันที่ผ่านมา",
-    "assignVehicleAndDriver": "จัดรถและพนักงานขับ",
+    "assignVehicleAndDriver": "จัดรถและพนักงานคนขับ",
     "denyTitle": "ไม่อนุมัติ",
     "outsourceTitle": "เช่าจากภายนอก"
   },
