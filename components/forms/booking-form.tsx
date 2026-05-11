@@ -46,8 +46,11 @@ function RecurrenceWeekdays() {
                   cur.includes(d.value) ? cur.filter((v) => v !== d.value) : [...cur, d.value],
                 )
               }
-              className={`rounded-md border px-3 py-1 text-sm ${
-                active ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"
+              aria-pressed={active}
+              className={`inline-flex min-h-10 min-w-12 items-center justify-center rounded-md border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                active
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background hover:bg-muted"
               }`}
             >
               {t(d.key)}
@@ -128,7 +131,7 @@ export function BookingForm() {
                 id="province"
                 name="province"
                 required
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={province}
                 onChange={(e) => setProvince(e.target.value)}
               >
@@ -174,7 +177,7 @@ export function BookingForm() {
             <button
               type="button"
               onClick={fillEarliest}
-              className="text-xs font-medium text-primary hover:underline"
+              className="inline-flex h-9 items-center rounded-md px-2 -mx-2 text-xs font-medium text-primary hover:bg-primary/5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t("useEarliest", { date: earliestDateLabel })}
             </button>
@@ -210,8 +213,13 @@ export function BookingForm() {
             <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="needsOutsourcing" value="true" />
+          <label className="flex min-h-11 items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="needsOutsourcing"
+              value="true"
+              className="h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
             {t("flagOutsourcing")}
           </label>
 

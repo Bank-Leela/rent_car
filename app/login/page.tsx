@@ -105,7 +105,7 @@ export default async function LoginPage({
                         <input type="hidden" name="userId" value={u.id} />
                         <button
                           type="submit"
-                          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                          className={`w-full min-h-12 rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                             ROLE_TINT[role] ?? "bg-muted/40 hover:bg-muted"
                           }`}
                         >

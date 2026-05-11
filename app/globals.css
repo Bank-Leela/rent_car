@@ -129,7 +129,7 @@
     background-image:
       radial-gradient(at 0% 0%, oklch(0.93 0.05 320 / 0.4) 0px, transparent 50%),
       radial-gradient(at 100% 0%, oklch(0.93 0.06 270 / 0.35) 0px, transparent 50%);
-    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
   .dark body {
     background-image:

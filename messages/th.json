@@ -72,7 +72,8 @@
     "newBooking": "จองใหม่",
     "pendingApprovals": "รออนุมัติ",
     "departmentUsage": "การใช้งานของภาควิชา",
-    "profile": "โปรไฟล์"
+    "profile": "โปรไฟล์",
+    "schedule": "ตารางงาน"
   },
   "status": {
     "DRAFT": "ฉบับร่าง",
@@ -98,7 +99,9 @@
     "description": "ส่งคำขอและติดตามสถานะการจองรถ",
     "newBooking": "จองใหม่",
     "emptyTitle": "ยังไม่มีการจอง",
-    "emptyDescription": "ส่งคำขอแรกของคุณ แล้วการจองจะปรากฏที่นี่ระหว่างรอการอนุมัติ"
+    "emptyDescription": "ส่งคำขอแรกของคุณ แล้วการจองจะปรากฏที่นี่ระหว่างรอการอนุมัติ",
+    "pendingEvalTitle": "{count, plural, one {กรุณาประเมินทริปล่าสุดของคุณ} other {กรุณาประเมินทริปที่เสร็จสิ้น # รายการ}}",
+    "pendingEvalDescription": "คุณจะส่งการจองใหม่ไม่ได้จนกว่าจะประเมินทริปที่เสร็จแล้ว"
   },
   "approver": {
     "title": "รออนุมัติ",
@@ -390,6 +393,12 @@
     "noTripsTomorrow": "ยังไม่มีกำหนด",
     "noTripsTomorrowDescription": "พรุ่งนี้ยังว่าง",
     "noProfileTitle": "ยังไม่มีข้อมูลพนักงานขับรถ",
-    "noProfileDescription": "บัญชีของคุณยังไม่ได้ผูกกับข้อมูลพนักงานขับรถ กรุณาแจ้งผู้ดูแลระบบเพื่อสร้างให้"
+    "noProfileDescription": "บัญชีของคุณยังไม่ได้ผูกกับข้อมูลพนักงานขับรถ กรุณาแจ้งผู้ดูแลระบบเพื่อสร้างให้",
+    "scheduleTitle": "ตารางงาน",
+    "scheduleSubtitle": "ทริปที่ได้รับมอบหมายใน 30 วันข้างหน้า",
+    "scheduleEmptyTitle": "ยังไม่มีกำหนดการ",
+    "scheduleEmptyDescription": "เมื่อผู้ดูแลระบบจัดทริปให้คุณ รายการจะปรากฏที่นี่",
+    "scheduleAllHeading": "ทริปที่จะมาถึง",
+    "scheduleHistoryHeading": "ทริปที่ผ่านมา (14 วันล่าสุด)"
   }
 }

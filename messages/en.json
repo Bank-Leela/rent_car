@@ -72,7 +72,8 @@
     "newBooking": "New booking",
     "pendingApprovals": "Pending approvals",
     "departmentUsage": "Department usage",
-    "profile": "Profile"
+    "profile": "Profile",
+    "schedule": "Schedule"
   },
   "status": {
     "DRAFT": "Draft",
@@ -98,7 +99,9 @@
     "description": "Submit and track your vehicle requests.",
     "newBooking": "New booking",
     "emptyTitle": "No bookings yet",
-    "emptyDescription": "Submit your first request and it'll show up here while it's in flight."
+    "emptyDescription": "Submit your first request and it'll show up here while it's in flight.",
+    "pendingEvalTitle": "{count, plural, one {Evaluate your last trip} other {Evaluate your # completed trips}}",
+    "pendingEvalDescription": "You can't submit new bookings until you rate completed ones."
   },
   "approver": {
     "title": "Pending approvals",
@@ -390,6 +393,12 @@
     "noTripsTomorrow": "Nothing scheduled",
     "noTripsTomorrowDescription": "Tomorrow's clear so far.",
     "noProfileTitle": "No driver profile",
-    "noProfileDescription": "Your account isn't attached to a driver record yet. Ask the admin to create one."
+    "noProfileDescription": "Your account isn't attached to a driver record yet. Ask the admin to create one.",
+    "scheduleTitle": "Schedule",
+    "scheduleSubtitle": "Your assigned trips for the next 30 days.",
+    "scheduleEmptyTitle": "Nothing scheduled",
+    "scheduleEmptyDescription": "Once the admin assigns you to a trip it'll show up here.",
+    "scheduleAllHeading": "All upcoming",
+    "scheduleHistoryHeading": "Past trips (last 14 days)"
   }
 }

@@ -4,12 +4,16 @@ import { AppShell } from "@/components/app-shell";
 
 export default async function DriverLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("DRIVER");
-  const t = await getTranslations("common");
+  const tCommon = await getTranslations("common");
+  const tNav = await getTranslations("nav");
   return (
     <AppShell
       badgeRole="DRIVER"
       user={session.user}
-      nav={[{ href: "/driver", label: t("today") }]}
+      nav={[
+        { href: "/driver", label: tCommon("today") },
+        { href: "/driver/schedule", label: tNav("schedule") },
+      ]}
     >
       {children}
     </AppShell>

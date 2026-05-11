@@ -1,0 +1,196 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { addDays, startOfDay } from "date-fns";
+
+// Mock Next runtime + i18n + email so the action runs outside a request.
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    throw Object.assign(new Error("NEXT_REDIRECT"), { url });
+  }),
+}));
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async () => (k: string, v?: Record<string, unknown>) =>
+    v ? `${k}:${JSON.stringify(v)}` : k,
+  ),
+}));
+vi.mock("@/lib/session", () => ({
+  getSession: vi.fn(async () => ({
+    user: { id: "seed-user-requester", roles: ["REQUESTER"] },
+  })),
+}));
+vi.mock("@/lib/email/client", () => ({
+  sendEmail: vi.fn(async () => {}),
+}));
+vi.mock("@/lib/line/client", () => ({
+  sendLineNotification: vi.fn(async () => {}),
+}));
+
+import { prisma } from "@/lib/db";
+import { createBookingAction } from "@/lib/booking/actions";
+import { BANGKOK_PROVINCE, LEAD_TIME_BANGKOK_DAYS } from "@/lib/booking/rules";
+
+const REQUESTER_ID = "seed-user-requester";
+const createdIds: string[] = [];
+
+beforeAll(async () => {
+  const u = await prisma.user.findUnique({ where: { id: REQUESTER_ID } });
+  if (!u) {
+    throw new Error(
+      "Seed requester missing. Run `npx prisma db seed` against the dev DB first.",
+    );
+  }
+  // Clear pending evaluations that would block submission.
+  await prisma.trip.deleteMany({
+    where: { booking: { requesterId: REQUESTER_ID, status: "COMPLETED" }, evaluation: null },
+  });
+});
+
+afterAll(async () => {
+  if (createdIds.length > 0) {
+    await prisma.auditLog.deleteMany({ where: { bookingId: { in: createdIds } } });
+    await prisma.booking.deleteMany({ where: { id: { in: createdIds } } });
+  }
+  await prisma.$disconnect();
+});
+
+function formDataFor(input: Record<string, string>): FormData {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(input)) fd.append(k, v);
+  return fd;
+}
+
+function isoLocal(d: Date) {
+  // yyyy-MM-ddTHH:mm in local timezone, the shape <input type="datetime-local"> emits.
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+describe("createBookingAction", () => {
+  it("creates a PENDING_APPROVAL booking and redirects to detail", async () => {
+    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    start.setHours(9, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(start.getHours() + 4);
+
+    const before = await prisma.booking.count({ where: { requesterId: REQUESTER_ID } });
+
+    await expect(
+      createBookingAction(
+        formDataFor({
+          purpose: "Integration smoke trip",
+          destination: "Lab",
+          province: BANGKOK_PROVINCE,
+          startAt: isoLocal(start),
+          endAt: isoLocal(end),
+          passengerCount: "3",
+          passengerNotes: "",
+          estimatedDistance: "",
+          recurringWeekdays: "",
+          recurringUntil: "",
+        }),
+      ),
+    ).rejects.toMatchObject({ message: "NEXT_REDIRECT" });
+
+    const after = await prisma.booking.findMany({
+      where: { requesterId: REQUESTER_ID, purpose: "Integration smoke trip" },
+      orderBy: { createdAt: "desc" },
+      include: { auditLogs: true },
+    });
+    expect(after).toHaveLength(1);
+    const booking = after[0]!;
+    expect(booking.status).toBe("PENDING_APPROVAL");
+    expect(booking.jobNumber).toMatch(/^VB-\d{6}-\d+$/);
+    expect(booking.auditLogs).toHaveLength(1);
+    expect(booking.auditLogs[0]!.action).toBe("BOOKING_SUBMITTED");
+    expect(await prisma.booking.count({ where: { requesterId: REQUESTER_ID } })).toBe(before + 1);
+    createdIds.push(booking.id);
+  });
+
+  it("rejects when start violates Bangkok lead time", async () => {
+    const tooSoon = new Date();
+    tooSoon.setHours(tooSoon.getHours() + 1);
+    const end = new Date(tooSoon);
+    end.setHours(end.getHours() + 2);
+
+    const res = await createBookingAction(
+      formDataFor({
+        purpose: "Should be rejected",
+        destination: "Lab",
+        province: BANGKOK_PROVINCE,
+        startAt: isoLocal(tooSoon),
+        endAt: isoLocal(end),
+        passengerCount: "1",
+        passengerNotes: "",
+        estimatedDistance: "",
+        recurringWeekdays: "",
+        recurringUntil: "",
+      }),
+    );
+    expect(res).toMatchObject({ ok: false, field: "startAt" });
+  });
+
+  it("rejects when endAt is before startAt", async () => {
+    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    start.setHours(10, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(start.getHours() - 1);
+
+    const res = await createBookingAction(
+      formDataFor({
+        purpose: "End before start",
+        destination: "Lab",
+        province: BANGKOK_PROVINCE,
+        startAt: isoLocal(start),
+        endAt: isoLocal(end),
+        passengerCount: "1",
+        passengerNotes: "",
+        estimatedDistance: "",
+        recurringWeekdays: "",
+        recurringUntil: "",
+      }),
+    );
+    expect(res).toMatchObject({ ok: false });
+    if (res && !res.ok) expect(res.field).toBe("endAt");
+  });
+
+  it("expands recurrence into children when weekdays + until are set", async () => {
+    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    start.setHours(8, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(start.getHours() + 3);
+    const until = addDays(start, 21);
+    const wd = start.getDay();
+
+    await expect(
+      createBookingAction(
+        formDataFor({
+          purpose: "Recurring smoke",
+          destination: "Campus",
+          province: BANGKOK_PROVINCE,
+          startAt: isoLocal(start),
+          endAt: isoLocal(end),
+          passengerCount: "2",
+          passengerNotes: "",
+          estimatedDistance: "",
+          recurringWeekdays: String(wd),
+          recurringUntil: isoLocal(until).slice(0, 10),
+        }),
+      ),
+    ).rejects.toMatchObject({ message: "NEXT_REDIRECT" });
+
+    const parent = await prisma.booking.findFirst({
+      where: { requesterId: REQUESTER_ID, purpose: "Recurring smoke", recurrenceParentId: null },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(parent).not.toBeNull();
+    const children = await prisma.booking.findMany({
+      where: { recurrenceParentId: parent!.id },
+    });
+    expect(children.length).toBeGreaterThanOrEqual(2);
+    const rule = await prisma.recurrenceRule.findUnique({ where: { parentBookingId: parent!.id } });
+    expect(rule).not.toBeNull();
+    createdIds.push(parent!.id, ...children.map((c) => c.id));
+  });
+});

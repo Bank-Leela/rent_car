@@ -12,7 +12,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-dashed bg-card/50 p-10 text-center">
+    <div className="rounded-xl border border-dashed bg-card/50 p-6 sm:p-10 text-center">
       <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-muted text-muted-foreground">
         <Icon className="h-6 w-6" aria-hidden />
       </div>

@@ -30,7 +30,7 @@ export default async function RequesterHome() {
   const newBookingButton = (
     <Link
       href="/requester/new"
-      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+      className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <Plus className="h-4 w-4" />
       {t("newBooking")}
@@ -53,19 +53,17 @@ export default async function RequesterHome() {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-                {pendingEvalBookings.length === 1
-                  ? "Evaluate your last trip"
-                  : `Evaluate your ${pendingEvalBookings.length} completed trips`}
+                {t("pendingEvalTitle", { count: pendingEvalBookings.length })}
               </h2>
               <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300/90">
-                You can&rsquo;t submit new bookings until you rate completed ones.
+                {t("pendingEvalDescription")}
               </p>
               <ul className="mt-2 space-y-1">
                 {pendingEvalBookings.map((b) => (
                   <li key={b.id}>
                     <Link
                       href={`/requester/${b.id}`}
-                      className="inline-flex items-center gap-1 text-sm font-medium text-amber-900 underline-offset-2 hover:underline dark:text-amber-200"
+                      className="inline-flex min-h-9 items-center gap-1 rounded-sm text-sm font-medium text-amber-900 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-200"
                     >
                       <span className="font-mono text-xs">{b.jobNumber}</span>
                       <span>·</span>
@@ -93,7 +91,7 @@ export default async function RequesterHome() {
             <li key={b.id}>
               <Link
                 href={`/requester/${b.id}`}
-                className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
+                className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
