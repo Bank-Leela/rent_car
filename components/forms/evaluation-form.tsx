@@ -3,19 +3,16 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitEvaluationAction } from "@/lib/booking/extra-actions";
 
-const RATINGS = [
-  { value: "VERY_GOOD", label: "Very good" },
-  { value: "GOOD", label: "Good" },
-  { value: "SLIGHTLY_NOT_GOOD", label: "Slightly not good" },
-  { value: "NOT_GOOD", label: "Not good" },
-] as const;
+const RATING_VALUES = ["VERY_GOOD", "GOOD", "SLIGHTLY_NOT_GOOD", "NOT_GOOD"] as const;
 
 export function EvaluationForm({ tripId }: { tripId: string }) {
+  const t = useTranslations("evaluationForm");
   const router = useRouter();
   const [rating, setRating] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -28,10 +25,8 @@ export function EvaluationForm({ tripId }: { tripId: string }) {
       <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
         <CheckCircle2 className="h-5 w-5" aria-hidden />
         <div>
-          <p className="font-medium">Thanks for the feedback.</p>
-          <p className="text-emerald-800/80 dark:text-emerald-300/80">
-            You can submit new bookings again.
-          </p>
+          <p className="font-medium">{t("thanksTitle")}</p>
+          <p className="text-emerald-800/80 dark:text-emerald-300/80">{t("thanksDescription")}</p>
         </div>
       </div>
     );
@@ -55,23 +50,23 @@ export function EvaluationForm({ tripId }: { tripId: string }) {
       className="space-y-4"
     >
       <div className="grid gap-2">
-        <Label>How was the trip?</Label>
+        <Label>{t("howWasTheTrip")}</Label>
         <div className="grid sm:grid-cols-2 gap-2">
-          {RATINGS.map((r) => (
+          {RATING_VALUES.map((value) => (
             <label
-              key={r.value}
+              key={value}
               className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer ${
-                rating === r.value ? "bg-primary/10 border-primary" : "hover:bg-muted"
+                rating === value ? "bg-primary/10 border-primary" : "hover:bg-muted"
               }`}
             >
               <input
                 type="radio"
                 name="rating"
-                value={r.value}
+                value={value}
                 onChange={(e) => setRating(e.target.value)}
                 required
               />
-              {r.label}
+              {t(`ratings.${value}`)}
             </label>
           ))}
         </div>
@@ -79,11 +74,11 @@ export function EvaluationForm({ tripId }: { tripId: string }) {
 
       <div className="grid gap-2">
         <Label htmlFor="comment">
-          Comment {requiresComment && <span className="text-destructive">*</span>}
+          {t("comment")} {requiresComment && <span className="text-destructive">*</span>}
         </Label>
         <Textarea id="comment" name="comment" rows={3} required={requiresComment} />
         {requiresComment && (
-          <p className="text-xs text-muted-foreground">A comment is required for negative ratings.</p>
+          <p className="text-xs text-muted-foreground">{t("commentRequired")}</p>
         )}
       </div>
 
@@ -93,7 +88,7 @@ export function EvaluationForm({ tripId }: { tripId: string }) {
         </div>
       )}
       <Button type="submit" disabled={pending || !rating}>
-        {pending ? "Submitting…" : "Submit evaluation"}
+        {pending ? t("submitting") : t("submit")}
       </Button>
     </form>
   );

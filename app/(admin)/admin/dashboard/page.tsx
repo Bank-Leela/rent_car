@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import {
   approvalFunnel,
@@ -21,6 +22,7 @@ export default async function AdminDashboard({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   await requireRole("ADMIN");
+  const t = await getTranslations("dashboard");
   const qs = await searchParams;
   const range = rangeFromQuery(qs);
   const exportQs = new URLSearchParams({
@@ -37,11 +39,16 @@ export default async function AdminDashboard({
     repeatCancellers(range),
   ]);
 
+  const pctText = (n: number) => {
+    if (funnel.total === 0) return t("ofTotal", { pct: "0%" });
+    return t("ofTotal", { pct: `${Math.round((n / funnel.total) * 100)}%` });
+  };
+
   return (
     <div className="space-y-6 print:space-y-3">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">
             {format(range.from, "d MMM yyyy")} – {format(range.to, "d MMM yyyy")}
           </p>
@@ -52,37 +59,37 @@ export default async function AdminDashboard({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 print:grid-cols-3">
-        <KpiCard label="Total requests" value={funnel.total} />
-        <KpiCard label="Approved" value={funnel.approved} sub={`${pct(funnel.approved, funnel.total)} of total`} />
-        <KpiCard label="Cancelled" value={funnel.cancelled} sub={`${pct(funnel.cancelled, funnel.total)} of total`} />
+        <KpiCard label={t("totalRequests")} value={funnel.total} />
+        <KpiCard label={t("approved")} value={funnel.approved} sub={pctText(funnel.approved)} />
+        <KpiCard label={t("cancelled")} value={funnel.cancelled} sub={pctText(funnel.cancelled)} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Request volume by week</CardTitle>
-              <Link href={`/api/reports/csv/volume?${exportQs}`} className="text-xs underline print:hidden">CSV</Link>
+              <CardTitle>{t("requestVolumeByWeek")}</CardTitle>
+              <Link href={`/api/reports/csv/volume?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
             </div>
           </CardHeader>
           <CardContent>
-            {byWeek.length > 0 ? <VolumeBarChart data={byWeek} /> : <Empty />}
+            {byWeek.length > 0 ? <VolumeBarChart data={byWeek} /> : <Empty label={t("noData")} />}
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Approval funnel</CardTitle>
-              <Link href={`/api/reports/csv/funnel?${exportQs}`} className="text-xs underline print:hidden">CSV</Link>
+              <CardTitle>{t("approvalFunnel")}</CardTitle>
+              <Link href={`/api/reports/csv/funnel?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
             </div>
           </CardHeader>
           <CardContent>
             <FunnelPieChart
               data={[
-                { label: "Approved", value: funnel.approved },
-                { label: "Denied", value: funnel.denied },
-                { label: "Cancelled", value: funnel.cancelled },
-                { label: "Outsourced", value: funnel.outsourced },
+                { label: t("funnelApproved"), value: funnel.approved },
+                { label: t("funnelDenied"), value: funnel.denied },
+                { label: t("funnelCancelled"), value: funnel.cancelled },
+                { label: t("funnelOutsourced"), value: funnel.outsourced },
               ]}
             />
           </CardContent>
@@ -92,17 +99,17 @@ export default async function AdminDashboard({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Request volume by department</CardTitle>
-            <Link href={`/api/reports/csv/department?${exportQs}`} className="text-xs underline print:hidden">CSV</Link>
+            <CardTitle>{t("requestVolumeByDept")}</CardTitle>
+            <Link href={`/api/reports/csv/department?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
           </div>
         </CardHeader>
         <CardContent>
-          {byDept.length === 0 ? <Empty /> : (
+          {byDept.length === 0 ? <Empty label={t("noData")} /> : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Department</TableHead>
-                  <TableHead className="text-right">Requests</TableHead>
+                  <TableHead>{t("deptColumn")}</TableHead>
+                  <TableHead className="text-right">{t("requestsColumn")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -121,20 +128,20 @@ export default async function AdminDashboard({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Vehicle utilisation</CardTitle>
-            <Link href={`/api/reports/csv/vehicles?${exportQs}`} className="text-xs underline print:hidden">CSV</Link>
+            <CardTitle>{t("vehicleUtilisation")}</CardTitle>
+            <Link href={`/api/reports/csv/vehicles?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
           </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vehicle</TableHead>
-                <TableHead className="text-right">Trips</TableHead>
-                <TableHead className="text-right">Hours</TableHead>
-                <TableHead className="text-right">Km</TableHead>
-                <TableHead className="text-right">Fuel ฿</TableHead>
-                <TableHead className="text-right">Tollway ฿</TableHead>
+                <TableHead>{t("vehicleColumn")}</TableHead>
+                <TableHead className="text-right">{t("tripsColumn")}</TableHead>
+                <TableHead className="text-right">{t("hoursColumn")}</TableHead>
+                <TableHead className="text-right">{t("kmColumn")}</TableHead>
+                <TableHead className="text-right">{t("fuelColumn")}</TableHead>
+                <TableHead className="text-right">{t("tollwayColumn")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,18 +163,18 @@ export default async function AdminDashboard({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Driver utilisation</CardTitle>
-            <Link href={`/api/reports/csv/drivers?${exportQs}`} className="text-xs underline print:hidden">CSV</Link>
+            <CardTitle>{t("driverUtilisation")}</CardTitle>
+            <Link href={`/api/reports/csv/drivers?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
           </div>
         </CardHeader>
         <CardContent>
-          {driver.length === 0 ? <Empty /> : (
+          {driver.length === 0 ? <Empty label={t("noData")} /> : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Driver</TableHead>
-                  <TableHead className="text-right">Trips</TableHead>
-                  <TableHead className="text-right">Hours</TableHead>
+                  <TableHead>{t("driverColumn")}</TableHead>
+                  <TableHead className="text-right">{t("tripsColumn")}</TableHead>
+                  <TableHead className="text-right">{t("hoursColumn")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -187,17 +194,17 @@ export default async function AdminDashboard({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Repeat cancellers</CardTitle>
-            <Link href={`/api/reports/csv/cancellations?${exportQs}`} className="text-xs underline print:hidden">CSV</Link>
+            <CardTitle>{t("repeatCancellers")}</CardTitle>
+            <Link href={`/api/reports/csv/cancellations?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
           </div>
         </CardHeader>
         <CardContent>
-          {cancellations.length === 0 ? <Empty /> : (
+          {cancellations.length === 0 ? <Empty label={t("noData")} /> : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead className="text-right">Cancellations</TableHead>
+                  <TableHead>{t("userColumn")}</TableHead>
+                  <TableHead className="text-right">{t("cancellationsColumn")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -214,7 +221,7 @@ export default async function AdminDashboard({
       </Card>
 
       <p className="text-xs text-muted-foreground print:hidden">
-        Tip: print this page (Cmd-P) to share with the supervising professor.
+        {t("printTip")}
       </p>
     </div>
   );
@@ -232,11 +239,6 @@ function KpiCard({ label, value, sub }: { label: string; value: number; sub?: st
   );
 }
 
-function Empty() {
-  return <p className="py-8 text-center text-sm text-muted-foreground">No data in range.</p>;
-}
-
-function pct(n: number, total: number) {
-  if (total === 0) return "0%";
-  return `${Math.round((n / total) * 100)}%`;
+function Empty({ label }: { label: string }) {
+  return <p className="py-8 text-center text-sm text-muted-foreground">{label}</p>;
 }

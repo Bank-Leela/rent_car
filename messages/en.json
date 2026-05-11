@@ -98,7 +98,209 @@
     "decidedBy": "by {name}",
     "approvalStatusApproved": "approved",
     "approvalStatusDenied": "denied",
-    "approvalStatusPending": "pending"
+    "approvalStatusPending": "pending",
+    "assignment": "Assignment",
+    "currentAssignment": "Current assignment",
+    "vehicle": "Vehicle",
+    "driver": "Driver",
+    "coDriver": "Co-driver",
+    "department": "Department",
+    "deniedTitle": "Denied",
+    "history": "History",
+    "flag": "Flag",
+    "flaggedForOutsourcing": "Requester flagged for outsourcing",
+    "actionBy": "{action} by {name}"
+  },
+  "requesterDetail": {
+    "tripEvaluation": "Trip evaluation",
+    "cancelTitle": "Cancel"
+  },
+  "adminDetail": {
+    "backToQueue": "Back to queue",
+    "cancellationWarning": "⚠ Requester has cancelled {count} bookings in the last 90 days.",
+    "assignVehicleAndDriver": "Assign vehicle & driver",
+    "denyTitle": "Deny",
+    "outsourceTitle": "Outsource"
+  },
+  "assignForm": {
+    "vehicle": "Vehicle",
+    "select": "Select…",
+    "primaryDriver": "Primary driver",
+    "coDriver": "Co-driver",
+    "noneOption": "None",
+    "requiredOver400": "Required for >400 km",
+    "tripOver400Note": "Trip is over {km} km — co-driver required.",
+    "conflictSuffix": " — conflict (1h buffer)",
+    "reservedTag": "reserved",
+    "poolSuffix": "{pool} pool",
+    "seatSuffix": "{capacity}-seat",
+    "assigning": "Assigning…",
+    "assign": "Assign",
+    "reason": "Reason",
+    "denying": "Denying…",
+    "denyBooking": "Deny booking"
+  },
+  "outsourceForm": {
+    "vendor": "Vendor",
+    "cost": "Cost (THB)",
+    "reference": "Reference / confirmation #",
+    "emailRequester": "Email the requester",
+    "saving": "Saving…",
+    "markOutsourced": "Mark outsourced"
+  },
+  "cancelForm": {
+    "cancelThisBooking": "Cancel this booking",
+    "reason": "Reason",
+    "cancelling": "Cancelling…",
+    "confirmCancel": "Confirm cancel",
+    "keepBooking": "Keep booking"
+  },
+  "evaluationForm": {
+    "howWasTheTrip": "How was the trip?",
+    "comment": "Comment",
+    "commentRequired": "A comment is required for negative ratings.",
+    "submitting": "Submitting…",
+    "submit": "Submit evaluation",
+    "thanksTitle": "Thanks for the feedback.",
+    "thanksDescription": "You can submit new bookings again.",
+    "ratings": {
+      "VERY_GOOD": "Very good",
+      "GOOD": "Good",
+      "SLIGHTLY_NOT_GOOD": "Slightly not good",
+      "NOT_GOOD": "Not good"
+    }
+  },
+  "tripForms": {
+    "startingKm": "Starting kilometres",
+    "startingPlaceholder": "e.g. 12500",
+    "starting": "Starting…",
+    "startTrip": "Start trip",
+    "endingKm": "Ending kilometres",
+    "fuelCost": "Fuel cost (THB)",
+    "tollwayCost": "Tollway cost (THB)",
+    "usedExpressway": "Used expressway",
+    "notesOptional": "Notes (optional)",
+    "ending": "Ending…",
+    "endTrip": "End trip",
+    "startedAt": "Started at {time} · {km} km"
+  },
+  "signatureForm": {
+    "imageLabel": "Signature image (PNG or JPEG, ≤1 MB)",
+    "helperUpload": "Once uploaded, this image will be embedded in the PDF for every booking you approve.",
+    "helperReplace": "Uploading replaces your stored signature.",
+    "uploading": "Uploading…",
+    "uploadSignature": "Upload signature",
+    "replaceSignature": "Replace signature"
+  },
+  "delegateForm": {
+    "emailLabel": "Delegate email (leave blank to clear)",
+    "emailPlaceholder": "staff@chula.ac.th",
+    "helper": "The delegate will see your pending approvals and can sign on your behalf using their account.",
+    "saving": "Saving…",
+    "saveDelegation": "Save delegation"
+  },
+  "profile": {
+    "title": "Profile",
+    "description": "Set up your signature and (optionally) delegate signing authority.",
+    "storedSignatureTitle": "Stored signature",
+    "signatureOnFile": "A signature is on file. It will be embedded in PDFs you approve.",
+    "signatureNoFile": "No signature on file. You can still approve without one — the PDF will leave the signature blank.",
+    "delegationTitle": "Delegation",
+    "delegationDescription": "Pick an administrative staff member who can approve on your behalf."
+  },
+  "calendar": {
+    "title": "Calendar",
+    "thisMonth": "This month",
+    "more": "+{n} more",
+    "weekdayHeaders": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "legend": {
+      "PENDING_APPROVAL": "Pending",
+      "APPROVED": "Approved",
+      "ASSIGNED": "Assigned",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled",
+      "DENIED": "Denied"
+    }
+  },
+  "calendarDay": {
+    "backToMonth": "Back to month",
+    "nothingScheduled": "Nothing scheduled.",
+    "bookingCount": "{count, plural, one {# booking} other {# bookings}}"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalRequests": "Total requests",
+    "approved": "Approved",
+    "cancelled": "Cancelled",
+    "ofTotal": "{pct} of total",
+    "requestVolumeByWeek": "Request volume by week",
+    "approvalFunnel": "Approval funnel",
+    "requestVolumeByDept": "Request volume by department",
+    "vehicleUtilisation": "Vehicle utilisation",
+    "driverUtilisation": "Driver utilisation",
+    "repeatCancellers": "Repeat cancellers",
+    "deptColumn": "Department",
+    "requestsColumn": "Requests",
+    "vehicleColumn": "Vehicle",
+    "tripsColumn": "Trips",
+    "hoursColumn": "Hours",
+    "kmColumn": "Km",
+    "fuelColumn": "Fuel ฿",
+    "tollwayColumn": "Tollway ฿",
+    "driverColumn": "Driver",
+    "userColumn": "User",
+    "cancellationsColumn": "Cancellations",
+    "noData": "No data in range.",
+    "printTip": "Tip: print this page (Cmd-P) to share with the supervising professor.",
+    "csv": "CSV",
+    "funnelApproved": "Approved",
+    "funnelDenied": "Denied",
+    "funnelCancelled": "Cancelled",
+    "funnelOutsourced": "Outsourced"
+  },
+  "deptUsage": {
+    "titleSuffix": "{name} usage",
+    "notHead": "You don't head a department yet.",
+    "volumeByWeek": "Volume by week",
+    "funnel": "Funnel",
+    "vehiclesUsed": "Vehicles used by your department"
+  },
+  "rangeFilter": {
+    "from": "From",
+    "to": "To",
+    "apply": "Apply"
+  },
+  "newBookingPage": {
+    "title": "New booking",
+    "description": "Submit a vehicle request for review."
+  },
+  "driverDetail": {
+    "trip": "Trip",
+    "vehicle": "Vehicle",
+    "capacity": "Capacity",
+    "capacityValue": "{seats} seats",
+    "start": "Start",
+    "endBackAtFaculty": "End (back at faculty)",
+    "passengers": "Passengers",
+    "estDistance": "Est. distance",
+    "contact": "Contact",
+    "notes": "Notes",
+    "startTripTitle": "Start trip",
+    "endTripTitle": "End trip",
+    "completedTitle": "Completed",
+    "completedStart": "Start",
+    "completedEnd": "End",
+    "completedDistance": "Distance",
+    "completedFuel": "Fuel",
+    "completedTollway": "Tollway"
   },
   "approverActions": {
     "backToInbox": "Back to inbox",

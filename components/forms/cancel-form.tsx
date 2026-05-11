@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cancelBookingAction } from "@/lib/booking/extra-actions";
 
 export function CancelForm({ bookingId }: { bookingId: string }) {
+  const t = useTranslations("cancelForm");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -14,7 +16,7 @@ export function CancelForm({ bookingId }: { bookingId: string }) {
   if (!open) {
     return (
       <Button variant="outline" onClick={() => setOpen(true)}>
-        Cancel this booking
+        {t("cancelThisBooking")}
       </Button>
     );
   }
@@ -31,7 +33,7 @@ export function CancelForm({ bookingId }: { bookingId: string }) {
       className="space-y-3"
     >
       <div className="grid gap-2">
-        <Label htmlFor="reason">Reason</Label>
+        <Label htmlFor="reason">{t("reason")}</Label>
         <Textarea id="reason" name="reason" rows={2} required />
       </div>
       {error && (
@@ -41,10 +43,10 @@ export function CancelForm({ bookingId }: { bookingId: string }) {
       )}
       <div className="flex gap-2">
         <Button type="submit" variant="destructive" disabled={pending}>
-          {pending ? "Cancelling…" : "Confirm cancel"}
+          {pending ? t("cancelling") : t("confirmCancel")}
         </Button>
         <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-          Keep booking
+          {t("keepBooking")}
         </Button>
       </div>
     </form>

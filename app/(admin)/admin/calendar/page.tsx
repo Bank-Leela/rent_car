@@ -12,9 +12,9 @@ import {
   isSameDay,
   parse,
 } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { BookingStatusBadge } from "@/components/booking-status-badge";
 
 const STATUS_TINT: Record<string, string> = {
   PENDING_APPROVAL: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900/40",
@@ -24,6 +24,17 @@ const STATUS_TINT: Record<string, string> = {
   CANCELLED: "bg-muted text-muted-foreground border-border line-through",
   DENIED: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900/40",
 };
+
+const LEGEND_KEYS = [
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "ASSIGNED",
+  "COMPLETED",
+  "CANCELLED",
+  "DENIED",
+] as const;
+
+const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function parseMonth(s?: string): Date {
   if (!s) return startOfMonth(new Date());
@@ -38,10 +49,10 @@ export default async function AdminCalendar({
   searchParams: Promise<{ month?: string }>;
 }) {
   await requireRole("ADMIN");
+  const t = await getTranslations("calendar");
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
 
-  // Show the full weeks that overlap this month — typically 5 or 6 rows.
   const gridStart = startOfWeek(startOfMonth(monthAnchor), { weekStartsOn: 0 });
   const gridEnd = endOfWeek(endOfMonth(monthAnchor), { weekStartsOn: 0 });
 
@@ -74,7 +85,7 @@ export default async function AdminCalendar({
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy")}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -88,7 +99,7 @@ export default async function AdminCalendar({
             href="/admin/calendar"
             className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
           >
-            This month
+            {t("thisMonth")}
           </Link>
           <Link
             href={`/admin/calendar?month=${nextMonth}`}
@@ -99,12 +110,18 @@ export default async function AdminCalendar({
         </div>
       </div>
 
-      <Legend />
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {LEGEND_KEYS.map((key) => (
+          <span key={key} className={`rounded border px-1.5 py-0.5 ${STATUS_TINT[key]}`}>
+            {t(`legend.${key}`)}
+          </span>
+        ))}
+      </div>
 
       <div className="rounded-lg border overflow-hidden">
         <div className="grid grid-cols-7 bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="px-3 py-2">{d}</div>
+          {WEEKDAY_KEYS.map((k) => (
+            <div key={k} className="px-3 py-2">{t(`weekdayHeaders.${k}`)}</div>
           ))}
         </div>
         <div className="grid grid-cols-7">
@@ -158,7 +175,7 @@ export default async function AdminCalendar({
                       href={`/admin/calendar/day/${key}`}
                       className="block text-[10px] text-muted-foreground hover:text-foreground"
                     >
-                      +{items.length - 3} more
+                      {t("more", { n: items.length - 3 })}
                     </Link>
                   )}
                 </div>
@@ -167,26 +184,6 @@ export default async function AdminCalendar({
           })}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Legend() {
-  const tags: Array<[string, string]> = [
-    ["PENDING_APPROVAL", "Pending"],
-    ["APPROVED", "Approved"],
-    ["ASSIGNED", "Assigned"],
-    ["COMPLETED", "Completed"],
-    ["CANCELLED", "Cancelled"],
-    ["DENIED", "Denied"],
-  ];
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      {tags.map(([key, label]) => (
-        <span key={key} className={`rounded border px-1.5 py-0.5 ${STATUS_TINT[key]}`}>
-          {label}
-        </span>
-      ))}
     </div>
   );
 }

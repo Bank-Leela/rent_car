@@ -98,7 +98,209 @@
     "decidedBy": "โดย {name}",
     "approvalStatusApproved": "อนุมัติแล้ว",
     "approvalStatusDenied": "ไม่อนุมัติ",
-    "approvalStatusPending": "รอดำเนินการ"
+    "approvalStatusPending": "รอดำเนินการ",
+    "assignment": "การจัดรถ",
+    "currentAssignment": "การจัดรถปัจจุบัน",
+    "vehicle": "รถ",
+    "driver": "พนักงานขับรถ",
+    "coDriver": "พนักงานขับรถผู้ช่วย",
+    "department": "ภาควิชา",
+    "deniedTitle": "ไม่อนุมัติ",
+    "history": "ประวัติ",
+    "flag": "หมายเหตุ",
+    "flaggedForOutsourcing": "ผู้ขอใช้รถระบุว่าอาจต้องเช่าจากภายนอก",
+    "actionBy": "{action} โดย {name}"
+  },
+  "requesterDetail": {
+    "tripEvaluation": "ประเมินการเดินทาง",
+    "cancelTitle": "ยกเลิก"
+  },
+  "adminDetail": {
+    "backToQueue": "กลับไปคิวงาน",
+    "cancellationWarning": "⚠ ผู้ขอใช้รถยกเลิกการจอง {count} ครั้งใน 90 วันที่ผ่านมา",
+    "assignVehicleAndDriver": "จัดรถและพนักงานขับ",
+    "denyTitle": "ไม่อนุมัติ",
+    "outsourceTitle": "เช่าจากภายนอก"
+  },
+  "assignForm": {
+    "vehicle": "รถ",
+    "select": "เลือก…",
+    "primaryDriver": "พนักงานขับรถหลัก",
+    "coDriver": "พนักงานขับรถผู้ช่วย",
+    "noneOption": "ไม่มี",
+    "requiredOver400": "จำเป็นสำหรับการเดินทางเกิน 400 กม.",
+    "tripOver400Note": "การเดินทางเกิน {km} กม. — ต้องมีพนักงานขับรถผู้ช่วย",
+    "conflictSuffix": " — ติดคิว (ระยะห่าง 1 ชม.)",
+    "reservedTag": "สำรอง",
+    "poolSuffix": "กลุ่ม {pool}",
+    "seatSuffix": "{capacity} ที่นั่ง",
+    "assigning": "กำลังจัด…",
+    "assign": "จัดรถ",
+    "reason": "เหตุผล",
+    "denying": "กำลังปฏิเสธ…",
+    "denyBooking": "ไม่อนุมัติการจอง"
+  },
+  "outsourceForm": {
+    "vendor": "ผู้ให้บริการ",
+    "cost": "ค่าใช้จ่าย (บาท)",
+    "reference": "หมายเลขอ้างอิง / ยืนยัน",
+    "emailRequester": "ส่งอีเมลแจ้งผู้ขอใช้รถ",
+    "saving": "กำลังบันทึก…",
+    "markOutsourced": "ระบุว่าเช่าจากภายนอก"
+  },
+  "cancelForm": {
+    "cancelThisBooking": "ยกเลิกการจองนี้",
+    "reason": "เหตุผล",
+    "cancelling": "กำลังยกเลิก…",
+    "confirmCancel": "ยืนยันการยกเลิก",
+    "keepBooking": "เก็บการจองไว้"
+  },
+  "evaluationForm": {
+    "howWasTheTrip": "การเดินทางเป็นอย่างไรบ้าง?",
+    "comment": "ความคิดเห็น",
+    "commentRequired": "ต้องใส่ความคิดเห็นสำหรับคะแนนเชิงลบ",
+    "submitting": "กำลังส่ง…",
+    "submit": "ส่งผลการประเมิน",
+    "thanksTitle": "ขอบคุณสำหรับความคิดเห็น",
+    "thanksDescription": "คุณสามารถจองใหม่ได้แล้ว",
+    "ratings": {
+      "VERY_GOOD": "ดีมาก",
+      "GOOD": "ดี",
+      "SLIGHTLY_NOT_GOOD": "ค่อนข้างไม่ดี",
+      "NOT_GOOD": "ไม่ดี"
+    }
+  },
+  "tripForms": {
+    "startingKm": "เลขไมล์เริ่มต้น",
+    "startingPlaceholder": "เช่น 12500",
+    "starting": "กำลังเริ่ม…",
+    "startTrip": "เริ่มทริป",
+    "endingKm": "เลขไมล์สิ้นสุด",
+    "fuelCost": "ค่าน้ำมัน (บาท)",
+    "tollwayCost": "ค่าทางด่วน (บาท)",
+    "usedExpressway": "ใช้ทางด่วน",
+    "notesOptional": "หมายเหตุ (ไม่บังคับ)",
+    "ending": "กำลังจบ…",
+    "endTrip": "จบทริป",
+    "startedAt": "เริ่มเวลา {time} · {km} กม."
+  },
+  "signatureForm": {
+    "imageLabel": "ไฟล์ลายเซ็น (PNG หรือ JPEG, ≤1 MB)",
+    "helperUpload": "เมื่ออัปโหลดแล้ว ภาพนี้จะถูกฝังไว้ใน PDF สำหรับทุกการจองที่คุณอนุมัติ",
+    "helperReplace": "การอัปโหลดจะแทนที่ลายเซ็นที่บันทึกไว้",
+    "uploading": "กำลังอัปโหลด…",
+    "uploadSignature": "อัปโหลดลายเซ็น",
+    "replaceSignature": "แทนที่ลายเซ็น"
+  },
+  "delegateForm": {
+    "emailLabel": "อีเมลผู้รับมอบอำนาจ (เว้นว่างเพื่อยกเลิก)",
+    "emailPlaceholder": "staff@chula.ac.th",
+    "helper": "ผู้รับมอบอำนาจจะเห็นรายการรออนุมัติของคุณ และสามารถลงนามแทนได้โดยใช้บัญชีของตนเอง",
+    "saving": "กำลังบันทึก…",
+    "saveDelegation": "บันทึกการมอบอำนาจ"
+  },
+  "profile": {
+    "title": "โปรไฟล์",
+    "description": "ตั้งค่าลายเซ็นและ (ถ้าต้องการ) มอบอำนาจการอนุมัติ",
+    "storedSignatureTitle": "ลายเซ็นที่บันทึกไว้",
+    "signatureOnFile": "มีลายเซ็นบันทึกไว้แล้ว ระบบจะฝังลงใน PDF ทุกการจองที่คุณอนุมัติ",
+    "signatureNoFile": "ยังไม่มีลายเซ็นบันทึกไว้ คุณยังอนุมัติได้แต่ช่องลายเซ็นใน PDF จะว่างเปล่า",
+    "delegationTitle": "การมอบอำนาจ",
+    "delegationDescription": "เลือกเจ้าหน้าที่ที่จะอนุมัติแทนคุณได้"
+  },
+  "calendar": {
+    "title": "ปฏิทิน",
+    "thisMonth": "เดือนนี้",
+    "more": "+อีก {n} รายการ",
+    "weekdayHeaders": {
+      "sun": "อา.",
+      "mon": "จ.",
+      "tue": "อ.",
+      "wed": "พ.",
+      "thu": "พฤ.",
+      "fri": "ศ.",
+      "sat": "ส."
+    },
+    "legend": {
+      "PENDING_APPROVAL": "รออนุมัติ",
+      "APPROVED": "อนุมัติแล้ว",
+      "ASSIGNED": "จัดรถแล้ว",
+      "COMPLETED": "เสร็จสิ้น",
+      "CANCELLED": "ยกเลิก",
+      "DENIED": "ไม่อนุมัติ"
+    }
+  },
+  "calendarDay": {
+    "backToMonth": "กลับไปมุมมองเดือน",
+    "nothingScheduled": "ไม่มีกำหนดการ",
+    "bookingCount": "การจอง {count} รายการ"
+  },
+  "dashboard": {
+    "title": "แดชบอร์ด",
+    "totalRequests": "คำขอทั้งหมด",
+    "approved": "อนุมัติแล้ว",
+    "cancelled": "ยกเลิก",
+    "ofTotal": "{pct} ของทั้งหมด",
+    "requestVolumeByWeek": "จำนวนคำขอรายสัปดาห์",
+    "approvalFunnel": "กรวยการอนุมัติ",
+    "requestVolumeByDept": "จำนวนคำขอแยกตามภาควิชา",
+    "vehicleUtilisation": "การใช้รถ",
+    "driverUtilisation": "การใช้พนักงานขับรถ",
+    "repeatCancellers": "ผู้ยกเลิกซ้ำ",
+    "deptColumn": "ภาควิชา",
+    "requestsColumn": "คำขอ",
+    "vehicleColumn": "รถ",
+    "tripsColumn": "ทริป",
+    "hoursColumn": "ชั่วโมง",
+    "kmColumn": "กม.",
+    "fuelColumn": "ค่าน้ำมัน ฿",
+    "tollwayColumn": "ค่าทางด่วน ฿",
+    "driverColumn": "พนักงานขับรถ",
+    "userColumn": "ผู้ใช้",
+    "cancellationsColumn": "ยอดยกเลิก",
+    "noData": "ไม่มีข้อมูลในช่วงนี้",
+    "printTip": "เคล็ดลับ: พิมพ์หน้านี้ (Cmd-P) เพื่อส่งให้อาจารย์ที่ปรึกษา",
+    "csv": "CSV",
+    "funnelApproved": "อนุมัติ",
+    "funnelDenied": "ไม่อนุมัติ",
+    "funnelCancelled": "ยกเลิก",
+    "funnelOutsourced": "เช่าภายนอก"
+  },
+  "deptUsage": {
+    "titleSuffix": "การใช้งานของ {name}",
+    "notHead": "คุณยังไม่ได้เป็นหัวหน้าภาควิชาใด",
+    "volumeByWeek": "จำนวนรายสัปดาห์",
+    "funnel": "กรวย",
+    "vehiclesUsed": "รถที่ภาควิชาของคุณใช้"
+  },
+  "rangeFilter": {
+    "from": "ตั้งแต่",
+    "to": "ถึง",
+    "apply": "ใช้"
+  },
+  "newBookingPage": {
+    "title": "จองใหม่",
+    "description": "ส่งคำขอใช้รถเพื่อพิจารณา"
+  },
+  "driverDetail": {
+    "trip": "ทริป",
+    "vehicle": "รถ",
+    "capacity": "ความจุ",
+    "capacityValue": "{seats} ที่นั่ง",
+    "start": "เริ่ม",
+    "endBackAtFaculty": "สิ้นสุด (กลับถึงคณะ)",
+    "passengers": "ผู้โดยสาร",
+    "estDistance": "ระยะทางประมาณ",
+    "contact": "ผู้ติดต่อ",
+    "notes": "หมายเหตุ",
+    "startTripTitle": "เริ่มทริป",
+    "endTripTitle": "จบทริป",
+    "completedTitle": "เสร็จสิ้น",
+    "completedStart": "เริ่ม",
+    "completedEnd": "สิ้นสุด",
+    "completedDistance": "ระยะทาง",
+    "completedFuel": "ค่าน้ำมัน",
+    "completedTollway": "ค่าทางด่วน"
   },
   "approverActions": {
     "backToInbox": "กลับไปกล่องจดหมาย",

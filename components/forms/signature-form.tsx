@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { uploadSignatureAction, setDelegateAction } from "@/lib/booking/approval-actions";
 
 export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
+  const t = useTranslations("signatureForm");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -22,7 +24,7 @@ export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
       encType="multipart/form-data"
     >
       <div className="grid gap-2">
-        <Label htmlFor="signature">Signature image (PNG or JPEG, ≤1 MB)</Label>
+        <Label htmlFor="signature">{t("imageLabel")}</Label>
         <Input
           id="signature"
           name="signature"
@@ -31,7 +33,7 @@ export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
           required
         />
         <p className="text-xs text-muted-foreground">
-          {hasSignature ? "Uploading replaces your stored signature." : "Once uploaded, this image will be embedded in the PDF for every booking you approve."}
+          {hasSignature ? t("helperReplace") : t("helperUpload")}
         </p>
       </div>
       {error && (
@@ -40,13 +42,14 @@ export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
         </div>
       )}
       <Button type="submit" disabled={pending}>
-        {pending ? "Uploading…" : hasSignature ? "Replace signature" : "Upload signature"}
+        {pending ? t("uploading") : hasSignature ? t("replaceSignature") : t("uploadSignature")}
       </Button>
     </form>
   );
 }
 
 export function DelegateForm({ currentDelegateEmail }: { currentDelegateEmail: string | null }) {
+  const t = useTranslations("delegateForm");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -61,17 +64,15 @@ export function DelegateForm({ currentDelegateEmail }: { currentDelegateEmail: s
       className="space-y-3"
     >
       <div className="grid gap-2">
-        <Label htmlFor="delegateEmail">Delegate email (leave blank to clear)</Label>
+        <Label htmlFor="delegateEmail">{t("emailLabel")}</Label>
         <Input
           id="delegateEmail"
           name="delegateEmail"
           type="email"
-          placeholder="staff@chula.ac.th"
+          placeholder={t("emailPlaceholder")}
           defaultValue={currentDelegateEmail ?? ""}
         />
-        <p className="text-xs text-muted-foreground">
-          The delegate will see your pending approvals and can sign on your behalf using their account.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("helper")}</p>
       </div>
       {error && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -79,7 +80,7 @@ export function DelegateForm({ currentDelegateEmail }: { currentDelegateEmail: s
         </div>
       )}
       <Button type="submit" disabled={pending} variant="outline">
-        {pending ? "Saving…" : "Save delegation"}
+        {pending ? t("saving") : t("saveDelegation")}
       </Button>
     </form>
   );

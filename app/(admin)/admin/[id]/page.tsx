@@ -1,15 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { findBufferConflicts, shouldWarnAboutCancellations } from "@/lib/booking/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
-import { subDays } from "date-fns";
 
 export default async function AdminBookingDetail({
   params,
@@ -18,6 +17,9 @@ export default async function AdminBookingDetail({
 }) {
   await requireRole("ADMIN");
   const { id } = await params;
+  const t = await getTranslations("bookingDetail");
+  const tad = await getTranslations("adminDetail");
+  const taf = await getTranslations("assignForm");
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -69,16 +71,16 @@ export default async function AdminBookingDetail({
     const conflictCount = conflictsByVehicle.get(v.id) ?? 0;
     return {
       id: v.id,
-      label: `${v.registrationNumber} · ${v.type.toLowerCase()} · ${v.capacity}-seat`,
-      sublabel: v.isReserved ? "reserved" : undefined,
+      label: `${v.registrationNumber} · ${v.type.toLowerCase()} · ${taf("seatSuffix", { capacity: v.capacity })}`,
+      sublabel: v.isReserved ? taf("reservedTag") : undefined,
       disabled: conflictCount > 0,
       conflict: conflictCount > 0,
     };
   });
   const driverOptions = drivers.map((d) => ({
     id: d.id,
-    label: d.user.name ?? d.user.email ?? "Unknown driver",
-    sublabel: `${d.pool.toLowerCase()} pool`,
+    label: d.user.name ?? d.user.email ?? "—",
+    sublabel: taf("poolSuffix", { pool: d.pool.toLowerCase() }),
   }));
 
   const isQueueable = booking.status === "PENDING_APPROVAL" || booking.status === "APPROVED";
@@ -101,31 +103,31 @@ export default async function AdminBookingDetail({
           href="/admin"
           className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
         >
-          Back to queue
+          {tad("backToQueue")}
         </Link>
       </div>
 
       {cancellationWarning && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-          ⚠ Requester has cancelled {recentCancellations} bookings in the last 90 days.
+          {tad("cancellationWarning", { count: recentCancellations })}
         </div>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle>Trip</CardTitle>
+          <CardTitle>{t("trip")}</CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-          <Field label="Destination" value={`${booking.destination}, ${booking.province}`} />
-          <Field label="Passengers" value={String(booking.passengerCount)} />
-          <Field label="Start" value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
-          <Field label="End (back at faculty)" value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("destination")} value={`${booking.destination}, ${booking.province}`} />
+          <Field label={t("passengers")} value={String(booking.passengerCount)} />
+          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
           {booking.estimatedDistance != null && (
-            <Field label="Estimated distance" value={`${booking.estimatedDistance} km`} />
+            <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
-          {booking.needsOutsourcing && <Field label="Flag" value="Requester flagged for outsourcing" />}
+          {booking.needsOutsourcing && <Field label={t("flag")} value={t("flaggedForOutsourcing")} />}
           {booking.passengerNotes && (
-            <Field label="Passenger notes" value={booking.passengerNotes} colSpan />
+            <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
           )}
         </CardContent>
       </Card>
@@ -133,17 +135,17 @@ export default async function AdminBookingDetail({
       {booking.vehicle && (
         <Card>
           <CardHeader>
-            <CardTitle>Current assignment</CardTitle>
+            <CardTitle>{t("currentAssignment")}</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-            <Field label="Vehicle" value={booking.vehicle.registrationNumber} />
+            <Field label={t("vehicle")} value={booking.vehicle.registrationNumber} />
             <Field
-              label="Driver"
+              label={t("driver")}
               value={booking.primaryDriver?.user.name ?? booking.primaryDriver?.user.email ?? "—"}
             />
             {booking.secondaryDriver && (
               <Field
-                label="Co-driver"
+                label={t("coDriver")}
                 value={booking.secondaryDriver.user.name ?? booking.secondaryDriver.user.email!}
               />
             )}
@@ -154,14 +156,14 @@ export default async function AdminBookingDetail({
       {booking.pdfUrl && (
         <Card>
           <CardHeader>
-            <CardTitle>Approval document</CardTitle>
+            <CardTitle>{t("approvalDocument")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Link
               href={`/api/files/booking-pdf/${booking.id}`}
               className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
             >
-              Download PDF
+              {t("downloadPdf")}
             </Link>
           </CardContent>
         </Card>
@@ -170,7 +172,7 @@ export default async function AdminBookingDetail({
       {booking.status === "DENIED" && booking.denialReason && (
         <Card>
           <CardHeader>
-            <CardTitle>Denied</CardTitle>
+            <CardTitle>{t("deniedTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">{booking.denialReason}</CardContent>
         </Card>
@@ -180,7 +182,7 @@ export default async function AdminBookingDetail({
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Assign vehicle &amp; driver</CardTitle>
+              <CardTitle>{tad("assignVehicleAndDriver")}</CardTitle>
             </CardHeader>
             <CardContent>
               <AssignForm
@@ -194,7 +196,7 @@ export default async function AdminBookingDetail({
 
           <Card>
             <CardHeader>
-              <CardTitle>Deny</CardTitle>
+              <CardTitle>{tad("denyTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <DenyForm bookingId={booking.id} />
@@ -203,7 +205,7 @@ export default async function AdminBookingDetail({
 
           <Card>
             <CardHeader>
-              <CardTitle>Outsource</CardTitle>
+              <CardTitle>{tad("outsourceTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <OutsourceForm bookingId={booking.id} />
@@ -214,7 +216,7 @@ export default async function AdminBookingDetail({
 
       <Card>
         <CardHeader>
-          <CardTitle>History</CardTitle>
+          <CardTitle>{t("history")}</CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="space-y-2 text-sm">
@@ -227,7 +229,7 @@ export default async function AdminBookingDetail({
                   <span className="font-medium">{log.action.replace(/_/g, " ").toLowerCase()}</span>
                   <span className="text-muted-foreground">
                     {" "}
-                    by {log.actor.name ?? log.actor.email}
+                    {t("decidedBy", { name: log.actor.name ?? log.actor.email ?? "" })}
                   </span>
                 </span>
               </li>

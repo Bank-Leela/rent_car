@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import {
@@ -17,6 +18,8 @@ export default async function DepartmentUsage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const session = await requireRole("APPROVER");
+  const t = await getTranslations("deptUsage");
+  const td = await getTranslations("dashboard");
   const qs = await searchParams;
   const range = rangeFromQuery(qs);
 
@@ -30,18 +33,16 @@ export default async function DepartmentUsage({
   });
 
   if (myDepts.length === 0) {
-    return <p className="text-sm text-muted-foreground">You don&rsquo;t head a department yet.</p>;
+    return <p className="text-sm text-muted-foreground">{t("notHead")}</p>;
   }
 
-  // Phase 4 keeps this single-department; multi-dept heads see the first.
   const dept = myDepts[0];
   const [funnel, byWeek, vehicle] = await Promise.all([
     approvalFunnel(range, dept.id),
     requestVolumeByWeek(range, dept.id),
-    vehicleUtilisation(range), // utilisation is fleet-wide; we don't slice by dept
+    vehicleUtilisation(range),
   ]);
 
-  // Filter vehicle utilisation rows down to those used by this dept's bookings.
   const deptVehicleIds = await prisma.booking.findMany({
     where: { departmentId: dept.id, vehicleId: { not: null } },
     select: { vehicleId: true },
@@ -61,7 +62,9 @@ export default async function DepartmentUsage({
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{dept.nameEn} usage</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("titleSuffix", { name: dept.nameEn })}
+          </h1>
           <p className="text-muted-foreground">
             {format(range.from, "d MMM yyyy")} – {format(range.to, "d MMM yyyy")}
           </p>
@@ -70,26 +73,26 @@ export default async function DepartmentUsage({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
-        <KpiCard label="Total requests" value={funnel.total} />
-        <KpiCard label="Approved" value={funnel.approved} />
-        <KpiCard label="Cancelled" value={funnel.cancelled} />
+        <KpiCard label={td("totalRequests")} value={funnel.total} />
+        <KpiCard label={td("approved")} value={funnel.approved} />
+        <KpiCard label={td("cancelled")} value={funnel.cancelled} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle>Volume by week</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t("volumeByWeek")}</CardTitle></CardHeader>
           <CardContent>
-            {byWeek.length > 0 ? <VolumeBarChart data={byWeek} /> : <Empty />}
+            {byWeek.length > 0 ? <VolumeBarChart data={byWeek} /> : <Empty label={td("noData")} />}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Funnel</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t("funnel")}</CardTitle></CardHeader>
           <CardContent>
             <FunnelPieChart
               data={[
-                { label: "Approved", value: funnel.approved },
-                { label: "Denied", value: funnel.denied },
-                { label: "Cancelled", value: funnel.cancelled },
+                { label: td("funnelApproved"), value: funnel.approved },
+                { label: td("funnelDenied"), value: funnel.denied },
+                { label: td("funnelCancelled"), value: funnel.cancelled },
               ]}
             />
           </CardContent>
@@ -97,15 +100,15 @@ export default async function DepartmentUsage({
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Vehicles used by your department</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t("vehiclesUsed")}</CardTitle></CardHeader>
         <CardContent>
-          {deptVehicle.length === 0 ? <Empty /> : (
+          {deptVehicle.length === 0 ? <Empty label={td("noData")} /> : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground">
-                  <th className="py-2">Vehicle</th>
-                  <th className="text-right py-2">Trips</th>
-                  <th className="text-right py-2">Km</th>
+                  <th className="py-2">{td("vehicleColumn")}</th>
+                  <th className="text-right py-2">{td("tripsColumn")}</th>
+                  <th className="text-right py-2">{td("kmColumn")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,6 +139,6 @@ function KpiCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function Empty() {
-  return <p className="py-8 text-center text-sm text-muted-foreground">No data in range.</p>;
+function Empty({ label }: { label: string }) {
+  return <p className="py-8 text-center text-sm text-muted-foreground">{label}</p>;
 }

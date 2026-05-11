@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
@@ -20,6 +21,7 @@ export function AssignForm({
   vehicleOptions: Option[];
   driverOptions: Option[];
 }) {
+  const t = useTranslations("assignForm");
   const requiresSecondary =
     typeof estimatedDistance === "number" && estimatedDistance > TWO_DRIVER_DISTANCE_KM;
   const [error, setError] = useState<string | null>(null);
@@ -38,18 +40,18 @@ export function AssignForm({
       className="space-y-4"
     >
       <div className="grid gap-2">
-        <Label htmlFor="vehicleId">Vehicle</Label>
+        <Label htmlFor="vehicleId">{t("vehicle")}</Label>
         <select
           id="vehicleId"
           name="vehicleId"
           required
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
         >
-          <option value="">Select…</option>
+          <option value="">{t("select")}</option>
           {vehicleOptions.map((v) => (
             <option key={v.id} value={v.id} disabled={v.disabled}>
               {v.label}
-              {v.conflict ? " — conflict (1h buffer)" : ""}
+              {v.conflict ? t("conflictSuffix") : ""}
               {v.sublabel ? ` (${v.sublabel})` : ""}
             </option>
           ))}
@@ -58,14 +60,14 @@ export function AssignForm({
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label htmlFor="primaryDriverId">Primary driver</Label>
+          <Label htmlFor="primaryDriverId">{t("primaryDriver")}</Label>
           <select
             id="primaryDriverId"
             name="primaryDriverId"
             required
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
-            <option value="">Select…</option>
+            <option value="">{t("select")}</option>
             {driverOptions.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.label}
@@ -76,7 +78,7 @@ export function AssignForm({
         </div>
         <div className="grid gap-2">
           <Label htmlFor="secondaryDriverId">
-            Co-driver {requiresSecondary && <span className="text-destructive">*</span>}
+            {t("coDriver")} {requiresSecondary && <span className="text-destructive">*</span>}
           </Label>
           <select
             id="secondaryDriverId"
@@ -84,7 +86,7 @@ export function AssignForm({
             required={requiresSecondary}
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
-            <option value="">{requiresSecondary ? "Required for >400 km" : "None"}</option>
+            <option value="">{requiresSecondary ? t("requiredOver400") : t("noneOption")}</option>
             {driverOptions.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.label}
@@ -93,7 +95,7 @@ export function AssignForm({
           </select>
           {requiresSecondary && (
             <p className="text-xs text-muted-foreground">
-              Trip is over {TWO_DRIVER_DISTANCE_KM} km — co-driver required.
+              {t("tripOver400Note", { km: TWO_DRIVER_DISTANCE_KM })}
             </p>
           )}
         </div>
@@ -105,13 +107,14 @@ export function AssignForm({
         </div>
       )}
       <Button type="submit" disabled={pending}>
-        {pending ? "Assigning…" : "Assign"}
+        {pending ? t("assigning") : t("assign")}
       </Button>
     </form>
   );
 }
 
 export function DenyForm({ bookingId }: { bookingId: string }) {
+  const t = useTranslations("assignForm");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -127,7 +130,7 @@ export function DenyForm({ bookingId }: { bookingId: string }) {
       className="space-y-3"
     >
       <div className="grid gap-2">
-        <Label htmlFor="reason">Reason</Label>
+        <Label htmlFor="reason">{t("reason")}</Label>
         <Textarea id="reason" name="reason" rows={2} required />
       </div>
       {error && (
@@ -136,7 +139,7 @@ export function DenyForm({ bookingId }: { bookingId: string }) {
         </div>
       )}
       <Button type="submit" variant="destructive" disabled={pending}>
-        {pending ? "Denying…" : "Deny booking"}
+        {pending ? t("denying") : t("denyBooking")}
       </Button>
     </form>
   );

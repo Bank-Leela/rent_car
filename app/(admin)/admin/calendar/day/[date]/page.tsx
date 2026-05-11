@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format, parse, startOfDay, endOfDay } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -11,6 +12,7 @@ export default async function CalendarDay({
   params: Promise<{ date: string }>;
 }) {
   await requireRole("ADMIN");
+  const t = await getTranslations("calendarDay");
   const { date } = await params;
   const day = parse(date, "yyyy-MM-dd", new Date());
   if (Number.isNaN(day.getTime())) notFound();
@@ -34,19 +36,19 @@ export default async function CalendarDay({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{format(day, "EEEE d MMMM yyyy")}</h1>
-          <p className="text-muted-foreground">{bookings.length} booking{bookings.length === 1 ? "" : "s"}</p>
+          <p className="text-muted-foreground">{t("bookingCount", { count: bookings.length })}</p>
         </div>
         <Link
           href={`/admin/calendar?month=${format(day, "yyyy-MM")}`}
           className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
         >
-          Back to month
+          {t("backToMonth")}
         </Link>
       </div>
 
       {bookings.length === 0 ? (
         <p className="rounded-md border bg-card py-8 text-center text-sm text-muted-foreground">
-          Nothing scheduled.
+          {t("nothingScheduled")}
         </p>
       ) : (
         <div className="space-y-2">

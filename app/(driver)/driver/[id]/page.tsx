@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,9 @@ export default async function DriverBookingDetail({
 }) {
   const session = await requireRole("DRIVER");
   const { id } = await params;
+  const t = await getTranslations("driverDetail");
+  const tc = await getTranslations("common");
+  const ttf = await getTranslations("tripForms");
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -28,7 +32,6 @@ export default async function DriverBookingDetail({
   });
   if (!booking) notFound();
 
-  // Driver may only see their own assignments.
   const me = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   const meId = me?.id;
   if (booking.primaryDriverId !== meId && booking.secondaryDriverId !== meId) notFound();
@@ -51,30 +54,33 @@ export default async function DriverBookingDetail({
           href="/driver"
           className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
         >
-          Back
+          {tc("back")}
         </Link>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Trip</CardTitle>
+          <CardTitle className="text-xl">{t("trip")}</CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-base">
-          <Field label="Vehicle" value={booking.vehicle?.registrationNumber ?? "—"} />
-          <Field label="Capacity" value={`${booking.vehicle?.capacity ?? "—"} seats`} />
-          <Field label="Start" value={format(booking.startAt, "EEE d MMM HH:mm")} />
-          <Field label="End (back at faculty)" value={format(booking.endAt, "EEE d MMM HH:mm")} />
-          <Field label="Passengers" value={String(booking.passengerCount)} />
+          <Field label={t("vehicle")} value={booking.vehicle?.registrationNumber ?? "—"} />
+          <Field
+            label={t("capacity")}
+            value={booking.vehicle ? t("capacityValue", { seats: booking.vehicle.capacity }) : "—"}
+          />
+          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM HH:mm")} />
+          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM HH:mm")} />
+          <Field label={t("passengers")} value={String(booking.passengerCount)} />
           {booking.estimatedDistance != null && (
-            <Field label="Est. distance" value={`${booking.estimatedDistance} km`} />
+            <Field label={t("estDistance")} value={`${booking.estimatedDistance} km`} />
           )}
           <Field
-            label="Contact"
+            label={t("contact")}
             value={`${booking.requester.name ?? booking.requester.email}${booking.requester.phone ? ` · ${booking.requester.phone}` : ""}`}
             colSpan
           />
           {booking.passengerNotes && (
-            <Field label="Notes" value={booking.passengerNotes} colSpan />
+            <Field label={t("notes")} value={booking.passengerNotes} colSpan />
           )}
         </CardContent>
       </Card>
@@ -82,7 +88,7 @@ export default async function DriverBookingDetail({
       {!tripStarted && booking.status === "ASSIGNED" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Start trip</CardTitle>
+            <CardTitle className="text-xl">{t("startTripTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             <StartTripForm bookingId={booking.id} />
@@ -93,11 +99,14 @@ export default async function DriverBookingDetail({
       {tripStarted && !tripCompleted && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">End trip</CardTitle>
+            <CardTitle className="text-xl">{t("endTripTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Started at {format(booking.trip!.startedAt, "HH:mm")} · {booking.trip!.startMileage.toLocaleString()} km
+              {ttf("startedAt", {
+                time: format(booking.trip!.startedAt, "HH:mm"),
+                km: booking.trip!.startMileage.toLocaleString(),
+              })}
             </p>
             <EndTripForm bookingId={booking.id} />
           </CardContent>
@@ -107,14 +116,18 @@ export default async function DriverBookingDetail({
       {tripCompleted && booking.trip && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Completed</CardTitle>
+            <CardTitle className="text-xl">{t("completedTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-base">
-            <Field label="Start" value={`${booking.trip.startMileage.toLocaleString()} km`} />
-            <Field label="End" value={`${booking.trip.endMileage?.toLocaleString() ?? "—"} km`} />
-            <Field label="Distance" value={`${booking.trip.distanceKm ?? "—"} km`} />
-            {booking.trip.fuelCost != null && <Field label="Fuel" value={`฿${booking.trip.fuelCost.toString()}`} />}
-            {booking.trip.tollwayCost != null && <Field label="Tollway" value={`฿${booking.trip.tollwayCost.toString()}`} />}
+            <Field label={t("completedStart")} value={`${booking.trip.startMileage.toLocaleString()} km`} />
+            <Field label={t("completedEnd")} value={`${booking.trip.endMileage?.toLocaleString() ?? "—"} km`} />
+            <Field label={t("completedDistance")} value={`${booking.trip.distanceKm ?? "—"} km`} />
+            {booking.trip.fuelCost != null && (
+              <Field label={t("completedFuel")} value={`฿${booking.trip.fuelCost.toString()}`} />
+            )}
+            {booking.trip.tollwayCost != null && (
+              <Field label={t("completedTollway")} value={`฿${booking.trip.tollwayCost.toString()}`} />
+            )}
           </CardContent>
         </Card>
       )}

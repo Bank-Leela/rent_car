@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,9 @@ export default async function RequesterBookingDetail({
 }) {
   const session = await requireRole("REQUESTER");
   const { id } = await params;
+  const t = await getTranslations("bookingDetail");
+  const tc = await getTranslations("common");
+  const tr = await getTranslations("requesterDetail");
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -45,25 +49,25 @@ export default async function RequesterBookingDetail({
           href="/requester"
           className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
         >
-          Back
+          {tc("back")}
         </Link>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Trip</CardTitle>
+          <CardTitle>{t("trip")}</CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-          <Field label="Destination" value={`${booking.destination}, ${booking.province}`} />
-          <Field label="Department" value={booking.department.nameEn} />
-          <Field label="Start" value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
-          <Field label="End (back at faculty)" value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
-          <Field label="Passengers" value={String(booking.passengerCount)} />
+          <Field label={t("destination")} value={`${booking.destination}, ${booking.province}`} />
+          <Field label={t("department")} value={booking.department.nameEn} />
+          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("passengers")} value={String(booking.passengerCount)} />
           {booking.estimatedDistance != null && (
-            <Field label="Estimated distance" value={`${booking.estimatedDistance} km`} />
+            <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
           {booking.passengerNotes && (
-            <Field label="Passenger notes" value={booking.passengerNotes} colSpan />
+            <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
           )}
         </CardContent>
       </Card>
@@ -71,17 +75,17 @@ export default async function RequesterBookingDetail({
       {booking.vehicle && (
         <Card>
           <CardHeader>
-            <CardTitle>Assignment</CardTitle>
+            <CardTitle>{t("assignment")}</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-            <Field label="Vehicle" value={booking.vehicle.registrationNumber} />
+            <Field label={t("vehicle")} value={booking.vehicle.registrationNumber} />
             <Field
-              label="Driver"
+              label={t("driver")}
               value={booking.primaryDriver?.user.name ?? booking.primaryDriver?.user.email ?? "—"}
             />
             {booking.secondaryDriver && (
               <Field
-                label="Co-driver"
+                label={t("coDriver")}
                 value={booking.secondaryDriver.user.name ?? booking.secondaryDriver.user.email!}
               />
             )}
@@ -92,7 +96,7 @@ export default async function RequesterBookingDetail({
       {needsEval && booking.trip && (
         <Card>
           <CardHeader>
-            <CardTitle>Trip evaluation</CardTitle>
+            <CardTitle>{tr("tripEvaluation")}</CardTitle>
           </CardHeader>
           <CardContent>
             <EvaluationForm tripId={booking.trip.id} />
@@ -103,7 +107,7 @@ export default async function RequesterBookingDetail({
       {canCancel && (
         <Card>
           <CardHeader>
-            <CardTitle>Cancel</CardTitle>
+            <CardTitle>{tr("cancelTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             <CancelForm bookingId={booking.id} />
@@ -114,14 +118,14 @@ export default async function RequesterBookingDetail({
       {booking.pdfUrl && (
         <Card>
           <CardHeader>
-            <CardTitle>Approval document</CardTitle>
+            <CardTitle>{t("approvalDocument")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Link
               href={`/api/files/booking-pdf/${booking.id}`}
               className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
             >
-              Download PDF
+              {t("downloadPdf")}
             </Link>
           </CardContent>
         </Card>
@@ -130,7 +134,7 @@ export default async function RequesterBookingDetail({
       {booking.status === "DENIED" && booking.denialReason && (
         <Card>
           <CardHeader>
-            <CardTitle>Denied</CardTitle>
+            <CardTitle>{t("deniedTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">{booking.denialReason}</CardContent>
         </Card>
@@ -138,7 +142,7 @@ export default async function RequesterBookingDetail({
 
       <Card>
         <CardHeader>
-          <CardTitle>History</CardTitle>
+          <CardTitle>{t("history")}</CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="space-y-2 text-sm">
@@ -151,7 +155,7 @@ export default async function RequesterBookingDetail({
                   <span className="font-medium">{log.action.replace(/_/g, " ").toLowerCase()}</span>
                   <span className="text-muted-foreground">
                     {" "}
-                    by {log.actor.name ?? log.actor.email}
+                    {t("decidedBy", { name: log.actor.name ?? log.actor.email ?? "" })}
                   </span>
                 </span>
               </li>
