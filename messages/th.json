@@ -109,13 +109,18 @@
   },
   "admin": {
     "title": "คิวการจอง",
-    "description": "ใครมาก่อนได้ก่อน · มี {count} รายการรอจัดรถ",
+    "description": "ใครมาก่อนได้ก่อน · {pending} รายการรออนุมัติ · {approved} รายการพร้อมจัดรถ",
+    "awaitingApproval": "รออนุมัติจากหัวหน้าภาควิชา",
+    "awaitingApprovalNote": "รายการเหล่านี้ยังรอการอนุมัติจากหัวหน้าภาควิชา คุณจะจัดรถได้หลังจากอนุมัติแล้ว",
     "awaitingAssignment": "รอจัดรถ",
     "upcomingTrips": "ทริปที่จัดรถแล้วในอนาคต",
+    "incomingEmptyTitle": "ยังไม่มีคำขอเข้ามา",
+    "incomingEmptyDescription": "เมื่อมีบุคลากรส่งคำขอจองรถ รายการจะแสดงที่นี่ระหว่างรอการอนุมัติจากหัวหน้าภาควิชา",
     "queueEmptyTitle": "คิวว่าง",
     "queueEmptyDescription": "การจองที่อนุมัติแล้วจะแสดงที่นี่ เรียงจากเก่าสุดก่อน",
     "upcomingEmptyTitle": "ยังไม่มีกำหนดการ",
-    "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่"
+    "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่",
+    "submittedAt": "ส่งเมื่อ {date}"
   },
   "bookingDetail": {
     "trip": "การเดินทาง",

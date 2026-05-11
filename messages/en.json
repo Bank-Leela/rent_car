@@ -109,13 +109,18 @@
   },
   "admin": {
     "title": "Booking queue",
-    "description": "First-come-first-served. {count} awaiting assignment.",
+    "description": "First-come-first-served. {pending} awaiting approval · {approved} ready to assign.",
+    "awaitingApproval": "Awaiting approval",
+    "awaitingApprovalNote": "These are still with the department head. You'll be able to assign once approved.",
     "awaitingAssignment": "Awaiting assignment",
     "upcomingTrips": "Upcoming assigned trips",
+    "incomingEmptyTitle": "No incoming requests",
+    "incomingEmptyDescription": "When a faculty member submits a booking, it'll show up here while it's with the department head.",
     "queueEmptyTitle": "Queue is empty",
     "queueEmptyDescription": "Approved bookings will appear here, oldest first.",
     "upcomingEmptyTitle": "Nothing scheduled",
-    "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here."
+    "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here.",
+    "submittedAt": "submitted {date}"
   },
   "bookingDetail": {
     "trip": "Trip",

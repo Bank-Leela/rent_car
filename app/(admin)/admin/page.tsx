@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Inbox, CalendarClock, ChevronRight } from "lucide-react";
+import { Inbox, Clock, CalendarClock, ChevronRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -12,28 +12,75 @@ export default async function AdminQueue() {
   await requireRole("ADMIN");
   const t = await getTranslations("admin");
 
-  const pending = await prisma.booking.findMany({
-    where: { status: "APPROVED" },
-    orderBy: { createdAt: "asc" },
-    include: { requester: true, department: true },
-  });
-
-  const upcoming = await prisma.booking.findMany({
-    where: { status: "ASSIGNED", endAt: { gte: new Date() } },
-    orderBy: { startAt: "asc" },
-    take: 20,
-    include: { vehicle: true, primaryDriver: { include: { user: true } } },
-  });
+  // FCFS per plan §5.6 — order by createdAt asc, no admin override.
+  const [pendingApproval, approved, upcoming] = await Promise.all([
+    prisma.booking.findMany({
+      where: { status: "PENDING_APPROVAL" },
+      orderBy: { createdAt: "asc" },
+      include: { requester: true, department: true },
+    }),
+    prisma.booking.findMany({
+      where: { status: "APPROVED" },
+      orderBy: { createdAt: "asc" },
+      include: { requester: true, department: true },
+    }),
+    prisma.booking.findMany({
+      where: { status: "ASSIGNED", endAt: { gte: new Date() } },
+      orderBy: { startAt: "asc" },
+      take: 20,
+      include: { vehicle: true, primaryDriver: { include: { user: true } } },
+    }),
+  ]);
 
   return (
     <div className="space-y-8">
       <PageHeader
         title={t("title")}
-        description={t("description", { count: pending.length })}
+        description={t("description", { pending: pendingApproval.length, approved: approved.length })}
       />
 
+      <Section title={t("awaitingApproval")} icon={<Clock className="h-4 w-4" />}>
+        {pendingApproval.length === 0 ? (
+          <EmptyState
+            icon={Clock}
+            title={t("incomingEmptyTitle")}
+            description={t("incomingEmptyDescription")}
+          />
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">{t("awaitingApprovalNote")}</p>
+            <ul className="space-y-2">
+              {pendingApproval.map((b) => (
+                <li key={b.id}>
+                  <Link
+                    href={`/admin/${b.id}`}
+                    className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
+                        <BookingStatusBadge status={b.status} />
+                      </div>
+                      <div className="mt-1 font-medium truncate">{b.purpose}</div>
+                      <div className="mt-0.5 text-sm text-muted-foreground">
+                        {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {b.requester.name ?? b.requester.email} · {b.department.nameEn} ·{" "}
+                        {t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Section>
+
       <Section title={t("awaitingAssignment")} icon={<Inbox className="h-4 w-4" />}>
-        {pending.length === 0 ? (
+        {approved.length === 0 ? (
           <EmptyState
             icon={Inbox}
             title={t("queueEmptyTitle")}
@@ -41,7 +88,7 @@ export default async function AdminQueue() {
           />
         ) : (
           <ul className="space-y-2">
-            {pending.map((b) => (
+            {approved.map((b) => (
               <li key={b.id}>
                 <Link
                   href={`/admin/${b.id}`}
@@ -57,7 +104,8 @@ export default async function AdminQueue() {
                       {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {b.requester.name ?? b.requester.email} · {b.department.nameEn} · submitted {format(b.createdAt, "d MMM HH:mm")}
+                      {b.requester.name ?? b.requester.email} · {b.department.nameEn} ·{" "}
+                      {t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
