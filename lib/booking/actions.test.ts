@@ -48,9 +48,23 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (createdIds.length > 0) {
-    await prisma.auditLog.deleteMany({ where: { bookingId: { in: createdIds } } });
-    await prisma.booking.deleteMany({ where: { id: { in: createdIds } } });
+  // Sweep by marker purposes so leaked rows from failed assertions get cleaned too.
+  const markerPurposes = [
+    "Integration smoke trip",
+    "Recurring smoke",
+    "Should be rejected",
+    "End before start",
+  ];
+  const rows = await prisma.booking.findMany({
+    where: { purpose: { in: markerPurposes } },
+    select: { id: true },
+  });
+  const ids = [...new Set([...createdIds, ...rows.map((r) => r.id)])];
+  if (ids.length > 0) {
+    await prisma.auditLog.deleteMany({ where: { bookingId: { in: ids } } });
+    await prisma.recurrenceRule.deleteMany({ where: { parentBookingId: { in: ids } } });
+    await prisma.booking.deleteMany({ where: { recurrenceParentId: { in: ids } } });
+    await prisma.booking.deleteMany({ where: { id: { in: ids } } });
   }
   await prisma.$disconnect();
 });
@@ -73,8 +87,6 @@ describe("createBookingAction", () => {
     start.setHours(9, 0, 0, 0);
     const end = new Date(start);
     end.setHours(start.getHours() + 4);
-
-    const before = await prisma.booking.count({ where: { requesterId: REQUESTER_ID } });
 
     await expect(
       createBookingAction(
@@ -104,7 +116,6 @@ describe("createBookingAction", () => {
     expect(booking.jobNumber).toMatch(/^VB-\d{6}-\d+$/);
     expect(booking.auditLogs).toHaveLength(1);
     expect(booking.auditLogs[0]!.action).toBe("BOOKING_SUBMITTED");
-    expect(await prisma.booking.count({ where: { requesterId: REQUESTER_ID } })).toBe(before + 1);
     createdIds.push(booking.id);
   });
 

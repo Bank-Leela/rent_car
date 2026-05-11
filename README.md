@@ -50,6 +50,31 @@ npm run dev
 Open <http://localhost:3000/login>. In dev mode, four "Dev impersonation"
 buttons let you preview each role view without setting up Google OAuth.
 
+### 5. Email delivery (optional)
+
+By default, `lib/email/client.ts` logs every outgoing message to the dev
+console with the `[email:console]` prefix. The app stays fully functional —
+templates render, server actions fire, no external dependency.
+
+To send real email:
+
+1. Sign up at <https://resend.com> (free tier: 3,000 emails/month).
+2. Verify a sender domain (production) or use the onboarding `onboarding@resend.dev` sender for local testing.
+3. Create an API key in the Resend dashboard → API Keys.
+4. Add to `.env`:
+
+   ```env
+   RESEND_API_KEY="re_..."
+   EMAIL_FROM="Vehicle Booking <noreply@yourdomain.com>"
+   APP_URL="http://localhost:3000"          # used for CTA links in emails
+   ```
+
+5. Restart the dev server. The next status transition (submit, approve, deny,
+   assign, complete) sends real email to the requester / admins.
+
+Templates live in `lib/email/templates.ts` — bilingual Thai + English subject,
+body, and "View booking" CTA.
+
 ## Phase status
 
 - [x] **Phase 0** — auth, schema, role-based routing

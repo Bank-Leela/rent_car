@@ -1,0 +1,114 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { addDays, startOfDay } from "date-fns";
+
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async () => (k: string, v?: Record<string, unknown>) =>
+    v ? `${k}:${JSON.stringify(v)}` : k,
+  ),
+}));
+vi.mock("@/lib/session", () => ({
+  getSession: vi.fn(async () => ({
+    user: { id: "seed-user-approver", roles: ["APPROVER"] },
+  })),
+}));
+const mocks = vi.hoisted(() => ({ sendEmail: vi.fn(async () => {}) }));
+vi.mock("@/lib/email/client", () => ({ sendEmail: mocks.sendEmail }));
+const sendEmailMock = mocks.sendEmail;
+vi.mock("@/lib/pdf/generate", () => ({
+  generateBookingPdf: vi.fn(async () => "stub://pdf"),
+}));
+
+import { prisma } from "@/lib/db";
+import { approveBookingAction } from "@/lib/booking/approval-actions";
+
+const REQUESTER_ID = "seed-user-requester";
+const cleanup: string[] = [];
+
+async function makePendingBooking() {
+  const requester = await prisma.user.findUniqueOrThrow({
+    where: { id: REQUESTER_ID },
+    select: { departmentId: true },
+  });
+  const start = startOfDay(addDays(new Date(), 10));
+  start.setHours(9, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(start.getHours() + 4);
+  const b = await prisma.booking.create({
+    data: {
+      jobNumber: `VB-TEST-${Date.now()}`,
+      requesterId: REQUESTER_ID,
+      departmentId: requester.departmentId!,
+      purpose: "Approval email smoke",
+      destination: "Lab",
+      province: "กรุงเทพมหานคร",
+      startAt: start,
+      endAt: end,
+      passengerCount: 2,
+      status: "PENDING_APPROVAL",
+    },
+  });
+  cleanup.push(b.id);
+  return b.id;
+}
+
+beforeAll(async () => {
+  const u = await prisma.user.findUnique({ where: { id: REQUESTER_ID } });
+  if (!u) throw new Error("Seed missing — run `npx prisma db seed`.");
+});
+
+beforeEach(() => {
+  sendEmailMock.mockClear();
+});
+
+afterAll(async () => {
+  const rows = await prisma.booking.findMany({
+    where: { purpose: "Approval email smoke" },
+    select: { id: true },
+  });
+  const ids = [...new Set([...cleanup, ...rows.map((r) => r.id)])];
+  if (ids.length > 0) {
+    await prisma.auditLog.deleteMany({ where: { bookingId: { in: ids } } });
+    await prisma.approval.deleteMany({ where: { bookingId: { in: ids } } });
+    await prisma.booking.deleteMany({ where: { id: { in: ids } } });
+  }
+  await prisma.$disconnect();
+});
+
+describe("approveBookingAction email", () => {
+  it("sends requester an approval email", async () => {
+    const bookingId = await makePendingBooking();
+    const requester = await prisma.user.findUniqueOrThrow({
+      where: { id: REQUESTER_ID },
+      select: { email: true },
+    });
+    const fd = new FormData();
+    fd.append("bookingId", bookingId);
+
+    const res = await approveBookingAction(fd);
+    expect(res).toEqual({ ok: true });
+
+    const calls = sendEmailMock.mock.calls.map(
+      (c: unknown[]) => c[0] as { to: string | string[]; subject: string },
+    );
+    const toRequester = calls.find((c) => c.to === requester.email);
+    expect(toRequester, "should email requester").toBeDefined();
+    expect(toRequester!.subject).toMatch(/approved/i);
+
+    const updated = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    expect(updated.status).toBe("APPROVED");
+  });
+
+  it("notifies admins", async () => {
+    const bookingId = await makePendingBooking();
+    const fd = new FormData();
+    fd.append("bookingId", bookingId);
+
+    await approveBookingAction(fd);
+    const calls = sendEmailMock.mock.calls.map(
+      (c: unknown[]) => c[0] as { to: string | string[]; subject: string },
+    );
+    const adminCall = calls.find((c) => Array.isArray(c.to));
+    expect(adminCall, "should email admins").toBeDefined();
+  });
+});
