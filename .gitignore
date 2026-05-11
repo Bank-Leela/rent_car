@@ -40,3 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 uploads/
+# Added by code-review-graph
+.code-review-graph/
+
+# Claude Code local settings (per-machine perms, never share)
+.claude/settings.local.json
