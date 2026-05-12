@@ -15,11 +15,11 @@ import {
 } from "recharts";
 
 const COLORS = {
-  primary: "#4f46e5",
+  primary: "#6366f1",
   approved: "#10b981",
   denied: "#ef4444",
   cancelled: "#f59e0b",
-  neutral: "#6b7280",
+  neutral: "#94a3b8",
 };
 
 const FUNNEL_COLOR_BY_LABEL: Record<string, string> = {
@@ -35,36 +35,42 @@ function tooltipStyle() {
   return {
     contentStyle: {
       borderRadius: 8,
-      border: "1px solid var(--border, #e5e7eb)",
-      background: "var(--popover, #ffffff)",
+      border: "1px solid var(--border)",
+      background: "var(--popover)",
+      color: "var(--popover-foreground)",
       fontSize: 12,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
     },
-    labelStyle: { color: "var(--muted-foreground, #6b7280)", fontWeight: 500 },
-    itemStyle: { color: "var(--foreground, #111827)" },
+    labelStyle: { color: "var(--muted-foreground)", fontWeight: 500 },
+    itemStyle: { color: "var(--popover-foreground)" },
   };
 }
 
 export function VolumeBarChart({ data }: { data: Array<{ month: string; count: number }> }) {
   return (
-    <div className="h-64">
+    <div className="h-64 text-muted-foreground">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="currentColor"
+            strokeOpacity={0.2}
+            vertical={false}
+          />
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 12, fill: "#6b7280" }}
-            axisLine={{ stroke: "#e5e7eb" }}
+            tick={{ fontSize: 12, fill: "currentColor" }}
+            axisLine={{ stroke: "currentColor", strokeOpacity: 0.3 }}
             tickLine={false}
           />
           <YAxis
             allowDecimals={false}
-            tick={{ fontSize: 12, fill: "#6b7280" }}
+            tick={{ fontSize: 12, fill: "currentColor" }}
             axisLine={false}
             tickLine={false}
             width={32}
           />
-          <Tooltip {...tooltipStyle()} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+          <Tooltip {...tooltipStyle()} cursor={{ fill: "currentColor", fillOpacity: 0.06 }} />
           <Bar
             dataKey="count"
             fill={COLORS.primary}
@@ -88,7 +94,7 @@ export function FunnelPieChart({
   }
   const total = filtered.reduce((sum, d) => sum + d.value, 0);
   return (
-    <div className="h-64">
+    <div className="h-64 text-muted-foreground">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -105,7 +111,7 @@ export function FunnelPieChart({
               <Cell
                 key={i}
                 fill={FUNNEL_COLOR_BY_LABEL[d.label] ?? COLORS.neutral}
-                stroke="#ffffff"
+                stroke="var(--card)"
                 strokeWidth={2}
               />
             ))}
@@ -113,7 +119,7 @@ export function FunnelPieChart({
           <Legend
             verticalAlign="bottom"
             iconType="circle"
-            wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+            wrapperStyle={{ fontSize: 12, paddingTop: 8, color: "currentColor" }}
           />
           <Tooltip
             {...tooltipStyle()}

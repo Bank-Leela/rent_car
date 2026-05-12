@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import {
@@ -43,6 +43,7 @@ export default async function DepartmentUsage({
   const session = await requireRole("APPROVER");
   const t = await getTranslations("deptUsage");
   const td = await getTranslations("dashboard");
+  const locale = await getLocale();
   const qs = await searchParams;
   const range = rangeFromQuery(qs);
 
@@ -62,7 +63,7 @@ export default async function DepartmentUsage({
   const dept = myDepts[0];
   const [funnel, byMonth, vehicle] = await Promise.all([
     approvalFunnel(range, dept.id),
-    requestVolumeByMonth(range, dept.id),
+    requestVolumeByMonth(range, dept.id, locale),
     vehicleUtilisation(range),
   ]);
 

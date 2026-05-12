@@ -8,16 +8,17 @@ import { DEV_ENABLED } from "@/lib/dev-auth";
 import { prisma } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const ROLE_TINT: Record<string, string> = {
   ADMIN:
-    "border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 dark:border-indigo-900/40 dark:bg-indigo-950/30",
+    "border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 text-indigo-950 dark:border-indigo-400/30 dark:bg-indigo-500/15 dark:hover:bg-indigo-500/20 dark:text-indigo-100",
   APPROVER:
-    "border-fuchsia-200 bg-fuchsia-50/60 hover:bg-fuchsia-100/70 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/30",
+    "border-fuchsia-200 bg-fuchsia-50/60 hover:bg-fuchsia-100/70 text-fuchsia-950 dark:border-fuchsia-400/30 dark:bg-fuchsia-500/15 dark:hover:bg-fuchsia-500/20 dark:text-fuchsia-100",
   DRIVER:
-    "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 dark:border-emerald-900/40 dark:bg-emerald-950/30",
+    "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/20 dark:text-emerald-100",
   REQUESTER:
-    "border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 dark:border-sky-900/40 dark:bg-sky-950/30",
+    "border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 text-sky-950 dark:border-sky-400/30 dark:bg-sky-500/15 dark:hover:bg-sky-500/20 dark:text-sky-100",
 };
 
 const DOMAIN = "@chula.ac.th";
@@ -43,7 +44,8 @@ export default async function LoginPage({
 
   return (
     <div className="min-h-screen grid place-items-center p-4">
-      <div className="absolute right-4 top-4">
+      <div className="absolute right-4 top-4 flex items-center gap-1">
+        <ThemeToggle />
         <LanguageSwitcher />
       </div>
       <div className="w-full max-w-md">
@@ -55,7 +57,7 @@ export default async function LoginPage({
           <p className="mt-1 text-sm text-muted-foreground">{t("login.tagline")}</p>
         </div>
 
-        <div className="rounded-2xl border bg-card p-6 shadow-sm">
+        <div className="rounded-2xl border bg-card p-6 shadow-sm dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.6)] dark:ring-1 dark:ring-white/5">
           <div className="space-y-4">
             {error === "DomainNotAllowed" && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -112,7 +114,7 @@ export default async function LoginPage({
                           <span className="block text-sm font-medium">
                             {role ? t(`roles.${role}` as `roles.${"REQUESTER"|"APPROVER"|"ADMIN"|"DRIVER"}`) : "user"}
                           </span>
-                          <span className="block text-xs text-muted-foreground truncate">
+                          <span className="block text-xs opacity-70 truncate">
                             {u.email}
                           </span>
                         </button>

@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NavLinks, MobileNav } from "@/components/nav-links";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { Role } from "@prisma/client";
 
 type NavItem = { href: string; label: string };
@@ -63,6 +64,7 @@ export async function AppShell({
           <nav className="flex items-center gap-1">
             <NavLinks items={nav} />
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
+            <ThemeToggle />
             <LanguageSwitcher />
             <span className="hidden lg:inline text-sm text-muted-foreground max-w-48 truncate">
               {user.name ?? user.email}

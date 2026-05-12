@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import {
   approvalFunnel,
@@ -23,6 +23,7 @@ export default async function AdminDashboard({
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("dashboard");
+  const locale = await getLocale();
   const qs = await searchParams;
   const range = rangeFromQuery(qs);
   const exportQs = new URLSearchParams({
@@ -32,7 +33,7 @@ export default async function AdminDashboard({
 
   const [funnel, byMonth, byDept, vehicle, driver, cancellations] = await Promise.all([
     approvalFunnel(range),
-    requestVolumeByMonth(range),
+    requestVolumeByMonth(range, undefined, locale),
     requestVolumeByDepartment(range),
     vehicleUtilisation(range),
     driverUtilisation(range),

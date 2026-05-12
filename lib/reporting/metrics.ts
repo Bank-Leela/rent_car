@@ -1,5 +1,10 @@
 import { startOfMonth, endOfMonth, format } from "date-fns";
+import { th, enUS, type Locale } from "date-fns/locale";
 import { prisma } from "@/lib/db";
+
+function dateFnsLocale(locale?: string): Locale {
+  return locale?.toLowerCase().startsWith("th") ? th : enUS;
+}
 
 export type DateRange = { from: Date; to: Date };
 
@@ -32,7 +37,11 @@ export async function approvalFunnel(range: DateRange, departmentId?: string) {
   return { total, approved, denied, cancelled, completed, outsourced };
 }
 
-export async function requestVolumeByMonth(range: DateRange, departmentId?: string) {
+export async function requestVolumeByMonth(
+  range: DateRange,
+  departmentId?: string,
+  locale?: string,
+) {
   const where = {
     createdAt: { gte: range.from, lte: range.to },
     ...(departmentId ? { departmentId } : {}),
@@ -42,6 +51,7 @@ export async function requestVolumeByMonth(range: DateRange, departmentId?: stri
     select: { createdAt: true },
     orderBy: { createdAt: "asc" },
   });
+  const loc = dateFnsLocale(locale);
   const buckets = new Map<string, { label: string; count: number }>();
   for (const b of bookings) {
     const key = format(b.createdAt, "yyyy-MM");
@@ -49,7 +59,7 @@ export async function requestVolumeByMonth(range: DateRange, departmentId?: stri
     if (existing) {
       existing.count += 1;
     } else {
-      buckets.set(key, { label: format(b.createdAt, "MMM yyyy"), count: 1 });
+      buckets.set(key, { label: format(b.createdAt, "MMM yyyy", { locale: loc }), count: 1 });
     }
   }
   return Array.from(buckets.entries())
