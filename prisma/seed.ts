@@ -16,15 +16,15 @@ async function main() {
 
   // One user per role.
   const users = [
-    { id: "seed-user-requester", email: "requester@chula.ac.th", name: "Req Tester", role: Role.REQUESTER },
-    { id: "seed-user-approver", email: "approver@chula.ac.th", name: "App Rover", role: Role.APPROVER },
-    { id: "seed-user-admin", email: "admin@chula.ac.th", name: "Admin Istrator", role: Role.ADMIN },
-    { id: "seed-user-driver", email: "driver@chula.ac.th", name: "Drive R", role: Role.DRIVER },
+    { id: "seed-user-requester", email: "requester@chula.ac.th", name: "อรวรรณ พิทักษ์ชัย", role: Role.REQUESTER },
+    { id: "seed-user-approver", email: "approver@chula.ac.th", name: "ศาสตราจารย์ ดร. ธนากร ศรีสุวรรณ", role: Role.APPROVER },
+    { id: "seed-user-admin", email: "admin@chula.ac.th", name: "ปิยะ วงศ์สวัสดิ์", role: Role.ADMIN },
+    { id: "seed-user-driver", email: "driver@chula.ac.th", name: "อนุชา เพชรรัตน์", role: Role.DRIVER },
   ];
 
   for (const u of users) {
     await prisma.user.upsert({
-      where: { email: u.email },
+      where: { id: u.id },
       create: {
         id: u.id,
         email: u.email,
@@ -33,6 +33,7 @@ async function main() {
         roles: { create: { role: u.role } },
       },
       update: {
+        name: u.name,
         roles: {
           upsert: {
             where: { userId_role: { userId: u.id, role: u.role } },
@@ -71,7 +72,7 @@ async function main() {
   ];
   for (const d of extraDrivers) {
     const u = await prisma.user.upsert({
-      where: { email: d.email },
+      where: { id: d.id },
       create: {
         id: d.id,
         email: d.email,
@@ -79,7 +80,7 @@ async function main() {
         departmentId: dept.id,
         roles: { create: { role: Role.DRIVER } },
       },
-      update: {},
+      update: { name: d.name },
     });
     await prisma.driver.upsert({
       where: { userId: u.id },
