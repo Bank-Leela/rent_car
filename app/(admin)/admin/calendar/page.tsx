@@ -12,17 +12,24 @@ import {
   isSameDay,
   parse,
 } from "date-fns";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { th, enUS, type Locale } from "date-fns/locale";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 
 const STATUS_TINT: Record<string, string> = {
-  PENDING_APPROVAL: "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900/40",
-  APPROVED: "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900/40",
-  ASSIGNED: "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900/40",
-  COMPLETED: "bg-muted text-muted-foreground border-border",
-  CANCELLED: "bg-muted text-muted-foreground border-border line-through",
-  DENIED: "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900/40",
+  PENDING_APPROVAL:
+    "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-400/30",
+  APPROVED:
+    "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-500/15 dark:text-blue-200 dark:border-blue-400/30",
+  ASSIGNED:
+    "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-400/30",
+  COMPLETED:
+    "bg-muted text-muted-foreground border-border dark:bg-violet-500/10 dark:text-violet-200 dark:border-violet-400/25",
+  CANCELLED:
+    "bg-muted text-muted-foreground border-border line-through dark:bg-white/5 dark:text-muted-foreground dark:border-white/10",
+  DENIED:
+    "bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-500/15 dark:text-rose-200 dark:border-rose-400/30",
 };
 
 const LEGEND_KEYS = [
@@ -50,6 +57,8 @@ export default async function AdminCalendar({
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("calendar");
+  const localeCode = await getLocale();
+  const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
 
@@ -86,14 +95,14 @@ export default async function AdminCalendar({
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy")}</p>
+          <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy", { locale: loc })}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href={`/admin/calendar?month=${prevMonth}`}
             className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
           >
-            ← {format(subMonths(monthAnchor, 1), "MMM")}
+            ← {format(subMonths(monthAnchor, 1), "MMM", { locale: loc })}
           </Link>
           <Link
             href="/admin/calendar"
@@ -105,7 +114,7 @@ export default async function AdminCalendar({
             href={`/admin/calendar?month=${nextMonth}`}
             className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
           >
-            {format(addMonths(monthAnchor, 1), "MMM")} →
+            {format(addMonths(monthAnchor, 1), "MMM", { locale: loc })} →
           </Link>
         </div>
       </div>
@@ -133,17 +142,19 @@ export default async function AdminCalendar({
             return (
               <div
                 key={key}
-                className={`min-h-28 border-t border-l p-1.5 ${
-                  inMonth ? "" : "bg-muted/30 text-muted-foreground"
+                className={`min-h-20 border-t border-l p-1 ${
+                  inMonth
+                    ? "bg-card"
+                    : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-xs tabular-nums ${
+                    className={
                       isToday
-                        ? "rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 font-semibold"
-                        : ""
-                    }`}
+                        ? "inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold tabular-nums"
+                        : "text-xs tabular-nums px-1"
+                    }
                   >
                     {format(day, "d")}
                   </span>
