@@ -8,9 +8,32 @@ import {
   requestVolumeByWeek,
   vehicleUtilisation,
 } from "@/lib/reporting/metrics";
+import { CheckCircle2, FileText, XCircle, type LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VolumeBarChart, FunnelPieChart } from "@/components/dashboard/charts";
 import { RangeFilter } from "@/components/dashboard/range-filter";
+
+type KpiTone = "neutral" | "approved" | "cancelled";
+const KPI_TONE: Record<KpiTone, { ring: string; iconBg: string; iconFg: string; value: string }> = {
+  neutral: {
+    ring: "ring-indigo-200/70 dark:ring-indigo-900/40",
+    iconBg: "bg-indigo-100 dark:bg-indigo-950/40",
+    iconFg: "text-indigo-700 dark:text-indigo-300",
+    value: "text-indigo-900 dark:text-indigo-100",
+  },
+  approved: {
+    ring: "ring-emerald-200/70 dark:ring-emerald-900/40",
+    iconBg: "bg-emerald-100 dark:bg-emerald-950/40",
+    iconFg: "text-emerald-700 dark:text-emerald-300",
+    value: "text-emerald-900 dark:text-emerald-100",
+  },
+  cancelled: {
+    ring: "ring-rose-200/70 dark:ring-rose-900/40",
+    iconBg: "bg-rose-100 dark:bg-rose-950/40",
+    iconFg: "text-rose-700 dark:text-rose-300",
+    value: "text-rose-900 dark:text-rose-100",
+  },
+};
 
 export default async function DepartmentUsage({
   searchParams,
@@ -73,9 +96,9 @@ export default async function DepartmentUsage({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
-        <KpiCard label={td("totalRequests")} value={funnel.total} />
-        <KpiCard label={td("approved")} value={funnel.approved} />
-        <KpiCard label={td("cancelled")} value={funnel.cancelled} />
+        <KpiCard label={td("totalRequests")} value={funnel.total} icon={FileText} tone="neutral" />
+        <KpiCard label={td("approved")} value={funnel.approved} icon={CheckCircle2} tone="approved" />
+        <KpiCard label={td("cancelled")} value={funnel.cancelled} icon={XCircle} tone="cancelled" />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -128,12 +151,30 @@ export default async function DepartmentUsage({
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: number }) {
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  tone: KpiTone;
+}) {
+  const t = KPI_TONE[tone];
   return (
-    <Card>
+    <Card className={`ring-1 ring-inset ${t.ring}`}>
       <CardContent className="pt-6">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className="text-3xl font-semibold mt-1">{value}</div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+            <div className={`text-3xl font-semibold mt-1 tabular-nums ${t.value}`}>{value}</div>
+          </div>
+          <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${t.iconBg} ${t.iconFg}`}>
+            <Icon className="h-5 w-5" aria-hidden />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
