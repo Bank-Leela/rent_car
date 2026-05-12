@@ -52,7 +52,8 @@
     "tomorrow": "พรุ่งนี้",
     "loading": "กำลังโหลด…",
     "search": "ค้นหา",
-    "theme": "ธีม"
+    "theme": "ธีม",
+    "apply": "ใช้"
   },
   "language": {
     "label": "ภาษา",
@@ -251,6 +252,9 @@
     "title": "ปฏิทิน",
     "thisMonth": "เดือนนี้",
     "more": "+อีก {n} รายการ",
+    "vehicleFilter": "กรองตามรถ",
+    "allVehicles": "ทุกคัน",
+    "conflictLegend": "ติดคิว",
     "weekdayHeaders": {
       "sun": "อา.",
       "mon": "จ.",

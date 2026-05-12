@@ -52,7 +52,8 @@
     "tomorrow": "Tomorrow",
     "loading": "Loading…",
     "search": "Search",
-    "theme": "Theme"
+    "theme": "Theme",
+    "apply": "Apply"
   },
   "language": {
     "label": "Language",
@@ -251,6 +252,9 @@
     "title": "Calendar",
     "thisMonth": "This month",
     "more": "+{n} more",
+    "vehicleFilter": "Filter by vehicle",
+    "allVehicles": "All vehicles",
+    "conflictLegend": "Conflict",
     "weekdayHeaders": {
       "sun": "Sun",
       "mon": "Mon",

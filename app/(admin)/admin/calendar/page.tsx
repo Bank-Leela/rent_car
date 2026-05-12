@@ -12,10 +12,51 @@ import {
   isSameDay,
   parse,
 } from "date-fns";
+import { AlertTriangle } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { th, enUS, type Locale } from "date-fns/locale";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
+
+const LIVE_STATUSES = new Set(["PENDING_APPROVAL", "APPROVED", "ASSIGNED"]);
+
+function densityTint(count: number): string {
+  if (count === 0) return "";
+  if (count <= 3) return "bg-primary/5 dark:bg-primary/10";
+  if (count <= 6) return "bg-primary/10 dark:bg-primary/15";
+  return "bg-primary/20 dark:bg-primary/25";
+}
+
+type DayBooking = {
+  id: string;
+  vehicleId: string | null;
+  startAt: Date;
+  endAt: Date;
+  status: string;
+};
+
+function hasVehicleConflict(items: DayBooking[]): boolean {
+  const byVehicle = new Map<string, DayBooking[]>();
+  for (const b of items) {
+    if (!b.vehicleId) continue;
+    if (!LIVE_STATUSES.has(b.status)) continue;
+    const list = byVehicle.get(b.vehicleId) ?? [];
+    list.push(b);
+    byVehicle.set(b.vehicleId, list);
+  }
+  for (const list of byVehicle.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1]!;
+      const curr = list[i]!;
+      const gapMin = (curr.startAt.getTime() - prev.endAt.getTime()) / 60000;
+      if (gapMin < VEHICLE_BUFFER_MINUTES) return true;
+    }
+  }
+  return false;
+}
 
 const STATUS_TINT: Record<string, string> = {
   PENDING_APPROVAL:
@@ -53,29 +94,50 @@ function parseMonth(s?: string): Date {
 export default async function AdminCalendar({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; vehicle?: string }>;
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("calendar");
+  const tc = await getTranslations("common");
   const localeCode = await getLocale();
   const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
+  const vehicleFilter = qs.vehicle && qs.vehicle !== "all" ? qs.vehicle : null;
 
   const gridStart = startOfWeek(startOfMonth(monthAnchor), { weekStartsOn: 0 });
   const gridEnd = endOfWeek(endOfMonth(monthAnchor), { weekStartsOn: 0 });
 
-  const bookings = await prisma.booking.findMany({
-    where: {
-      startAt: { gte: gridStart, lte: gridEnd },
-      status: { not: "DRAFT" },
-    },
-    orderBy: { startAt: "asc" },
-    include: {
-      vehicle: { select: { registrationNumber: true } },
-      requester: { select: { name: true, email: true } },
-    },
-  });
+  const [bookings, allVehicles] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        startAt: { gte: gridStart, lte: gridEnd },
+        status: { not: "DRAFT" },
+        ...(vehicleFilter ? { vehicleId: vehicleFilter } : {}),
+      },
+      orderBy: { startAt: "asc" },
+      include: {
+        vehicle: { select: { registrationNumber: true } },
+        requester: { select: { name: true, email: true } },
+      },
+    }),
+    prisma.vehicle.findMany({
+      where: { isActive: true },
+      orderBy: { registrationNumber: "asc" },
+      select: { id: true, registrationNumber: true },
+    }),
+  ]);
+
+  const queryString = (extra: Record<string, string | undefined>) => {
+    const params = new URLSearchParams();
+    if (vehicleFilter) params.set("vehicle", vehicleFilter);
+    for (const [k, v] of Object.entries(extra)) {
+      if (v === undefined) params.delete(k);
+      else params.set(k, v);
+    }
+    const s = params.toString();
+    return s ? `?${s}` : "";
+  };
 
   const byDay = new Map<string, typeof bookings>();
   for (const b of bookings) {
@@ -97,21 +159,41 @@ export default async function AdminCalendar({
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy", { locale: loc })}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <form action="/admin/calendar" method="get" className="flex items-center gap-1">
+            {qs.month && <input type="hidden" name="month" value={qs.month} />}
+            <select
+              name="vehicle"
+              defaultValue={vehicleFilter ?? "all"}
+              className="h-9 rounded-md border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={t("vehicleFilter")}
+            >
+              <option value="all">{t("allVehicles")}</option>
+              {allVehicles.map((v) => (
+                <option key={v.id} value={v.id}>{v.registrationNumber}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-md border bg-background h-9 px-3 text-sm hover:bg-muted"
+            >
+              {tc("apply")}
+            </button>
+          </form>
           <Link
-            href={`/admin/calendar?month=${prevMonth}`}
+            href={`/admin/calendar${queryString({ month: prevMonth })}`}
             className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
           >
             ← {format(subMonths(monthAnchor, 1), "MMM", { locale: loc })}
           </Link>
           <Link
-            href="/admin/calendar"
+            href={`/admin/calendar${queryString({ month: undefined })}`}
             className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
           >
             {t("thisMonth")}
           </Link>
           <Link
-            href={`/admin/calendar?month=${nextMonth}`}
+            href={`/admin/calendar${queryString({ month: nextMonth })}`}
             className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
           >
             {format(addMonths(monthAnchor, 1), "MMM", { locale: loc })} →
@@ -125,6 +207,9 @@ export default async function AdminCalendar({
             {t(`legend.${key}`)}
           </span>
         ))}
+        <span className="ml-2 inline-flex items-center gap-1 rounded border border-rose-300 bg-rose-100 px-1.5 py-0.5 text-rose-900 dark:bg-rose-500/15 dark:border-rose-400/30 dark:text-rose-200">
+          <AlertTriangle className="h-3 w-3" aria-hidden /> {t("conflictLegend")}
+        </span>
       </div>
 
       <div className="rounded-lg border overflow-hidden">
@@ -139,14 +224,15 @@ export default async function AdminCalendar({
             const items = byDay.get(key) ?? [];
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
+            const liveCount = items.filter((b) => LIVE_STATUSES.has(b.status)).length;
+            const conflict = hasVehicleConflict(items);
+            const surface = inMonth
+              ? `bg-card ${densityTint(liveCount)}`
+              : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
             return (
               <div
                 key={key}
-                className={`min-h-20 border-t border-l p-1 ${
-                  inMonth
-                    ? "bg-card"
-                    : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60"
-                }`}
+                className={`relative min-h-20 border-t border-l p-1 ${surface}`}
               >
                 <div className="flex items-center justify-between">
                   <span
@@ -158,9 +244,19 @@ export default async function AdminCalendar({
                   >
                     {format(day, "d")}
                   </span>
-                  {items.length > 3 && (
-                    <span className="text-[10px] text-muted-foreground">{items.length}</span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {conflict && (
+                      <AlertTriangle
+                        className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400"
+                        aria-label={t("conflictLegend")}
+                      />
+                    )}
+                    {items.length > 0 && (
+                      <span className="rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
+                        {items.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-1 space-y-1">
                   {items.slice(0, 3).map((b) => (
