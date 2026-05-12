@@ -29,7 +29,12 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
     text: msg.text,
   });
   if (error) {
-    console.error("[email:resend] send failed", error);
-    throw new Error(`Email send failed: ${error.message ?? "unknown"}`);
+    // Notifications must never break the booking flow. Log and continue
+    // so the action that triggered the email still succeeds.
+    console.error("[email:resend] send failed", {
+      to: msg.to,
+      subject: msg.subject,
+      error,
+    });
   }
 }
