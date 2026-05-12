@@ -145,8 +145,8 @@ export function BookingForm() {
           </div>
 
           <div className="space-y-3">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2 min-w-0">
                 <Label htmlFor="startAt">{t("startLabel")}</Label>
                 <Input
                   ref={startRef}
@@ -156,9 +156,10 @@ export function BookingForm() {
                   min={minStart}
                   max={maxStart}
                   required
+                  className="w-full min-w-0"
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 min-w-0">
                 <Label htmlFor="endAt">{t("endLabel")}</Label>
                 <Input
                   ref={endRef}
@@ -168,12 +169,13 @@ export function BookingForm() {
                   min={minStart}
                   max={maxStart}
                   required
+                  className="w-full min-w-0"
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t.rich("endHelper", richStrong)}
-                </p>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground pb-1">
+              {t.rich("endHelper", richStrong)}
+            </p>
             <button
               type="button"
               onClick={fillEarliest}
