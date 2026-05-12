@@ -21,7 +21,6 @@ export function SignatureForm({ hasSignature }: { hasSignature: boolean }) {
         });
       }}
       className="space-y-3"
-      encType="multipart/form-data"
     >
       <div className="grid gap-2">
         <Label htmlFor="signature">{t("imageLabel")}</Label>
