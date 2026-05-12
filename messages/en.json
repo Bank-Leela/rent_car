@@ -279,7 +279,7 @@
     "approved": "Approved",
     "cancelled": "Cancelled",
     "ofTotal": "{pct} of total",
-    "requestVolumeByWeek": "Request volume by week",
+    "requestVolumeByMonth": "Request volume by month",
     "approvalFunnel": "Approval funnel",
     "requestVolumeByDept": "Request volume by department",
     "vehicleUtilisation": "Vehicle utilisation",
@@ -307,7 +307,7 @@
   "deptUsage": {
     "titleSuffix": "{name} usage",
     "notHead": "You don't head a department yet.",
-    "volumeByWeek": "Volume by week",
+    "volumeByMonth": "Volume by month",
     "funnel": "Approval status breakdown",
     "vehiclesUsed": "Vehicles used by your department"
   },

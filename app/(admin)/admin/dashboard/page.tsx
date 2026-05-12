@@ -8,7 +8,7 @@ import {
   rangeFromQuery,
   repeatCancellers,
   requestVolumeByDepartment,
-  requestVolumeByWeek,
+  requestVolumeByMonth,
   vehicleUtilisation,
 } from "@/lib/reporting/metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,9 +30,9 @@ export default async function AdminDashboard({
     to: format(range.to, "yyyy-MM-dd"),
   }).toString();
 
-  const [funnel, byWeek, byDept, vehicle, driver, cancellations] = await Promise.all([
+  const [funnel, byMonth, byDept, vehicle, driver, cancellations] = await Promise.all([
     approvalFunnel(range),
-    requestVolumeByWeek(range),
+    requestVolumeByMonth(range),
     requestVolumeByDepartment(range),
     vehicleUtilisation(range),
     driverUtilisation(range),
@@ -68,12 +68,12 @@ export default async function AdminDashboard({
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>{t("requestVolumeByWeek")}</CardTitle>
+              <CardTitle>{t("requestVolumeByMonth")}</CardTitle>
               <Link href={`/api/reports/csv/volume?${exportQs}`} className="text-xs underline print:hidden">{t("csv")}</Link>
             </div>
           </CardHeader>
           <CardContent>
-            {byWeek.length > 0 ? <VolumeBarChart data={byWeek} /> : <Empty label={t("noData")} />}
+            {byMonth.length > 0 ? <VolumeBarChart data={byMonth} /> : <Empty label={t("noData")} />}
           </CardContent>
         </Card>
         <Card>

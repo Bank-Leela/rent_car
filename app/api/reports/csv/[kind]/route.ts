@@ -6,7 +6,7 @@ import {
   rangeFromQuery,
   repeatCancellers,
   requestVolumeByDepartment,
-  requestVolumeByWeek,
+  requestVolumeByMonth,
   vehicleUtilisation,
 } from "@/lib/reporting/metrics";
 
@@ -35,8 +35,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
   let rows: Array<Array<string | number>>;
   switch (kind) {
     case "volume": {
-      const data = await requestVolumeByWeek(range);
-      rows = [["week", "count"], ...data.map((d) => [d.week, d.count])];
+      const data = await requestVolumeByMonth(range);
+      rows = [["month", "count"], ...data.map((d) => [d.month, d.count])];
       break;
     }
     case "funnel": {

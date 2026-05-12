@@ -279,7 +279,7 @@
     "approved": "อนุมัติแล้ว",
     "cancelled": "ยกเลิก",
     "ofTotal": "{pct} ของทั้งหมด",
-    "requestVolumeByWeek": "จำนวนคำขอรายสัปดาห์",
+    "requestVolumeByMonth": "จำนวนคำขอรายเดือน",
     "approvalFunnel": "กรวยการอนุมัติ",
     "requestVolumeByDept": "จำนวนคำขอแยกตามภาควิชา",
     "vehicleUtilisation": "การใช้รถ",
@@ -307,7 +307,7 @@
   "deptUsage": {
     "titleSuffix": "การใช้งานของ {name}",
     "notHead": "คุณยังไม่ได้เป็นหัวหน้าภาควิชาใด",
-    "volumeByWeek": "จำนวนรายสัปดาห์",
+    "volumeByMonth": "จำนวนรายเดือน",
     "funnel": "สัดส่วนสถานะการอนุมัติ",
     "vehiclesUsed": "รถที่ภาควิชาของคุณใช้"
   },

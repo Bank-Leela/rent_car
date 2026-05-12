@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import {
   approvalFunnel,
   rangeFromQuery,
-  requestVolumeByWeek,
+  requestVolumeByMonth,
   vehicleUtilisation,
 } from "@/lib/reporting/metrics";
 import { CheckCircle2, FileText, XCircle, type LucideIcon } from "lucide-react";
@@ -60,9 +60,9 @@ export default async function DepartmentUsage({
   }
 
   const dept = myDepts[0];
-  const [funnel, byWeek, vehicle] = await Promise.all([
+  const [funnel, byMonth, vehicle] = await Promise.all([
     approvalFunnel(range, dept.id),
-    requestVolumeByWeek(range, dept.id),
+    requestVolumeByMonth(range, dept.id),
     vehicleUtilisation(range),
   ]);
 
@@ -103,9 +103,9 @@ export default async function DepartmentUsage({
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle>{t("volumeByWeek")}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t("volumeByMonth")}</CardTitle></CardHeader>
           <CardContent>
-            {byWeek.length > 0 ? <VolumeBarChart data={byWeek} /> : <Empty label={td("noData")} />}
+            {byMonth.length > 0 ? <VolumeBarChart data={byMonth} /> : <Empty label={td("noData")} />}
           </CardContent>
         </Card>
         <Card>
@@ -165,11 +165,11 @@ function KpiCard({
   const t = KPI_TONE[tone];
   return (
     <Card className={`ring-1 ring-inset ${t.ring}`}>
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent>
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-            <div className={`text-3xl font-semibold mt-1 tabular-nums ${t.value}`}>{value}</div>
+            <div className={`text-3xl font-semibold leading-tight mt-0.5 tabular-nums ${t.value}`}>{value}</div>
           </div>
           <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${t.iconBg} ${t.iconFg}`}>
             <Icon className="h-5 w-5" aria-hidden />

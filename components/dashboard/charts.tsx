@@ -45,14 +45,14 @@ function tooltipStyle() {
   };
 }
 
-export function VolumeBarChart({ data }: { data: Array<{ week: string; count: number }> }) {
+export function VolumeBarChart({ data }: { data: Array<{ month: string; count: number }> }) {
   return (
     <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
           <XAxis
-            dataKey="week"
+            dataKey="month"
             tick={{ fontSize: 12, fill: "#6b7280" }}
             axisLine={{ stroke: "#e5e7eb" }}
             tickLine={false}
