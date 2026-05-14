@@ -9,6 +9,7 @@ import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { newBookingSchema, assignBookingSchema, denyBookingSchema } from "@/lib/booking/schema";
 import { nextJobNumber } from "@/lib/booking/job-number";
 import {
+  canSubmitForDepartment,
   checkLeadTime,
   checkDriverAssignment,
   findBufferConflicts,
@@ -93,10 +94,20 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
 
   const requester = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { departmentId: true },
+    select: { departmentId: true, roles: { select: { role: true } } },
   });
   if (!requester.departmentId) {
     return { ok: false, error: te("noDepartment") };
+  }
+
+  // Change request 01: only the designated department representative (or an
+  // admin) may submit a booking for a given department.
+  const department = await prisma.department.findUniqueOrThrow({
+    where: { id: requester.departmentId },
+    select: { representativeUserId: true },
+  });
+  if (!canSubmitForDepartment({ id: userId, roles: requester.roles }, department)) {
+    return { ok: false, error: te("notDepartmentRep") };
   }
 
   const created = await prisma.$transaction(async (tx) => {
@@ -111,6 +122,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         province: data.province,
         startAt: data.startAt,
         endAt: data.endAt,
+        ajarnName: data.ajarnName,
+        ajarnPhone: data.ajarnPhone,
+        ajarnEmail: data.ajarnEmail,
         passengerCount: data.passengerCount,
         passengerNotes: data.passengerNotes,
         estimatedDistance: data.estimatedDistance,
@@ -161,6 +175,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             province: data.province,
             startAt: childStart,
             endAt: childEnd,
+            ajarnName: data.ajarnName,
+            ajarnPhone: data.ajarnPhone,
+            ajarnEmail: data.ajarnEmail,
             passengerCount: data.passengerCount,
             passengerNotes: data.passengerNotes,
             estimatedDistance: data.estimatedDistance,

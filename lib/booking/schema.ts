@@ -13,6 +13,9 @@ export const newBookingSchema = z
     province: z.string().min(2, "Required"),
     startAt: datetimeLocal,
     endAt: datetimeLocal,
+    ajarnName: z.string().trim().min(2, "Ajarn name is required"),
+    ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
+    ajarnEmail: z.string().trim().email("Invalid email address"),
     passengerCount: z.coerce.number().int().min(1).max(60),
     passengerNotes: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
     estimatedDistance: z.coerce

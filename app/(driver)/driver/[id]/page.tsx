@@ -85,6 +85,19 @@ export default async function DriverBookingDetail({
         </CardContent>
       </Card>
 
+      {booking.ajarnName && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">{t("ajarnSection")}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-base">
+            <Field label={t("ajarnName")} value={booking.ajarnName} />
+            <Field label={t("ajarnPhone")} value={booking.ajarnPhone} />
+            <Field label={t("ajarnEmail")} value={booking.ajarnEmail} colSpan />
+          </CardContent>
+        </Card>
+      )}
+
       {!tripStarted && booking.status === "ASSIGNED" && (
         <Card>
           <CardHeader>

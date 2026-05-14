@@ -105,3 +105,24 @@ export function shouldWarnAboutCancellations(cancellationsInWindow: number): boo
 export function isBlockedByPendingEvaluation(unevaluatedCompletedTrips: number): boolean {
   return unevaluatedCompletedTrips > 0;
 }
+
+export type DepartmentAuthInfo = {
+  representativeUserId: string | null;
+};
+
+export type UserAuthInfo = {
+  id: string;
+  roles: Array<{ role: string }>;
+};
+
+/**
+ * Change request 01: only the designated department representative (or an
+ * admin) may submit a booking for a given department.
+ */
+export function canSubmitForDepartment(
+  user: UserAuthInfo,
+  department: DepartmentAuthInfo,
+): boolean {
+  if (user.roles.some((r) => r.role === "ADMIN")) return true;
+  return department.representativeUserId !== null && user.id === department.representativeUserId;
+}

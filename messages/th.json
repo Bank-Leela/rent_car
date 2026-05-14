@@ -31,6 +31,7 @@
     "noDepartment": "บัญชีของคุณยังไม่ได้สังกัดภาควิชา",
     "delegateNotFound": "ไม่พบผู้ใช้ที่มีอีเมล {email}",
     "delegateSelf": "ไม่สามารถมอบอำนาจให้ตนเองได้",
+    "notDepartmentRep": "เฉพาะผู้แทนภาควิชาที่ได้รับมอบหมายเท่านั้นที่สามารถยื่นคำขอใช้รถของภาควิชานี้ได้",
     "signaturePickFile": "กรุณาเลือกไฟล์รูปภาพ",
     "signatureTooLarge": "ไฟล์ลายเซ็นต้องมีขนาดไม่เกิน 1 MB",
     "signatureBadFormat": "กรุณาใช้ไฟล์ PNG หรือ JPEG"
@@ -149,7 +150,11 @@
     "history": "ประวัติ",
     "flag": "หมายเหตุ",
     "flaggedForOutsourcing": "ผู้ขอใช้รถระบุว่าอาจต้องเช่าจากภายนอก",
-    "actionBy": "{action} โดย {name}"
+    "actionBy": "{action} โดย {name}",
+    "ajarnSection": "อาจารย์ที่เดินทาง",
+    "ajarnName": "ชื่ออาจารย์",
+    "ajarnPhone": "เบอร์โทรอาจารย์",
+    "ajarnEmail": "อีเมลอาจารย์"
   },
   "requesterDetail": {
     "tripEvaluation": "ประเมินการเดินทาง",
@@ -343,7 +348,11 @@
     "completedEnd": "สิ้นสุด",
     "completedDistance": "ระยะทาง",
     "completedFuel": "ค่าน้ำมัน",
-    "completedTollway": "ค่าทางด่วน"
+    "completedTollway": "ค่าทางด่วน",
+    "ajarnSection": "อาจารย์ที่เดินทาง",
+    "ajarnName": "อาจารย์",
+    "ajarnPhone": "เบอร์โทร",
+    "ajarnEmail": "อีเมล"
   },
   "approverActions": {
     "backToInbox": "กลับไปกล่องจดหมาย",
@@ -363,6 +372,11 @@
     "leadTimeBangkok": "ระยะเวลาล่วงหน้า: <strong>{days} วัน</strong> สำหรับการเดินทางในกรุงเทพฯ",
     "leadTimeOutside": "ระยะเวลาล่วงหน้า: <strong>{days} วัน</strong> สำหรับการเดินทางต่างจังหวัด",
     "earliestSentence": "วันที่เร็วที่สุดที่เริ่มได้: <strong>{date}</strong>",
+    "ajarnSectionTitle": "ทริปนี้สำหรับใคร?",
+    "ajarnSectionHelper": "อาจารย์คือผู้ที่จะเดินทาง ข้อมูลติดต่อจะถูกแชร์ให้พนักงานขับรถที่ได้รับมอบหมาย",
+    "ajarnName": "ชื่ออาจารย์",
+    "ajarnPhone": "เบอร์โทรอาจารย์",
+    "ajarnEmail": "อีเมลอาจารย์",
     "purpose": "วัตถุประสงค์",
     "destination": "ปลายทาง",
     "province": "จังหวัด",

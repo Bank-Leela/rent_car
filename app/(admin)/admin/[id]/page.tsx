@@ -132,6 +132,21 @@ export default async function AdminBookingDetail({
         </CardContent>
       </Card>
 
+      {(["APPROVED", "ASSIGNED", "COMPLETED"] as const).includes(
+        booking.status as "APPROVED" | "ASSIGNED" | "COMPLETED",
+      ) && booking.ajarnName && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("ajarnSection")}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
+            <Field label={t("ajarnName")} value={booking.ajarnName} />
+            <Field label={t("ajarnPhone")} value={booking.ajarnPhone} />
+            <Field label={t("ajarnEmail")} value={booking.ajarnEmail} colSpan />
+          </CardContent>
+        </Card>
+      )}
+
       {booking.vehicle && (
         <Card>
           <CardHeader>

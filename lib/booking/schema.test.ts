@@ -1,0 +1,62 @@
+import { describe, expect, it } from "vitest";
+import { newBookingSchema } from "./schema";
+
+const baseInput = {
+  purpose: "Faculty board meeting",
+  destination: "Siriraj Hospital",
+  province: "กรุงเทพมหานคร",
+  startAt: "2026-06-10T08:00",
+  endAt: "2026-06-10T12:00",
+  ajarnName: "ศ. ดร. สมชาย สุขดี",
+  ajarnPhone: "0812345678",
+  ajarnEmail: "somchai@chula.ac.th",
+  passengerCount: "4",
+  passengerNotes: "",
+  estimatedDistance: "",
+  needsOutsourcing: "false",
+  recurringWeekdays: "",
+  recurringUntil: "",
+};
+
+describe("newBookingSchema ajarn fields", () => {
+  it("accepts a valid ajarn block", () => {
+    const result = newBookingSchema.safeParse(baseInput);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a missing ajarn email", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, ajarnEmail: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("ajarnEmail");
+    }
+  });
+
+  it("rejects a malformed ajarn email", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, ajarnEmail: "not-an-email" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("ajarnEmail");
+    }
+  });
+
+  it("rejects a missing ajarn phone", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, ajarnPhone: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("ajarnPhone");
+    }
+  });
+
+  it("rejects a missing ajarn name", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, ajarnName: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("ajarnName");
+    }
+  });
+});

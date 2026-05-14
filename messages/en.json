@@ -31,6 +31,7 @@
     "noDepartment": "Your account is not attached to a department.",
     "delegateNotFound": "No user with email {email}.",
     "delegateSelf": "You cannot delegate to yourself.",
+    "notDepartmentRep": "Only the designated department representative can submit bookings for this department.",
     "signaturePickFile": "Pick an image file.",
     "signatureTooLarge": "Signature image must be under 1 MB.",
     "signatureBadFormat": "Use a PNG or JPEG image."
@@ -149,7 +150,11 @@
     "history": "History",
     "flag": "Flag",
     "flaggedForOutsourcing": "Requester flagged for outsourcing",
-    "actionBy": "{action} by {name}"
+    "actionBy": "{action} by {name}",
+    "ajarnSection": "Trip for (ajarn)",
+    "ajarnName": "Ajarn name",
+    "ajarnPhone": "Ajarn phone",
+    "ajarnEmail": "Ajarn email"
   },
   "requesterDetail": {
     "tripEvaluation": "Trip evaluation",
@@ -343,7 +348,11 @@
     "completedEnd": "End",
     "completedDistance": "Distance",
     "completedFuel": "Fuel",
-    "completedTollway": "Tollway"
+    "completedTollway": "Tollway",
+    "ajarnSection": "Trip for (ajarn)",
+    "ajarnName": "Ajarn",
+    "ajarnPhone": "Phone",
+    "ajarnEmail": "Email"
   },
   "approverActions": {
     "backToInbox": "Back to inbox",
@@ -363,6 +372,11 @@
     "leadTimeBangkok": "Lead time: <strong>{days} days</strong> for Bangkok trips.",
     "leadTimeOutside": "Lead time: <strong>{days} days</strong> for out-of-province trips.",
     "earliestSentence": "Earliest you can start: <strong>{date}</strong>.",
+    "ajarnSectionTitle": "Who is this trip for?",
+    "ajarnSectionHelper": "The ajarn is the person being transported. Their contact details are shared with the assigned driver.",
+    "ajarnName": "Ajarn name",
+    "ajarnPhone": "Ajarn phone",
+    "ajarnEmail": "Ajarn email",
     "purpose": "Purpose",
     "destination": "Destination",
     "province": "Province",

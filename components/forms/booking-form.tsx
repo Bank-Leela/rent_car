@@ -115,6 +115,25 @@ export function BookingForm() {
           }}
           className="space-y-4"
         >
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
+            <div className="grid gap-2">
+              <Label htmlFor="ajarnName">{t("ajarnName")}</Label>
+              <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ajarnPhone">{t("ajarnPhone")}</Label>
+                <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="ajarnEmail">{t("ajarnEmail")}</Label>
+                <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
+              </div>
+            </div>
+          </fieldset>
+
           <div className="grid gap-2">
             <Label htmlFor="purpose">{t("purpose")}</Label>
             <Input id="purpose" name="purpose" required />

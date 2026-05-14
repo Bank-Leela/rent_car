@@ -45,10 +45,14 @@ async function main() {
     });
   }
 
-  // Make the approver the head of the seed department.
+  // Make the approver the head, and the requester the designated booking
+  // representative of the seed department (change request 01).
   await prisma.department.update({
     where: { id: dept.id },
-    data: { headUserId: "seed-user-approver" },
+    data: {
+      headUserId: "seed-user-approver",
+      representativeUserId: "seed-user-requester",
+    },
   });
 
   // Driver profile for the impersonatable driver user

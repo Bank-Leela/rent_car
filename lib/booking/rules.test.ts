@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addDays, addHours, addMinutes, startOfDay } from "date-fns";
 import {
   BANGKOK_PROVINCE,
+  canSubmitForDepartment,
   checkDriverAssignment,
   checkLeadTime,
   findBufferConflicts,
@@ -193,5 +194,30 @@ describe("warnings + gating", () => {
   it("blocks new bookings when an evaluation is pending", () => {
     expect(isBlockedByPendingEvaluation(0)).toBe(false);
     expect(isBlockedByPendingEvaluation(1)).toBe(true);
+  });
+});
+
+describe("canSubmitForDepartment", () => {
+  const requester = { id: "user-rep", roles: [{ role: "REQUESTER" }] };
+  const otherUser = { id: "user-other", roles: [{ role: "REQUESTER" }] };
+  const admin = { id: "user-admin", roles: [{ role: "ADMIN" }] };
+  const deptWithRep = { representativeUserId: "user-rep" };
+  const deptWithoutRep = { representativeUserId: null };
+
+  it("allows the designated representative", () => {
+    expect(canSubmitForDepartment(requester, deptWithRep)).toBe(true);
+  });
+
+  it("rejects a non-representative", () => {
+    expect(canSubmitForDepartment(otherUser, deptWithRep)).toBe(false);
+  });
+
+  it("allows any admin even when they are not the representative", () => {
+    expect(canSubmitForDepartment(admin, deptWithRep)).toBe(true);
+    expect(canSubmitForDepartment(admin, deptWithoutRep)).toBe(true);
+  });
+
+  it("rejects when no representative is set and user is not admin", () => {
+    expect(canSubmitForDepartment(requester, deptWithoutRep)).toBe(false);
   });
 });

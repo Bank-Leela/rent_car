@@ -116,15 +116,16 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  roles            UserRole[]
-  accounts         Account[]
-  sessions         Session[]
-  driverProfile    Driver?
-  headedDepartment Department?    @relation("DepartmentHead")
-  bookings         Booking[]      @relation("BookingRequester")
-  approvals        Approval[]
-  cancellations    Cancellation[]
-  auditLogs        AuditLog[]
+  roles               UserRole[]
+  accounts            Account[]
+  sessions            Session[]
+  driverProfile       Driver?
+  headedDepartment    Department?    @relation("DepartmentHead")
+  representedDepartment Department?  @relation("DepartmentRepresentative")
+  bookings            Booking[]      @relation("BookingRequester")
+  approvals           Approval[]
+  cancellations       Cancellation[]
+  auditLogs           AuditLog[]
 }
 
 model UserRole {
@@ -137,11 +138,13 @@ model UserRole {
 }
 
 model Department {
-  id         String  @id @default(cuid())
-  nameEn     String
-  nameTh     String
-  headUserId String? @unique
-  head       User?   @relation("DepartmentHead", fields: [headUserId], references: [id])
+  id                   String  @id @default(cuid())
+  nameEn               String
+  nameTh               String
+  headUserId           String? @unique
+  head                 User?   @relation("DepartmentHead", fields: [headUserId], references: [id])
+  representativeUserId String? @unique
+  representative       User?   @relation("DepartmentRepresentative", fields: [representativeUserId], references: [id])
 
   members  User[]    @relation("DepartmentMembers")
   bookings Booking[]
@@ -197,6 +200,11 @@ model Booking {
   endAt            DateTime
   passengerCount   Int
   passengerNotes   String?
+  // The ajarn (professor) being transported. Captured at submission time so
+  // the work owner and driver can coordinate without phoning the requester.
+  ajarnName        String   @default("")
+  ajarnPhone       String   @default("")
+  ajarnEmail       String   @default("")
   needsOutsourcing Boolean  @default(false)
 
   status       BookingStatus @default(DRAFT)
