@@ -28,10 +28,8 @@
     "vehicleConflict": "That vehicle has a conflicting booking within the 1-hour buffer.",
     "leadTimeTooSoon": "Start must be at least {days} days from today (province rule).",
     "pendingEvaluation": "You have a completed trip without an evaluation. Submit it before booking again.",
-    "noDepartment": "Your account is not attached to a department.",
     "delegateNotFound": "No user with email {email}.",
     "delegateSelf": "You cannot delegate to yourself.",
-    "notDepartmentRep": "Only the designated department representative can submit bookings for this department.",
     "signaturePickFile": "Pick an image file.",
     "signatureTooLarge": "Signature image must be under 1 MB.",
     "signatureBadFormat": "Use a PNG or JPEG image."
@@ -315,11 +313,10 @@
     "funnelOutsourced": "Outsourced"
   },
   "deptUsage": {
-    "titleSuffix": "{name} usage",
-    "notHead": "You don't head a department yet.",
+    "titleAll": "Fleet usage across departments",
     "volumeByMonth": "Volume by month",
     "funnel": "Approval status breakdown",
-    "vehiclesUsed": "Vehicles used by your department"
+    "vehiclesUsed": "Vehicles used"
   },
   "rangeFilter": {
     "from": "From",
@@ -372,6 +369,8 @@
     "leadTimeBangkok": "Lead time: <strong>{days} days</strong> for Bangkok trips.",
     "leadTimeOutside": "Lead time: <strong>{days} days</strong> for out-of-province trips.",
     "earliestSentence": "Earliest you can start: <strong>{date}</strong>.",
+    "department": "Requesting department",
+    "departmentPlaceholder": "Select a department…",
     "ajarnSectionTitle": "Who is this trip for?",
     "ajarnSectionHelper": "The ajarn is the person being transported. Their contact details are shared with the assigned driver.",
     "ajarnName": "Ajarn name",

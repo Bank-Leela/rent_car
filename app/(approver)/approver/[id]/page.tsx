@@ -22,22 +22,28 @@ export default async function ApproverBookingDetail({
     where: { id },
     include: {
       requester: true,
-      department: { include: { head: { select: { delegatedToUserId: true } } } },
+      department: true,
       approvals: { orderBy: { createdAt: "asc" }, include: { approver: true } },
       auditLogs: { orderBy: { createdAt: "asc" }, include: { actor: true } },
     },
   });
   if (!booking) notFound();
 
-  const headId = booking.department.headUserId;
-  const delegatedToId = booking.department.head?.delegatedToUserId;
-  const canAct = headId === session.user.id || delegatedToId === session.user.id;
-  if (!canAct) notFound();
-
+  // Approval is fleet-section scoped, not dept-head scoped. requireRole above
+  // already gated this; pull the signature so the form knows whether to warn.
   const me = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
-    select: { signatureImageUrl: true },
+    select: {
+      signatureImageUrl: true,
+      roles: { select: { role: true } },
+      delegatedBy: { select: { roles: { select: { role: true } } } },
+    },
   });
+  const isApprover = me.roles.some((r) => r.role === "APPROVER");
+  const isDelegateOfApprover = me.delegatedBy.some((u) =>
+    u.roles.some((r) => r.role === "APPROVER"),
+  );
+  if (!isApprover && !isDelegateOfApprover) notFound();
 
   const isPending = booking.status === "PENDING_APPROVAL";
 

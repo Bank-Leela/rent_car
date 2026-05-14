@@ -9,7 +9,6 @@ import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { newBookingSchema, assignBookingSchema, denyBookingSchema } from "@/lib/booking/schema";
 import { nextJobNumber } from "@/lib/booking/job-number";
 import {
-  canSubmitForDepartment,
   checkLeadTime,
   checkDriverAssignment,
   findBufferConflicts,
@@ -92,22 +91,14 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     return { ok: false, error: te("pendingEvaluation") };
   }
 
-  const requester = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { departmentId: true, roles: { select: { role: true } } },
+  // Validate the selected department exists. The requester (a middleman team)
+  // can submit on behalf of any department in the faculty fleet.
+  const department = await prisma.department.findUnique({
+    where: { id: data.departmentId },
+    select: { id: true },
   });
-  if (!requester.departmentId) {
-    return { ok: false, error: te("noDepartment") };
-  }
-
-  // Change request 01: only the designated department representative (or an
-  // admin) may submit a booking for a given department.
-  const department = await prisma.department.findUniqueOrThrow({
-    where: { id: requester.departmentId },
-    select: { representativeUserId: true },
-  });
-  if (!canSubmitForDepartment({ id: userId, roles: requester.roles }, department)) {
-    return { ok: false, error: te("notDepartmentRep") };
+  if (!department) {
+    return { ok: false, error: te("invalidInput"), field: "departmentId" };
   }
 
   const created = await prisma.$transaction(async (tx) => {
@@ -116,7 +107,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       data: {
         jobNumber,
         requesterId: userId,
-        departmentId: requester.departmentId!,
+        departmentId: data.departmentId,
         purpose: data.purpose,
         destination: data.destination,
         province: data.province,
@@ -169,7 +160,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
           data: {
             jobNumber: childJob,
             requesterId: userId,
-            departmentId: requester.departmentId!,
+            departmentId: data.departmentId,
             purpose: data.purpose,
             destination: data.destination,
             province: data.province,
@@ -207,16 +198,16 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     include: bookingDetailInclude,
   });
 
-  // Phase 2: notify the department head + their delegate (not admins; admins
-  // see the booking only after it's approved).
-  const dept = await prisma.department.findUnique({
-    where: { id: requester.departmentId! },
-    select: {
-      head: { select: { email: true, delegatedTo: { select: { email: true } } } },
-    },
+  // Notify the fleet-section approver(s) and their delegates. Admins are
+  // notified later, only after the approver signs off.
+  const approverUsers = await prisma.user.findMany({
+    where: { roles: { some: { role: "APPROVER" } }, isActive: true },
+    select: { email: true, delegatedTo: { select: { email: true } } },
   });
-  const approverEmails = [dept?.head?.email, dept?.head?.delegatedTo?.email]
-    .filter((e): e is string => !!e);
+  const approverEmails = [
+    ...approverUsers.map((u) => u.email),
+    ...approverUsers.map((u) => u.delegatedTo?.email),
+  ].filter((e): e is string => !!e);
   if (approverEmails.length > 0) {
     await sendEmail({ to: approverEmails, ...adminNewBookingEmail(detailed) });
   }

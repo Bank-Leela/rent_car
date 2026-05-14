@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { newBookingSchema } from "./schema";
 
 const baseInput = {
+  departmentId: "seed-dept-medicine",
   purpose: "Faculty board meeting",
   destination: "Siriraj Hospital",
   province: "กรุงเทพมหานคร",

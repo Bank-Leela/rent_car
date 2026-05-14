@@ -3,16 +3,54 @@ import { PrismaClient, Role, VehicleType, DriverPool } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  // Departments
-  const dept = await prisma.department.upsert({
-    where: { id: "seed-dept-medicine" },
-    create: {
-      id: "seed-dept-medicine",
-      nameEn: "Faculty of Medicine",
-      nameTh: "คณะแพทยศาสตร์",
-    },
-    update: {},
-  });
+  // All 35 units that share the faculty fleet: 12 administrative "งาน" units
+  // and 23 academic "ภาควิชา" departments. seed-dept-medicine is kept as the
+  // requester's home department for dev impersonation continuity.
+  const departments: Array<{ id: string; nameEn: string; nameTh: string }> = [
+    { id: "seed-dept-medicine", nameEn: "Department of Internal Medicine", nameTh: "ภาควิชาอายุรศาสตร์" },
+    { id: "seed-dept-academic-services", nameEn: "Academic Services & International Education", nameTh: "งานการบริการวิชาการและการศึกษานานาชาติ" },
+    { id: "seed-dept-student-affairs", nameEn: "Student Affairs", nameTh: "งานกิจการนิสิต" },
+    { id: "seed-dept-infrastructure-it", nameEn: "Infrastructure & IT Systems", nameTh: "งานโครงสร้างพื้นฐานและระบบเทคโนโลยีสารสนเทศ" },
+    { id: "seed-dept-administration", nameEn: "Administration", nameTh: "งานบริหาร" },
+    { id: "seed-dept-graduate-studies", nameEn: "Graduate Studies", nameTh: "งานบัณฑิตศึกษา" },
+    { id: "seed-dept-quality-development", nameEn: "Educational Quality & Organizational Development", nameTh: "งานพัฒนาคุณภาพการศึกษาและองค์กร" },
+    { id: "seed-dept-strategy", nameEn: "Organizational Strategy", nameTh: "งานยุทธศาสตร์องค์กร" },
+    { id: "seed-dept-physical-systems", nameEn: "Physical Systems", nameTh: "งานระบบกายภาพ" },
+    { id: "seed-dept-research-innovation", nameEn: "Research & Deep Innovation", nameTh: "งานวิจัยและนวัตกรรมเชิงลึก" },
+    { id: "seed-dept-academic-affairs", nameEn: "Academic Affairs", nameTh: "งานวิชาการ" },
+    { id: "seed-dept-international-affairs", nameEn: "International Affairs", nameTh: "งานวิรัชกิจ" },
+    { id: "seed-dept-digital-innovation", nameEn: "Integrative Innovation & Digital Technology", nameTh: "งานนวัตกรรมแนวบูรณาการและเทคโนโลยีดิจิทัล" },
+    { id: "seed-dept-anatomy", nameEn: "Department of Anatomy", nameTh: "ภาควิชากายวิภาคศาสตร์" },
+    { id: "seed-dept-pediatrics", nameEn: "Department of Pediatrics", nameTh: "ภาควิชากุมารเวชศาสตร์" },
+    { id: "seed-dept-ophthalmology", nameEn: "Department of Ophthalmology", nameTh: "ภาควิชาจักษุวิทยา" },
+    { id: "seed-dept-psychiatry", nameEn: "Department of Psychiatry", nameTh: "ภาควิชาจิตเวชศาสตร์" },
+    { id: "seed-dept-microbiology", nameEn: "Department of Microbiology", nameTh: "ภาควิชาจุลชีววิทยา" },
+    { id: "seed-dept-biochemistry", nameEn: "Department of Biochemistry", nameTh: "ภาควิชาชีวเคมี" },
+    { id: "seed-dept-forensic", nameEn: "Department of Forensic Medicine", nameTh: "ภาควิชานิติเวชศาสตร์" },
+    { id: "seed-dept-parasitology", nameEn: "Department of Parasitology", nameTh: "ภาควิชาปรสิตวิทยา" },
+    { id: "seed-dept-pathology", nameEn: "Department of Pathology", nameTh: "ภาควิชาพยาธิวิทยา" },
+    { id: "seed-dept-pharmacology", nameEn: "Department of Pharmacology", nameTh: "ภาควิชาเภสัชวิทยา" },
+    { id: "seed-dept-radiology", nameEn: "Department of Radiology", nameTh: "ภาควิชารังสีวิทยา" },
+    { id: "seed-dept-anesthesiology", nameEn: "Department of Anesthesiology", nameTh: "ภาควิชาวิสัญญีวิทยา" },
+    { id: "seed-dept-laboratory-medicine", nameEn: "Department of Laboratory Medicine", nameTh: "ภาควิชาเวชศาสตร์ชันสูตร" },
+    { id: "seed-dept-preventive-social", nameEn: "Department of Preventive & Social Medicine", nameTh: "ภาควิชาเวชศาสตร์ป้องกันและสังคม" },
+    { id: "seed-dept-rehab", nameEn: "Department of Rehabilitation Medicine", nameTh: "ภาควิชาเวชศาสตร์ฟื้นฟู" },
+    { id: "seed-dept-surgery", nameEn: "Department of Surgery", nameTh: "ภาควิชาศัลยศาสตร์" },
+    { id: "seed-dept-physiology", nameEn: "Department of Physiology", nameTh: "ภาควิชาสรีรวิทยา" },
+    { id: "seed-dept-ob-gyn", nameEn: "Department of Obstetrics & Gynecology", nameTh: "ภาควิชาสูติศาสตร์-นรีเวชวิทยา" },
+    { id: "seed-dept-otolaryngology", nameEn: "Department of Otolaryngology", nameTh: "ภาควิชาโสต ศอ นาสิกวิทยา" },
+    { id: "seed-dept-orthopedics", nameEn: "Department of Orthopedics", nameTh: "ภาควิชาออร์โธปิดิกส์" },
+    { id: "seed-dept-emergency", nameEn: "Department of Emergency Medicine", nameTh: "ภาควิชาเวชศาสตร์ฉุกเฉิน" },
+    { id: "seed-dept-family-medicine", nameEn: "Department of Family Medicine", nameTh: "ภาควิชาเวชศาสตร์ครอบครัว" },
+  ];
+  for (const d of departments) {
+    await prisma.department.upsert({
+      where: { id: d.id },
+      create: d,
+      update: { nameEn: d.nameEn, nameTh: d.nameTh },
+    });
+  }
+  const dept = await prisma.department.findUniqueOrThrow({ where: { id: "seed-dept-medicine" } });
 
   // One user per role.
   const users = [
@@ -45,14 +83,13 @@ async function main() {
     });
   }
 
-  // Make the approver the head, and the requester the designated booking
-  // representative of the seed department (change request 01).
+  // The requester is the designated booking representative for the seed
+  // department (change request 01). headUserId is intentionally left unset:
+  // approval is no longer per-department but routed to the fleet-section
+  // head (anyone holding APPROVER role).
   await prisma.department.update({
     where: { id: dept.id },
-    data: {
-      headUserId: "seed-user-approver",
-      representativeUserId: "seed-user-requester",
-    },
+    data: { representativeUserId: "seed-user-requester" },
   });
 
   // Driver profile for the impersonatable driver user

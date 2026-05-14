@@ -9,28 +9,16 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 
 export default async function ApproverInbox() {
-  const session = await requireRole("APPROVER");
+  await requireRole("APPROVER");
   const t = await getTranslations("approver");
 
-  const ownDepts = await prisma.department.findMany({
-    where: {
-      OR: [
-        { headUserId: session.user.id },
-        { head: { delegatedToUserId: session.user.id } },
-      ],
-    },
-    select: { id: true, nameEn: true },
+  // Fleet section head sees every department's pending bookings, sorted by
+  // trip urgency.
+  const pending = await prisma.booking.findMany({
+    where: { status: "PENDING_APPROVAL" },
+    orderBy: { startAt: "asc" },
+    include: { requester: true, department: true },
   });
-  const deptIds = ownDepts.map((d) => d.id);
-
-  // Order by trip date — the approver cares about urgency, not submission order.
-  const pending = deptIds.length
-    ? await prisma.booking.findMany({
-        where: { status: "PENDING_APPROVAL", departmentId: { in: deptIds } },
-        orderBy: { startAt: "asc" },
-        include: { requester: true, department: true },
-      })
-    : [];
 
   return (
     <div className="space-y-8">

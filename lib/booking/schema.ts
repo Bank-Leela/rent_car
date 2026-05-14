@@ -8,6 +8,7 @@ const datetimeLocal = z
 
 export const newBookingSchema = z
   .object({
+    departmentId: z.string().min(1, "Pick a department"),
     purpose: z.string().min(3, "Describe the trip purpose"),
     destination: z.string().min(2, "Required"),
     province: z.string().min(2, "Required"),

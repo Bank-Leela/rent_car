@@ -16,17 +16,21 @@ import { generateBookingPdf } from "@/lib/pdf/generate";
 import type { ActionResult } from "@/lib/booking/actions";
 
 /**
- * Approver permission: a user may approve a booking when they are the head of
- * the booking's department, or when the head has delegated to them.
+ * Approver permission. The fleet section has a single approver (the head of
+ * the car-renting section), who may also delegate. Any APPROVER-role user can
+ * act, as can a delegate of an APPROVER-role user.
  */
-async function canApprove(userId: string, departmentId: string): Promise<boolean> {
-  const dept = await prisma.department.findUnique({
-    where: { id: departmentId },
-    select: { headUserId: true, head: { select: { delegatedToUserId: true } } },
+async function canApprove(userId: string): Promise<boolean> {
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      roles: { select: { role: true } },
+      delegatedBy: { select: { roles: { select: { role: true } } } },
+    },
   });
-  if (!dept?.headUserId) return false;
-  if (dept.headUserId === userId) return true;
-  return dept.head?.delegatedToUserId === userId;
+  if (!me) return false;
+  if (me.roles.some((r) => r.role === "APPROVER")) return true;
+  return me.delegatedBy.some((u) => u.roles.some((r) => r.role === "APPROVER"));
 }
 
 const approveSchema = z.object({
@@ -64,7 +68,7 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
   if (booking.status !== "PENDING_APPROVAL") {
     return { ok: false, error: te("cannotApproveInStatus", { status: ts(booking.status) }) };
   }
-  if (!(await canApprove(userId, booking.departmentId))) {
+  if (!(await canApprove(userId))) {
     return { ok: false, error: te("notAuthorizedToApprove") };
   }
 
@@ -151,7 +155,7 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
   if (booking.status !== "PENDING_APPROVAL") {
     return { ok: false, error: te("cannotDenyInStatus", { status: ts(booking.status) }) };
   }
-  if (!(await canApprove(userId, booking.departmentId))) {
+  if (!(await canApprove(userId))) {
     return { ok: false, error: te("notAuthorizedToActOnBooking") };
   }
 

@@ -91,6 +91,7 @@ describe("createBookingAction", () => {
     await expect(
       createBookingAction(
         formDataFor({
+          departmentId: "seed-dept-medicine",
           purpose: "Integration smoke trip",
           destination: "Lab",
           province: BANGKOK_PROVINCE,
@@ -130,6 +131,7 @@ describe("createBookingAction", () => {
 
     const res = await createBookingAction(
       formDataFor({
+        departmentId: "seed-dept-medicine",
         purpose: "Should be rejected",
         destination: "Lab",
         province: BANGKOK_PROVINCE,
@@ -156,6 +158,7 @@ describe("createBookingAction", () => {
 
     const res = await createBookingAction(
       formDataFor({
+        departmentId: "seed-dept-medicine",
         purpose: "End before start",
         destination: "Lab",
         province: BANGKOK_PROVINCE,
@@ -186,6 +189,7 @@ describe("createBookingAction", () => {
     await expect(
       createBookingAction(
         formDataFor({
+          departmentId: "seed-dept-medicine",
           purpose: "Recurring smoke",
           destination: "Campus",
           province: BANGKOK_PROVINCE,

@@ -62,10 +62,25 @@ function RecurrenceWeekdays() {
   );
 }
 
-export function BookingForm() {
+export type BookingFormDepartment = {
+  id: string;
+  nameEn: string;
+  nameTh: string;
+};
+
+export function BookingForm({
+  departments,
+  defaultDepartmentId,
+  locale,
+}: {
+  departments: BookingFormDepartment[];
+  defaultDepartmentId: string | null;
+  locale: string;
+}) {
   const t = useTranslations("bookingForm");
   const now = new Date();
   const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
+  const isThai = locale.toLowerCase().startsWith("th");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -115,6 +130,24 @@ export function BookingForm() {
           }}
           className="space-y-4"
         >
+          <div className="grid gap-2">
+            <Label htmlFor="departmentId">{t("department")}</Label>
+            <select
+              id="departmentId"
+              name="departmentId"
+              required
+              defaultValue={defaultDepartmentId ?? ""}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="" disabled>{t("departmentPlaceholder")}</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {isThai ? d.nameTh : d.nameEn}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
             <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>

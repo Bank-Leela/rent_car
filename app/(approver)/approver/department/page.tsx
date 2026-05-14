@@ -40,55 +40,25 @@ export default async function DepartmentUsage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  const session = await requireRole("APPROVER");
+  await requireRole("APPROVER");
   const t = await getTranslations("deptUsage");
   const td = await getTranslations("dashboard");
   const locale = await getLocale();
   const qs = await searchParams;
   const range = rangeFromQuery(qs);
 
-  const myDepts = await prisma.department.findMany({
-    where: {
-      OR: [
-        { headUserId: session.user.id },
-        { head: { delegatedToUserId: session.user.id } },
-      ],
-    },
-  });
-
-  if (myDepts.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t("notHead")}</p>;
-  }
-
-  const dept = myDepts[0];
+  // Fleet-section view: aggregate across every department the fleet serves.
   const [funnel, byMonth, vehicle] = await Promise.all([
-    approvalFunnel(range, dept.id),
-    requestVolumeByMonth(range, dept.id, locale),
+    approvalFunnel(range),
+    requestVolumeByMonth(range, undefined, locale),
     vehicleUtilisation(range),
   ]);
-
-  const deptVehicleIds = await prisma.booking.findMany({
-    where: { departmentId: dept.id, vehicleId: { not: null } },
-    select: { vehicleId: true },
-    distinct: ["vehicleId"],
-  });
-  const deptVehicleRegs = new Set(
-    (
-      await prisma.vehicle.findMany({
-        where: { id: { in: deptVehicleIds.map((v) => v.vehicleId!).filter(Boolean) } },
-        select: { registrationNumber: true },
-      })
-    ).map((v) => v.registrationNumber),
-  );
-  const deptVehicle = vehicle.filter((v) => deptVehicleRegs.has(v.registrationNumber));
 
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t("titleSuffix", { name: dept.nameEn })}
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("titleAll")}</h1>
           <p className="text-muted-foreground">
             {format(range.from, "d MMM yyyy")} – {format(range.to, "d MMM yyyy")}
           </p>
@@ -126,7 +96,7 @@ export default async function DepartmentUsage({
       <Card>
         <CardHeader><CardTitle>{t("vehiclesUsed")}</CardTitle></CardHeader>
         <CardContent>
-          {deptVehicle.length === 0 ? <Empty label={td("noData")} /> : (
+          {vehicle.length === 0 ? <Empty label={td("noData")} /> : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-muted-foreground">
@@ -136,7 +106,7 @@ export default async function DepartmentUsage({
                 </tr>
               </thead>
               <tbody>
-                {deptVehicle.map((v) => (
+                {vehicle.map((v) => (
                   <tr key={v.registrationNumber} className="border-t">
                     <td className="py-2">{v.registrationNumber}</td>
                     <td className="text-right py-2">{v.trips}</td>
