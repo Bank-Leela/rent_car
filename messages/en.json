@@ -30,6 +30,9 @@
     "pendingEvaluation": "You have a completed trip without an evaluation. Submit it before booking again.",
     "delegateNotFound": "No user with email {email}.",
     "delegateSelf": "You cannot delegate to yourself.",
+    "outOfHoursReasonRequired": "Trips outside driver hours require a written justification.",
+    "endBeforeStart": "End time must be after start time.",
+    "cannotEditInStatus": "Cannot edit a booking in this status ({status}).",
     "signaturePickFile": "Pick an image file.",
     "signatureTooLarge": "Signature image must be under 1 MB.",
     "signatureBadFormat": "Use a PNG or JPEG image."
@@ -155,11 +158,13 @@
     "ajarnSection": "Trip for (ajarn)",
     "ajarnName": "Ajarn name",
     "ajarnPhone": "Ajarn phone",
-    "ajarnEmail": "Ajarn email"
+    "ajarnEmail": "Ajarn email",
+    "outOfHoursReason": "Out-of-hours justification"
   },
   "requesterDetail": {
     "tripEvaluation": "Trip evaluation",
-    "cancelTitle": "Cancel"
+    "cancelTitle": "Cancel",
+    "changeTimeTitle": "Change trip time"
   },
   "adminDetail": {
     "backToQueue": "Back to queue",
@@ -193,6 +198,16 @@
     "emailRequester": "Email the requester",
     "saving": "Saving…",
     "markOutsourced": "Mark outsourced"
+  },
+  "timeChangeForm": {
+    "workHoursNotice": "Driver work hours are {from}–{to}. Trips outside that window need a written justification.",
+    "startLabel": "New start",
+    "endLabel": "New end (back at faculty)",
+    "reasonLabel": "Out-of-hours justification",
+    "reasonWarning": "The new time falls outside driver work hours. The approver will see the reason you give here.",
+    "reasonPlaceholder": "Example: morning hospital transfer at 06:00.",
+    "saving": "Saving…",
+    "save": "Save new time"
   },
   "cancelForm": {
     "cancelThisBooking": "Cancel this booking",
@@ -386,6 +401,10 @@
     "endLabel": "End (back at faculty)",
     "endHelper": "Enter the time you expect to be <strong>back at the faculty</strong>, not the time you leave the destination.",
     "useEarliest": "Use earliest allowed ({date} 08:00–12:00)",
+    "workHoursNotice": "Driver work hours are {from}–{to}. Trips outside that window need a written justification.",
+    "outOfHoursReasonLabel": "Out-of-hours justification",
+    "outOfHoursReasonHelper": "The trip falls outside driver work hours. Briefly explain why an out-of-hours trip is needed.",
+    "outOfHoursReasonPlaceholder": "Example: hospital transfer at 05:30 required by the surgery schedule.",
     "passengerCount": "Passenger count",
     "estimatedDistance": "Estimated distance (km, optional)",
     "estimatedDistancePlaceholder": "e.g. 250",

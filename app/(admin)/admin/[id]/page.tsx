@@ -142,6 +142,13 @@ export default async function AdminBookingDetail({
             <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
           {booking.needsOutsourcing && <Field label={t("flag")} value={t("flaggedForOutsourcing")} />}
+          {booking.outOfHoursReason && (
+            <Field
+              label={t("outOfHoursReason")}
+              value={booking.outOfHoursReason}
+              colSpan
+            />
+          )}
           {booking.passengerNotes && (
             <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
           )}

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { CancelForm } from "@/components/forms/cancel-form";
 import { EvaluationForm } from "@/components/forms/evaluation-form";
+import { TimeChangeForm } from "@/components/forms/time-change-form";
 
 export default async function RequesterBookingDetail({
   params,
@@ -33,6 +34,7 @@ export default async function RequesterBookingDetail({
   });
   if (!booking || booking.requesterId !== session.user.id) notFound();
   const canCancel = !["COMPLETED", "CANCELLED", "DENIED"].includes(booking.status);
+  const canEditTime = booking.status === "PENDING_APPROVAL";
   const needsEval = booking.trip && !booking.trip.evaluation;
 
   return (
@@ -65,6 +67,13 @@ export default async function RequesterBookingDetail({
           <Field label={t("passengers")} value={String(booking.passengerCount)} />
           {booking.estimatedDistance != null && (
             <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
+          )}
+          {booking.outOfHoursReason && (
+            <Field
+              label={t("outOfHoursReason")}
+              value={booking.outOfHoursReason}
+              colSpan
+            />
           )}
           {booking.passengerNotes && (
             <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
@@ -115,6 +124,22 @@ export default async function RequesterBookingDetail({
           </CardHeader>
           <CardContent>
             <EvaluationForm tripId={booking.trip.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {canEditTime && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{tr("changeTimeTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TimeChangeForm
+              bookingId={booking.id}
+              startAt={booking.startAt}
+              endAt={booking.endAt}
+              outOfHoursReason={booking.outOfHoursReason}
+            />
           </CardContent>
         </Card>
       )}

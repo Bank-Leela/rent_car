@@ -6,13 +6,19 @@ import { getTranslations } from "next-intl/server";
 import { Prisma, type BookingStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
-import { newBookingSchema, assignBookingSchema, denyBookingSchema } from "@/lib/booking/schema";
+import {
+  newBookingSchema,
+  assignBookingSchema,
+  denyBookingSchema,
+  updateBookingTimeSchema,
+} from "@/lib/booking/schema";
 import { nextJobNumber } from "@/lib/booking/job-number";
 import {
   checkLeadTime,
   checkDriverAssignment,
   findBufferConflicts,
   isBlockedByPendingEvaluation,
+  isWithinWorkHours,
 } from "@/lib/booking/rules";
 import { sendEmail } from "@/lib/email/client";
 import {
@@ -80,6 +86,13 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     };
   }
 
+  // Out-of-hours trips require a written justification from the requester.
+  const inHours = isWithinWorkHours({ startAt: data.startAt, endAt: data.endAt });
+  if (!inHours && !data.outOfHoursReason) {
+    return { ok: false, field: "outOfHoursReason", error: te("outOfHoursReasonRequired") };
+  }
+  const outOfHoursReason = inHours ? null : data.outOfHoursReason!;
+
   // Evaluation gate: prior unevaluated COMPLETED trips block new bookings.
   const pendingEvals = await prisma.trip.count({
     where: {
@@ -116,6 +129,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         ajarnName: data.ajarnName,
         ajarnPhone: data.ajarnPhone,
         ajarnEmail: data.ajarnEmail,
+        outOfHoursReason,
         passengerCount: data.passengerCount,
         passengerNotes: data.passengerNotes,
         estimatedDistance: data.estimatedDistance,
@@ -169,6 +183,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             ajarnName: data.ajarnName,
             ajarnPhone: data.ajarnPhone,
             ajarnEmail: data.ajarnEmail,
+            outOfHoursReason,
             passengerCount: data.passengerCount,
             passengerNotes: data.passengerNotes,
             estimatedDistance: data.estimatedDistance,
@@ -368,6 +383,75 @@ export async function denyBookingAction(formData: FormData): Promise<ActionResul
   if (detailed.requester.email) {
     await sendEmail({ to: detailed.requester.email, ...requesterDeniedEmail(detailed, reason) });
   }
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
+  revalidatePath("/requester");
+  revalidatePath(`/requester/${bookingId}`);
+  return { ok: true };
+}
+
+// ---- Requester: change the trip time before approval ----
+
+export async function updateBookingTimeAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireUser();
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const parsed = updateBookingTimeSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return { ok: false, error: first?.message ?? te("invalidInput"), field: first?.path.join(".") };
+  }
+  const { bookingId, startAt, endAt, outOfHoursReason: submittedReason } = parsed.data;
+
+  if (endAt.getTime() <= startAt.getTime()) {
+    return { ok: false, field: "endAt", error: te("endBeforeStart") };
+  }
+
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.requesterId !== userId) {
+    return { ok: false, error: te("notYourBooking") };
+  }
+  // Time edits are only allowed while the request is still pending approval.
+  if (booking.status !== "PENDING_APPROVAL") {
+    return { ok: false, error: te("cannotEditInStatus", { status: ts(booking.status) }) };
+  }
+
+  const lead = checkLeadTime({ startAt, province: booking.province, now: new Date() });
+  if (!lead.ok) {
+    return { ok: false, field: "startAt", error: te("leadTimeTooSoon", { days: lead.minimumDays }) };
+  }
+
+  const inHours = isWithinWorkHours({ startAt, endAt });
+  if (!inHours && !submittedReason) {
+    return { ok: false, field: "outOfHoursReason", error: te("outOfHoursReasonRequired") };
+  }
+  const outOfHoursReason = inHours ? null : submittedReason!;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { startAt, endAt, outOfHoursReason },
+    });
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "BOOKING_TIME_UPDATED",
+      metadata: {
+        previousStartAt: booking.startAt.toISOString(),
+        previousEndAt: booking.endAt.toISOString(),
+        newStartAt: startAt.toISOString(),
+        newEndAt: endAt.toISOString(),
+        outOfHoursReason: outOfHoursReason ?? null,
+      },
+      tx,
+    });
+  });
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);

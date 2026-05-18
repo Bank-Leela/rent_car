@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { addDays, addYears, format, startOfDay } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,9 @@ import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
+  WORK_START_HOUR,
+  WORK_END_HOUR,
+  isWithinWorkHours,
 } from "@/lib/booking/rules";
 import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
@@ -93,17 +96,26 @@ export function BookingForm({
   const maxStart = datetimeLocalValue(addYears(now, 5));
   const earliestDateLabel = format(earliestStart, "EEE d MMM yyyy");
 
-  const startRef = useRef<HTMLInputElement>(null);
-  const endRef = useRef<HTMLInputElement>(null);
+  const [startValue, setStartValue] = useState<string>("");
+  const [endValue, setEndValue] = useState<string>("");
 
   const fillEarliest = () => {
     const start = new Date(earliestStart);
     start.setHours(8, 0);
     const end = new Date(start);
     end.setHours(start.getHours() + 4);
-    if (startRef.current) startRef.current.value = datetimeLocalValue(start);
-    if (endRef.current) endRef.current.value = datetimeLocalValue(end);
+    setStartValue(datetimeLocalValue(start));
+    setEndValue(datetimeLocalValue(end));
   };
+
+  let outOfHours = false;
+  if (startValue && endValue) {
+    const s = new Date(startValue);
+    const e = new Date(endValue);
+    if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
+      outOfHours = !isWithinWorkHours({ startAt: s, endAt: e });
+    }
+  }
 
   const richStrong = { strong: (chunks: React.ReactNode) => <strong>{chunks}</strong> };
 
@@ -201,26 +213,28 @@ export function BookingForm({
               <div className="grid gap-2 min-w-0">
                 <Label htmlFor="startAt">{t("startLabel")}</Label>
                 <Input
-                  ref={startRef}
                   id="startAt"
                   name="startAt"
                   type="datetime-local"
                   min={minStart}
                   max={maxStart}
                   required
+                  value={startValue}
+                  onChange={(e) => setStartValue(e.target.value)}
                   className="w-full min-w-0"
                 />
               </div>
               <div className="grid gap-2 min-w-0">
                 <Label htmlFor="endAt">{t("endLabel")}</Label>
                 <Input
-                  ref={endRef}
                   id="endAt"
                   name="endAt"
                   type="datetime-local"
                   min={minStart}
                   max={maxStart}
                   required
+                  value={endValue}
+                  onChange={(e) => setEndValue(e.target.value)}
                   className="w-full min-w-0"
                 />
               </div>
@@ -235,6 +249,27 @@ export function BookingForm({
             >
               {t("useEarliest", { date: earliestDateLabel })}
             </button>
+            <p className="text-xs text-muted-foreground">
+              {t("workHoursNotice", {
+                from: `${String(WORK_START_HOUR).padStart(2, "0")}:00`,
+                to: `${String(WORK_END_HOUR).padStart(2, "0")}:00`,
+              })}
+            </p>
+            {outOfHours && (
+              <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/40">
+                <Label htmlFor="outOfHoursReason" className="text-amber-900 dark:text-amber-200">
+                  {t("outOfHoursReasonLabel")}
+                </Label>
+                <p className="text-xs text-amber-800 dark:text-amber-300">{t("outOfHoursReasonHelper")}</p>
+                <Textarea
+                  id="outOfHoursReason"
+                  name="outOfHoursReason"
+                  rows={3}
+                  required
+                  placeholder={t("outOfHoursReasonPlaceholder")}
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">

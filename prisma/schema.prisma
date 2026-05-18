@@ -205,6 +205,9 @@ model Booking {
   ajarnName        String   @default("")
   ajarnPhone       String   @default("")
   ajarnEmail       String   @default("")
+  // Required justification when start/end falls outside driver work hours
+  // (07:00–18:00) or spans midnight. Set on submission or time edit.
+  outOfHoursReason String?
   needsOutsourcing Boolean  @default(false)
 
   status       BookingStatus @default(DRAFT)

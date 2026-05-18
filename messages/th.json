@@ -30,6 +30,9 @@
     "pendingEvaluation": "คุณมีทริปที่เสร็จสิ้นแล้วแต่ยังไม่ได้ประเมิน กรุณาประเมินก่อนจองใหม่",
     "delegateNotFound": "ไม่พบผู้ใช้ที่มีอีเมล {email}",
     "delegateSelf": "ไม่สามารถมอบอำนาจให้ตนเองได้",
+    "outOfHoursReasonRequired": "การเดินทางนอกเวลาทำการของพนักงานขับรถต้องระบุเหตุผล",
+    "endBeforeStart": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น",
+    "cannotEditInStatus": "ไม่สามารถแก้ไขการจองในสถานะนี้ได้ ({status})",
     "signaturePickFile": "กรุณาเลือกไฟล์รูปภาพ",
     "signatureTooLarge": "ไฟล์ลายเซ็นต้องมีขนาดไม่เกิน 1 MB",
     "signatureBadFormat": "กรุณาใช้ไฟล์ PNG หรือ JPEG"
@@ -155,11 +158,13 @@
     "ajarnSection": "อาจารย์ที่เดินทาง",
     "ajarnName": "ชื่ออาจารย์",
     "ajarnPhone": "เบอร์โทรอาจารย์",
-    "ajarnEmail": "อีเมลอาจารย์"
+    "ajarnEmail": "อีเมลอาจารย์",
+    "outOfHoursReason": "เหตุผลกรณีนอกเวลาทำการ"
   },
   "requesterDetail": {
     "tripEvaluation": "ประเมินการเดินทาง",
-    "cancelTitle": "ยกเลิก"
+    "cancelTitle": "ยกเลิก",
+    "changeTimeTitle": "แก้ไขเวลาเดินทาง"
   },
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
@@ -193,6 +198,16 @@
     "emailRequester": "ส่งอีเมลแจ้งผู้ขอใช้รถ",
     "saving": "กำลังบันทึก…",
     "markOutsourced": "ระบุว่าเช่าจากภายนอก"
+  },
+  "timeChangeForm": {
+    "workHoursNotice": "เวลาทำงานของพนักงานขับรถคือ {from}–{to} หากเดินทางนอกช่วงเวลาดังกล่าวต้องระบุเหตุผล",
+    "startLabel": "เวลาเริ่มใหม่",
+    "endLabel": "เวลาสิ้นสุดใหม่ (กลับถึงคณะ)",
+    "reasonLabel": "เหตุผลกรณีนอกเวลาทำการ",
+    "reasonWarning": "เวลาที่เปลี่ยนใหม่อยู่นอกเวลาทำการ ผู้อนุมัติจะเห็นเหตุผลที่กรอกไว้",
+    "reasonPlaceholder": "ตัวอย่าง: ส่งตัวผู้ป่วยช่วงเช้า 06:00 น.",
+    "saving": "กำลังบันทึก…",
+    "save": "บันทึกเวลาใหม่"
   },
   "cancelForm": {
     "cancelThisBooking": "ยกเลิกการจองนี้",
@@ -386,6 +401,10 @@
     "endLabel": "สิ้นสุด (กลับถึงคณะ)",
     "endHelper": "กรอกเวลาที่คาดว่าจะ<strong>กลับถึงคณะ</strong> ไม่ใช่เวลาที่ออกจากปลายทาง",
     "useEarliest": "ใช้วันที่เร็วที่สุดที่อนุญาต ({date} 08:00–12:00)",
+    "workHoursNotice": "เวลาทำงานของพนักงานขับรถคือ {from}–{to} หากเดินทางนอกช่วงเวลาดังกล่าวต้องระบุเหตุผล",
+    "outOfHoursReasonLabel": "เหตุผลกรณีนอกเวลาทำการ",
+    "outOfHoursReasonHelper": "การเดินทางอยู่นอกเวลาทำการของพนักงานขับรถ กรุณาอธิบายเหตุผลโดยย่อ",
+    "outOfHoursReasonPlaceholder": "ตัวอย่าง: ส่งตัวผู้ป่วยที่โรงพยาบาลตามตารางผ่าตัด 05:30 น.",
     "passengerCount": "จำนวนผู้โดยสาร",
     "estimatedDistance": "ระยะทางประมาณ (กม., ไม่บังคับ)",
     "estimatedDistancePlaceholder": "เช่น 250",

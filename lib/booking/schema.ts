@@ -17,6 +17,12 @@ export const newBookingSchema = z
     ajarnName: z.string().trim().min(2, "Ajarn name is required"),
     ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
     ajarnEmail: z.string().trim().email("Invalid email address"),
+    outOfHoursReason: z
+      .string()
+      .max(1000)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v.trim() : undefined)),
     passengerCount: z.coerce.number().int().min(1).max(60),
     passengerNotes: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
     estimatedDistance: z.coerce
@@ -65,4 +71,16 @@ export const assignBookingSchema = z.object({
 export const denyBookingSchema = z.object({
   bookingId: z.string().min(1),
   reason: z.string().min(3, "Reason is required"),
+});
+
+export const updateBookingTimeSchema = z.object({
+  bookingId: z.string().min(1),
+  startAt: datetimeLocal,
+  endAt: datetimeLocal,
+  outOfHoursReason: z
+    .string()
+    .max(1000)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v.trim() : undefined)),
 });

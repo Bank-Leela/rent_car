@@ -8,11 +8,14 @@ import {
   findBufferConflicts,
   hasBufferConflict,
   isBlockedByPendingEvaluation,
+  isWithinWorkHours,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
   shouldWarnAboutCancellations,
   TWO_DRIVER_DISTANCE_KM,
   VEHICLE_BUFFER_MINUTES,
+  WORK_END_HOUR,
+  WORK_START_HOUR,
 } from "./rules";
 
 const NOW = new Date("2026-06-01T09:00:00Z");
@@ -194,6 +197,35 @@ describe("warnings + gating", () => {
   it("blocks new bookings when an evaluation is pending", () => {
     expect(isBlockedByPendingEvaluation(0)).toBe(false);
     expect(isBlockedByPendingEvaluation(1)).toBe(true);
+  });
+});
+
+describe("isWithinWorkHours", () => {
+  const date = (h: number, m = 0, day = 10) =>
+    new Date(2026, 5, day, h, m, 0, 0); // June 10, 2026 (local)
+
+  it("accepts a same-day trip inside work hours", () => {
+    expect(
+      isWithinWorkHours({ startAt: date(WORK_START_HOUR), endAt: date(WORK_END_HOUR) }),
+    ).toBe(true);
+  });
+
+  it("rejects a start before work hours", () => {
+    expect(
+      isWithinWorkHours({ startAt: date(WORK_START_HOUR - 1, 30), endAt: date(10) }),
+    ).toBe(false);
+  });
+
+  it("rejects an end after work hours", () => {
+    expect(
+      isWithinWorkHours({ startAt: date(10), endAt: date(WORK_END_HOUR, 30) }),
+    ).toBe(false);
+  });
+
+  it("rejects an overnight trip", () => {
+    expect(
+      isWithinWorkHours({ startAt: date(8, 0, 10), endAt: date(8, 0, 11) }),
+    ).toBe(false);
   });
 });
 

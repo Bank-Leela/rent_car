@@ -11,6 +11,25 @@ export const TWO_DRIVER_DISTANCE_KM = 400;
 // Minimum gap (minutes) between two confirmed bookings on the same vehicle.
 export const VEHICLE_BUFFER_MINUTES = 60;
 
+// Driver standard work hours (local time). Trips that start before, end
+// after, or run overnight require an out-of-hours justification.
+export const WORK_START_HOUR = 7;
+export const WORK_END_HOUR = 18;
+
+export type WorkHoursInput = { startAt: Date; endAt: Date };
+
+export function isWithinWorkHours({ startAt, endAt }: WorkHoursInput): boolean {
+  // Same calendar date — overnight trips never qualify.
+  const sameDay =
+    startAt.getFullYear() === endAt.getFullYear() &&
+    startAt.getMonth() === endAt.getMonth() &&
+    startAt.getDate() === endAt.getDate();
+  if (!sameDay) return false;
+  const startMinute = startAt.getHours() * 60 + startAt.getMinutes();
+  const endMinute = endAt.getHours() * 60 + endAt.getMinutes();
+  return startMinute >= WORK_START_HOUR * 60 && endMinute <= WORK_END_HOUR * 60;
+}
+
 export type LeadTimeInput = {
   startAt: Date;
   province: string;
