@@ -2,12 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format, subDays } from "date-fns";
 import { getTranslations } from "next-intl/server";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { findBufferConflicts, shouldWarnAboutCancellations } from "@/lib/booking/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
+import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 
 export default async function AdminBookingDetail({
@@ -15,11 +16,14 @@ export default async function AdminBookingDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole("ADMIN");
+  const session = await requireAnyRole(["ADMIN", "APPROVER"]);
   const { id } = await params;
   const t = await getTranslations("bookingDetail");
   const tad = await getTranslations("adminDetail");
   const taf = await getTranslations("assignForm");
+  const ta = await getTranslations("approverActions");
+  const isAdmin = session.user.roles.includes("ADMIN");
+  const isApprover = session.user.roles.includes("APPROVER");
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -83,8 +87,20 @@ export default async function AdminBookingDetail({
     sublabel: taf("poolSuffix", { pool: d.pool.toLowerCase() }),
   }));
 
-  const isQueueable = booking.status === "PENDING_APPROVAL" || booking.status === "APPROVED";
+  const isPendingApproval = booking.status === "PENDING_APPROVAL";
+  const isApproved = booking.status === "APPROVED";
+  // Admin's mutation forms only apply once the approver signs off.
+  const showAssignForms = isAdmin && isApproved;
+  const showApproverForms = isApprover && isPendingApproval;
   const cancellationWarning = shouldWarnAboutCancellations(recentCancellations);
+
+  // Approver needs their stored signature to approve; load it only when needed.
+  const me = showApproverForms
+    ? await prisma.user.findUniqueOrThrow({
+        where: { id: session.user.id },
+        select: { signatureImageUrl: true },
+      })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -193,7 +209,28 @@ export default async function AdminBookingDetail({
         </Card>
       )}
 
-      {isQueueable && (
+      {showApproverForms && me && (
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>{ta("approveTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ApproveForm bookingId={booking.id} hasSignature={!!me.signatureImageUrl} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{ta("denyTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ApproverDenyForm bookingId={booking.id} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showAssignForms && (
         <>
           <Card>
             <CardHeader>

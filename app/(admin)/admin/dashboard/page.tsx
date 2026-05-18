@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { getLocale, getTranslations } from "next-intl/server";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireAnyRole } from "@/lib/auth-helpers";
 import {
   approvalFunnel,
   driverUtilisation,
@@ -21,7 +21,7 @@ export default async function AdminDashboard({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  await requireRole("ADMIN");
+  await requireAnyRole(["ADMIN", "APPROVER"]);
   const t = await getTranslations("dashboard");
   const locale = await getLocale();
   const qs = await searchParams;

@@ -113,14 +113,17 @@
     "tripDate": "trip {date}"
   },
   "admin": {
-    "title": "Approval queue",
-    "description": "Decide which vehicle (if any) to assign. Ordered first-come-first-served by submission time — {count} waiting on you.",
-    "queueLogHeading": "Approval log",
+    "title": "Console",
+    "description": "Pending approvals, awaiting assignment, and upcoming trips in one place.",
+    "pendingHeading": "Awaiting approval",
+    "pendingEmptyTitle": "No requests waiting",
+    "pendingEmptyDescription": "Brand-new bookings will appear here for the fleet head to review.",
+    "queueLogHeading": "Awaiting assignment",
     "upcomingTrips": "Upcoming assigned trips",
     "queueEmptyTitle": "Queue is empty",
-    "queueEmptyDescription": "Once the department head approves a booking, it shows up here, oldest first.",
+    "queueEmptyDescription": "Once the fleet head approves a booking, it shows up here, oldest first.",
     "upcomingEmptyTitle": "Nothing scheduled",
-    "upcomingEmptyDescription": "Once you assign vehicles, the next 20 trips will show up here.",
+    "upcomingEmptyDescription": "Once vehicles are assigned, the next 20 trips will show up here.",
     "submittedAt": "submitted {date}"
   },
   "bookingDetail": {

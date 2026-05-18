@@ -7,9 +7,9 @@ import { Menu, X } from "lucide-react";
 
 type NavItem = { href: string; label: string };
 
-// Role roots like "/admin", "/approver", "/driver", "/requester" only match exactly,
-// so a sub-route like "/admin/calendar" doesn't also light up the parent "Queue" entry.
-const ROLE_ROOTS = new Set(["/", "/admin", "/approver", "/driver", "/requester"]);
+// Role roots like "/admin", "/driver", "/requester" only match exactly, so a
+// sub-route like "/admin/calendar" doesn't also light up the parent "Queue".
+const ROLE_ROOTS = new Set(["/", "/admin", "/driver", "/requester"]);
 
 function isActive(pathname: string, href: string) {
   if (ROLE_ROOTS.has(href)) return pathname === href;

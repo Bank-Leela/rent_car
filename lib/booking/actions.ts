@@ -213,7 +213,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   }
 
   revalidatePath("/requester");
-  revalidatePath("/approver");
+  revalidatePath("/admin");
   redirect(`/requester/${created.id}`);
 }
 

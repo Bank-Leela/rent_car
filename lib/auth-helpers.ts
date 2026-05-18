@@ -14,9 +14,16 @@ export async function requireRole(role: Role) {
   return session;
 }
 
+export async function requireAnyRole(roles: Role[]) {
+  const session = await requireUser();
+  if (!roles.some((r) => session.user.roles.includes(r))) redirect("/");
+  return session;
+}
+
 export function homePathFor(roles: Role[]): string {
   if (roles.includes("ADMIN")) return "/admin";
-  if (roles.includes("APPROVER")) return "/approver";
+  // Approver shares the admin console; they only differ in which forms appear.
+  if (roles.includes("APPROVER")) return "/admin";
   if (roles.includes("DRIVER")) return "/driver";
   return "/requester";
 }

@@ -130,8 +130,8 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     await sendEmail({ to: adminEmails, ...adminNewBookingEmail(detailed) });
   }
 
-  revalidatePath("/approver");
-  revalidatePath(`/approver/${bookingId}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
   revalidatePath("/admin");
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);
@@ -193,8 +193,8 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
     await sendEmail({ to: detailed.requester.email, ...requesterDeniedEmail(detailed, comment) });
   }
 
-  revalidatePath("/approver");
-  revalidatePath(`/approver/${bookingId}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);
   return { ok: true };
@@ -222,7 +222,7 @@ export async function uploadSignatureAction(formData: FormData): Promise<ActionR
   const bytes = Buffer.from(await file.arrayBuffer());
   const ref = await writeSignature(userId, bytes, isPng ? "png" : "jpg");
   await prisma.user.update({ where: { id: userId }, data: { signatureImageUrl: ref } });
-  revalidatePath("/approver/profile");
+  revalidatePath("/admin/profile");
   return { ok: true };
 }
 
@@ -249,6 +249,6 @@ export async function setDelegateAction(formData: FormData): Promise<ActionResul
     delegatedToUserId = target.id;
   }
   await prisma.user.update({ where: { id: userId }, data: { delegatedToUserId } });
-  revalidatePath("/approver/profile");
+  revalidatePath("/admin/profile");
   return { ok: true };
 }

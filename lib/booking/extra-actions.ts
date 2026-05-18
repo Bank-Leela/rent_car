@@ -64,7 +64,6 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
   revalidatePath(`/requester/${bookingId}`);
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
-  revalidatePath("/approver");
   return { ok: true };
 }
 

@@ -15,7 +15,7 @@ import {
 import { AlertTriangle } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { th, enUS, type Locale } from "date-fns/locale";
-import { requireRole } from "@/lib/auth-helpers";
+import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
 
@@ -96,7 +96,7 @@ export default async function AdminCalendar({
 }: {
   searchParams: Promise<{ month?: string; vehicle?: string }>;
 }) {
-  await requireRole("ADMIN");
+  await requireAnyRole(["ADMIN", "APPROVER"]);
   const t = await getTranslations("calendar");
   const tc = await getTranslations("common");
   const localeCode = await getLocale();
