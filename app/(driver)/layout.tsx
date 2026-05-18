@@ -13,6 +13,7 @@ export default async function DriverLayout({ children }: { children: React.React
       nav={[
         { href: "/driver", label: tCommon("today") },
         { href: "/driver/board", label: tNav("scheduleBoard") },
+        { href: "/driver/calendar", label: tNav("calendar") },
         { href: "/driver/schedule", label: tNav("schedule") },
       ]}
     >

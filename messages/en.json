@@ -350,6 +350,11 @@
     "title": "New booking",
     "description": "Submit a vehicle request for review."
   },
+  "driverCalendar": {
+    "title": "My calendar",
+    "noProfileTitle": "No driver profile",
+    "noProfileDescription": "Ask an administrator to add you to the driver pool."
+  },
   "driverBoard": {
     "title": "Schedule board",
     "description": "Approved trips waiting for the driver pool to take. Claim primary or secondary; the primary confirms when the schedule is ready.",
