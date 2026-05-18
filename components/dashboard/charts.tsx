@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -13,6 +14,12 @@ import {
   Cell,
   Legend,
 } from "recharts";
+
+function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted;
+}
 
 const COLORS = {
   primary: "#6366f1",
@@ -47,6 +54,8 @@ function tooltipStyle() {
 }
 
 export function VolumeBarChart({ data }: { data: Array<{ month: string; count: number }> }) {
+  const mounted = useMounted();
+  if (!mounted) return <div className="h-64" aria-hidden />;
   return (
     <div className="h-64 text-muted-foreground">
       <ResponsiveContainer width="100%" height="100%">
@@ -88,7 +97,9 @@ export function FunnelPieChart({
 }: {
   data: Array<{ label: string; value: number }>;
 }) {
+  const mounted = useMounted();
   const filtered = data.filter((d) => d.value > 0);
+  if (!mounted) return <div className="h-64" aria-hidden />;
   if (filtered.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No data in range.</p>;
   }
