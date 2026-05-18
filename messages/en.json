@@ -33,6 +33,15 @@
     "outOfHoursReasonRequired": "Trips outside driver hours require a written justification.",
     "endBeforeStart": "End time must be after start time.",
     "cannotEditInStatus": "Cannot edit a booking in this status ({status}).",
+    "notADriver": "Your account is not an active driver.",
+    "cannotClaimInStatus": "Cannot claim a booking in this status ({status}).",
+    "claimRoleTaken": "Another driver already holds that role.",
+    "claimAlreadyHeld": "You already hold the other role on this booking.",
+    "noActiveClaim": "You don't have an active claim on this booking.",
+    "cannotReleaseAfterConfirm": "Cannot release after the schedule is confirmed.",
+    "cannotConfirmInStatus": "Cannot confirm a schedule in this status ({status}).",
+    "scheduleAlreadyConfirmed": "Schedule is already confirmed.",
+    "onlyPrimaryCanConfirm": "Only the primary driver can confirm the schedule.",
     "signaturePickFile": "Pick an image file.",
     "signatureTooLarge": "Signature image must be under 1 MB.",
     "signatureBadFormat": "Use a PNG or JPEG image."
@@ -77,7 +86,8 @@
     "pendingApprovals": "Pending approvals",
     "departmentUsage": "Department usage",
     "profile": "Profile",
-    "schedule": "Schedule"
+    "schedule": "Schedule",
+    "scheduleBoard": "Schedule board"
   },
   "status": {
     "DRAFT": "Draft",
@@ -169,24 +179,19 @@
   "adminDetail": {
     "backToQueue": "Back to queue",
     "cancellationWarning": "⚠ Requester has cancelled {count} bookings in the last 90 days.",
-    "assignVehicleAndDriver": "Assign vehicle & driver",
+    "allocateVehicle": "Allocate vehicle",
     "denyTitle": "Deny",
     "outsourceTitle": "Outsource"
   },
   "assignForm": {
     "vehicle": "Vehicle",
     "select": "Select…",
-    "primaryDriver": "Primary driver",
-    "coDriver": "Co-driver",
-    "noneOption": "None",
-    "requiredOver400": "Required for >400 km",
-    "tripOver400Note": "Trip is over {km} km — co-driver required.",
     "conflictSuffix": " — conflict (1h buffer)",
     "reservedTag": "reserved",
-    "poolSuffix": "{pool} pool",
     "seatSuffix": "{capacity}-seat",
-    "assigning": "Assigning…",
-    "assign": "Assign",
+    "assigning": "Saving…",
+    "assign": "Allocate vehicle",
+    "driversSelfClaim": "Drivers self-claim primary / secondary roles on the driver schedule board.",
     "reason": "Reason",
     "denying": "Denying…",
     "denyBooking": "Deny booking"
@@ -345,6 +350,30 @@
     "title": "New booking",
     "description": "Submit a vehicle request for review."
   },
+  "driverBoard": {
+    "title": "Schedule board",
+    "description": "Approved trips waiting for the driver pool to take. Claim primary or secondary; the primary confirms when the schedule is ready.",
+    "emptyTitle": "No open trips",
+    "emptyDescription": "Nothing waiting for a driver right now.",
+    "noProfileTitle": "No driver profile",
+    "noProfileDescription": "Ask an administrator to add you to the driver pool.",
+    "primary": "Primary",
+    "secondary": "Co-driver",
+    "you": "You",
+    "youHaveThisSlot": "you hold this slot",
+    "noVehicleYet": "vehicle pending",
+    "outOfHoursTag": "Out-of-hours",
+    "openDetail": "Open detail"
+  },
+  "claimForm": {
+    "claimPrimary": "Claim primary",
+    "claimSecondary": "Claim co-driver",
+    "claiming": "Saving…",
+    "release": "Release my claim",
+    "releasing": "Releasing…",
+    "confirmSchedule": "Confirm schedule",
+    "confirming": "Confirming…"
+  },
   "driverDetail": {
     "trip": "Trip",
     "vehicle": "Vehicle",
@@ -367,7 +396,13 @@
     "ajarnSection": "Trip for (ajarn)",
     "ajarnName": "Ajarn",
     "ajarnPhone": "Phone",
-    "ajarnEmail": "Email"
+    "ajarnEmail": "Email",
+    "scheduleTitle": "Driver schedule",
+    "scheduleHelper": "Claim primary or co-driver, then the primary confirms when the trip is ready to dispatch.",
+    "scheduleHelperLong": "Trips over {km} km need two drivers. The primary cannot confirm until a co-driver claims.",
+    "primary": "Primary",
+    "secondary": "Co-driver",
+    "you": "You"
   },
   "approverActions": {
     "backToInbox": "Back to inbox",

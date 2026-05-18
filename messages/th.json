@@ -33,6 +33,15 @@
     "outOfHoursReasonRequired": "การเดินทางนอกเวลาทำการของพนักงานขับรถต้องระบุเหตุผล",
     "endBeforeStart": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น",
     "cannotEditInStatus": "ไม่สามารถแก้ไขการจองในสถานะนี้ได้ ({status})",
+    "notADriver": "บัญชีของคุณไม่ใช่พนักงานขับรถที่ใช้งานอยู่",
+    "cannotClaimInStatus": "ไม่สามารถรับงานในสถานะนี้ได้ ({status})",
+    "claimRoleTaken": "พนักงานขับรถคนอื่นรับตำแหน่งนี้ไปแล้ว",
+    "claimAlreadyHeld": "คุณรับอีกตำแหน่งในการจองนี้อยู่แล้ว",
+    "noActiveClaim": "คุณยังไม่ได้รับงานนี้",
+    "cannotReleaseAfterConfirm": "ไม่สามารถสละงานหลังจากยืนยันตารางแล้ว",
+    "cannotConfirmInStatus": "ไม่สามารถยืนยันตารางในสถานะนี้ได้ ({status})",
+    "scheduleAlreadyConfirmed": "ตารางได้รับการยืนยันแล้ว",
+    "onlyPrimaryCanConfirm": "เฉพาะคนขับหลักเท่านั้นที่ยืนยันตารางได้",
     "signaturePickFile": "กรุณาเลือกไฟล์รูปภาพ",
     "signatureTooLarge": "ไฟล์ลายเซ็นต้องมีขนาดไม่เกิน 1 MB",
     "signatureBadFormat": "กรุณาใช้ไฟล์ PNG หรือ JPEG"
@@ -77,7 +86,8 @@
     "pendingApprovals": "รออนุมัติ",
     "departmentUsage": "การใช้งานของภาควิชา",
     "profile": "โปรไฟล์",
-    "schedule": "ตารางงาน"
+    "schedule": "ตารางงาน",
+    "scheduleBoard": "กระดานรับงาน"
   },
   "status": {
     "DRAFT": "ฉบับร่าง",
@@ -169,24 +179,19 @@
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
     "cancellationWarning": "⚠ ผู้ขอใช้รถยกเลิกการจอง {count} ครั้งใน 90 วันที่ผ่านมา",
-    "assignVehicleAndDriver": "จัดรถและพนักงานคนขับ",
+    "allocateVehicle": "จัดรถให้การจองนี้",
     "denyTitle": "ไม่อนุมัติ",
     "outsourceTitle": "เช่าจากภายนอก"
   },
   "assignForm": {
     "vehicle": "รถ",
     "select": "เลือก…",
-    "primaryDriver": "พนักงานขับรถหลัก",
-    "coDriver": "พนักงานขับรถผู้ช่วย",
-    "noneOption": "ไม่มี",
-    "requiredOver400": "จำเป็นสำหรับการเดินทางเกิน 400 กม.",
-    "tripOver400Note": "การเดินทางเกิน {km} กม. — ต้องมีพนักงานขับรถผู้ช่วย",
     "conflictSuffix": " — ติดคิว (ระยะห่าง 1 ชม.)",
     "reservedTag": "สำรอง",
-    "poolSuffix": "กลุ่ม {pool}",
     "seatSuffix": "{capacity} ที่นั่ง",
-    "assigning": "กำลังจัด…",
+    "assigning": "กำลังบันทึก…",
     "assign": "จัดรถ",
+    "driversSelfClaim": "พนักงานขับรถจะเลือกตำแหน่งคนขับหลัก/ผู้ช่วยจากกระดานรับงานเอง",
     "reason": "เหตุผล",
     "denying": "กำลังปฏิเสธ…",
     "denyBooking": "ไม่อนุมัติการจอง"
@@ -345,6 +350,30 @@
     "title": "จองใหม่",
     "description": "ส่งคำขอใช้รถเพื่อพิจารณา"
   },
+  "driverBoard": {
+    "title": "กระดานรับงาน",
+    "description": "รายการทริปที่ผ่านการอนุมัติและรอพนักงานขับรถมารับ เลือก ‘คนขับหลัก’ หรือ ‘คนขับผู้ช่วย’ จากนั้นคนขับหลักจะยืนยันเมื่อพร้อมออกเดินทาง",
+    "emptyTitle": "ไม่มีงานรออยู่",
+    "emptyDescription": "ยังไม่มีทริปที่รอพนักงานขับรถในขณะนี้",
+    "noProfileTitle": "ไม่พบโปรไฟล์พนักงานขับรถ",
+    "noProfileDescription": "ติดต่อผู้ดูแลระบบเพื่อเพิ่มบัญชีของคุณเข้ากลุ่มพนักงานขับรถ",
+    "primary": "คนขับหลัก",
+    "secondary": "คนขับผู้ช่วย",
+    "you": "คุณ",
+    "youHaveThisSlot": "คุณรับตำแหน่งนี้",
+    "noVehicleYet": "ยังไม่ได้จัดรถ",
+    "outOfHoursTag": "นอกเวลาทำการ",
+    "openDetail": "ดูรายละเอียด"
+  },
+  "claimForm": {
+    "claimPrimary": "รับเป็นคนขับหลัก",
+    "claimSecondary": "รับเป็นคนขับผู้ช่วย",
+    "claiming": "กำลังบันทึก…",
+    "release": "สละการรับงาน",
+    "releasing": "กำลังบันทึก…",
+    "confirmSchedule": "ยืนยันตาราง",
+    "confirming": "กำลังยืนยัน…"
+  },
   "driverDetail": {
     "trip": "ทริป",
     "vehicle": "รถ",
@@ -367,7 +396,13 @@
     "ajarnSection": "อาจารย์ที่เดินทาง",
     "ajarnName": "อาจารย์",
     "ajarnPhone": "เบอร์โทร",
-    "ajarnEmail": "อีเมล"
+    "ajarnEmail": "อีเมล",
+    "scheduleTitle": "ตารางพนักงานขับรถ",
+    "scheduleHelper": "เลือกเป็นคนขับหลักหรือคนขับผู้ช่วย จากนั้นคนขับหลักจะยืนยันเมื่อพร้อมออกเดินทาง",
+    "scheduleHelperLong": "ทริปเกิน {km} กม. ต้องใช้คนขับสองคน คนขับหลักยืนยันได้เมื่อมีคนขับผู้ช่วยรับงานแล้ว",
+    "primary": "คนขับหลัก",
+    "secondary": "คนขับผู้ช่วย",
+    "you": "คุณ"
   },
   "approverActions": {
     "backToInbox": "กลับไปกล่องจดหมาย",

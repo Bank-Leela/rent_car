@@ -57,15 +57,24 @@ export const newBookingSchema = z
 
 export type NewBookingInput = z.infer<typeof newBookingSchema>;
 
+// CR-02: admin now only allocates the vehicle. Drivers self-claim their
+// roles on the driver schedule board.
 export const assignBookingSchema = z.object({
   bookingId: z.string().min(1),
   vehicleId: z.string().min(1, "Pick a vehicle"),
-  primaryDriverId: z.string().min(1, "Pick a primary driver"),
-  secondaryDriverId: z
-    .string()
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v ? v : undefined)),
+});
+
+export const claimBookingSchema = z.object({
+  bookingId: z.string().min(1),
+  role: z.enum(["PRIMARY", "SECONDARY"]),
+});
+
+export const releaseClaimSchema = z.object({
+  bookingId: z.string().min(1),
+});
+
+export const confirmScheduleSchema = z.object({
+  bookingId: z.string().min(1),
 });
 
 export const denyBookingSchema = z.object({

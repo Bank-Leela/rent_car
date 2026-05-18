@@ -15,7 +15,6 @@ import {
 import { nextJobNumber } from "@/lib/booking/job-number";
 import {
   checkLeadTime,
-  checkDriverAssignment,
   findBufferConflicts,
   isBlockedByPendingEvaluation,
   isWithinWorkHours,
@@ -26,7 +25,6 @@ import {
   requesterAssignedEmail,
   requesterDeniedEmail,
 } from "@/lib/email/templates";
-import { sendLineNotification } from "@/lib/line/client";
 import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
 
 const bookingDetailInclude = {
@@ -232,7 +230,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   redirect(`/requester/${created.id}`);
 }
 
-// ---- Admin: assign vehicle + driver ----
+// ---- Admin: allow + allocate vehicle (CR-02: drivers are no longer assigned
+// by the admin; they self-claim on the driver schedule board). ----
 
 export async function assignBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
@@ -247,28 +246,10 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
   }
   const data = parsed.data;
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: data.bookingId },
-  });
+  const booking = await prisma.booking.findUnique({ where: { id: data.bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
-  // Phase 2: admin only assigns after department-head approval.
   if (booking.status !== "APPROVED") {
     return { ok: false, error: te("cannotAssignInStatus", { status: ts(booking.status) }) };
-  }
-
-  // Two-driver rule.
-  const driverCheck = checkDriverAssignment({
-    estimatedDistance: booking.estimatedDistance,
-    primaryDriverId: data.primaryDriverId,
-    secondaryDriverId: data.secondaryDriverId ?? null,
-  });
-  if (!driverCheck.ok) {
-    const messageKey = {
-      PRIMARY_REQUIRED: "primaryRequired",
-      SECONDARY_REQUIRED: "secondaryRequired",
-      DUPLICATE_DRIVER: "duplicateDriver",
-    } as const;
-    return { ok: false, error: te(messageKey[driverCheck.reason]) };
   }
 
   // 1-hour buffer rule against other confirmed bookings on the same vehicle.
@@ -288,28 +269,20 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
     return { ok: false, field: "vehicleId", error: te("vehicleConflict") };
   }
 
+  // CR-02: status stays APPROVED until drivers claim + the primary confirms.
+  // Only the vehicle is set here; driver fields are touched via claim flow.
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: data.bookingId },
-      data: {
-        vehicleId: data.vehicleId,
-        primaryDriverId: data.primaryDriverId,
-        secondaryDriverId: data.secondaryDriverId,
-        status: "ASSIGNED",
-        decidedAt: new Date(),
-      },
+      data: { vehicleId: data.vehicleId, decidedAt: new Date() },
     });
     await logTransition({
       bookingId: data.bookingId,
       actorUserId: adminId,
       fromStatus: booking.status,
-      toStatus: "ASSIGNED",
-      action: "BOOKING_ASSIGNED",
-      metadata: {
-        vehicleId: data.vehicleId,
-        primaryDriverId: data.primaryDriverId,
-        secondaryDriverId: data.secondaryDriverId ?? null,
-      },
+      toStatus: booking.status,
+      action: "VEHICLE_ALLOCATED",
+      metadata: { vehicleId: data.vehicleId },
       tx,
     });
   });
@@ -321,22 +294,13 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
   if (detailed.requester.email) {
     await sendEmail({ to: detailed.requester.email, ...requesterAssignedEmail(detailed) });
   }
-  // LINE notification to drivers (stub today; real client in Phase 5).
-  for (const drv of [detailed.primaryDriver, detailed.secondaryDriver]) {
-    if (drv?.user.lineUserId) {
-      await sendLineNotification({
-        toLineUserId: drv.user.lineUserId,
-        message: `New trip assigned: ${detailed.jobNumber} · ${detailed.destination} · ${detailed.startAt.toISOString()}`,
-        context: { bookingId: detailed.id, kind: "ASSIGNED" },
-      });
-    }
-  }
+  // CR-02: admin no longer pings drivers — they self-organize on the board.
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${data.bookingId}`);
   revalidatePath("/requester");
   revalidatePath(`/requester/${data.bookingId}`);
-  revalidatePath("/driver");
+  revalidatePath("/driver/board");
   return { ok: true };
 }
 

@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, requireRole } from "@/lib/auth-helpers";
+import {
+  claimBookingSchema,
+  releaseClaimSchema,
+  confirmScheduleSchema,
+} from "@/lib/booking/schema";
+import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const startSchema = z.object({
@@ -154,6 +160,213 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
   revalidatePath("/requester");
+  revalidatePath(`/requester/${bookingId}`);
+  return { ok: true };
+}
+
+// ---- CR-02: driver self-scheduling ----
+
+async function getDriverProfileId(userId: string): Promise<string | null> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { driverProfile: { select: { id: true, isActive: true } } },
+  });
+  if (!u?.driverProfile?.isActive) return null;
+  return u.driverProfile.id;
+}
+
+export async function claimBookingAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("DRIVER");
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const parsed = claimBookingSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId, role } = parsed.data;
+
+  const driverId = await getDriverProfileId(userId);
+  if (!driverId) return { ok: false, error: te("notADriver") };
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { claims: { where: { status: "ACTIVE" } } },
+  });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.status !== "APPROVED") {
+    return { ok: false, error: te("cannotClaimInStatus", { status: ts(booking.status) }) };
+  }
+
+  // First-claim-wins: if another driver already holds an ACTIVE claim for
+  // this role, refuse. The same driver claiming the same role is a no-op.
+  const existingForRole = booking.claims.find((c) => c.role === role);
+  if (existingForRole && existingForRole.driverId !== driverId) {
+    return { ok: false, error: te("claimRoleTaken") };
+  }
+  // A driver cannot hold both roles on one booking.
+  const otherRole = booking.claims.find((c) => c.driverId === driverId && c.role !== role);
+  if (otherRole) {
+    return { ok: false, error: te("claimAlreadyHeld") };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (!existingForRole) {
+      await tx.bookingClaim.create({
+        data: { bookingId, driverId, role, status: "ACTIVE" },
+      });
+    }
+    const data: { primaryDriverId?: string; secondaryDriverId?: string; driverScheduleStatus?: "CLAIMED" } = {};
+    if (role === "PRIMARY") data.primaryDriverId = driverId;
+    else data.secondaryDriverId = driverId;
+    if (booking.driverScheduleStatus === "UNCLAIMED") data.driverScheduleStatus = "CLAIMED";
+    await tx.booking.update({ where: { id: bookingId }, data });
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        actorUserId: userId,
+        fromStatus: booking.status,
+        toStatus: booking.status,
+        action: "DRIVER_CLAIMED",
+        metadata: { driverId, role },
+      },
+    });
+  });
+
+  revalidatePath("/driver/board");
+  revalidatePath(`/driver/${bookingId}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
+  return { ok: true };
+}
+
+export async function releaseClaimAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("DRIVER");
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+
+  const parsed = releaseClaimSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId } = parsed.data;
+
+  const driverId = await getDriverProfileId(userId);
+  if (!driverId) return { ok: false, error: te("notADriver") };
+
+  const claim = await prisma.bookingClaim.findFirst({
+    where: { bookingId, driverId, status: "ACTIVE" },
+  });
+  if (!claim) return { ok: false, error: te("noActiveClaim") };
+
+  const booking = await prisma.booking.findUniqueOrThrow({
+    where: { id: bookingId },
+    include: { claims: { where: { status: "ACTIVE" } } },
+  });
+  // Once the trip is confirmed, drivers can't quietly drop out — admin must
+  // be aware so the trip doesn't dispatch with a missing seat.
+  if (booking.driverScheduleStatus === "CONFIRMED") {
+    return { ok: false, error: te("cannotReleaseAfterConfirm") };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.bookingClaim.update({
+      where: { id: claim.id },
+      data: { status: "RELEASED", releasedAt: new Date() },
+    });
+    const remaining = booking.claims.filter((c) => c.id !== claim.id);
+    const data: {
+      primaryDriverId?: string | null;
+      secondaryDriverId?: string | null;
+      driverScheduleStatus?: "UNCLAIMED" | "CLAIMED";
+    } = {};
+    if (claim.role === "PRIMARY") data.primaryDriverId = null;
+    else data.secondaryDriverId = null;
+    data.driverScheduleStatus = remaining.length === 0 ? "UNCLAIMED" : "CLAIMED";
+    await tx.booking.update({ where: { id: bookingId }, data });
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        actorUserId: userId,
+        fromStatus: booking.status,
+        toStatus: booking.status,
+        action: "DRIVER_RELEASED",
+        metadata: { driverId, role: claim.role },
+      },
+    });
+  });
+
+  revalidatePath("/driver/board");
+  revalidatePath(`/driver/${bookingId}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
+  return { ok: true };
+}
+
+export async function confirmScheduleAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("DRIVER");
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const parsed = confirmScheduleSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId } = parsed.data;
+
+  const driverId = await getDriverProfileId(userId);
+  if (!driverId) return { ok: false, error: te("notADriver") };
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { claims: { where: { status: "ACTIVE" } } },
+  });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.status !== "APPROVED") {
+    return { ok: false, error: te("cannotConfirmInStatus", { status: ts(booking.status) }) };
+  }
+  if (booking.driverScheduleStatus === "CONFIRMED") {
+    return { ok: false, error: te("scheduleAlreadyConfirmed") };
+  }
+  // Only the primary driver may confirm; secondary can't ratify the trip.
+  const primaryClaim = booking.claims.find((c) => c.role === "PRIMARY");
+  if (!primaryClaim || primaryClaim.driverId !== driverId) {
+    return { ok: false, error: te("onlyPrimaryCanConfirm") };
+  }
+  // CR-02: the two-driver rule for long trips now applies at the driver
+  // side. Trips over the threshold can't confirm without a secondary claim.
+  const needsSecondary =
+    typeof booking.estimatedDistance === "number" &&
+    booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM;
+  const hasSecondary = booking.claims.some((c) => c.role === "SECONDARY");
+  if (needsSecondary && !hasSecondary) {
+    return { ok: false, error: te("secondaryRequired") };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { driverScheduleStatus: "CONFIRMED", status: "ASSIGNED" },
+    });
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        actorUserId: userId,
+        fromStatus: "APPROVED",
+        toStatus: "ASSIGNED",
+        action: "SCHEDULE_CONFIRMED",
+        metadata: { primaryDriverId: driverId },
+      },
+    });
+  });
+
+  revalidatePath("/driver/board");
+  revalidatePath(`/driver/${bookingId}`);
+  revalidatePath("/driver");
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
   revalidatePath(`/requester/${bookingId}`);
   return { ok: true };
 }

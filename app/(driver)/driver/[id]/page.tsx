@@ -4,9 +4,15 @@ import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { StartTripForm, EndTripForm } from "@/components/forms/trip-forms";
+import {
+  ClaimButton,
+  ReleaseButton,
+  ConfirmScheduleButton,
+} from "@/components/forms/claim-form";
 
 export default async function DriverBookingDetail({
   params,
@@ -27,6 +33,7 @@ export default async function DriverBookingDetail({
       department: true,
       primaryDriver: { include: { user: true } },
       secondaryDriver: { include: { user: true } },
+      claims: { where: { status: "ACTIVE" }, include: { driver: { include: { user: true } } } },
       trip: true,
     },
   });
@@ -34,10 +41,32 @@ export default async function DriverBookingDetail({
 
   const me = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   const meId = me?.id;
-  if (booking.primaryDriverId !== meId && booking.secondaryDriverId !== meId) notFound();
+  // CR-02: any driver can view an APPROVED trip on the board; only claimed
+  // drivers see it after the schedule is confirmed.
+  const isClaimed = !!booking.claims.find((c) => c.driverId === meId);
+  const canViewPostAssign = booking.primaryDriverId === meId || booking.secondaryDriverId === meId;
+  if (booking.status === "APPROVED") {
+    // anyone in the pool may view to decide whether to claim
+  } else if (!canViewPostAssign && !isClaimed) {
+    notFound();
+  }
 
   const tripStarted = !!booking.trip;
   const tripCompleted = !!booking.trip?.endedAt;
+  const primaryClaim = booking.claims.find((c) => c.role === "PRIMARY");
+  const secondaryClaim = booking.claims.find((c) => c.role === "SECONDARY");
+  const iAmPrimary = primaryClaim?.driverId === meId;
+  const iAmSecondary = secondaryClaim?.driverId === meId;
+  const iAmClaimed = iAmPrimary || iAmSecondary;
+  const needsSecondary =
+    typeof booking.estimatedDistance === "number" &&
+    booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM;
+  const canConfirm =
+    booking.status === "APPROVED" &&
+    booking.driverScheduleStatus !== "CONFIRMED" &&
+    iAmPrimary &&
+    (!needsSecondary || !!secondaryClaim);
+  const showClaimCard = booking.status === "APPROVED";
 
   return (
     <div className="space-y-6">
@@ -98,6 +127,55 @@ export default async function DriverBookingDetail({
         </Card>
       )}
 
+      {showClaimCard && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">{t("scheduleTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {needsSecondary
+                ? t("scheduleHelperLong", { km: TWO_DRIVER_DISTANCE_KM })
+                : t("scheduleHelper")}
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <SlotCard
+                label={t("primary")}
+                takenBy={
+                  primaryClaim
+                    ? primaryClaim.driver.user.name ?? primaryClaim.driver.user.email
+                    : null
+                }
+                iAm={iAmPrimary}
+                meLabel={t("you")}
+                bookingId={booking.id}
+                role="PRIMARY"
+                otherSlotTakenByMe={iAmSecondary}
+              />
+              <SlotCard
+                label={t("secondary")}
+                takenBy={
+                  secondaryClaim
+                    ? secondaryClaim.driver.user.name ?? secondaryClaim.driver.user.email
+                    : null
+                }
+                iAm={iAmSecondary}
+                meLabel={t("you")}
+                bookingId={booking.id}
+                role="SECONDARY"
+                otherSlotTakenByMe={iAmPrimary}
+              />
+            </div>
+            {iAmClaimed && (
+              <div className="flex items-center gap-3 pt-2 border-t">
+                <ReleaseButton bookingId={booking.id} />
+                {canConfirm && <ConfirmScheduleButton bookingId={booking.id} />}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {!tripStarted && booking.status === "ASSIGNED" && (
         <Card>
           <CardHeader>
@@ -153,6 +231,37 @@ function Field({ label, value, colSpan }: { label: string; value: string; colSpa
     <div className={colSpan ? "sm:col-span-2" : ""}>
       <div className="text-sm uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function SlotCard({
+  label,
+  takenBy,
+  iAm,
+  meLabel,
+  bookingId,
+  role,
+  otherSlotTakenByMe,
+}: {
+  label: string;
+  takenBy: string | null;
+  iAm: boolean;
+  meLabel: string;
+  bookingId: string;
+  role: "PRIMARY" | "SECONDARY";
+  otherSlotTakenByMe: boolean;
+}) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      {takenBy ? (
+        <div className="mt-1 font-medium">{iAm ? meLabel : takenBy}</div>
+      ) : (
+        <div className="mt-2">
+          <ClaimButton bookingId={bookingId} role={role} disabled={otherSlotTakenByMe} />
+        </div>
+      )}
     </div>
   );
 }

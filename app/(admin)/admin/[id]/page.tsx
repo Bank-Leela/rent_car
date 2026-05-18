@@ -38,13 +38,10 @@ export default async function AdminBookingDetail({
   });
   if (!booking) notFound();
 
-  const [vehicles, drivers, otherBookingsByVehicle, recentCancellations] = await Promise.all([
+  // CR-02: admin only allocates a vehicle. Driver pool is no longer loaded
+  // here — drivers self-claim on the schedule board.
+  const [vehicles, otherBookingsByVehicle, recentCancellations] = await Promise.all([
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { registrationNumber: "asc" } }),
-    prisma.driver.findMany({
-      where: { isActive: true },
-      include: { user: true },
-      orderBy: { user: { name: "asc" } },
-    }),
     prisma.booking.findMany({
       where: {
         status: { in: ["APPROVED", "ASSIGNED"] },
@@ -81,11 +78,6 @@ export default async function AdminBookingDetail({
       conflict: conflictCount > 0,
     };
   });
-  const driverOptions = drivers.map((d) => ({
-    id: d.id,
-    label: d.user.name ?? d.user.email ?? "—",
-    sublabel: taf("poolSuffix", { pool: d.pool.toLowerCase() }),
-  }));
 
   const isPendingApproval = booking.status === "PENDING_APPROVAL";
   const isApproved = booking.status === "APPROVED";
@@ -241,15 +233,10 @@ export default async function AdminBookingDetail({
         <>
           <Card>
             <CardHeader>
-              <CardTitle>{tad("assignVehicleAndDriver")}</CardTitle>
+              <CardTitle>{tad("allocateVehicle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <AssignForm
-                bookingId={booking.id}
-                estimatedDistance={booking.estimatedDistance}
-                vehicleOptions={vehicleOptions}
-                driverOptions={driverOptions}
-              />
+              <AssignForm bookingId={booking.id} vehicleOptions={vehicleOptions} />
             </CardContent>
           </Card>
 

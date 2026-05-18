@@ -54,6 +54,25 @@ enum EvaluationRating {
   VERY_GOOD
 }
 
+// CR-02: driver-side scheduling lifecycle. The admin only allows the booking
+// + picks a vehicle; drivers then claim primary/secondary roles, and the
+// primary driver confirms the trip is dispatch-ready.
+enum DriverScheduleStatus {
+  UNCLAIMED
+  CLAIMED
+  CONFIRMED
+}
+
+enum ClaimRole {
+  PRIMARY
+  SECONDARY
+}
+
+enum ClaimStatus {
+  ACTIVE
+  RELEASED
+}
+
 // ---------- NextAuth core tables ----------
 
 model Account {
@@ -179,6 +198,7 @@ model Driver {
 
   primaryBookings   Booking[] @relation("PrimaryDriver")
   secondaryBookings Booking[] @relation("SecondaryDriver")
+  claims            BookingClaim[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -227,6 +247,11 @@ model Booking {
   recurrenceChildren Booking[]       @relation("BookingRecurrence")
   recurrenceRule     RecurrenceRule?
 
+  // CR-02: independent of overall booking status, this tracks the driver
+  // self-scheduling lifecycle. Set to UNCLAIMED on creation; flipped when
+  // drivers claim and the primary confirms.
+  driverScheduleStatus DriverScheduleStatus @default(UNCLAIMED)
+
   outsourceVendor    String?
   outsourceCost      Decimal? @db.Decimal(10, 2)
   outsourceReference String?
@@ -242,9 +267,31 @@ model Booking {
   trip          Trip?
   cancellations Cancellation[]
   auditLogs     AuditLog[]
+  claims        BookingClaim[]
 
   @@index([status, createdAt])
   @@index([startAt])
+}
+
+// CR-02: drivers self-claim trips. There's at most one ACTIVE claim per
+// (booking, role); released claims are kept for audit. Setting primary +
+// secondary on Booking is denormalized from the active claims.
+model BookingClaim {
+  id         String      @id @default(cuid())
+  bookingId  String
+  booking    Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  driverId   String
+  driver     Driver      @relation(fields: [driverId], references: [id])
+  role       ClaimRole
+  status     ClaimStatus @default(ACTIVE)
+  claimedAt  DateTime    @default(now())
+  releasedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId, status])
+  @@index([driverId, status])
 }
 
 model RecurrenceRule {
