@@ -73,6 +73,15 @@ enum ClaimStatus {
   RELEASED
 }
 
+// Driver-pay tier used by the auto-assign algorithm. Tier weights drive
+// fairness (higher tier = higher weight; deficit-first selection).
+enum JobTier {
+  INTERNATIONAL
+  SCHOOL
+  PROVINCIAL
+  ON_CALL
+}
+
 // ---------- NextAuth core tables ----------
 
 model Account {
@@ -199,6 +208,7 @@ model Driver {
   primaryBookings   Booking[] @relation("PrimaryDriver")
   secondaryBookings Booking[] @relation("SecondaryDriver")
   claims            BookingClaim[]
+  onCallShifts      OnCallShift[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -252,6 +262,11 @@ model Booking {
   // drivers claim and the primary confirms.
   driverScheduleStatus DriverScheduleStatus @default(UNCLAIMED)
 
+  // Auto-assign tier. If unset, classifyTier() derives it from province /
+  // destination on the fly. Settable so requesters can flag a school /
+  // international trip explicitly.
+  jobTier JobTier?
+
   outsourceVendor    String?
   outsourceCost      Decimal? @db.Decimal(10, 2)
   outsourceReference String?
@@ -271,6 +286,18 @@ model Booking {
 
   @@index([status, createdAt])
   @@index([startAt])
+}
+
+// One driver is on-call (รถเวร) per calendar day. The auto-assign algorithm
+// rotates through the pool round-robin and skips the on-call driver from
+// regular jobs that day.
+model OnCallShift {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // CR-02: drivers self-claim trips. There's at most one ACTIVE claim per

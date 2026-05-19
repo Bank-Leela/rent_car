@@ -1,20 +1,24 @@
 import Link from "next/link";
-import { format } from "date-fns";
-import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight } from "lucide-react";
+import { format, startOfDay } from "date-fns";
+import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { OnCallShiftForm } from "@/components/forms/auto-assign-form";
 
 export default async function AdminQueue() {
-  await requireAnyRole(["ADMIN", "APPROVER"]);
+  const session = await requireAnyRole(["ADMIN", "APPROVER"]);
+  const isAdmin = session.user.roles.includes("ADMIN");
   const t = await getTranslations("admin");
+  const tAuto = await getTranslations("autoAssign");
+  const today = startOfDay(new Date());
 
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
   // detail page surfaces role-appropriate action forms.
-  const [pending, approved, upcoming] = await Promise.all([
+  const [pending, approved, upcoming, todayShift, allDrivers] = await Promise.all([
     prisma.booking.findMany({
       where: { status: "PENDING_APPROVAL" },
       orderBy: { startAt: "asc" },
@@ -31,7 +35,24 @@ export default async function AdminQueue() {
       take: 20,
       include: { vehicle: true, primaryDriver: { include: { user: true } } },
     }),
+    prisma.onCallShift.findUnique({
+      where: { date: today },
+      include: { driver: { include: { user: true } } },
+    }),
+    prisma.driver.findMany({
+      where: { isActive: true },
+      include: { user: true },
+      orderBy: { user: { name: "asc" } },
+    }),
   ]);
+
+  const driversForPicker = allDrivers.map((d) => ({
+    id: d.id,
+    name: d.user.name ?? d.user.email ?? d.id,
+  }));
+  const todayIso = format(today, "yyyy-MM-dd");
+  const todayOnCallName =
+    todayShift?.driver.user.name ?? todayShift?.driver.user.email ?? null;
 
   return (
     <div className="space-y-8">
@@ -39,6 +60,23 @@ export default async function AdminQueue() {
         title={t("title")}
         description={t("description", { count: approved.length })}
       />
+
+      {isAdmin && (
+        <Section title={tAuto("onCallSectionHeading")} icon={<UserCheck className="h-4 w-4" />}>
+          <div className="rounded-xl border bg-card p-4 shadow-sm space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {todayOnCallName
+                ? tAuto("todayIs", { name: todayOnCallName, date: todayIso })
+                : tAuto("notSetForToday", { date: todayIso })}
+            </p>
+            <OnCallShiftForm
+              date={todayIso}
+              defaultDriverId={todayShift?.driverId ?? null}
+              drivers={driversForPicker}
+            />
+          </div>
+        </Section>
+      )}
 
       <Section title={t("pendingHeading")} icon={<ClipboardCheck className="h-4 w-4" />}>
         {pending.length === 0 ? (

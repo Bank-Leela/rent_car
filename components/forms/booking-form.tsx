@@ -184,6 +184,23 @@ export function BookingForm({
             <Input id="purpose" name="purpose" required />
           </div>
 
+          <div className="grid gap-2">
+            <Label htmlFor="jobTier">{t("jobTierLabel")}</Label>
+            <select
+              id="jobTier"
+              name="jobTier"
+              defaultValue=""
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">{t("jobTierAuto")}</option>
+              <option value="INTERNATIONAL">{t("jobTierInternational")}</option>
+              <option value="SCHOOL">{t("jobTierSchool")}</option>
+              <option value="PROVINCIAL">{t("jobTierProvincial")}</option>
+              <option value="ON_CALL">{t("jobTierOnCall")}</option>
+            </select>
+            <p className="text-xs text-muted-foreground">{t("jobTierHelper")}</p>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="destination">{t("destination")}</Label>

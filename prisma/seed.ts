@@ -110,6 +110,7 @@ async function main() {
     { id: "seed-driver-3", email: "driver3@chula.ac.th", name: "วิชัย รักงาน", pool: DriverPool.PUBLIC, licenseNumber: "DL-0003" },
     { id: "seed-driver-4", email: "driver4@chula.ac.th", name: "ประยุทธ ขับดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0004" },
     { id: "seed-driver-5", email: "driver5@chula.ac.th", name: "สุชาติ มั่นคง", pool: DriverPool.PUBLIC, licenseNumber: "DL-0005" },
+    { id: "seed-driver-6", email: "driver6@chula.ac.th", name: "ธีระ สมบูรณ์", pool: DriverPool.PUBLIC, licenseNumber: "DL-0006" },
   ];
   for (const d of extraDrivers) {
     const u = await prisma.user.upsert({

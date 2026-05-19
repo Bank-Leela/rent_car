@@ -127,6 +127,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         ajarnName: data.ajarnName,
         ajarnPhone: data.ajarnPhone,
         ajarnEmail: data.ajarnEmail,
+        jobTier: data.jobTier,
         outOfHoursReason,
         passengerCount: data.passengerCount,
         passengerNotes: data.passengerNotes,
