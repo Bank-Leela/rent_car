@@ -2,9 +2,9 @@ import type { Prisma } from "@prisma/client";
 
 /**
  * Job number format: VB-YYYYMM-NNNN where NNNN is the per-month sequence (1-based).
- * Allocated atomically inside a transaction by counting existing bookings created
- * in the same calendar month and adding 1. Callers MUST run this inside a Prisma
- * transaction so the count + insert are serialized.
+ * Caller MUST run inside a Prisma transaction. We take a Postgres advisory lock
+ * keyed by YYYYMM so concurrent transactions in the same month serialize on the
+ * count → insert critical section. Lock auto-releases on commit/rollback.
  */
 export async function nextJobNumber(
   tx: Prisma.TransactionClient,
@@ -14,6 +14,9 @@ export async function nextJobNumber(
   const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
   const monthStart = new Date(Date.UTC(yyyy, now.getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(yyyy, now.getUTCMonth() + 1, 1));
+
+  const bucket = Number(`${yyyy}${mm}`);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${bucket})`;
 
   const countThisMonth = await tx.booking.count({
     where: { createdAt: { gte: monthStart, lt: monthEnd } },
