@@ -46,6 +46,8 @@ async function makePendingBooking() {
       endAt: end,
       passengerCount: 2,
       status: "PENDING_APPROVAL",
+      jobType: "OT",
+      timeBucket: "MORNING_08_12",
     },
   });
   cleanup.push(b.id);

@@ -13,6 +13,7 @@ import {
   updateBookingTimeSchema,
 } from "@/lib/booking/schema";
 import { nextJobNumber } from "@/lib/booking/job-number";
+import { bucketFromStart } from "@/lib/booking/slot-allocation";
 import {
   checkLeadTime,
   findBufferConflicts,
@@ -127,7 +128,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         ajarnName: data.ajarnName,
         ajarnPhone: data.ajarnPhone,
         ajarnEmail: data.ajarnEmail,
-        jobTier: data.jobTier,
+        jobType: data.jobType,
+        timeBucket: bucketFromStart(data.startAt),
         outOfHoursReason,
         passengerCount: data.passengerCount,
         passengerNotes: data.passengerNotes,
@@ -182,6 +184,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             ajarnName: data.ajarnName,
             ajarnPhone: data.ajarnPhone,
             ajarnEmail: data.ajarnEmail,
+            jobType: data.jobType,
+            timeBucket: bucketFromStart(childStart),
             outOfHoursReason,
             passengerCount: data.passengerCount,
             passengerNotes: data.passengerNotes,
@@ -399,7 +403,7 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
-      data: { startAt, endAt, outOfHoursReason },
+      data: { startAt, endAt, outOfHoursReason, timeBucket: bucketFromStart(startAt) },
     });
     await logTransition({
       bookingId,

@@ -52,6 +52,8 @@ async function main() {
       passengerCount: 4,
       estimatedDistance: 50,
       status: "PENDING_APPROVAL",
+      jobType: "OT",
+      timeBucket: "MORNING_08_12",
     },
   });
   for (let i = 1; i < Math.min(recDates.length, 3); i++) {
@@ -71,6 +73,8 @@ async function main() {
         passengerCount: 4,
         estimatedDistance: 50,
         status: "PENDING_APPROVAL",
+        jobType: "OT",
+        timeBucket: "MORNING_08_12",
         recurrenceParentId: parent.id,
       },
     });

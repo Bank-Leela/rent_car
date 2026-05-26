@@ -11,6 +11,7 @@ const baseInput = {
   ajarnName: "ศ. ดร. สมชาย สุขดี",
   ajarnPhone: "0812345678",
   ajarnEmail: "somchai@chula.ac.th",
+  jobType: "OT",
   passengerCount: "4",
   passengerNotes: "",
   estimatedDistance: "",

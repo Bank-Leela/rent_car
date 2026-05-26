@@ -17,11 +17,7 @@ export const newBookingSchema = z
     ajarnName: z.string().trim().min(2, "Ajarn name is required"),
     ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
     ajarnEmail: z.string().trim().email("Invalid email address"),
-    jobTier: z
-      .enum(["INTERNATIONAL", "SCHOOL", "PROVINCIAL", "ON_CALL"])
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v ? v : undefined)),
+    jobType: z.enum(["OUT_OF_PROVINCE", "OT", "ON_CALL", "GENERAL"]),
     outOfHoursReason: z
       .string()
       .max(1000)
@@ -85,6 +81,11 @@ export const confirmScheduleSchema = z.object({
 export const denyBookingSchema = z.object({
   bookingId: z.string().min(1),
   reason: z.string().min(3, "Reason is required"),
+});
+
+// CR-05: server action input for the matcher.
+export const matchBookingSchema = z.object({
+  bookingId: z.string().min(1),
 });
 
 export const updateBookingTimeSchema = z.object({

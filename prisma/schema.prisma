@@ -73,13 +73,24 @@ enum ClaimStatus {
   RELEASED
 }
 
-// Driver-pay tier used by the auto-assign algorithm. Tier weights drive
-// fairness (higher tier = higher weight; deficit-first selection).
-enum JobTier {
-  INTERNATIONAL
-  SCHOOL
-  PROVINCIAL
+// CR-06: job category for the matcher's driver capacity matrix. One row
+// per category. ON_CALL = today's duty driver doing campus rounds
+// (บริหาร / คลัง / HR / สารบัญ). GENERAL = ทั่วไป (short on-campus runs).
+enum JobType {
+  OUT_OF_PROVINCE
+  OT
   ON_CALL
+  GENERAL
+}
+
+// CR-05: four fixed time buckets used by Algorithm 1 (slot allocation).
+// Derived from Booking.startAt at create time and persisted so the slot
+// grid stays cheap to read.
+enum TimeBucket {
+  BEFORE_08
+  MORNING_08_12
+  AFTERNOON_12_16
+  AFTER_16
 }
 
 // ---------- NextAuth core tables ----------
@@ -186,7 +197,9 @@ model Vehicle {
   registrationNumber String      @unique
   type               VehicleType
   capacity           Int
-  isReserved         Boolean     @default(false)
+  // CR-05: marks the reserve fleet (คันเวร). These vehicles appear as a
+  // dedicated row in the slot grid and are reserved for on-call work.
+  isDutyVehicle      Boolean     @default(false)
   notes              String?
   isActive           Boolean     @default(true)
 
@@ -204,6 +217,9 @@ model Driver {
   licenseNumber    String?
   licenseExpiresAt DateTime?
   isActive         Boolean    @default(true)
+  // CR-05: fairness tie-break. Bumped to the trip's startAt whenever the
+  // matcher assigns this driver a primary or secondary role.
+  lastAssignedAt   DateTime?
 
   primaryBookings   Booking[] @relation("PrimaryDriver")
   secondaryBookings Booking[] @relation("SecondaryDriver")
@@ -262,10 +278,17 @@ model Booking {
   // drivers claim and the primary confirms.
   driverScheduleStatus DriverScheduleStatus @default(UNCLAIMED)
 
-  // Auto-assign tier. If unset, classifyTier() derives it from province /
-  // destination on the fly. Settable so requesters can flag a school /
-  // international trip explicitly.
-  jobTier JobTier?
+  // CR-05: job category set by the requester at submission. Drives
+  // Algorithm 2 (driver capacity). Required for new bookings; legacy rows
+  // are backfilled to OT.
+  jobType    JobType
+  // CR-05: derived from startAt at create. Persisted so the slot grid
+  // doesn't recompute on every read.
+  timeBucket TimeBucket
+  // CR-06: matcher escalation. Set true when the auto-match fails (no
+  // slot / no driver) and ops decides to send the case to Khun Top
+  // (manual handling, possible outsourcing).
+  escalatedToKhunTop Boolean @default(false)
 
   outsourceVendor    String?
   outsourceCost      Decimal? @db.Decimal(10, 2)

@@ -10,7 +10,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
-import { AutoAssignButton } from "@/components/forms/auto-assign-form";
+import { MatchingButton } from "@/components/forms/matching-form";
 
 export default async function AdminBookingDetail({
   params,
@@ -74,7 +74,7 @@ export default async function AdminBookingDetail({
     return {
       id: v.id,
       label: `${v.registrationNumber} · ${v.type.toLowerCase()} · ${taf("seatSuffix", { capacity: v.capacity })}`,
-      sublabel: v.isReserved ? taf("reservedTag") : undefined,
+      sublabel: v.isDutyVehicle ? taf("dutyVehicleTag") : undefined,
       disabled: conflictCount > 0,
       conflict: conflictCount > 0,
     };
@@ -244,10 +244,10 @@ export default async function AdminBookingDetail({
           {!booking.primaryDriverId && (
             <Card>
               <CardHeader>
-                <CardTitle>{tad("autoAssignTitle")}</CardTitle>
+                <CardTitle>{tad("matchingTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <AutoAssignButton bookingId={booking.id} />
+                <MatchingButton bookingId={booking.id} />
               </CardContent>
             </Card>
           )}

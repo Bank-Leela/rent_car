@@ -75,6 +75,8 @@ async function main() {
         vehicleId: slot.status === "PENDING_APPROVAL" ? null : slot.vehicleId,
         status: slot.status,
         decidedAt: slot.status === "PENDING_APPROVAL" ? null : new Date(),
+        jobType: "OT",
+        timeBucket: "MORNING_08_12",
       },
     });
     console.log(`created ${booking.jobNumber} ${slot.purpose} @ ${slot.startAt.toISOString()} -> ${slot.endAt.toISOString()} (${slot.status})`);

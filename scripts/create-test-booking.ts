@@ -36,6 +36,8 @@ async function main() {
         passengerCount: 8,
         estimatedDistance: 250,
         status: "PENDING_APPROVAL",
+        jobType: "OUT_OF_PROVINCE",
+        timeBucket: "MORNING_08_12",
       },
     });
     await tx.auditLog.create({

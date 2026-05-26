@@ -7,13 +7,13 @@ import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { OnCallShiftForm } from "@/components/forms/auto-assign-form";
+import { OnCallShiftForm } from "@/components/forms/matching-form";
 
 export default async function AdminQueue() {
   const session = await requireAnyRole(["ADMIN", "APPROVER"]);
   const isAdmin = session.user.roles.includes("ADMIN");
   const t = await getTranslations("admin");
-  const tAuto = await getTranslations("autoAssign");
+  const tAuto = await getTranslations("matching");
   const today = startOfDay(new Date());
 
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
