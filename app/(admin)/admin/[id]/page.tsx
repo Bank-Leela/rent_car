@@ -11,6 +11,7 @@ import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton } from "@/components/forms/matching-form";
+import { CompleteTripForm } from "@/components/forms/complete-trip-form";
 
 export default async function AdminBookingDetail({
   params,
@@ -82,9 +83,11 @@ export default async function AdminBookingDetail({
 
   const isPendingApproval = booking.status === "PENDING_APPROVAL";
   const isApproved = booking.status === "APPROVED";
+  const isAssigned = booking.status === "ASSIGNED";
   // Admin's mutation forms only apply once the approver signs off.
   const showAssignForms = isAdmin && isApproved;
   const showApproverForms = isApprover && isPendingApproval;
+  const showCompleteForm = isAdmin && isAssigned;
   const cancellationWarning = shouldWarnAboutCancellations(recentCancellations);
 
   // Approver needs their stored signature to approve; load it only when needed.
@@ -270,6 +273,17 @@ export default async function AdminBookingDetail({
             </CardContent>
           </Card>
         </>
+      )}
+
+      {showCompleteForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{tad("completeTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CompleteTripForm bookingId={booking.id} />
+          </CardContent>
+        </Card>
       )}
 
       <Card>

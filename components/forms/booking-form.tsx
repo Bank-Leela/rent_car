@@ -18,6 +18,7 @@ import {
 } from "@/lib/booking/rules";
 import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -200,20 +201,20 @@ export function BookingForm({
 
           <div className="grid gap-2">
             <ReqLabel htmlFor="departmentId">{t("department")}</ReqLabel>
-            <select
+            <SearchableSelect
               id="departmentId"
               name="departmentId"
               required
               defaultValue={defaultDepartmentId ?? ""}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="" disabled>{t("departmentPlaceholder")}</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {isThai ? d.nameTh : d.nameEn}
-                </option>
-              ))}
-            </select>
+              placeholder={t("departmentPlaceholder")}
+              searchPlaceholder={t("departmentSearchPlaceholder")}
+              emptyText={t("departmentEmpty")}
+              ariaLabel={t("department")}
+              options={departments.map((d) => ({
+                value: d.id,
+                label: isThai ? d.nameTh : d.nameEn,
+              }))}
+            />
           </div>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
@@ -265,20 +266,18 @@ export function BookingForm({
             </div>
             <div className="grid gap-2">
               <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
-              <select
+              <SearchableSelect
                 id="province"
                 name="province"
                 required
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={province}
-                onChange={(e) => setProvince(e.target.value)}
-              >
-                {THAI_PROVINCES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+                defaultValue={province}
+                placeholder={t("province")}
+                searchPlaceholder={t("provinceSearchPlaceholder")}
+                emptyText={t("provinceEmpty")}
+                ariaLabel={t("province")}
+                options={THAI_PROVINCES.map((p) => ({ value: p, label: p }))}
+                onChange={setProvince}
+              />
             </div>
           </div>
 

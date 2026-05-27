@@ -114,6 +114,84 @@ export async function submitEvaluationAction(formData: FormData): Promise<Action
   return { ok: true };
 }
 
+// ---- Admin: mark trip completed ----
+//
+// Flips an ASSIGNED booking to COMPLETED and creates the Trip row that
+// the post-trip evaluation form keys off. Mileage / fuel / tollway are
+// optional shortcuts for ops; the requester only needs the booking to
+// reach COMPLETED so the EvaluationForm appears on their detail page.
+
+const completeTripSchema = z.object({
+  bookingId: z.string().min(1),
+  startMileage: z.coerce.number().int().nonnegative().optional().or(z.literal("")).transform((v) => (v === "" || v === undefined ? 0 : Number(v))),
+  endMileage: z.coerce.number().int().nonnegative().optional().or(z.literal("")).transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+  distanceKm: z.coerce.number().int().nonnegative().optional().or(z.literal("")).transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+  driverNotes: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
+});
+
+export async function completeTripAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("ADMIN");
+  const adminId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const parsed = completeTripSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId, startMileage, endMileage, distanceKm, driverNotes } = parsed.data;
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { trip: true },
+  });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.status !== "ASSIGNED") {
+    return { ok: false, error: te("cannotCompleteInStatus", { status: ts(booking.status) }) };
+  }
+  if (booking.trip) return { ok: false, error: te("tripAlreadyExists") };
+
+  const inferredDistance =
+    distanceKm ??
+    (endMileage !== undefined ? Math.max(0, endMileage - startMileage) : null) ??
+    booking.estimatedDistance ??
+    null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.trip.create({
+      data: {
+        bookingId,
+        startMileage,
+        endMileage,
+        distanceKm: inferredDistance ?? undefined,
+        driverNotes,
+        startedAt: booking.startAt,
+        endedAt: new Date(),
+      },
+    });
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: "COMPLETED", completedAt: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        bookingId,
+        actorUserId: adminId,
+        fromStatus: "ASSIGNED",
+        toStatus: "COMPLETED",
+        action: "BOOKING_COMPLETED",
+        metadata: { startMileage, endMileage, distanceKm: inferredDistance },
+      },
+    });
+  });
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
+  revalidatePath("/requester");
+  revalidatePath(`/requester/${bookingId}`);
+  return { ok: true };
+}
+
 // ---- Admin: outsourcing capture (plan §6 Phase 5) ----
 
 const outsourceSchema = z.object({
