@@ -71,7 +71,7 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
 
 const evalSchema = z
   .object({
-    tripId: z.string().min(1),
+    bookingId: z.string().min(1),
     rating: z.enum(["NOT_GOOD", "SLIGHTLY_NOT_GOOD", "GOOD", "VERY_GOOD"]),
     comment: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
   })
@@ -89,28 +89,49 @@ export async function submitEvaluationAction(formData: FormData): Promise<Action
   const session = await requireUser();
   const userId = session.user.id;
   const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
 
   const parsed = evalSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
-  const { tripId, rating, comment } = parsed.data;
+  const { bookingId, rating, comment } = parsed.data;
 
-  const trip = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: { booking: { select: { id: true, requesterId: true } } },
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { trip: { include: { evaluation: true } } },
   });
-  if (!trip) return { ok: false, error: te("tripNotFound") };
-  if (trip.booking.requesterId !== userId) return { ok: false, error: te("notYourTrip") };
-  const existing = await prisma.evaluation.findUnique({ where: { tripId } });
-  if (existing) return { ok: false, error: te("alreadyEvaluated") };
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.requesterId !== userId) return { ok: false, error: te("notYourBooking") };
+  if (booking.status !== "COMPLETED") {
+    return { ok: false, error: te("cannotEvaluateInStatus", { status: ts(booking.status) }) };
+  }
+  if (booking.trip?.evaluation) return { ok: false, error: te("alreadyEvaluated") };
 
-  await prisma.evaluation.create({
-    data: { tripId, rating, comment },
+  await prisma.$transaction(async (tx) => {
+    // Trip is auto-created if missing (legacy completed bookings predate
+    // the completeTripAction flow). Mileage defaults to 0 / estimatedDistance.
+    let tripId = booking.trip?.id;
+    if (!tripId) {
+      const created = await tx.trip.create({
+        data: {
+          bookingId,
+          startMileage: 0,
+          distanceKm: booking.estimatedDistance ?? undefined,
+          startedAt: booking.startAt,
+          endedAt: booking.endAt,
+        },
+      });
+      tripId = created.id;
+    }
+    await tx.evaluation.create({
+      data: { tripId, rating, comment },
+    });
   });
 
   revalidatePath("/requester");
-  revalidatePath(`/requester/${trip.booking.id}`);
+  revalidatePath(`/requester/${bookingId}`);
+  revalidatePath("/admin/evaluations");
   return { ok: true };
 }
 

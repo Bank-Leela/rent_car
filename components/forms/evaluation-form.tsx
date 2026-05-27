@@ -11,7 +11,7 @@ import { submitEvaluationAction } from "@/lib/booking/extra-actions";
 
 const RATING_VALUES = ["VERY_GOOD", "GOOD", "SLIGHTLY_NOT_GOOD", "NOT_GOOD"] as const;
 
-export function EvaluationForm({ tripId }: { tripId: string }) {
+export function EvaluationForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("evaluationForm");
   const router = useRouter();
   const [rating, setRating] = useState<string>("");
@@ -36,7 +36,7 @@ export function EvaluationForm({ tripId }: { tripId: string }) {
     <form
       action={(formData) => {
         setError(null);
-        formData.set("tripId", tripId);
+        formData.set("bookingId", bookingId);
         startTransition(async () => {
           const res = await submitEvaluationAction(formData);
           if (res && !res.ok) {

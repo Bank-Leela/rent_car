@@ -7,6 +7,7 @@
     "bookingNotFound": "ไม่พบการจอง",
     "tripNotFound": "ไม่พบทริป",
     "notYourTrip": "ไม่ใช่ทริปของคุณ",
+    "cannotEvaluateInStatus": "ไม่สามารถประเมินการจองในสถานะ {status} ได้",
     "notYourBooking": "คุณยกเลิกได้เฉพาะการจองของตนเองเท่านั้น",
     "alreadyEvaluated": "ประเมินไปแล้ว",
     "cannotAssignInStatus": "ไม่สามารถจัดรถในสถานะนี้ได้ ({status})",
@@ -182,6 +183,7 @@
   },
   "requesterDetail": {
     "tripEvaluation": "ประเมินการเดินทาง",
+    "evaluationSubmittedNote": "ขอบคุณ — คุณได้ประเมินทริปนี้แล้ว ฟีดแบ็กถูกส่งให้ฝ่ายยานยนต์เรียบร้อย",
     "cancelTitle": "ยกเลิก",
     "changeTimeTitle": "แก้ไขเวลาเดินทาง"
   },

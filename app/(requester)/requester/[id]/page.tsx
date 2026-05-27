@@ -35,7 +35,11 @@ export default async function RequesterBookingDetail({
   if (!booking || booking.requesterId !== session.user.id) notFound();
   const canCancel = !["COMPLETED", "CANCELLED", "DENIED"].includes(booking.status);
   const canEditTime = booking.status === "PENDING_APPROVAL";
-  const needsEval = booking.trip && !booking.trip.evaluation;
+  // CR-06 follow-up: legacy COMPLETED bookings predate the completeTripAction
+  // flow and may have no Trip row. Allow evaluation whenever status=COMPLETED
+  // and no Evaluation exists yet; the action will lazy-create the Trip.
+  const evaluationSubmitted = !!booking.trip?.evaluation;
+  const needsEval = booking.status === "COMPLETED" && !evaluationSubmitted;
 
   return (
     <div className="space-y-6">
@@ -117,17 +121,6 @@ export default async function RequesterBookingDetail({
         </Card>
       )}
 
-      {needsEval && booking.trip && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{tr("tripEvaluation")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EvaluationForm tripId={booking.trip.id} />
-          </CardContent>
-        </Card>
-      )}
-
       {canEditTime && (
         <Card>
           <CardHeader>
@@ -203,6 +196,28 @@ export default async function RequesterBookingDetail({
           </ol>
         </CardContent>
       </Card>
+
+      {needsEval && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle>{tr("tripEvaluation")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <EvaluationForm bookingId={booking.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {evaluationSubmitted && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{tr("tripEvaluation")}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {tr("evaluationSubmittedNote")}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

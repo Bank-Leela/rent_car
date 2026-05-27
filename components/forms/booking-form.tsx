@@ -19,6 +19,7 @@ import {
 import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -243,19 +244,19 @@ export function BookingForm({
 
           <div className="grid gap-2">
             <ReqLabel htmlFor="jobType">{t("jobTypeLabel")}</ReqLabel>
-            <select
+            <SearchableSelect
               id="jobType"
               name="jobType"
               required
-              defaultValue=""
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="" disabled>{t("jobTypePlaceholder")}</option>
-              <option value="GENERAL">{t("jobTypeGeneral")}</option>
-              <option value="OT">{t("jobTypeOT")}</option>
-              <option value="OUT_OF_PROVINCE">{t("jobTypeOutOfProvince")}</option>
-              <option value="ON_CALL">{t("jobTypeOnCall")}</option>
-            </select>
+              placeholder={t("jobTypePlaceholder")}
+              ariaLabel={t("jobTypeLabel")}
+              options={[
+                { value: "GENERAL", label: t("jobTypeGeneral") },
+                { value: "OT", label: t("jobTypeOT") },
+                { value: "OUT_OF_PROVINCE", label: t("jobTypeOutOfProvince") },
+                { value: "ON_CALL", label: t("jobTypeOnCall") },
+              ]}
+            />
             <p className="text-xs text-muted-foreground">{t("jobTypeHelper")}</p>
           </div>
 
@@ -285,30 +286,28 @@ export function BookingForm({
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2 min-w-0">
                 <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
-                <Input
+                <DateTimePicker
                   id="startAt"
                   name="startAt"
-                  type="datetime-local"
+                  required
                   min={minStart}
                   max={maxStart}
-                  required
-                  value={startValue}
-                  onChange={(e) => setStartValue(e.target.value)}
-                  className="w-full min-w-0"
+                  defaultValue={startValue}
+                  placeholder={t("startLabel")}
+                  onChange={setStartValue}
                 />
               </div>
               <div className="grid gap-2 min-w-0">
                 <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
-                <Input
+                <DateTimePicker
                   id="endAt"
                   name="endAt"
-                  type="datetime-local"
+                  required
                   min={minStart}
                   max={maxStart}
-                  required
-                  value={endValue}
-                  onChange={(e) => setEndValue(e.target.value)}
-                  className="w-full min-w-0"
+                  defaultValue={endValue}
+                  placeholder={t("endLabel")}
+                  onChange={setEndValue}
                 />
               </div>
             </div>

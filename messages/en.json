@@ -7,6 +7,7 @@
     "bookingNotFound": "Booking not found.",
     "tripNotFound": "Trip not found.",
     "notYourTrip": "Not your trip.",
+    "cannotEvaluateInStatus": "Cannot evaluate a booking in status {status}.",
     "notYourBooking": "You can only cancel your own bookings.",
     "alreadyEvaluated": "Already evaluated.",
     "cannotAssignInStatus": "Cannot assign a booking in this status ({status}).",
@@ -182,6 +183,7 @@
   },
   "requesterDetail": {
     "tripEvaluation": "Trip evaluation",
+    "evaluationSubmittedNote": "Thanks — you've already rated this trip. Your feedback is shared with the fleet office.",
     "cancelTitle": "Cancel",
     "changeTimeTitle": "Change trip time"
   },
