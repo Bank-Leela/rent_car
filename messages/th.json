@@ -452,6 +452,8 @@
     "earliestSentence": "วันที่เร็วที่สุดที่เริ่มได้: <strong>{date}</strong>",
     "department": "หน่วยงานผู้ขอใช้รถ",
     "departmentPlaceholder": "เลือกหน่วยงาน…",
+    "requiredFieldsHint": "ช่องที่มีเครื่องหมาย * ต้องกรอก",
+    "missingRequiredFields": "กรุณากรอก: {labels}",
     "jobTypeLabel": "ประเภทงาน",
     "jobTypePlaceholder": "เลือกประเภทงาน…",
     "jobTypeGeneral": "ทั่วไป (วิ่งในจุฬาฯ)",

@@ -21,6 +21,24 @@ import { createBookingAction } from "@/lib/booking/actions";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
+function ReqLabel({
+  htmlFor,
+  children,
+  className,
+}: {
+  htmlFor: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Label htmlFor={htmlFor} className={className}>
+      {children}
+      <span aria-hidden className="ml-0.5 text-destructive">*</span>
+      <span className="sr-only"> (required)</span>
+    </Label>
+  );
+}
+
 const WEEKDAYS = [
   { value: 1, key: "mon" },
   { value: 2, key: "tue" },
@@ -117,6 +135,23 @@ export function BookingForm({
     }
   }
 
+  // Required-field names + the translation key for each label, used to
+  // pre-validate the submission so the user sees an in-form message rather
+  // than a browser-native tooltip. outOfHoursReason is conditionally added.
+  const baseRequired: Array<{ name: string; labelKey: string }> = [
+    { name: "departmentId", labelKey: "department" },
+    { name: "ajarnName", labelKey: "ajarnName" },
+    { name: "ajarnPhone", labelKey: "ajarnPhone" },
+    { name: "ajarnEmail", labelKey: "ajarnEmail" },
+    { name: "purpose", labelKey: "purpose" },
+    { name: "jobType", labelKey: "jobTypeLabel" },
+    { name: "destination", labelKey: "destination" },
+    { name: "province", labelKey: "province" },
+    { name: "startAt", labelKey: "startLabel" },
+    { name: "endAt", labelKey: "endLabel" },
+    { name: "passengerCount", labelKey: "passengerCount" },
+  ];
+
   const richStrong = { strong: (chunks: React.ReactNode) => <strong>{chunks}</strong> };
 
   return (
@@ -135,6 +170,22 @@ export function BookingForm({
         <form
           action={(formData) => {
             setError(null);
+            const required = [...baseRequired];
+            if (outOfHours) {
+              required.push({ name: "outOfHoursReason", labelKey: "outOfHoursReasonLabel" });
+            }
+            const missing = required.filter((f) => {
+              const v = formData.get(f.name);
+              return typeof v !== "string" || v.trim() === "";
+            });
+            if (missing.length > 0) {
+              const labels = missing.map((f) => t(f.labelKey)).join(", ");
+              setError(t("missingRequiredFields", { labels }));
+              const firstId = missing[0]!.name;
+              const el = document.getElementById(firstId);
+              if (el) (el as HTMLElement).focus();
+              return;
+            }
             startTransition(async () => {
               const res = await createBookingAction(formData);
               if (res && !res.ok) setError(res.error);
@@ -142,8 +193,13 @@ export function BookingForm({
           }}
           className="space-y-4"
         >
+          <p className="text-xs text-muted-foreground">
+            <span aria-hidden className="text-destructive">*</span>{" "}
+            {t("requiredFieldsHint")}
+          </p>
+
           <div className="grid gap-2">
-            <Label htmlFor="departmentId">{t("department")}</Label>
+            <ReqLabel htmlFor="departmentId">{t("department")}</ReqLabel>
             <select
               id="departmentId"
               name="departmentId"
@@ -164,28 +220,28 @@ export function BookingForm({
             <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
             <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
             <div className="grid gap-2">
-              <Label htmlFor="ajarnName">{t("ajarnName")}</Label>
+              <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
               <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="ajarnPhone">{t("ajarnPhone")}</Label>
+                <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
                 <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="ajarnEmail">{t("ajarnEmail")}</Label>
+                <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
                 <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
               </div>
             </div>
           </fieldset>
 
           <div className="grid gap-2">
-            <Label htmlFor="purpose">{t("purpose")}</Label>
+            <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
             <Input id="purpose" name="purpose" required />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="jobType">{t("jobTypeLabel")}</Label>
+            <ReqLabel htmlFor="jobType">{t("jobTypeLabel")}</ReqLabel>
             <select
               id="jobType"
               name="jobType"
@@ -204,11 +260,11 @@ export function BookingForm({
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="destination">{t("destination")}</Label>
+              <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
               <Input id="destination" name="destination" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="province">{t("province")}</Label>
+              <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
               <select
                 id="province"
                 name="province"
@@ -229,7 +285,7 @@ export function BookingForm({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2 min-w-0">
-                <Label htmlFor="startAt">{t("startLabel")}</Label>
+                <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
                 <Input
                   id="startAt"
                   name="startAt"
@@ -243,7 +299,7 @@ export function BookingForm({
                 />
               </div>
               <div className="grid gap-2 min-w-0">
-                <Label htmlFor="endAt">{t("endLabel")}</Label>
+                <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
                 <Input
                   id="endAt"
                   name="endAt"
@@ -275,9 +331,9 @@ export function BookingForm({
             </p>
             {outOfHours && (
               <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/40">
-                <Label htmlFor="outOfHoursReason" className="text-amber-900 dark:text-amber-200">
+                <ReqLabel htmlFor="outOfHoursReason" className="text-amber-900 dark:text-amber-200">
                   {t("outOfHoursReasonLabel")}
-                </Label>
+                </ReqLabel>
                 <p className="text-xs text-amber-800 dark:text-amber-300">{t("outOfHoursReasonHelper")}</p>
                 <Textarea
                   id="outOfHoursReason"
@@ -292,7 +348,7 @@ export function BookingForm({
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="passengerCount">{t("passengerCount")}</Label>
+              <ReqLabel htmlFor="passengerCount">{t("passengerCount")}</ReqLabel>
               <Input
                 id="passengerCount"
                 name="passengerCount"

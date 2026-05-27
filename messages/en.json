@@ -452,6 +452,8 @@
     "earliestSentence": "Earliest you can start: <strong>{date}</strong>.",
     "department": "Requesting department",
     "departmentPlaceholder": "Select a department…",
+    "requiredFieldsHint": "Fields marked with * are required.",
+    "missingRequiredFields": "Please fill in: {labels}.",
     "jobTypeLabel": "Job category",
     "jobTypePlaceholder": "Pick a job category…",
     "jobTypeGeneral": "General / short on-campus run (ทั่วไป)",
