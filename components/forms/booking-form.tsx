@@ -146,7 +146,6 @@ export function BookingForm({
     { name: "ajarnPhone", labelKey: "ajarnPhone" },
     { name: "ajarnEmail", labelKey: "ajarnEmail" },
     { name: "purpose", labelKey: "purpose" },
-    { name: "jobType", labelKey: "jobTypeLabel" },
     { name: "destination", labelKey: "destination" },
     { name: "province", labelKey: "province" },
     { name: "startAt", labelKey: "startLabel" },
@@ -242,22 +241,19 @@ export function BookingForm({
             <Input id="purpose" name="purpose" required />
           </div>
 
-          <div className="grid gap-2">
-            <ReqLabel htmlFor="jobType">{t("jobTypeLabel")}</ReqLabel>
-            <SearchableSelect
-              id="jobType"
-              name="jobType"
-              required
-              placeholder={t("jobTypePlaceholder")}
-              ariaLabel={t("jobTypeLabel")}
-              options={[
-                { value: "NORMAL", label: t("jobTypeGeneral") },
-                { value: "OT", label: t("jobTypeOT") },
-                { value: "TJW", label: t("jobTypeOutOfProvince") },
-                { value: "WERN", label: t("jobTypeOnCall") },
-              ]}
-            />
-            <p className="text-xs text-muted-foreground">{t("jobTypeHelper")}</p>
+          <div className="grid gap-2 rounded-md border bg-muted/30 p-4">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="outOfProvince"
+                value="true"
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("outOfProvinceLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("outOfProvinceHelper")}</span>
+              </span>
+            </label>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">

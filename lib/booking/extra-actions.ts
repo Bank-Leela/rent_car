@@ -8,6 +8,7 @@ import { requireUser, requireRole } from "@/lib/auth-helpers";
 import { sendEmail } from "@/lib/email/client";
 import { requesterDeniedEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
+import { rollbackRotationStampsForBooking } from "@/lib/booking/batch-actions";
 
 // ---- Cancellation (plan §6 Phase 5 + §5.8) ----
 
@@ -59,6 +60,10 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
       },
     });
   });
+
+  // CR-07 Update 10: roll back the rotation stamp so the driver keeps
+  // their slot for the next batch.
+  await rollbackRotationStampsForBooking(bookingId);
 
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);

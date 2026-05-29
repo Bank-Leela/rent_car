@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { VolumeBarChart, FunnelPieChart } from "@/components/dashboard/charts";
 import { RangeFilter } from "@/components/dashboard/range-filter";
+import { AnimatedNumber } from "@/components/animated-number";
 
 export default async function AdminDashboard({
   searchParams,
@@ -46,11 +47,11 @@ export default async function AdminDashboard({
   };
 
   return (
-    <div className="space-y-6 print:space-y-3">
+    <div className="space-y-6 print:space-y-3 mesh-bg animate-fade-up">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl sm:text-4xl font-semibold display-heading">{t("title")}</h1>
+          <p className="text-muted-foreground mt-1">
             {format(range.from, "d MMM yyyy")} – {format(range.to, "d MMM yyyy")}
           </p>
         </div>
@@ -59,7 +60,7 @@ export default async function AdminDashboard({
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-4 print:grid-cols-3">
+      <div className="grid sm:grid-cols-3 gap-4 print:grid-cols-3 stagger-children">
         <KpiCard label={t("totalRequests")} value={funnel.total} />
         <KpiCard label={t("approved")} value={funnel.approved} sub={pctText(funnel.approved)} />
         <KpiCard label={t("cancelled")} value={funnel.cancelled} sub={pctText(funnel.cancelled)} />
@@ -230,10 +231,12 @@ export default async function AdminDashboard({
 
 function KpiCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
-    <Card>
+    <Card className="card-lift">
       <CardContent className="pt-6">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className="text-3xl font-semibold mt-1">{value}</div>
+        <div className="text-3xl font-semibold mt-1 display-heading">
+          <AnimatedNumber value={value} />
+        </div>
         {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
       </CardContent>
     </Card>

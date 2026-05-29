@@ -17,7 +17,16 @@ export const newBookingSchema = z
     ajarnName: z.string().trim().min(2, "Ajarn name is required"),
     ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
     ajarnEmail: z.string().trim().email("Invalid email address"),
-    jobType: z.enum(["TJW", "OT", "WERN", "NORMAL", "SMUS"]),
+    // CR-07: jobType is no longer picked by the requester. The classifier
+    // (lib/booking/classification.ts) derives it from startAt/endAt +
+    // outOfProvince. Field is optional here for back-compat with older
+    // tooling; createBookingAction computes it.
+    jobType: z
+      .enum(["TJW", "OT", "WERN", "NORMAL", "SMUS"])
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
+    outOfProvince: z.coerce.boolean().optional().default(false),
     outOfHoursReason: z
       .string()
       .max(1000)

@@ -59,6 +59,16 @@ const DRIVERS = [
   { id: "d6", name: "ณัฐพล" },
 ];
 
+interface CaseLog {
+  date: string;
+  bookingId: string;
+  jobType: JobType;
+  role: "PRIMARY" | "SECONDARY";
+  distance: number | null;
+  startAt: string;
+  endAt: string;
+}
+
 interface PersistentDriver {
   id: string;
   name: string;
@@ -69,6 +79,7 @@ interface PersistentDriver {
   earningsScore: number;
   totals: { TJW: number; OT: number; WERN: number; NORMAL: number; SMUS: number };
   secondaryTotal: number;
+  cases: CaseLog[];
 }
 const drivers: PersistentDriver[] = DRIVERS.map((d) => ({
   ...d,
@@ -79,6 +90,7 @@ const drivers: PersistentDriver[] = DRIVERS.map((d) => ({
   earningsScore: 0,
   totals: { TJW: 0, OT: 0, WERN: 0, NORMAL: 0, SMUS: 0 },
   secondaryTotal: 0,
+  cases: [],
 }));
 
 // ---------- scenario generator ----------
@@ -274,6 +286,15 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
     primary.totals[booking.jobType] += 1;
     primary.lastAssignedAt = date;
     primary.earningsScore += 1;
+    primary.cases.push({
+      date: ymd(date),
+      bookingId: a.bookingId,
+      jobType: booking.jobType,
+      role: "PRIMARY",
+      distance: booking.estimatedDistance,
+      startAt: booking.startAt.toISOString().slice(11, 16),
+      endAt: booking.endAt.toISOString().slice(11, 16),
+    });
     if (booking.jobType === "TJW") primary.lastTjwAt = date;
     if (booking.jobType === "OT") primary.lastOtAt = date;
     if (booking.jobType === "WERN") primary.lastDutyAt = date;
@@ -282,6 +303,15 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
       sec.secondaryTotal += 1;
       sec.lastAssignedAt = date;
       sec.earningsScore += 1;
+      sec.cases.push({
+        date: ymd(date),
+        bookingId: a.bookingId,
+        jobType: booking.jobType,
+        role: "SECONDARY",
+        distance: booking.estimatedDistance,
+        startAt: booking.startAt.toISOString().slice(11, 16),
+        endAt: booking.endAt.toISOString().slice(11, 16),
+      });
       if (booking.jobType === "TJW") sec.lastTjwAt = date;
       if (booking.jobType === "OT") sec.lastOtAt = date;
     }
@@ -366,3 +396,35 @@ for (const d of drivers) {
 }
 if (phaseCHits.size === 0) console.log(`   (none in this scenario)`);
 console.log("");
+
+// ---- per-driver case log (opt-in) ----
+//   --detail              dump every driver's full trip list
+//   --driver=สมชาย         only that driver (also accepts d1..d6)
+//   --first=N             only the first N cases (default 20 when --detail)
+const detail = argv.detail === "true" || argv.driver;
+if (detail) {
+  const focus = argv.driver ? String(argv.driver) : null;
+  const first = Number(argv.first ?? (focus ? 9999 : 20));
+  const targets = drivers.filter(
+    (d) => !focus || d.name === focus || d.id === focus,
+  );
+  for (const d of targets) {
+    console.log(`\n──── ${d.name} (${d.id}) — ${d.cases.length} cases ────`);
+    if (d.cases.length === 0) {
+      console.log("   (no cases assigned)");
+      continue;
+    }
+    const slice = d.cases.slice(0, first);
+    for (const c of slice) {
+      const dist = c.distance === null ? "—" : `${c.distance}km`;
+      const tag = c.role === "SECONDARY" ? "[2nd]" : "[1st]";
+      console.log(
+        `   ${c.date}  ${c.startAt}-${c.endAt}  ${c.jobType.padEnd(6)}  ${tag}  ${dist.padStart(6)}  ${c.bookingId}`,
+      );
+    }
+    if (d.cases.length > first) {
+      console.log(`   … (${d.cases.length - first} more, pass --first=N to extend)`);
+    }
+  }
+  console.log("");
+}

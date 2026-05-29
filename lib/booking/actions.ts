@@ -14,6 +14,7 @@ import {
 } from "@/lib/booking/schema";
 import { nextJobNumber } from "@/lib/booking/job-number";
 import { bucketFromStart } from "@/lib/booking/slot-allocation";
+import { classifyJobType } from "@/lib/booking/classification";
 import {
   checkLeadTime,
   findBufferConflicts,
@@ -128,7 +129,14 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         ajarnName: data.ajarnName,
         ajarnPhone: data.ajarnPhone,
         ajarnEmail: data.ajarnEmail,
-        jobType: data.jobType,
+        jobType:
+          data.jobType ??
+          classifyJobType({
+            startAt: data.startAt,
+            endAt: data.endAt,
+            outOfProvince: data.outOfProvince,
+          }),
+        outOfProvince: data.outOfProvince,
         timeBucket: bucketFromStart(data.startAt),
         outOfHoursReason,
         passengerCount: data.passengerCount,
@@ -184,7 +192,14 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             ajarnName: data.ajarnName,
             ajarnPhone: data.ajarnPhone,
             ajarnEmail: data.ajarnEmail,
-            jobType: data.jobType,
+            jobType:
+              data.jobType ??
+              classifyJobType({
+                startAt: childStart,
+                endAt: childEnd,
+                outOfProvince: data.outOfProvince,
+              }),
+            outOfProvince: data.outOfProvince,
             timeBucket: bucketFromStart(childStart),
             outOfHoursReason,
             passengerCount: data.passengerCount,
