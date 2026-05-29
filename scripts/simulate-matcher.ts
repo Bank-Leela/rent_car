@@ -48,7 +48,7 @@ const VEHICLES: SlotInput[] = [
 ];
 // CR-06: matcher-eligible categories. ON_CALL is reserved for the duty
 // driver's campus rounds — those aren't routed through the matcher.
-const BOOKABLE_JOB_TYPES: JobType[] = ["GENERAL", "OT", "OUT_OF_PROVINCE"];
+const BOOKABLE_JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW"];
 const BOOKABLE_BUCKETS: TimeBucket[] = ["MORNING_08_12", "AFTERNOON_12_16"];
 
 interface DayBooking {
@@ -69,7 +69,7 @@ const drivers = DRIVERS.map((name, i) => ({
   lastAssignedAt: null as Date | null,
   earnings: 0,
   tripsThisMonth: 0,
-  byJobType: { OUT_OF_PROVINCE: 0, OT: 0, ON_CALL: 0, GENERAL: 0 } as Record<JobType, number>,
+  byJobType: { TJW: 0, OT: 0, WERN: 0, NORMAL: 0, SMUS: 0 } as Record<JobType, number>,
 }));
 const allBookings: DayBooking[] = [];
 
@@ -121,7 +121,7 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
     busyToday.push({ driverId: b.primaryDriverId, jobType: b.jobType });
     if (b.secondaryDriverId) busyToday.push({ driverId: b.secondaryDriverId, jobType: b.jobType });
   }
-  busyToday.push({ driverId: onCallDriverId, jobType: "ON_CALL" });
+  busyToday.push({ driverId: onCallDriverId, jobType: "WERN" });
 
   // Per-driver temporal trip list (CR-06 cap check).
   const tripsByDriver = new Map<string, TripWindow[]>();
@@ -201,7 +201,7 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
   // Stamp on-call days into the driver's count too so fairness sees them.
   // (Real prod uses a real OnCallShift table; here we approximate.)
   const onCallDriver = drivers.find((d) => d.id === onCallDriverId)!;
-  onCallDriver.byJobType.ON_CALL = Math.max(onCallDriver.byJobType.ON_CALL, onCallByDay.size);
+  onCallDriver.byJobType.WERN = Math.max(onCallDriver.byJobType.WERN, onCallByDay.size);
 }
 
 const matched = outcomes.filter((o) => o.ok).length;
@@ -220,7 +220,7 @@ console.log("\nper-driver trips (excl. duty-day rounds):");
 const widest = Math.max(...drivers.map((d) => d.earnings));
 for (const d of drivers) {
   const bar = "█".repeat(Math.round((d.earnings / Math.max(widest, 1)) * 30));
-  const bd = `GEN=${d.byJobType.GENERAL} OT=${d.byJobType.OT} OOP=${d.byJobType.OUT_OF_PROVINCE}`;
+  const bd = `GEN=${d.byJobType.NORMAL} OT=${d.byJobType.OT} OOP=${d.byJobType.TJW}`;
   console.log(`  ${d.name.padEnd(8)} ${String(d.earnings).padStart(3)}  ${bar.padEnd(30)}  ${bd}`);
 }
 

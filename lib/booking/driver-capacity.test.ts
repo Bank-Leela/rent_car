@@ -17,10 +17,10 @@ describe("buildDriverMatrix", () => {
   it("emits one column per JobType (CR-06: 4 categories)", () => {
     const m = buildDriverMatrix(drivers, []);
     expect(m[0]!.map((c) => c.jobType)).toEqual([
-      "OUT_OF_PROVINCE",
+      "TJW",
       "OT",
-      "ON_CALL",
-      "GENERAL",
+      "WERN",
+      "NORMAL",
     ]);
   });
 
@@ -28,7 +28,7 @@ describe("buildDriverMatrix", () => {
     const m = buildDriverMatrix(drivers, [{ driverId: "A", jobType: "OT" }]);
     const rowA = m.find((r) => r[0]!.driverId === "A")!;
     expect(rowA.find((c) => c.jobType === "OT")!.busy).toBe(true);
-    expect(rowA.find((c) => c.jobType === "GENERAL")!.busy).toBe(false);
+    expect(rowA.find((c) => c.jobType === "NORMAL")!.busy).toBe(false);
   });
 });
 

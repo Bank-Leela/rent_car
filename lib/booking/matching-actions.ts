@@ -96,7 +96,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     if (b.secondaryDriverId) busyToday.push({ driverId: b.secondaryDriverId, jobType: b.jobType });
   }
   if (onCallDriverId) {
-    busyToday.push({ driverId: onCallDriverId, jobType: "ON_CALL" });
+    busyToday.push({ driverId: onCallDriverId, jobType: "WERN" });
   }
   const driverInputs: DriverInput[] = drivers.map((d) => ({
     driverId: d.id,

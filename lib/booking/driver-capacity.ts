@@ -21,10 +21,10 @@
 import type { JobType } from "@prisma/client";
 
 export const JOB_TYPES = [
-  "OUT_OF_PROVINCE",
+  "TJW",
   "OT",
-  "ON_CALL",
-  "GENERAL",
+  "WERN",
+  "NORMAL",
 ] as const satisfies readonly JobType[];
 
 export const MORNING_AFTERNOON_GAP_HOURS = 2;

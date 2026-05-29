@@ -33,7 +33,7 @@ const morningTrip = {
 describe("match", () => {
   it("assigns a primary driver and a vehicle for a short trip", () => {
     const r = match({
-      jobType: "GENERAL",
+      jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: 100,
@@ -52,7 +52,7 @@ describe("match", () => {
 
   it("returns NO_SLOT when every vehicle is busy in that bucket", () => {
     const r = match({
-      jobType: "GENERAL",
+      jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: null,
@@ -73,7 +73,7 @@ describe("match", () => {
       endAt: new Date("2026-06-10T15:00:00"),
     };
     const r = match({
-      jobType: "GENERAL",
+      jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: null,
@@ -96,7 +96,7 @@ describe("match", () => {
     // A already has earnings (morning trip), C has none → C wins fairness.
     // B is blocked by an overlapping all-day trip.
     const r = match({
-      jobType: "GENERAL",
+      jobType: "NORMAL",
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
       estimatedDistance: 50,
@@ -126,7 +126,7 @@ describe("match", () => {
     };
     // Only A is eligible (the other two have overlapping all-day commitments).
     const r = match({
-      jobType: "GENERAL",
+      jobType: "NORMAL",
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
       estimatedDistance: 50,
@@ -145,7 +145,7 @@ describe("match", () => {
 
   it("assigns a secondary driver when distance exceeds 400 km", () => {
     const r = match({
-      jobType: "OUT_OF_PROVINCE",
+      jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: LONG_TRIP_KM + 1,
@@ -163,7 +163,7 @@ describe("match", () => {
 
   it("returns NO_SECONDARY_DRIVER for >400 km when only one driver is free", () => {
     const r = match({
-      jobType: "OUT_OF_PROVINCE",
+      jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: LONG_TRIP_KM + 100,
@@ -181,7 +181,7 @@ describe("match", () => {
 
   it("does not require a secondary at exactly 400 km", () => {
     const r = match({
-      jobType: "OUT_OF_PROVINCE",
+      jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: LONG_TRIP_KM,

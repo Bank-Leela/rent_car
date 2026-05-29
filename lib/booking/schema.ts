@@ -17,7 +17,7 @@ export const newBookingSchema = z
     ajarnName: z.string().trim().min(2, "Ajarn name is required"),
     ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
     ajarnEmail: z.string().trim().email("Invalid email address"),
-    jobType: z.enum(["OUT_OF_PROVINCE", "OT", "ON_CALL", "GENERAL"]),
+    jobType: z.enum(["TJW", "OT", "WERN", "NORMAL", "SMUS"]),
     outOfHoursReason: z
       .string()
       .max(1000)

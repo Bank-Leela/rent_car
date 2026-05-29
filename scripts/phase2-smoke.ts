@@ -44,7 +44,7 @@ async function main() {
         passengerCount: 8,
         estimatedDistance: 250,
         status: "PENDING_APPROVAL",
-        jobType: "OUT_OF_PROVINCE",
+        jobType: "TJW",
         timeBucket: "MORNING_08_12",
       },
     });

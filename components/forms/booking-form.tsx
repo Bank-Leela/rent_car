@@ -251,10 +251,10 @@ export function BookingForm({
               placeholder={t("jobTypePlaceholder")}
               ariaLabel={t("jobTypeLabel")}
               options={[
-                { value: "GENERAL", label: t("jobTypeGeneral") },
+                { value: "NORMAL", label: t("jobTypeGeneral") },
                 { value: "OT", label: t("jobTypeOT") },
-                { value: "OUT_OF_PROVINCE", label: t("jobTypeOutOfProvince") },
-                { value: "ON_CALL", label: t("jobTypeOnCall") },
+                { value: "TJW", label: t("jobTypeOutOfProvince") },
+                { value: "WERN", label: t("jobTypeOnCall") },
               ]}
             />
             <p className="text-xs text-muted-foreground">{t("jobTypeHelper")}</p>

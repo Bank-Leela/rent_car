@@ -73,14 +73,32 @@ enum ClaimStatus {
   RELEASED
 }
 
-// CR-06: job category for the matcher's driver capacity matrix. One row
-// per category. ON_CALL = today's duty driver doing campus rounds
-// (บริหาร / คลัง / HR / สารบัญ). GENERAL = ทั่วไป (short on-campus runs).
+// CR-07: job categories for the daily batch solver. Names reflect the
+// supervisor's matrix exactly.
+//   TJW    = ต่างจังหวัด — out-of-province AND overnight (weight 4)
+//   OT     = overtime — overnight same-area OR start<08:00 OR end>16:00 (3)
+//   WERN   = รถเวร — duty driver doing standing campus rounds
+//   NORMAL = ทั่วไป — short on-campus runs inside 08:00–16:00 (weight 2)
+// SMUS stays reachable via the column type in case the client later
+// emits it; the classifier never auto-assigns SMUS today.
 enum JobType {
-  OUT_OF_PROVINCE
+  TJW
   OT
-  ON_CALL
-  GENERAL
+  WERN
+  NORMAL
+  SMUS
+}
+
+// CR-07: reason a booking didn't land in the daily batch and was
+// surfaced to Khun Top. NEEDS_WERN_RECLAIM_DECISION is the special
+// >400 km + thin-staff conflict described in Update 9 of the change
+// log: ops must explicitly choose to reclaim the duty driver or keep
+// duty and outsource the trip.
+enum OverflowReason {
+  NO_SLOT
+  NO_PRIMARY_DRIVER
+  NO_SECONDARY_DRIVER
+  NEEDS_WERN_RECLAIM_DECISION
 }
 
 // CR-05: four fixed time buckets used by Algorithm 1 (slot allocation).
@@ -151,6 +169,12 @@ model User {
   delegatedTo       User?   @relation("Delegation", fields: [delegatedToUserId], references: [id])
   delegatedBy       User[]  @relation("Delegation")
 
+  // CR-07: admin-managed credentials. Replaces Google OAuth. Users without
+  // a passwordHash can't sign in via the credentials form. mustChangePassword
+  // forces a reset on next login (used when admin sets/resets a password).
+  passwordHash         String?
+  mustChangePassword   Boolean  @default(false)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -165,6 +189,19 @@ model User {
   approvals           Approval[]
   cancellations       Cancellation[]
   auditLogs           AuditLog[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+// CR-07: hook table for future self-service password reset email flow.
+// Not yet wired into a UI; admin reset is the only path right now.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
 }
 
 model UserRole {
@@ -220,6 +257,12 @@ model Driver {
   // CR-05: fairness tie-break. Bumped to the trip's startAt whenever the
   // matcher assigns this driver a primary or secondary role.
   lastAssignedAt   DateTime?
+  // CR-07: per-category rotation timestamps. Bumped provisionally on
+  // assignment and finalised on completion (Update 10 of the change log).
+  // Rolled back on cancellation so the driver keeps their rotation slot.
+  lastTjwAt        DateTime?
+  lastOtAt         DateTime?
+  lastDutyAt       DateTime?
 
   primaryBookings   Booking[] @relation("PrimaryDriver")
   secondaryBookings Booking[] @relation("SecondaryDriver")
@@ -289,6 +332,14 @@ model Booking {
   // slot / no driver) and ops decides to send the case to Khun Top
   // (manual handling, possible outsourcing).
   escalatedToKhunTop Boolean @default(false)
+  // CR-07: explicit out-of-province flag. The classifier needs this to
+  // distinguish TJW (out-of-province + overnight) from local overnight =
+  // OT. Backfilled from province != Bangkok for legacy rows.
+  outOfProvince     Boolean         @default(false)
+  // CR-07: why the booking didn't land in the daily batch (if at all).
+  // Cleared once a successful match is recorded; NEEDS_WERN_RECLAIM_DECISION
+  // requires Khun Top to choose between reclaiming duty or outsourcing.
+  overflowReason    OverflowReason?
 
   outsourceVendor    String?
   outsourceCost      Decimal? @db.Decimal(10, 2)
