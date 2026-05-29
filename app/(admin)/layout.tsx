@@ -13,6 +13,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/dashboard", label: t("dashboard") },
     { href: "/admin/evaluations", label: t("evaluations") },
   ];
+  if (roles.includes("ADMIN")) {
+    nav.push({ href: "/admin/users", label: t("users") });
+  }
   if (roles.includes("APPROVER")) {
     nav.push({ href: "/admin/profile", label: t("profile") });
   }

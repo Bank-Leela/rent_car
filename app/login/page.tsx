@@ -1,4 +1,4 @@
-import { signIn } from "@/auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Car } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -6,9 +6,9 @@ import { homePathFor } from "@/lib/auth-helpers";
 import { getSession } from "@/lib/session";
 import { DEV_ENABLED } from "@/lib/dev-auth";
 import { prisma } from "@/lib/db";
-import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SignInForm } from "@/components/forms/sign-in-form";
 
 const ROLE_TINT: Record<string, string> = {
   ADMIN:
@@ -21,8 +21,6 @@ const ROLE_TINT: Record<string, string> = {
     "border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 text-sky-950 dark:border-sky-400/30 dark:bg-sky-500/15 dark:hover:bg-sky-500/20 dark:text-sky-100",
 };
 
-const DOMAIN = "@chula.ac.th";
-
 export default async function LoginPage({
   searchParams,
 }: {
@@ -30,7 +28,7 @@ export default async function LoginPage({
 }) {
   const session = await getSession();
   if (session?.user) redirect(homePathFor(session.user.roles));
-  const { error, callbackUrl } = await searchParams;
+  const { error } = await searchParams;
   const t = await getTranslations();
 
   const devUsers = DEV_ENABLED
@@ -40,7 +38,6 @@ export default async function LoginPage({
         orderBy: { email: "asc" },
       })
     : [];
-  const previewMode = process.env.ENABLE_DEV_AUTH === "true" && process.env.NODE_ENV === "production";
 
   return (
     <div className="min-h-screen grid place-items-center p-4">
@@ -59,30 +56,23 @@ export default async function LoginPage({
 
         <div className="rounded-2xl border bg-card p-6 shadow-sm dark:shadow-[0_8px_32px_-12px_rgba(0,0,0,0.6)] dark:ring-1 dark:ring-white/5">
           <div className="space-y-4">
-            {error === "DomainNotAllowed" && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                {t("login.domainNotAllowed", { domain: DOMAIN })}
-              </div>
-            )}
-            {error && error !== "DomainNotAllowed" && (
+            {error && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 {t("login.signInFailed")}
               </div>
             )}
 
-            <form
-              action={async () => {
-                "use server";
-                await signIn("google", { redirectTo: callbackUrl ?? "/" });
-              }}
-            >
-              <Button type="submit" className="w-full" size="lg">
-                {t("login.continueWithGoogle")}
-              </Button>
-            </form>
-            <p className="text-center text-xs text-muted-foreground">
-              {t("login.domainNote", { domain: DOMAIN })}
-            </p>
+            <SignInForm />
+
+            <div className="flex items-center justify-between text-xs">
+              <Link
+                href="/forgot"
+                className="text-primary hover:underline focus-visible:outline-none focus-visible:underline"
+              >
+                {t("login.forgotPassword")}
+              </Link>
+              <span className="text-muted-foreground">{t("login.adminProvisioned")}</span>
+            </div>
 
             {DEV_ENABLED && devUsers.length > 0 && (
               <div className="space-y-3">
@@ -92,13 +82,6 @@ export default async function LoginPage({
                     {t("login.previewAs")}
                   </span>
                 </div>
-
-                {previewMode && (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-                    {t("login.previewBanner")}
-                  </div>
-                )}
-
                 <div className="grid grid-cols-2 gap-2">
                   {devUsers.map((u) => {
                     const role = u.roles[0]?.role ?? "";
@@ -130,3 +113,4 @@ export default async function LoginPage({
     </div>
   );
 }
+

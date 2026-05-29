@@ -66,9 +66,13 @@ export async function AppShell({
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
             <ThemeToggle />
             <LanguageSwitcher />
-            <span className="hidden lg:inline text-sm text-muted-foreground max-w-48 truncate">
+            <Link
+              href="/account"
+              className="hidden lg:inline text-sm text-muted-foreground max-w-48 truncate hover:text-foreground hover:underline focus-visible:outline-none focus-visible:underline"
+              title={t("common.accountSettings")}
+            >
               {user.name ?? user.email}
-            </span>
+            </Link>
             {isDevImpersonation ? (
               <form action="/api/dev/sign-out" method="post">
                 <Button type="submit" variant="outline" size="sm">

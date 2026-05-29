@@ -18,6 +18,7 @@ export type DevSession = {
     image: string | null;
     roles: Role[];
     isActive: boolean;
+    mustChangePassword: boolean;
   };
 };
 
@@ -40,6 +41,7 @@ export async function getDevSession(): Promise<DevSession | null> {
       image: user.image,
       roles: user.roles.map((r) => r.role),
       isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword,
     },
   };
 }

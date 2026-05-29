@@ -1,6 +1,16 @@
 import { PrismaClient, Role, VehicleType, DriverPool } from "@prisma/client";
+import { hash } from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+// CR-08 seed defaults. Every seeded account gets the same temporary
+// password and is flagged for forced rotation on first sign-in.
+const SEED_PASSWORD = "changeme";
+let SEED_PASSWORD_HASH: string | null = null;
+async function getSeedPasswordHash(): Promise<string> {
+  if (!SEED_PASSWORD_HASH) SEED_PASSWORD_HASH = await hash(SEED_PASSWORD, 12);
+  return SEED_PASSWORD_HASH;
+}
 
 async function main() {
   // All 35 units that share the faculty fleet: 12 administrative "งาน" units
@@ -60,18 +70,25 @@ async function main() {
     { id: "seed-user-driver", email: "driver@chula.ac.th", name: "อนุชา เพชรรัตน์", role: Role.DRIVER },
   ];
 
+  const seedHash = await getSeedPasswordHash();
   for (const u of users) {
+    const username = u.email.split("@")[0]!;
     await prisma.user.upsert({
       where: { id: u.id },
       create: {
         id: u.id,
         email: u.email,
+        username,
         name: u.name,
+        passwordHash: seedHash,
+        mustChangePassword: true,
         departmentId: dept.id,
         roles: { create: { role: u.role } },
       },
       update: {
         name: u.name,
+        username,
+        passwordHash: seedHash,
         roles: {
           upsert: {
             where: { userId_role: { userId: u.id, role: u.role } },
@@ -113,16 +130,24 @@ async function main() {
     { id: "seed-driver-6", email: "driver6@chula.ac.th", name: "ธีระ สมบูรณ์", pool: DriverPool.PUBLIC, licenseNumber: "DL-0006" },
   ];
   for (const d of extraDrivers) {
+    const username = d.email.split("@")[0]!;
     const u = await prisma.user.upsert({
       where: { id: d.id },
       create: {
         id: d.id,
         email: d.email,
+        username,
         name: d.name,
+        passwordHash: seedHash,
+        mustChangePassword: true,
         departmentId: dept.id,
         roles: { create: { role: Role.DRIVER } },
       },
-      update: { name: d.name },
+      update: {
+        name: d.name,
+        username,
+        passwordHash: seedHash,
+      },
     });
     await prisma.driver.upsert({
       where: { userId: u.id },
