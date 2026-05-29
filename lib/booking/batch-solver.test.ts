@@ -30,7 +30,7 @@ function booking(overrides: Partial<SolverBookingInput>): SolverBookingInput {
 }
 
 describe("solveDay — phase ordering", () => {
-  it("assigns TJW before consuming pool for NORMAL", () => {
+  it("places TJW before NORMAL even when NORMAL was submitted earlier", () => {
     const input: SolverInput = {
       date: D("2026-06-10"),
       bookings: [
@@ -51,11 +51,43 @@ describe("solveDay — phase ordering", () => {
     };
     const out = solveDay(input);
     expect(out.assignments).toHaveLength(2);
-    // FCFS default: NORMAL was submitted earlier → wins.
-    expect(out.assignments[0]!.bookingId).toBe("n1");
-    expect(out.assignments[1]!.bookingId).toBe("t1");
-    // Categories used separate drivers (NORMAL took A, TJW took B).
+    // Default category priority TJW → OT → WERN → NORMAL.
+    expect(out.assignments[0]!.bookingId).toBe("t1");
+    expect(out.assignments[1]!.bookingId).toBe("n1");
+    // Categories used separate drivers.
     expect(new Set(out.assignments.map((a) => a.primaryDriverId)).size).toBe(2);
+  });
+
+  it("places OT before WERN before NORMAL", () => {
+    const input: SolverInput = {
+      date: D("2026-06-10"),
+      bookings: [
+        booking({ bookingId: "n1", jobType: "NORMAL", submittedAt: D("2026-06-01T08:00:00") }),
+        booking({
+          bookingId: "w1",
+          jobType: "WERN",
+          startAt: D("2026-06-10T08:00:00"),
+          endAt: D("2026-06-10T16:00:00"),
+          submittedAt: D("2026-06-02T09:00:00"),
+        }),
+        booking({
+          bookingId: "o1",
+          jobType: "OT",
+          startAt: D("2026-06-10T06:00:00"),
+          endAt: D("2026-06-10T09:00:00"),
+          submittedAt: D("2026-06-03T10:00:00"),
+        }),
+      ],
+      drivers: [
+        driver({ driverId: "A" }),
+        driver({ driverId: "B" }),
+        driver({ driverId: "C" }),
+      ],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    };
+    const out = solveDay(input);
+    expect(out.assignments.map((a) => a.bookingId)).toEqual(["o1", "w1", "n1"]);
   });
 });
 

@@ -9,11 +9,13 @@
 // inputs, decides, and returns. Persistence (provisional rotation stamping,
 // AuditLog rows, booking writes) happens in matching-actions.ts.
 //
-// Defaults (from algorithm_change_log.md):
-//   fcfsOverridesCategoryPriority = true  → single FCFS pass across all
-//     categories. Within a category, submission order is preserved. When
-//     false, categories are resolved in priority order: TJW → WERN → OT →
-//     NORMAL, with FCFS only inside each category.
+// Defaults (per client clarification — supersedes the open question in the
+// change log):
+//   fcfsOverridesCategoryPriority = false → categories are resolved in
+//     strict priority order: TJW → OT → WERN → NORMAL. FCFS applies only
+//     inside each category. NORMAL fills the remaining slots after the
+//     other three are placed. When the flag is true (override), all
+//     bookings are processed in a single FCFS pass.
 //   wernReclaimPolicy = ESCALATE        → when a >400 km trip can only
 //     be staffed by reassigning today's duty driver, surface the choice
 //     to Khun Top rather than auto-deciding.
@@ -123,7 +125,7 @@ function returnsBeforeCutoffToday(commitment: TjwCommitment, day: Date): boolean
 
 export function solveDay(input: SolverInput): SolverOutput {
   const config: Required<SolverConfig> = {
-    fcfsOverridesCategoryPriority: input.config?.fcfsOverridesCategoryPriority ?? true,
+    fcfsOverridesCategoryPriority: input.config?.fcfsOverridesCategoryPriority ?? false,
     wernReclaimPolicy: input.config?.wernReclaimPolicy ?? "ESCALATE",
   };
 
@@ -152,8 +154,8 @@ export function solveDay(input: SolverInput): SolverOutput {
       );
     order = [
       ...fc("TJW"),
-      ...fc("WERN"),
       ...fc("OT"),
+      ...fc("WERN"),
       ...fc("NORMAL"),
       ...fc("SMUS"),
     ];
