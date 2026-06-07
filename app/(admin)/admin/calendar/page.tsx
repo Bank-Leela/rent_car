@@ -258,31 +258,28 @@ export default async function AdminCalendar({
                     )}
                   </div>
                 </div>
-                <div className="mt-1 space-y-1">
-                  {items.slice(0, 3).map((b) => (
+                <div className="mt-1 space-y-0.5">
+                  {items.slice(0, 5).map((b) => (
                     <Link
                       key={b.id}
                       href={`/admin/${b.id}`}
-                      className={`block rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
+                      className={`flex items-baseline gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${b.purpose}`}
+                      title={`${b.jobNumber} · ${format(b.startAt, "HH:mm")} · ${b.destination}`}
                     >
-                      <div className="font-medium truncate">
-                        {format(b.startAt, "HH:mm")}{" "}
-                        {b.vehicle?.registrationNumber ?? "—"}
-                      </div>
-                      <div className="truncate opacity-80">
-                        {b.destination}
-                      </div>
+                      <span className="font-medium tabular-nums shrink-0">
+                        {format(b.startAt, "HH:mm")}
+                      </span>
+                      <span className="truncate opacity-90">{b.destination}</span>
                     </Link>
                   ))}
-                  {items.length > 3 && (
+                  {items.length > 5 && (
                     <Link
                       href={`/admin/calendar/day/${key}`}
-                      className="block text-[10px] text-muted-foreground hover:text-foreground"
+                      className="block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground"
                     >
-                      {t("more", { n: items.length - 3 })}
+                      {t("more", { n: items.length - 5 })}
                     </Link>
                   )}
                 </div>

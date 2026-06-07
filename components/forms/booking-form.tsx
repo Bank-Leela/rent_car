@@ -85,6 +85,56 @@ function RecurrenceWeekdays() {
   );
 }
 
+/**
+ * Passenger count: typeable number field flanked by −/+ buttons. Default 1.
+ * Keeps `name="passengerCount"` so the form action reads it from FormData.
+ * Native spinners are suppressed; the −/+ buttons are the 44px touch targets.
+ */
+function PassengerStepper({ min = 1, max = 60 }: { min?: number; max?: number }) {
+  const t = useTranslations("bookingForm");
+  const [value, setValue] = useState<string>(String(min));
+  const num = parseInt(value, 10);
+  const clamp = (n: number) => Math.min(max, Math.max(min, n));
+  const nudge = (delta: number) =>
+    setValue(String(clamp((Number.isNaN(num) ? min : num) + delta)));
+
+  return (
+    <div className="flex items-stretch gap-2">
+      <button
+        type="button"
+        aria-label={t("passengerDecrement")}
+        onClick={() => nudge(-1)}
+        disabled={!Number.isNaN(num) && num <= min}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border bg-background text-xl leading-none hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+      >
+        −
+      </button>
+      <Input
+        id="passengerCount"
+        name="passengerCount"
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        required
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => setValue(String(Number.isNaN(num) ? min : clamp(num)))}
+        className="h-11 text-center text-base tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        aria-label={t("passengerIncrement")}
+        onClick={() => nudge(1)}
+        disabled={!Number.isNaN(num) && num >= max}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border bg-background text-xl leading-none hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 export type BookingFormDepartment = {
   id: string;
   nameEn: string;
@@ -236,12 +286,34 @@ export function BookingForm({
             </div>
           </fieldset>
 
-          <div className="grid gap-2">
-            <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
-            <Input id="purpose" name="purpose" required />
-          </div>
-
-          <div className="grid gap-2 rounded-md border bg-muted/30 p-4">
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("tripSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("tripSectionHelper")}</p>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
+              <Input id="purpose" name="purpose" required />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
+                <Input id="destination" name="destination" required />
+              </div>
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
+                <SearchableSelect
+                  id="province"
+                  name="province"
+                  required
+                  defaultValue={province}
+                  placeholder={t("province")}
+                  searchPlaceholder={t("provinceSearchPlaceholder")}
+                  emptyText={t("provinceEmpty")}
+                  ariaLabel={t("province")}
+                  options={THAI_PROVINCES.map((p) => ({ value: p, label: p }))}
+                  onChange={setProvince}
+                />
+              </div>
+            </div>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
@@ -254,31 +326,11 @@ export function BookingForm({
                 <span className="block text-xs text-muted-foreground">{t("outOfProvinceHelper")}</span>
               </span>
             </label>
-          </div>
+          </fieldset>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
-              <Input id="destination" name="destination" required />
-            </div>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
-              <SearchableSelect
-                id="province"
-                name="province"
-                required
-                defaultValue={province}
-                placeholder={t("province")}
-                searchPlaceholder={t("provinceSearchPlaceholder")}
-                emptyText={t("provinceEmpty")}
-                ariaLabel={t("province")}
-                options={THAI_PROVINCES.map((p) => ({ value: p, label: p }))}
-                onChange={setProvince}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-3">
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("scheduleSectionHelper")}</p>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2 min-w-0">
                 <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
@@ -338,37 +390,32 @@ export function BookingForm({
                 />
               </div>
             )}
-          </div>
+          </fieldset>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="passengerCount">{t("passengerCount")}</ReqLabel>
-              <Input
-                id="passengerCount"
-                name="passengerCount"
-                type="number"
-                min={1}
-                max={60}
-                required
-                defaultValue={1}
-              />
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("loadSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("loadSectionHelper")}</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="passengerCount">{t("passengerCount")}</ReqLabel>
+                <PassengerStepper min={1} max={60} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="estimatedDistance">{t("estimatedDistance")}</Label>
+                <Input
+                  id="estimatedDistance"
+                  name="estimatedDistance"
+                  type="number"
+                  min={0}
+                  placeholder={t("estimatedDistancePlaceholder")}
+                />
+              </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="estimatedDistance">{t("estimatedDistance")}</Label>
-              <Input
-                id="estimatedDistance"
-                name="estimatedDistance"
-                type="number"
-                min={0}
-                placeholder={t("estimatedDistancePlaceholder")}
-              />
+              <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
+              <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
             </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
-            <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
-          </div>
+          </fieldset>
 
           <label className="flex min-h-11 items-center gap-2 text-sm cursor-pointer">
             <input
