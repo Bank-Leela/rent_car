@@ -1,17 +1,25 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { changePasswordAction } from "@/lib/auth/credentials-actions";
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const t = useTranslations("account");
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
+  const currentRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (autoFocus) currentRef.current?.focus();
+  }, [autoFocus]);
+
   return (
     <form
       action={(formData) => {
@@ -20,14 +28,27 @@ export function ChangePasswordForm() {
         startTransition(async () => {
           const res = await changePasswordAction(formData);
           if (res && !res.ok) setError(res.error);
-          else setSaved(true);
+          else {
+            setSaved(true);
+            // After a successful change the proxy's forceChange gate is
+            // gone — refresh to clear the banner + unlock the rest of the
+            // app.
+            router.refresh();
+          }
         });
       }}
       className="space-y-3"
     >
       <div className="grid gap-1.5">
         <Label htmlFor="currentPassword">{t("currentPassword")}</Label>
-        <Input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required />
+        <Input
+          ref={currentRef}
+          id="currentPassword"
+          name="currentPassword"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="newPassword">{t("newPassword")}</Label>

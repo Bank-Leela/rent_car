@@ -157,7 +157,13 @@ model User {
   // CR-08: login identifier separate from email. Users can change either
   // their username or password on /account; email stays put because it's
   // the recovery path for forgotten credentials.
-  username      String?   @unique
+  //
+  // CR-08 follow-up: username can be changed at most once by the user.
+  // `usernameChangedAt` is null until the user takes their one change;
+  // after that the input is locked and only an admin can change it via
+  // /admin/users. Password rotations have no such limit.
+  username           String?   @unique
+  usernameChangedAt  DateTime?
   name          String?
   thaiName      String?
   image         String?

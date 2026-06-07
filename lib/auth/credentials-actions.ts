@@ -126,6 +126,22 @@ export async function changeUsernameAction(formData: FormData): Promise<ActionRe
   }
   const username = parsed.data.username.toLowerCase();
 
+  // Enforce the one-change rule. If the row already has a
+  // usernameChangedAt, refuse — only an admin can change the username
+  // from /admin/users at this point.
+  const me = await prisma.user.findUniqueOrThrow({
+    where: { id: session.user.id },
+    select: { username: true, usernameChangedAt: true },
+  });
+  if (me.usernameChangedAt) {
+    return { ok: false, field: "username", error: te("usernameAlreadyChanged") };
+  }
+  // No-op short-circuit so a user re-saving the same value doesn't burn
+  // their one change.
+  if (me.username === username) {
+    return { ok: true };
+  }
+
   const taken = await prisma.user.findFirst({
     where: { username, NOT: { id: session.user.id } },
     select: { id: true },
@@ -135,7 +151,7 @@ export async function changeUsernameAction(formData: FormData): Promise<ActionRe
   }
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { username },
+    data: { username, usernameChangedAt: new Date() },
   });
   revalidatePath("/account");
   return { ok: true };
