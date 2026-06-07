@@ -219,7 +219,12 @@ export function BookingForm({
       </CardHeader>
       <CardContent>
         <form
-          action={(formData) => {
+          onSubmit={(e) => {
+            // Use onSubmit (not the `action` prop) so React 19 does NOT
+            // auto-reset the form after the handler runs. With `action`, a
+            // validation error would wipe every field the requester typed.
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
             setError(null);
             const required = [...baseRequired];
             if (outOfHours) {
