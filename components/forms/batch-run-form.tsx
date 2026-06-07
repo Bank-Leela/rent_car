@@ -6,40 +6,79 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { runBatchAction } from "@/lib/booking/batch-actions";
+import {
+  runBatchAction,
+  simulateAndRunBatchAction,
+  clearBatchDemoAction,
+} from "@/lib/booking/batch-actions";
+
+type Stats = {
+  pendingCount: number;
+  matchedCount: number;
+  overflowByReason: Record<string, number>;
+};
 
 export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
   const t = useTranslations("adminBatch");
   const router = useRouter();
   const [date, setDate] = useState(defaultDate);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<{
-    pendingCount: number;
-    matchedCount: number;
-    overflowByReason: Record<string, number>;
-  } | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [seeded, setSeeded] = useState<number | null>(null);
+  const [cleared, setCleared] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
 
+  function refresh() {
+    router.replace(`/admin/batch?date=${date}`);
+    router.refresh();
+  }
+
+  function reset() {
+    setError(null);
+    setStats(null);
+    setSeeded(null);
+    setCleared(null);
+  }
+
+  function run() {
+    reset();
+    const fd = new FormData();
+    fd.set("date", date);
+    startTransition(async () => {
+      const res = await runBatchAction(fd);
+      if (!res.ok) { setError(res.error); return; }
+      if (res.stats) setStats(res.stats);
+      refresh();
+    });
+  }
+
+  function simulate() {
+    reset();
+    const fd = new FormData();
+    fd.set("date", date);
+    startTransition(async () => {
+      const res = await simulateAndRunBatchAction(fd);
+      if (!res.ok) { setError(res.error); return; }
+      if (res.seededCount != null) setSeeded(res.seededCount);
+      if (res.stats) setStats(res.stats);
+      refresh();
+    });
+  }
+
+  function clearDemo() {
+    reset();
+    const fd = new FormData();
+    fd.set("date", date);
+    startTransition(async () => {
+      const res = await clearBatchDemoAction(fd);
+      if (!res.ok) { setError(res.error); return; }
+      if (res.clearedCount != null) setCleared(res.clearedCount);
+      refresh();
+    });
+  }
+
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        setStats(null);
-        formData.set("date", date);
-        startTransition(async () => {
-          const res = await runBatchAction(formData);
-          if (res && !res.ok) {
-            setError(res.error);
-            return;
-          }
-          if (res.ok && res.stats) setStats(res.stats);
-          // Push the URL so the page re-renders for the chosen date.
-          router.replace(`/admin/batch?date=${date}`);
-          router.refresh();
-        });
-      }}
-      className="space-y-3"
-    >
+    <div className="space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1">
           <Label htmlFor="batchDate" className="text-xs">{t("date")}</Label>
@@ -51,11 +90,26 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
             className="w-44"
           />
         </div>
-        <Button type="submit" disabled={pending}>
+        <Button type="button" onClick={run} disabled={pending}>
           {pending ? t("running") : t("run")}
         </Button>
+        <Button type="button" variant="outline" onClick={simulate} disabled={pending}>
+          {pending ? t("simulating") : t("simulate")}
+        </Button>
+        <Button type="button" variant="ghost" onClick={clearDemo} disabled={pending}>
+          {t("clearDemo")}
+        </Button>
       </div>
+      <p className="text-xs text-muted-foreground">{t("simulateHelper")}</p>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {seeded != null && (
+        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+          {t("simulateSeeded", { count: seeded })}
+        </p>
+      )}
+      {cleared != null && (
+        <p className="text-xs text-muted-foreground">{t("clearedNote", { count: cleared })}</p>
+      )}
       {stats && (
         <div className="rounded-md border bg-muted/40 p-3 text-xs">
           <p>
@@ -75,6 +129,6 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
           )}
         </div>
       )}
-    </form>
+    </div>
   );
 }
