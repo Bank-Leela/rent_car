@@ -640,6 +640,7 @@
     "ajarnEmail": "อีเมลอาจารย์",
     "purpose": "วัตถุประสงค์",
     "destination": "ปลายทาง",
+    "destinationMapsLink": "เปิดใน Google Maps",
     "province": "จังหวัด",
     "startLabel": "เริ่ม (ออกเดินทาง)",
     "endLabel": "สิ้นสุด (กลับถึงคณะ)",

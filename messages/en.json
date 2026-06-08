@@ -640,6 +640,7 @@
     "ajarnEmail": "Ajarn email",
     "purpose": "Purpose",
     "destination": "Destination",
+    "destinationMapsLink": "Open in Google Maps",
     "province": "Province",
     "startLabel": "Start (departure)",
     "endLabel": "End (back at faculty)",

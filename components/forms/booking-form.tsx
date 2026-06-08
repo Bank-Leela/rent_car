@@ -20,6 +20,7 @@ import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { MapPin } from "lucide-react";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -178,6 +179,18 @@ export function BookingForm({
     setEndValue(datetimeLocalValue(end));
   };
 
+  // Open Google Maps in a new tab, searching for whatever destination the
+  // requester has typed. No API key — just a maps.google.com search URL.
+  const openDestinationInMaps = () => {
+    const dest = (
+      document.getElementById("destination") as HTMLInputElement | null
+    )?.value.trim();
+    const url = dest
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`
+      : "https://www.google.com/maps";
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   let outOfHours = false;
   // End must be strictly after start. Computed live so we can both warn inline
   // and block submission before the (English-only) server refine fires.
@@ -311,6 +324,14 @@ export function BookingForm({
               <div className="grid gap-2">
                 <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
                 <Input id="destination" name="destination" required />
+                <button
+                  type="button"
+                  onClick={openDestinationInMaps}
+                  className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <MapPin aria-hidden className="h-3.5 w-3.5" />
+                  {t("destinationMapsLink")}
+                </button>
               </div>
               <div className="grid gap-2">
                 <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
@@ -353,7 +374,7 @@ export function BookingForm({
                   name="startAt"
                   required
                   min={minStart}
-                  max={maxStart}
+                  max={endValue || maxStart}
                   defaultValue={startValue}
                   placeholder={t("startLabel")}
                   onChange={setStartValue}
