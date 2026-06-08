@@ -179,11 +179,15 @@ export function BookingForm({
   };
 
   let outOfHours = false;
+  // End must be strictly after start. Computed live so we can both warn inline
+  // and block submission before the (English-only) server refine fires.
+  let endBeforeStart = false;
   if (startValue && endValue) {
     const s = new Date(startValue);
     const e = new Date(endValue);
     if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
       outOfHours = !isWithinWorkHours({ startAt: s, endAt: e });
+      endBeforeStart = e.getTime() <= s.getTime();
     }
   }
 
@@ -240,6 +244,11 @@ export function BookingForm({
               const firstId = missing[0]!.name;
               const el = document.getElementById(firstId);
               if (el) (el as HTMLElement).focus();
+              return;
+            }
+            if (endBeforeStart) {
+              setError(t("endBeforeStart"));
+              document.getElementById("endAt")?.focus();
               return;
             }
             startTransition(async () => {
@@ -356,7 +365,7 @@ export function BookingForm({
                   id="endAt"
                   name="endAt"
                   required
-                  min={minStart}
+                  min={startValue || minStart}
                   max={maxStart}
                   defaultValue={endValue}
                   placeholder={t("endLabel")}
@@ -364,6 +373,9 @@ export function BookingForm({
                 />
               </div>
             </div>
+            {endBeforeStart && (
+              <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
+            )}
             <p className="text-xs text-muted-foreground pb-1">
               {t.rich("endHelper", richStrong)}
             </p>
