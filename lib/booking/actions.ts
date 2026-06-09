@@ -86,12 +86,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     };
   }
 
-  // Out-of-hours trips require a written justification from the requester.
-  const inHours = isWithinWorkHours({ startAt: data.startAt, endAt: data.endAt });
-  if (!inHours && !data.outOfHoursReason) {
-    return { ok: false, field: "outOfHoursReason", error: te("outOfHoursReasonRequired") };
-  }
-  const outOfHoursReason = inHours ? null : data.outOfHoursReason!;
+  // Out-of-hours justification is no longer collected on the booking form;
+  // persist whatever the payload still carries (normally none), else null.
+  const outOfHoursReason = data.outOfHoursReason ?? null;
 
   // Evaluation gate: prior unevaluated COMPLETED trips block new bookings.
   const pendingEvals = await prisma.trip.count({
@@ -143,6 +140,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         passengerNotes: data.passengerNotes,
         estimatedDistance: data.estimatedDistance,
         needsOutsourcing: data.needsOutsourcing,
+        isEmergency: data.isEmergency,
+        emergencyReason: data.emergencyReason,
+        maleCount: data.maleCount,
+        femaleCount: data.femaleCount,
         status: "PENDING_APPROVAL",
       },
     });
@@ -206,6 +207,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             passengerNotes: data.passengerNotes,
             estimatedDistance: data.estimatedDistance,
             needsOutsourcing: data.needsOutsourcing,
+            isEmergency: data.isEmergency,
+            emergencyReason: data.emergencyReason,
+            maleCount: data.maleCount,
+            femaleCount: data.femaleCount,
             status: "PENDING_APPROVAL",
             recurrenceParentId: parent.id,
           },

@@ -12,9 +12,6 @@ import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
-  WORK_START_HOUR,
-  WORK_END_HOUR,
-  isWithinWorkHours,
 } from "@/lib/booking/rules";
 import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
@@ -169,6 +166,9 @@ export function BookingForm({
 
   const [startValue, setStartValue] = useState<string>("");
   const [endValue, setEndValue] = useState<string>("");
+  // Once the user edits the end themselves, stop auto-tracking it off the start.
+  const [endTouched, setEndTouched] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
 
   const fillEarliest = () => {
     const start = new Date(earliestStart);
@@ -177,13 +177,15 @@ export function BookingForm({
     end.setHours(start.getHours() + 4);
     setStartValue(datetimeLocalValue(start));
     setEndValue(datetimeLocalValue(end));
+    setEndTouched(true);
   };
 
-  // When the user picks a start and hasn't set an end yet, default the end
-  // to 2h after start — but only if +2h stays on the same calendar day.
+  // Default the end to 2h after start (same calendar day) whenever the user
+  // changes the start, until they pick an end of their own — keeps the end
+  // date matching the start date by default.
   const handleStartChange = (v: string) => {
     setStartValue(v);
-    if (endValue) return; // don't clobber an end the user already chose
+    if (endTouched) return; // user chose their own end — leave it alone
     const start = new Date(v);
     if (Number.isNaN(start.getTime())) return;
     const end = new Date(start);
@@ -191,6 +193,11 @@ export function BookingForm({
     if (startOfDay(end).getTime() === startOfDay(start).getTime()) {
       setEndValue(datetimeLocalValue(end));
     }
+  };
+
+  const handleEndChange = (v: string) => {
+    setEndValue(v);
+    setEndTouched(true);
   };
 
   // Open Google Maps in a new tab, searching for whatever destination the
@@ -205,7 +212,6 @@ export function BookingForm({
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  let outOfHours = false;
   // End must be strictly after start. Computed live so we can both warn inline
   // and block submission before the (English-only) server refine fires.
   let endBeforeStart = false;
@@ -213,14 +219,13 @@ export function BookingForm({
     const s = new Date(startValue);
     const e = new Date(endValue);
     if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
-      outOfHours = !isWithinWorkHours({ startAt: s, endAt: e });
       endBeforeStart = e.getTime() <= s.getTime();
     }
   }
 
   // Required-field names + the translation key for each label, used to
   // pre-validate the submission so the user sees an in-form message rather
-  // than a browser-native tooltip. outOfHoursReason is conditionally added.
+  // than a browser-native tooltip.
   const baseRequired: Array<{ name: string; labelKey: string }> = [
     { name: "departmentId", labelKey: "department" },
     { name: "ajarnName", labelKey: "ajarnName" },
@@ -257,11 +262,7 @@ export function BookingForm({
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             setError(null);
-            const required = [...baseRequired];
-            if (outOfHours) {
-              required.push({ name: "outOfHoursReason", labelKey: "outOfHoursReasonLabel" });
-            }
-            const missing = required.filter((f) => {
+            const missing = baseRequired.filter((f) => {
               const v = formData.get(f.name);
               return typeof v !== "string" || v.trim() === "";
             });
@@ -404,7 +405,7 @@ export function BookingForm({
                   max={maxStart}
                   defaultValue={endValue}
                   placeholder={t("endLabel")}
-                  onChange={setEndValue}
+                  onChange={handleEndChange}
                 />
               </div>
             </div>
@@ -421,27 +422,6 @@ export function BookingForm({
             >
               {t("useEarliest", { date: earliestDateLabel })}
             </button>
-            <p className="text-xs text-muted-foreground">
-              {t("workHoursNotice", {
-                from: `${String(WORK_START_HOUR).padStart(2, "0")}:00`,
-                to: `${String(WORK_END_HOUR).padStart(2, "0")}:00`,
-              })}
-            </p>
-            {outOfHours && (
-              <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/40">
-                <ReqLabel htmlFor="outOfHoursReason" className="text-amber-900 dark:text-amber-200">
-                  {t("outOfHoursReasonLabel")}
-                </ReqLabel>
-                <p className="text-xs text-amber-800 dark:text-amber-300">{t("outOfHoursReasonHelper")}</p>
-                <Textarea
-                  id="outOfHoursReason"
-                  name="outOfHoursReason"
-                  rows={3}
-                  required
-                  placeholder={t("outOfHoursReasonPlaceholder")}
-                />
-              </div>
-            )}
           </fieldset>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
@@ -463,21 +443,62 @@ export function BookingForm({
                 />
               </div>
             </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="maleCount">{t("maleCount")}</Label>
+                <Input id="maleCount" name="maleCount" type="number" min={0} placeholder="0" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="femaleCount">{t("femaleCount")}</Label>
+                <Input id="femaleCount" name="femaleCount" type="number" min={0} placeholder="0" />
+              </div>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
               <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
             </div>
           </fieldset>
 
-          <label className="flex min-h-11 items-center gap-2 text-sm cursor-pointer">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
               name="needsOutsourcing"
               value="true"
-              className="h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            {t("flagOutsourcing")}
+            <span>
+              <span className="font-medium">{t("flagOutsourcing")}</span>
+              <span className="block text-xs text-muted-foreground">{t("flagOutsourcingHelper")}</span>
+            </span>
           </label>
+
+          <div className="space-y-3">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="isEmergency"
+                value="true"
+                checked={isEmergency}
+                onChange={(e) => setIsEmergency(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("emergencyLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("emergencyHelper")}</span>
+              </span>
+            </label>
+            {isEmergency && (
+              <div className="grid gap-2">
+                <Label htmlFor="emergencyReason">{t("emergencyReasonLabel")}</Label>
+                <Textarea
+                  id="emergencyReason"
+                  name="emergencyReason"
+                  rows={3}
+                  placeholder={t("emergencyReasonPlaceholder")}
+                />
+              </div>
+            )}
+          </div>
 
           <details className="rounded-md border p-3">
             <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>

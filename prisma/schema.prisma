@@ -298,6 +298,9 @@ model Booking {
   startAt          DateTime
   endAt            DateTime
   passengerCount   Int
+  // Optional male/female passenger breakdown (need not sum to passengerCount).
+  maleCount        Int?
+  femaleCount      Int?
   passengerNotes   String?
   // The ajarn (professor) being transported. Captured at submission time so
   // the work owner and driver can coordinate without phoning the requester.
@@ -308,6 +311,9 @@ model Booking {
   // (07:00–18:00) or spans midnight. Set on submission or time edit.
   outOfHoursReason String?
   needsOutsourcing Boolean  @default(false)
+  // Requester-flagged emergency/urgent trip + optional free-text reason.
+  isEmergency      Boolean  @default(false)
+  emergencyReason  String?
 
   status       BookingStatus @default(DRAFT)
   denialReason String?

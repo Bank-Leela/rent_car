@@ -43,6 +43,27 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     needsOutsourcing: z.coerce.boolean().optional().default(false),
+    isEmergency: z.coerce.boolean().optional().default(false),
+    emergencyReason: z
+      .string()
+      .max(1000)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v.trim() : undefined)),
+    maleCount: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    femaleCount: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     recurringWeekdays: z
       .string()
       .optional()
