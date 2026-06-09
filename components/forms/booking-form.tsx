@@ -179,6 +179,20 @@ export function BookingForm({
     setEndValue(datetimeLocalValue(end));
   };
 
+  // When the user picks a start and hasn't set an end yet, default the end
+  // to 2h after start — but only if +2h stays on the same calendar day.
+  const handleStartChange = (v: string) => {
+    setStartValue(v);
+    if (endValue) return; // don't clobber an end the user already chose
+    const start = new Date(v);
+    if (Number.isNaN(start.getTime())) return;
+    const end = new Date(start);
+    end.setHours(start.getHours() + 2);
+    if (startOfDay(end).getTime() === startOfDay(start).getTime()) {
+      setEndValue(datetimeLocalValue(end));
+    }
+  };
+
   // Open Google Maps in a new tab, searching for whatever destination the
   // requester has typed. No API key — just a maps.google.com search URL.
   const openDestinationInMaps = () => {
@@ -377,7 +391,7 @@ export function BookingForm({
                   max={endValue || maxStart}
                   defaultValue={startValue}
                   placeholder={t("startLabel")}
-                  onChange={setStartValue}
+                  onChange={handleStartChange}
                 />
               </div>
               <div className="grid gap-2 min-w-0">
@@ -475,7 +489,14 @@ export function BookingForm({
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
-                  <Input id="recurringUntil" name="recurringUntil" type="date" />
+                  <DateTimePicker
+                    id="recurringUntil"
+                    name="recurringUntil"
+                    dateOnly
+                    min={startValue || minStart}
+                    max={maxStart}
+                    placeholder={t("repeatUntil")}
+                  />
                 </div>
               </div>
             </div>
