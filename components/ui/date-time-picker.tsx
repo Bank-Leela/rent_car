@@ -68,6 +68,9 @@ export function DateTimePicker({
   const [value, setValue] = useState<Date | null>(initial);
   const [viewMonth, setViewMonth] = useState<Date>(initial ?? new Date());
   const [open, setOpen] = useState(false);
+  // Flip the popover above the trigger when there isn't room below (e.g. the
+  // recurrence field near the bottom of the form) so it never opens off-screen.
+  const [dropUp, setDropUp] = useState(false);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -126,6 +129,17 @@ export function DateTimePicker({
     if (value) commit(value, hour, v);
   }
 
+  function toggleOpen() {
+    if (!open && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      // ~380px ≈ popover height; flip up only when below is tight and there's
+      // more room above.
+      setDropUp(below < 380 && rect.top > below);
+    }
+    setOpen((v) => !v);
+  }
+
   const hiddenValue = value ? (dateOnly ? format(value, "yyyy-MM-dd") : toLocalISO(value)) : "";
   const display = value
     ? format(value, dateOnly ? "EEE d MMM yyyy" : "EEE d MMM yyyy · HH:mm", { locale: dfLocale })
@@ -143,7 +157,7 @@ export function DateTimePicker({
       <button
         type="button"
         id={id}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
@@ -160,7 +174,10 @@ export function DateTimePicker({
       {open && (
         <div
           role="dialog"
-          className="absolute z-50 mt-2 w-88 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl"
+          className={cn(
+            "absolute z-50 w-88 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            dropUp ? "bottom-full mb-2" : "mt-2",
+          )}
         >
           <div className="flex items-center justify-between pb-3">
             <button
