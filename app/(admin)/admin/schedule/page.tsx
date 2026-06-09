@@ -42,19 +42,26 @@ export default async function SchedulePage({
         destination: true,
         startAt: true,
         vehicleId: true,
+        primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
     }),
   ]);
 
-  const bookings = dayBookings.map((b) => ({
-    id: b.id,
-    jobNumber: b.jobNumber,
-    purpose: b.purpose,
-    destination: b.destination,
-    timeLabel: format(b.startAt, "HH:mm"),
-    half: bookingHalf(b.startAt),
-    vehicleId: b.vehicleId,
-  }));
+  const isThai = locale.toLowerCase().startsWith("th");
+  const bookings = dayBookings.map((b) => {
+    const u = b.primaryDriver?.user;
+    const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
+    return {
+      id: b.id,
+      jobNumber: b.jobNumber,
+      purpose: b.purpose,
+      destination: b.destination,
+      timeLabel: format(b.startAt, "HH:mm"),
+      half: bookingHalf(b.startAt),
+      vehicleId: b.vehicleId,
+      driverName,
+    };
+  });
 
   const isoOf = (d: Date) => format(d, "yyyy-MM-dd");
   const navBtn =
