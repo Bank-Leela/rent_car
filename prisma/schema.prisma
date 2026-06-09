@@ -360,6 +360,9 @@ model Booking {
   // distinguish TJW (out-of-province + overnight) from local overnight =
   // OT. Backfilled from province != Bangkok for legacy rows.
   outOfProvince     Boolean         @default(false)
+  // Trip leaves the university campus (outside Chula). Replaces the old
+  // province dropdown's campus/off-campus signal; informational for ops.
+  outsideChula      Boolean         @default(false)
   // CR-07: why the booking didn't land in the daily batch (if at all).
   // Cleared once a successful match is recorded; NEEDS_WERN_RECLAIM_DECISION
   // requires Khun Top to choose between reclaiming duty or outsourcing.

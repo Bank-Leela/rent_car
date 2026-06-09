@@ -628,6 +628,8 @@
     "missingRequiredFields": "Please fill in: {labels}.",
     "outOfProvinceLabel": "Out of Bangkok with overnight stay (ตจว)",
     "outOfProvinceHelper": "Tick only if the trip leaves Bangkok and the driver sleeps away from base. The system classifies the trip automatically; overtime trips are detected from the time range.",
+    "outsideChulaLabel": "Trip leaves the university (outside Chula)",
+    "outsideChulaHelper": "Tick if the pickup or destination is off the Chula campus.",
     "jobTypeLabel": "Job category",
     "jobTypePlaceholder": "Pick a job category…",
     "jobTypeGeneral": "General / short on-campus run (ทั่วไป)",

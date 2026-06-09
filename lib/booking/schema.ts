@@ -27,6 +27,7 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
     outOfProvince: z.coerce.boolean().optional().default(false),
+    outsideChula: z.coerce.boolean().optional().default(false),
     outOfHoursReason: z
       .string()
       .max(1000)

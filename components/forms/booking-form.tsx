@@ -13,7 +13,6 @@ import {
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
 } from "@/lib/booking/rules";
-import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -158,13 +157,12 @@ export function BookingForm({
 }) {
   const t = useTranslations("bookingForm");
   const now = new Date();
-  const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
+  const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
   const isThai = locale.toLowerCase().startsWith("th");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const requiredDays =
-    province === BANGKOK_PROVINCE ? LEAD_TIME_BANGKOK_DAYS : LEAD_TIME_OUTSIDE_DAYS;
+  const requiredDays = outOfProvince ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
   // Earliest is midnight on (today + requiredDays); any time on that day is fine.
   const earliestStart = startOfDay(addDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
@@ -254,7 +252,7 @@ export function BookingForm({
       <CardHeader>
         <CardTitle>{t("title")}</CardTitle>
         <CardDescription>
-          {t.rich(province === BANGKOK_PROVINCE ? "leadTimeBangkok" : "leadTimeOutside", {
+          {t.rich(outOfProvince ? "leadTimeOutside" : "leadTimeBangkok", {
             ...richStrong,
             days: requiredDays,
           })}{" "}
@@ -343,35 +341,25 @@ export function BookingForm({
               <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
               <Input id="purpose" name="purpose" required />
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
-                <Input id="destination" name="destination" required />
-                <button
-                  type="button"
-                  onClick={openDestinationInMaps}
-                  className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
-                >
-                  <MapPin aria-hidden className="h-3.5 w-3.5" />
-                  {t("destinationMapsLink")}
-                </button>
-              </div>
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
-                <SearchableSelect
-                  id="province"
-                  name="province"
-                  required
-                  defaultValue={province}
-                  placeholder={t("province")}
-                  searchPlaceholder={t("provinceSearchPlaceholder")}
-                  emptyText={t("provinceEmpty")}
-                  ariaLabel={t("province")}
-                  options={THAI_PROVINCES.map((p) => ({ value: p, label: p }))}
-                  onChange={setProvince}
-                />
-              </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
+              <Input id="destination" name="destination" required />
+              <button
+                type="button"
+                onClick={openDestinationInMaps}
+                className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <MapPin aria-hidden className="h-3.5 w-3.5" />
+                {t("destinationMapsLink")}
+              </button>
             </div>
+            {/* Province dropdown removed; province is derived from the
+                out-of-province checkbox for lead-time + records. */}
+            <input
+              type="hidden"
+              name="province"
+              value={outOfProvince ? "ต่างจังหวัด" : BANGKOK_PROVINCE}
+            />
             <div className="grid gap-2">
               <Label htmlFor="pickupLocation">{t("pickupLocation")}</Label>
               <Input
@@ -383,8 +371,22 @@ export function BookingForm({
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
+                name="outsideChula"
+                value="true"
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("outsideChulaLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("outsideChulaHelper")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
                 name="outOfProvince"
                 value="true"
+                checked={outOfProvince}
+                onChange={(e) => setOutOfProvince(e.target.checked)}
                 className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <span>
