@@ -1,16 +1,17 @@
-// #1 submit-time capacity gate ("first 10 slots guaranteed, rest waitlist").
+// #1 submit-time capacity gate ("first N slots guaranteed, rest waitlist").
 //
-// Each day has morning + afternoon slots, one of each per active non-duty
-// vehicle (the เวร/duty car is excluded). When a half-day's slots are already
-// taken, a new request for that half lands on the WAITLIST instead of being
-// guaranteed. This is independent of the later admin-side batch matching.
+// A day's capacity = one morning + one afternoon slot per active non-duty
+// vehicle (5 cars → 10), PLUS one spare slot for the เวร/duty car (which is
+// otherwise busy on campus rounds). So 5 non-duty + 1 duty → 11 slots/day.
+// When the day's guaranteed slots are full, a new request is WAITLISTed for
+// P'Top to fit or deny. Independent of the later admin-side batch matching.
 import { BookingStatus } from "@prisma/client";
 
 const MORNING_CUTOFF_HOUR = 12;
 
 export type DayHalf = "MORNING" | "AFTERNOON";
 
-// A booking in one of these statuses occupies a slot for its day + half.
+// A booking in one of these statuses occupies a slot for its day.
 // WAITLIST / DRAFT / CANCELLED / DENIED do not hold a slot.
 export const SLOT_HOLDING_STATUSES: BookingStatus[] = [
   BookingStatus.PENDING_APPROVAL,
@@ -19,6 +20,8 @@ export const SLOT_HOLDING_STATUSES: BookingStatus[] = [
   BookingStatus.COMPLETED,
 ];
 
+// Used only by the schedule board to place a booking in a morning/afternoon
+// column; not part of the capacity count itself.
 export function bookingHalf(startAt: Date): DayHalf {
   return startAt.getHours() < MORNING_CUTOFF_HOUR ? "MORNING" : "AFTERNOON";
 }
@@ -32,19 +35,22 @@ export function dayWindow(d: Date): { start: Date; end: Date } {
   return { start, end };
 }
 
-// The half is full once used slots reach the per-half capacity. A capacity of
-// 0 (no job vehicles configured) never waitlists — fall back to guaranteed.
-export function isHalfFull(usedInHalf: number, capacityPerHalf: number): boolean {
-  return capacityPerHalf > 0 && usedInHalf >= capacityPerHalf;
+// Guaranteed slots in a day: morning + afternoon per non-duty vehicle, plus
+// one spare per duty (เวร) vehicle.
+export function dayCapacity(nonDutyVehicles: number, dutyVehicles: number): number {
+  return nonDutyVehicles * 2 + dutyVehicles;
+}
+
+// The day is full once used slots reach capacity. Capacity 0 (no vehicles
+// configured) never waitlists — fall back to guaranteed.
+export function isFull(usedToday: number, capacity: number): boolean {
+  return capacity > 0 && usedToday >= capacity;
 }
 
 // Resolve the status a freshly-submitted booking should get given how many
-// slot-holding bookings already exist in its day+half.
-export function submitStatus(
-  usedInHalf: number,
-  capacityPerHalf: number,
-): BookingStatus {
-  return isHalfFull(usedInHalf, capacityPerHalf)
+// slot-holding bookings already exist that day.
+export function submitStatus(usedToday: number, capacity: number): BookingStatus {
+  return isFull(usedToday, capacity)
     ? BookingStatus.WAITLIST
     : BookingStatus.PENDING_APPROVAL;
 }

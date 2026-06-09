@@ -15,8 +15,8 @@ import {
 import { nextJobNumber } from "@/lib/booking/job-number";
 import { bucketFromStart } from "@/lib/booking/slot-allocation";
 import {
-  bookingHalf,
   dayWindow,
+  dayCapacity,
   submitStatus,
   SLOT_HOLDING_STATUSES,
 } from "@/lib/booking/slot-capacity";
@@ -118,20 +118,19 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   }
 
   const created = await prisma.$transaction(async (tx) => {
-    // #1 capacity gate: each day has morning + afternoon slots, one of each per
-    // active non-duty vehicle. When a half is full, the request is waitlisted.
-    const capacityPerHalf = await tx.vehicle.count({
-      where: { isActive: true, isDutyVehicle: false },
-    });
+    // #1 capacity gate: a day's slots = morning + afternoon per non-duty
+    // vehicle, plus one spare for the เวร/duty car. When full, waitlist.
+    const [nonDutyVehicles, dutyVehicles] = await Promise.all([
+      tx.vehicle.count({ where: { isActive: true, isDutyVehicle: false } }),
+      tx.vehicle.count({ where: { isActive: true, isDutyVehicle: true } }),
+    ]);
+    const capacity = dayCapacity(nonDutyVehicles, dutyVehicles);
     const slotStatusFor = async (when: Date) => {
       const { start, end } = dayWindow(when);
-      const sameDay = await tx.booking.findMany({
+      const used = await tx.booking.count({
         where: { startAt: { gte: start, lt: end }, status: { in: SLOT_HOLDING_STATUSES } },
-        select: { startAt: true },
       });
-      const half = bookingHalf(when);
-      const used = sameDay.filter((b) => bookingHalf(b.startAt) === half).length;
-      return submitStatus(used, capacityPerHalf);
+      return submitStatus(used, capacity);
     };
     const parentStatus = await slotStatusFor(data.startAt);
 

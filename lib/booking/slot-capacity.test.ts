@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   bookingHalf,
-  isHalfFull,
+  dayCapacity,
+  isFull,
   submitStatus,
   dayWindow,
 } from "./slot-capacity";
@@ -15,22 +16,31 @@ describe("bookingHalf", () => {
   });
 });
 
-describe("isHalfFull", () => {
-  it("full once used reaches capacity", () => {
-    expect(isHalfFull(2, 3)).toBe(false);
-    expect(isHalfFull(3, 3)).toBe(true);
-    expect(isHalfFull(4, 3)).toBe(true);
+describe("dayCapacity", () => {
+  it("counts morning+afternoon per non-duty car plus one spare per duty car", () => {
+    expect(dayCapacity(5, 1)).toBe(11); // 5 cars x 2 + 1 เวร
+    expect(dayCapacity(5, 0)).toBe(10);
+    expect(dayCapacity(0, 0)).toBe(0);
+    expect(dayCapacity(3, 2)).toBe(8);
   });
-  it("never full when no job vehicles", () => {
-    expect(isHalfFull(0, 0)).toBe(false);
-    expect(isHalfFull(5, 0)).toBe(false);
+});
+
+describe("isFull", () => {
+  it("full once used reaches capacity", () => {
+    expect(isFull(10, 11)).toBe(false);
+    expect(isFull(11, 11)).toBe(true);
+    expect(isFull(12, 11)).toBe(true);
+  });
+  it("never full when no slots configured", () => {
+    expect(isFull(0, 0)).toBe(false);
+    expect(isFull(5, 0)).toBe(false);
   });
 });
 
 describe("submitStatus", () => {
   it("guarantees within capacity, waitlists over", () => {
-    expect(submitStatus(2, 3)).toBe("PENDING_APPROVAL");
-    expect(submitStatus(3, 3)).toBe("WAITLIST");
+    expect(submitStatus(10, 11)).toBe("PENDING_APPROVAL");
+    expect(submitStatus(11, 11)).toBe("WAITLIST");
   });
 });
 
