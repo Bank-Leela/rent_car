@@ -27,6 +27,7 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
     outOfProvince: z.coerce.boolean().optional().default(false),
+    outsideChula: z.coerce.boolean().optional().default(false),
     outOfHoursReason: z
       .string()
       .max(1000)
@@ -43,6 +44,38 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     needsOutsourcing: z.coerce.boolean().optional().default(false),
+    isEmergency: z.coerce.boolean().optional().default(false),
+    emergencyReason: z
+      .string()
+      .max(1000)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v.trim() : undefined)),
+    maleCount: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    femaleCount: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    pickupLocation: z
+      .string()
+      .max(500)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v.trim() : undefined)),
+    preferredVehicleId: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
     recurringWeekdays: z
       .string()
       .optional()

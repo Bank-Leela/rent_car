@@ -12,14 +12,11 @@ import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
-  WORK_START_HOUR,
-  WORK_END_HOUR,
-  isWithinWorkHours,
 } from "@/lib/booking/rules";
-import { THAI_PROVINCES } from "@/lib/booking/provinces";
 import { createBookingAction } from "@/lib/booking/actions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { MapPin } from "lucide-react";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -141,24 +138,31 @@ export type BookingFormDepartment = {
   nameTh: string;
 };
 
+export type BookingFormVehicle = {
+  id: string;
+  registrationNumber: string;
+  capacity: number;
+};
+
 export function BookingForm({
   departments,
+  vehicles,
   defaultDepartmentId,
   locale,
 }: {
   departments: BookingFormDepartment[];
+  vehicles: BookingFormVehicle[];
   defaultDepartmentId: string | null;
   locale: string;
 }) {
   const t = useTranslations("bookingForm");
   const now = new Date();
-  const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
+  const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
   const isThai = locale.toLowerCase().startsWith("th");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const requiredDays =
-    province === BANGKOK_PROVINCE ? LEAD_TIME_BANGKOK_DAYS : LEAD_TIME_OUTSIDE_DAYS;
+  const requiredDays = outOfProvince ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
   // Earliest is midnight on (today + requiredDays); any time on that day is fine.
   const earliestStart = startOfDay(addDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
@@ -168,6 +172,9 @@ export function BookingForm({
 
   const [startValue, setStartValue] = useState<string>("");
   const [endValue, setEndValue] = useState<string>("");
+  // Once the user edits the end themselves, stop auto-tracking it off the start.
+  const [endTouched, setEndTouched] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
 
   const fillEarliest = () => {
     const start = new Date(earliestStart);
@@ -176,20 +183,55 @@ export function BookingForm({
     end.setHours(start.getHours() + 4);
     setStartValue(datetimeLocalValue(start));
     setEndValue(datetimeLocalValue(end));
+    setEndTouched(true);
   };
 
-  let outOfHours = false;
+  // Default the end to 2h after start (same calendar day) whenever the user
+  // changes the start, until they pick an end of their own — keeps the end
+  // date matching the start date by default.
+  const handleStartChange = (v: string) => {
+    setStartValue(v);
+    if (endTouched) return; // user chose their own end — leave it alone
+    const start = new Date(v);
+    if (Number.isNaN(start.getTime())) return;
+    const end = new Date(start);
+    end.setHours(start.getHours() + 2);
+    if (startOfDay(end).getTime() === startOfDay(start).getTime()) {
+      setEndValue(datetimeLocalValue(end));
+    }
+  };
+
+  const handleEndChange = (v: string) => {
+    setEndValue(v);
+    setEndTouched(true);
+  };
+
+  // Open Google Maps in a new tab, searching for whatever destination the
+  // requester has typed. No API key — just a maps.google.com search URL.
+  const openDestinationInMaps = () => {
+    const dest = (
+      document.getElementById("destination") as HTMLInputElement | null
+    )?.value.trim();
+    const url = dest
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`
+      : "https://www.google.com/maps";
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // End must be strictly after start. Computed live so we can both warn inline
+  // and block submission before the (English-only) server refine fires.
+  let endBeforeStart = false;
   if (startValue && endValue) {
     const s = new Date(startValue);
     const e = new Date(endValue);
     if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
-      outOfHours = !isWithinWorkHours({ startAt: s, endAt: e });
+      endBeforeStart = e.getTime() <= s.getTime();
     }
   }
 
   // Required-field names + the translation key for each label, used to
   // pre-validate the submission so the user sees an in-form message rather
-  // than a browser-native tooltip. outOfHoursReason is conditionally added.
+  // than a browser-native tooltip.
   const baseRequired: Array<{ name: string; labelKey: string }> = [
     { name: "departmentId", labelKey: "department" },
     { name: "ajarnName", labelKey: "ajarnName" },
@@ -210,7 +252,7 @@ export function BookingForm({
       <CardHeader>
         <CardTitle>{t("title")}</CardTitle>
         <CardDescription>
-          {t.rich(province === BANGKOK_PROVINCE ? "leadTimeBangkok" : "leadTimeOutside", {
+          {t.rich(outOfProvince ? "leadTimeOutside" : "leadTimeBangkok", {
             ...richStrong,
             days: requiredDays,
           })}{" "}
@@ -219,13 +261,14 @@ export function BookingForm({
       </CardHeader>
       <CardContent>
         <form
-          action={(formData) => {
+          onSubmit={(e) => {
+            // Use onSubmit (not the `action` prop) so React 19 does NOT
+            // auto-reset the form after the handler runs. With `action`, a
+            // validation error would wipe every field the requester typed.
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
             setError(null);
-            const required = [...baseRequired];
-            if (outOfHours) {
-              required.push({ name: "outOfHoursReason", labelKey: "outOfHoursReasonLabel" });
-            }
-            const missing = required.filter((f) => {
+            const missing = baseRequired.filter((f) => {
               const v = formData.get(f.name);
               return typeof v !== "string" || v.trim() === "";
             });
@@ -235,6 +278,11 @@ export function BookingForm({
               const firstId = missing[0]!.name;
               const el = document.getElementById(firstId);
               if (el) (el as HTMLElement).focus();
+              return;
+            }
+            if (endBeforeStart) {
+              setError(t("endBeforeStart"));
+              document.getElementById("endAt")?.focus();
               return;
             }
             startTransition(async () => {
@@ -293,32 +341,52 @@ export function BookingForm({
               <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
               <Input id="purpose" name="purpose" required />
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
-                <Input id="destination" name="destination" required />
-              </div>
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
-                <SearchableSelect
-                  id="province"
-                  name="province"
-                  required
-                  defaultValue={province}
-                  placeholder={t("province")}
-                  searchPlaceholder={t("provinceSearchPlaceholder")}
-                  emptyText={t("provinceEmpty")}
-                  ariaLabel={t("province")}
-                  options={THAI_PROVINCES.map((p) => ({ value: p, label: p }))}
-                  onChange={setProvince}
-                />
-              </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
+              <Input id="destination" name="destination" required />
+              <button
+                type="button"
+                onClick={openDestinationInMaps}
+                className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <MapPin aria-hidden className="h-3.5 w-3.5" />
+                {t("destinationMapsLink")}
+              </button>
             </div>
+            {/* Province dropdown removed; province is derived from the
+                out-of-province checkbox for lead-time + records. */}
+            <input
+              type="hidden"
+              name="province"
+              value={outOfProvince ? "ต่างจังหวัด" : BANGKOK_PROVINCE}
+            />
+            <div className="grid gap-2">
+              <Label htmlFor="pickupLocation">{t("pickupLocation")}</Label>
+              <Input
+                id="pickupLocation"
+                name="pickupLocation"
+                placeholder={t("pickupLocationPlaceholder")}
+              />
+            </div>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="outsideChula"
+                value="true"
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("outsideChulaLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("outsideChulaHelper")}</span>
+              </span>
+            </label>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
                 name="outOfProvince"
                 value="true"
+                checked={outOfProvince}
+                onChange={(e) => setOutOfProvince(e.target.checked)}
                 className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <span>
@@ -339,10 +407,10 @@ export function BookingForm({
                   name="startAt"
                   required
                   min={minStart}
-                  max={maxStart}
+                  max={endValue || maxStart}
                   defaultValue={startValue}
                   placeholder={t("startLabel")}
-                  onChange={setStartValue}
+                  onChange={handleStartChange}
                 />
               </div>
               <div className="grid gap-2 min-w-0">
@@ -351,14 +419,17 @@ export function BookingForm({
                   id="endAt"
                   name="endAt"
                   required
-                  min={minStart}
+                  min={startValue || minStart}
                   max={maxStart}
                   defaultValue={endValue}
                   placeholder={t("endLabel")}
-                  onChange={setEndValue}
+                  onChange={handleEndChange}
                 />
               </div>
             </div>
+            {endBeforeStart && (
+              <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
+            )}
             <p className="text-xs text-muted-foreground pb-1">
               {t.rich("endHelper", richStrong)}
             </p>
@@ -369,27 +440,6 @@ export function BookingForm({
             >
               {t("useEarliest", { date: earliestDateLabel })}
             </button>
-            <p className="text-xs text-muted-foreground">
-              {t("workHoursNotice", {
-                from: `${String(WORK_START_HOUR).padStart(2, "0")}:00`,
-                to: `${String(WORK_END_HOUR).padStart(2, "0")}:00`,
-              })}
-            </p>
-            {outOfHours && (
-              <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/40">
-                <ReqLabel htmlFor="outOfHoursReason" className="text-amber-900 dark:text-amber-200">
-                  {t("outOfHoursReasonLabel")}
-                </ReqLabel>
-                <p className="text-xs text-amber-800 dark:text-amber-300">{t("outOfHoursReasonHelper")}</p>
-                <Textarea
-                  id="outOfHoursReason"
-                  name="outOfHoursReason"
-                  rows={3}
-                  required
-                  placeholder={t("outOfHoursReasonPlaceholder")}
-                />
-              </div>
-            )}
           </fieldset>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
@@ -411,21 +461,78 @@ export function BookingForm({
                 />
               </div>
             </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="maleCount">{t("maleCount")}</Label>
+                <Input id="maleCount" name="maleCount" type="number" min={0} placeholder="0" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="femaleCount">{t("femaleCount")}</Label>
+                <Input id="femaleCount" name="femaleCount" type="number" min={0} placeholder="0" />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="preferredVehicleId">{t("preferredVehicle")}</Label>
+              <select
+                id="preferredVehicleId"
+                name="preferredVehicleId"
+                defaultValue=""
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">{t("preferredVehicleNone")}</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.registrationNumber} · {v.capacity}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
               <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
             </div>
           </fieldset>
 
-          <label className="flex min-h-11 items-center gap-2 text-sm cursor-pointer">
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
               name="needsOutsourcing"
               value="true"
-              className="h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            {t("flagOutsourcing")}
+            <span>
+              <span className="font-medium">{t("flagOutsourcing")}</span>
+              <span className="block text-xs text-muted-foreground">{t("flagOutsourcingHelper")}</span>
+            </span>
           </label>
+
+          <div className="space-y-3">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="isEmergency"
+                value="true"
+                checked={isEmergency}
+                onChange={(e) => setIsEmergency(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("emergencyLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("emergencyHelper")}</span>
+              </span>
+            </label>
+            {isEmergency && (
+              <div className="grid gap-2">
+                <Label htmlFor="emergencyReason">{t("emergencyReasonLabel")}</Label>
+                <Textarea
+                  id="emergencyReason"
+                  name="emergencyReason"
+                  rows={3}
+                  placeholder={t("emergencyReasonPlaceholder")}
+                />
+              </div>
+            )}
+          </div>
 
           <details className="rounded-md border p-3">
             <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
@@ -437,7 +544,14 @@ export function BookingForm({
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
-                  <Input id="recurringUntil" name="recurringUntil" type="date" />
+                  <DateTimePicker
+                    id="recurringUntil"
+                    name="recurringUntil"
+                    dateOnly
+                    min={startValue || minStart}
+                    max={maxStart}
+                    placeholder={t("repeatUntil")}
+                  />
                 </div>
               </div>
             </div>

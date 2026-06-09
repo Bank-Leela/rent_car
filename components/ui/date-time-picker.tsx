@@ -28,6 +28,10 @@ interface DateTimePickerProps {
   id?: string;
   placeholder?: string;
   onChange?: (value: string) => void;
+  // Date-only mode: hide the time controls and emit/display `yyyy-MM-dd`
+  // instead of `yyyy-MM-ddTHH:mm`. Used for fields like the recurrence
+  // "repeat until" date where time is meaningless.
+  dateOnly?: boolean;
 }
 
 const WEEKDAYS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -56,6 +60,7 @@ export function DateTimePicker({
   id,
   placeholder,
   onChange,
+  dateOnly,
 }: DateTimePickerProps) {
   const locale = useLocale();
   const dfLocale: Locale = locale.toLowerCase().startsWith("th") ? th : enUS;
@@ -63,6 +68,9 @@ export function DateTimePicker({
   const [value, setValue] = useState<Date | null>(initial);
   const [viewMonth, setViewMonth] = useState<Date>(initial ?? new Date());
   const [open, setOpen] = useState(false);
+  // Flip the popover above the trigger when there isn't room below (e.g. the
+  // recurrence field near the bottom of the form) so it never opens off-screen.
+  const [dropUp, setDropUp] = useState(false);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -100,13 +108,14 @@ export function DateTimePicker({
 
   function commit(day: Date, h: number, m: number) {
     const next = new Date(day);
-    next.setHours(h, m, 0, 0);
+    next.setHours(dateOnly ? 0 : h, dateOnly ? 0 : m, 0, 0);
     setValue(next);
-    onChange?.(toLocalISO(next));
+    onChange?.(dateOnly ? format(next, "yyyy-MM-dd") : toLocalISO(next));
   }
 
   function pickDay(day: Date) {
     commit(day, hour, minute);
+    if (dateOnly) setOpen(false);
   }
 
   function changeHour(h: number) {
@@ -120,9 +129,20 @@ export function DateTimePicker({
     if (value) commit(value, hour, v);
   }
 
-  const hiddenValue = value ? toLocalISO(value) : "";
+  function toggleOpen() {
+    if (!open && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      // ~380px ≈ popover height; flip up only when below is tight and there's
+      // more room above.
+      setDropUp(below < 380 && rect.top > below);
+    }
+    setOpen((v) => !v);
+  }
+
+  const hiddenValue = value ? (dateOnly ? format(value, "yyyy-MM-dd") : toLocalISO(value)) : "";
   const display = value
-    ? format(value, "EEE d MMM yyyy · HH:mm", { locale: dfLocale })
+    ? format(value, dateOnly ? "EEE d MMM yyyy" : "EEE d MMM yyyy · HH:mm", { locale: dfLocale })
     : placeholder ?? "";
 
   function isDisabled(day: Date): boolean {
@@ -137,7 +157,7 @@ export function DateTimePicker({
       <button
         type="button"
         id={id}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
@@ -154,7 +174,10 @@ export function DateTimePicker({
       {open && (
         <div
           role="dialog"
-          className="absolute z-50 mt-2 w-88 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl"
+          className={cn(
+            "absolute z-50 w-88 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            dropUp ? "bottom-full mb-2" : "mt-2",
+          )}
         >
           <div className="flex items-center justify-between pb-3">
             <button
@@ -212,33 +235,35 @@ export function DateTimePicker({
             })}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" aria-hidden />
-              <span>เวลา / Time</span>
+          {!dateOnly && (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" aria-hidden />
+                <span>เวลา / Time</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={String(hour).padStart(2, "0")}
+                  onChange={(e) => changeHour(Number(e.target.value))}
+                  className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-label="Hour"
+                />
+                <span className="text-base font-bold text-muted-foreground">:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={String(minute).padStart(2, "0")}
+                  onChange={(e) => changeMinute(Number(e.target.value))}
+                  className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                  aria-label="Minute"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={String(hour).padStart(2, "0")}
-                onChange={(e) => changeHour(Number(e.target.value))}
-                className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                aria-label="Hour"
-              />
-              <span className="text-base font-bold text-muted-foreground">:</span>
-              <input
-                type="number"
-                min={0}
-                max={59}
-                value={String(minute).padStart(2, "0")}
-                onChange={(e) => changeMinute(Number(e.target.value))}
-                className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                aria-label="Minute"
-              />
-            </div>
-          </div>
+          )}
 
           <div className="mt-4 flex items-center justify-between">
             <button

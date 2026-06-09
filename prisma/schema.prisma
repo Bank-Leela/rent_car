@@ -39,6 +39,9 @@ enum BookingStatus {
   DENIED
   CANCELLED
   COMPLETED
+  // Submit-time overflow: the day's morning/afternoon slots (active non-duty
+  // vehicles) were full, so this request is queued rather than guaranteed.
+  WAITLIST
 }
 
 enum ApprovalStatus {
@@ -298,6 +301,9 @@ model Booking {
   startAt          DateTime
   endAt            DateTime
   passengerCount   Int
+  // Optional male/female passenger breakdown (need not sum to passengerCount).
+  maleCount        Int?
+  femaleCount      Int?
   passengerNotes   String?
   // The ajarn (professor) being transported. Captured at submission time so
   // the work owner and driver can coordinate without phoning the requester.
@@ -308,6 +314,14 @@ model Booking {
   // (07:00–18:00) or spans midnight. Set on submission or time edit.
   outOfHoursReason String?
   needsOutsourcing Boolean  @default(false)
+  // Requester-flagged emergency/urgent trip + optional free-text reason.
+  isEmergency      Boolean  @default(false)
+  emergencyReason  String?
+  // Where passengers board ("place to get on the car").
+  pickupLocation   String?
+  // Requester's preferred vehicle (Vehicle id; soft reference, no FK — does
+  // not drive assignment yet).
+  preferredVehicleId String?
 
   status       BookingStatus @default(DRAFT)
   denialReason String?
@@ -346,6 +360,9 @@ model Booking {
   // distinguish TJW (out-of-province + overnight) from local overnight =
   // OT. Backfilled from province != Bangkok for legacy rows.
   outOfProvince     Boolean         @default(false)
+  // Trip leaves the university campus (outside Chula). Replaces the old
+  // province dropdown's campus/off-campus signal; informational for ops.
+  outsideChula      Boolean         @default(false)
   // CR-07: why the booking didn't land in the daily batch (if at all).
   // Cleared once a successful match is recorded; NEEDS_WERN_RECLAIM_DECISION
   // requires Khun Top to choose between reclaiming duty or outsourcing.

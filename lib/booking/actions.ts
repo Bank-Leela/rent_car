@@ -14,6 +14,12 @@ import {
 } from "@/lib/booking/schema";
 import { nextJobNumber } from "@/lib/booking/job-number";
 import { bucketFromStart } from "@/lib/booking/slot-allocation";
+import {
+  bookingHalf,
+  dayWindow,
+  submitStatus,
+  SLOT_HOLDING_STATUSES,
+} from "@/lib/booking/slot-capacity";
 import { classifyJobType } from "@/lib/booking/classification";
 import {
   checkLeadTime,
@@ -86,12 +92,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     };
   }
 
-  // Out-of-hours trips require a written justification from the requester.
-  const inHours = isWithinWorkHours({ startAt: data.startAt, endAt: data.endAt });
-  if (!inHours && !data.outOfHoursReason) {
-    return { ok: false, field: "outOfHoursReason", error: te("outOfHoursReasonRequired") };
-  }
-  const outOfHoursReason = inHours ? null : data.outOfHoursReason!;
+  // Out-of-hours justification is no longer collected on the booking form;
+  // persist whatever the payload still carries (normally none), else null.
+  const outOfHoursReason = data.outOfHoursReason ?? null;
 
   // Evaluation gate: prior unevaluated COMPLETED trips block new bookings.
   const pendingEvals = await prisma.trip.count({
@@ -115,6 +118,23 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   }
 
   const created = await prisma.$transaction(async (tx) => {
+    // #1 capacity gate: each day has morning + afternoon slots, one of each per
+    // active non-duty vehicle. When a half is full, the request is waitlisted.
+    const capacityPerHalf = await tx.vehicle.count({
+      where: { isActive: true, isDutyVehicle: false },
+    });
+    const slotStatusFor = async (when: Date) => {
+      const { start, end } = dayWindow(when);
+      const sameDay = await tx.booking.findMany({
+        where: { startAt: { gte: start, lt: end }, status: { in: SLOT_HOLDING_STATUSES } },
+        select: { startAt: true },
+      });
+      const half = bookingHalf(when);
+      const used = sameDay.filter((b) => bookingHalf(b.startAt) === half).length;
+      return submitStatus(used, capacityPerHalf);
+    };
+    const parentStatus = await slotStatusFor(data.startAt);
+
     const jobNumber = await nextJobNumber(tx);
     const parent = await tx.booking.create({
       data: {
@@ -137,20 +157,27 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             outOfProvince: data.outOfProvince,
           }),
         outOfProvince: data.outOfProvince,
+        outsideChula: data.outsideChula,
         timeBucket: bucketFromStart(data.startAt),
         outOfHoursReason,
         passengerCount: data.passengerCount,
         passengerNotes: data.passengerNotes,
         estimatedDistance: data.estimatedDistance,
         needsOutsourcing: data.needsOutsourcing,
-        status: "PENDING_APPROVAL",
+        isEmergency: data.isEmergency,
+        emergencyReason: data.emergencyReason,
+        maleCount: data.maleCount,
+        femaleCount: data.femaleCount,
+        pickupLocation: data.pickupLocation,
+        preferredVehicleId: data.preferredVehicleId,
+        status: parentStatus,
       },
     });
     await logTransition({
       bookingId: parent.id,
       actorUserId: userId,
       fromStatus: null,
-      toStatus: "PENDING_APPROVAL",
+      toStatus: parentStatus,
       action: "BOOKING_SUBMITTED",
       tx,
     });
@@ -179,6 +206,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         childStart.setHours(data.startAt.getHours(), data.startAt.getMinutes(), 0, 0);
         const childEnd = new Date(childStart.getTime() + trip);
         const childJob = await nextJobNumber(tx);
+        const childStatus = await slotStatusFor(childStart);
         const child = await tx.booking.create({
           data: {
             jobNumber: childJob,
@@ -200,13 +228,20 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
                 outOfProvince: data.outOfProvince,
               }),
             outOfProvince: data.outOfProvince,
+            outsideChula: data.outsideChula,
             timeBucket: bucketFromStart(childStart),
             outOfHoursReason,
             passengerCount: data.passengerCount,
             passengerNotes: data.passengerNotes,
             estimatedDistance: data.estimatedDistance,
             needsOutsourcing: data.needsOutsourcing,
-            status: "PENDING_APPROVAL",
+            isEmergency: data.isEmergency,
+            emergencyReason: data.emergencyReason,
+            maleCount: data.maleCount,
+            femaleCount: data.femaleCount,
+            pickupLocation: data.pickupLocation,
+            preferredVehicleId: data.preferredVehicleId,
+            status: childStatus,
             recurrenceParentId: parent.id,
           },
         });
@@ -214,7 +249,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
           bookingId: child.id,
           actorUserId: userId,
           fromStatus: null,
-          toStatus: "PENDING_APPROVAL",
+          toStatus: childStatus,
           action: "BOOKING_SUBMITTED",
           metadata: { recurrenceParentId: parent.id, occurrence: seq },
           tx,

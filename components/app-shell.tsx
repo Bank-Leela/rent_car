@@ -28,12 +28,15 @@ export async function AppShell({
   badgeRole,
   user,
   nav,
+  headerActions,
   children,
 }: {
   /** The role to display in the header pill. */
   badgeRole: Role;
   user: { name?: string | null; email?: string | null; roles: Role[] };
   nav: NavItem[];
+  /** Optional header slot (e.g. the admin notification bell). */
+  headerActions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const t = await getTranslations();
@@ -63,6 +66,7 @@ export async function AppShell({
           </div>
           <nav className="flex items-center gap-1">
             <NavLinks items={nav} />
+            {headerActions}
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
             <ThemeToggle />
             <LanguageSwitcher />
