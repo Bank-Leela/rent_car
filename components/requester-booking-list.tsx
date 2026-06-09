@@ -8,6 +8,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   BookingStatus.DRAFT,
   BookingStatus.PENDING_APPROVAL,
+  BookingStatus.WAITLIST,
   BookingStatus.APPROVED,
   BookingStatus.ASSIGNED,
 ];

@@ -14,6 +14,8 @@ const STYLES: Record<BookingStatus, string> = {
   CANCELLED: "bg-muted text-muted-foreground ring-border line-through",
   COMPLETED:
     "bg-violet-100 text-violet-900 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-900/40",
+  WAITLIST:
+    "bg-orange-100 text-orange-900 ring-orange-200 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/40",
 };
 
 export function BookingStatusBadge({ status }: { status: BookingStatus }) {

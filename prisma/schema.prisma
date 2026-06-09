@@ -39,6 +39,9 @@ enum BookingStatus {
   DENIED
   CANCELLED
   COMPLETED
+  // Submit-time overflow: the day's morning/afternoon slots (active non-duty
+  // vehicles) were full, so this request is queued rather than guaranteed.
+  WAITLIST
 }
 
 enum ApprovalStatus {

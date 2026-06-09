@@ -117,7 +117,8 @@
     "ASSIGNED": "Assigned",
     "DENIED": "Denied",
     "CANCELLED": "Cancelled",
-    "COMPLETED": "Completed"
+    "COMPLETED": "Completed",
+    "WAITLIST": "Waitlist"
   },
   "login": {
     "title": "Vehicle Booking",
