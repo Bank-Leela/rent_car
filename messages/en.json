@@ -120,6 +120,19 @@
     "COMPLETED": "Completed",
     "WAITLIST": "Waitlist"
   },
+  "scheduler": {
+    "title": "Daily schedule",
+    "description": "Drag the day's approved requests onto a vehicle to assign it.",
+    "queue": "Unassigned",
+    "queueEmpty": "No unassigned requests for this day.",
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "duty": "Duty",
+    "noVehicles": "No active vehicles.",
+    "dropHint": "Drag a request card onto a vehicle row to assign it; drag between vehicles to reassign.",
+    "prevDay": "Previous day",
+    "nextDay": "Next day"
+  },
   "login": {
     "title": "Vehicle Booking",
     "tagline": "Faculty fleet booking, approvals, and dispatch in one place.",
