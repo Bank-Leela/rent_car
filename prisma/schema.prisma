@@ -314,6 +314,11 @@ model Booking {
   // Requester-flagged emergency/urgent trip + optional free-text reason.
   isEmergency      Boolean  @default(false)
   emergencyReason  String?
+  // Where passengers board ("place to get on the car").
+  pickupLocation   String?
+  // Requester's preferred vehicle (Vehicle id; soft reference, no FK — does
+  // not drive assignment yet).
+  preferredVehicleId String?
 
   status       BookingStatus @default(DRAFT)
   denialReason String?

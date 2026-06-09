@@ -64,6 +64,17 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    pickupLocation: z
+      .string()
+      .max(500)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v.trim() : undefined)),
+    preferredVehicleId: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
     recurringWeekdays: z
       .string()
       .optional()

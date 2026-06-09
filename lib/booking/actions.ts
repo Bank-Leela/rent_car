@@ -144,6 +144,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         emergencyReason: data.emergencyReason,
         maleCount: data.maleCount,
         femaleCount: data.femaleCount,
+        pickupLocation: data.pickupLocation,
+        preferredVehicleId: data.preferredVehicleId,
         status: "PENDING_APPROVAL",
       },
     });
@@ -211,6 +213,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             emergencyReason: data.emergencyReason,
             maleCount: data.maleCount,
             femaleCount: data.femaleCount,
+            pickupLocation: data.pickupLocation,
+            preferredVehicleId: data.preferredVehicleId,
             status: "PENDING_APPROVAL",
             recurrenceParentId: parent.id,
           },

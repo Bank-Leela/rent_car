@@ -16,6 +16,11 @@ export default async function NewBookingPage() {
     where: { id: session.user.id },
     select: { departmentId: true },
   });
+  const vehicles = await prisma.vehicle.findMany({
+    where: { isActive: true },
+    orderBy: { registrationNumber: "asc" },
+    select: { id: true, registrationNumber: true, capacity: true },
+  });
 
   return (
     <div className="space-y-6">
@@ -25,6 +30,7 @@ export default async function NewBookingPage() {
       </div>
       <BookingForm
         departments={departments}
+        vehicles={vehicles}
         defaultDepartmentId={me?.departmentId ?? null}
         locale={locale}
       />

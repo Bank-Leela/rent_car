@@ -139,12 +139,20 @@ export type BookingFormDepartment = {
   nameTh: string;
 };
 
+export type BookingFormVehicle = {
+  id: string;
+  registrationNumber: string;
+  capacity: number;
+};
+
 export function BookingForm({
   departments,
+  vehicles,
   defaultDepartmentId,
   locale,
 }: {
   departments: BookingFormDepartment[];
+  vehicles: BookingFormVehicle[];
   defaultDepartmentId: string | null;
   locale: string;
 }) {
@@ -364,6 +372,14 @@ export function BookingForm({
                 />
               </div>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="pickupLocation">{t("pickupLocation")}</Label>
+              <Input
+                id="pickupLocation"
+                name="pickupLocation"
+                placeholder={t("pickupLocationPlaceholder")}
+              />
+            </div>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
@@ -452,6 +468,22 @@ export function BookingForm({
                 <Label htmlFor="femaleCount">{t("femaleCount")}</Label>
                 <Input id="femaleCount" name="femaleCount" type="number" min={0} placeholder="0" />
               </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="preferredVehicleId">{t("preferredVehicle")}</Label>
+              <select
+                id="preferredVehicleId"
+                name="preferredVehicleId"
+                defaultValue=""
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">{t("preferredVehicleNone")}</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.registrationNumber} · {v.capacity}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
