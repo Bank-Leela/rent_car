@@ -133,6 +133,9 @@
     "prevDay": "Previous day",
     "nextDay": "Next day"
   },
+  "notifications": {
+    "bell": "{count, plural, =0 {No cases need attention} one {# case needs attention} other {# cases need attention}}"
+  },
   "login": {
     "title": "Vehicle Booking",
     "tagline": "Faculty fleet booking, approvals, and dispatch in one place.",
