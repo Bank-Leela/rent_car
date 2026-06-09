@@ -20,7 +20,9 @@ export default async function AdminQueue() {
   // detail page surfaces role-appropriate action forms.
   const [pending, approved, upcoming, todayShift, allDrivers] = await Promise.all([
     prisma.booking.findMany({
-      where: { status: "PENDING_APPROVAL" },
+      // P'Top's decision queue: normal pending plus over-capacity WAITLIST
+      // cases (the 11th+ booking of a day) for him to fit or deny.
+      where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] } },
       orderBy: { startAt: "asc" },
       include: { requester: true, department: true },
     }),

@@ -65,7 +65,9 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
-  if (booking.status !== "PENDING_APPROVAL") {
+  // Approve normal pending bookings and over-capacity WAITLIST ones (P'Top
+  // deciding the 11th+ case fits an available slot).
+  if (booking.status !== "PENDING_APPROVAL" && booking.status !== "WAITLIST") {
     return { ok: false, error: te("cannotApproveInStatus", { status: ts(booking.status) }) };
   }
   if (!(await canApprove(userId))) {
@@ -96,7 +98,7 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       data: {
         bookingId,
         actorUserId: userId,
-        fromStatus: "PENDING_APPROVAL",
+        fromStatus: booking.status,
         toStatus: "APPROVED",
         action: "BOOKING_APPROVED",
         metadata: comment ? { comment } : undefined,
