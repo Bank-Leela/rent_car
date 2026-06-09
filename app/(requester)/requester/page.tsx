@@ -1,19 +1,21 @@
 import Link from "next/link";
-import { format } from "date-fns";
-import { Plus, FileText, ChevronRight, Star } from "lucide-react";
+import { Plus, FileText, Star } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import {
+  RequesterBookingList,
+  ACTIVE_BOOKING_STATUSES,
+} from "@/components/requester-booking-list";
 
 export default async function RequesterHome() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("requester");
   const [bookings, pendingEvalBookings] = await Promise.all([
     prisma.booking.findMany({
-      where: { requesterId: session.user.id },
+      where: { requesterId: session.user.id, status: { in: ACTIVE_BOOKING_STATUSES } },
       orderBy: { createdAt: "desc" },
       include: { vehicle: true },
     }),
@@ -81,34 +83,12 @@ export default async function RequesterHome() {
       {bookings.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
+          title={t("activeEmptyTitle")}
+          description={t("activeEmptyDescription")}
           action={newBookingButton}
         />
       ) : (
-        <ul className="space-y-2">
-          {bookings.map((b) => (
-            <li key={b.id}>
-              <Link
-                href={`/requester/${b.id}`}
-                className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
-                    <BookingStatusBadge status={b.status} />
-                  </div>
-                  <div className="mt-1 font-medium truncate">{b.purpose}</div>
-                  <div className="mt-0.5 text-sm text-muted-foreground">
-                    {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM yyyy HH:mm")}
-                    {b.vehicle ? ` · ${b.vehicle.registrationNumber}` : ""}
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <RequesterBookingList bookings={bookings} />
       )}
     </div>
   );
