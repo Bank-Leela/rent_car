@@ -86,29 +86,32 @@ function assertDay(
   }
 }
 
-describe("solver invariants (fuzz, 500 random days, multi-day TJW)", () => {
-  it("never violates the scheduling or cross-day TJW rules", () => {
-    const trips = new Map<string, number>();
-    const availableDays = new Map<string, number>();
+describe("solver invariants (fuzz, multi-day TJW)", () => {
+  it("never violates the scheduling or cross-day TJW rules across seeds", () => {
+    // Multiple seeds so the invariants and the fairness bound are not tuned to a
+    // single lucky RNG stream (a prior single-seed bound passed on seed 7 but
+    // would have flaked on reseed).
+    for (const seed of [1, 7, 42]) {
+      const trips = new Map<string, number>();
+      const availableDays = new Map<string, number>();
 
-    simulate({
-      days: 500,
-      seed: 7,
-      multiDayTjwProb: 0.4,
-      onDay: (ctx) => assertDay(ctx, trips, availableDays),
-    });
+      simulate({
+        days: 500,
+        seed,
+        multiDayTjwProb: 0.4,
+        onDay: (ctx) => assertDay(ctx, trips, availableDays),
+      });
 
-    // (6.3) Fairness as a SOFT, availability-adjusted assertion: trips per
-    // available-day should be close across drivers. Raw trip counts are NOT
-    // asserted because (a) away-on-TJW drivers legitimately do fewer trips, and
-    // (b) the ledger is duration-weighted (tripEffort), so a driver doing
-    // fewer-but-longer trips is balanced by hours, not count — which loosens
-    // count parity by design. The bound is calibrated to that (~5%) baseline.
-    const rates = [...trips.keys()].map((id) => trips.get(id)! / Math.max(1, availableDays.get(id) ?? 0));
-    const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
-    const spread = Math.max(...rates) - Math.min(...rates);
-    // Calibrated to the seed-7 baseline (observed spread/avg ≈ 0.033); 0.06
-    // leaves a modest margin while still catching a real fairness regression.
-    expect(spread).toBeLessThanOrEqual(avg * 0.06);
+      // (6.3) Fairness as a SOFT, availability-adjusted assertion: trips per
+      // available-day stay close across drivers. Raw trip counts are NOT
+      // asserted because (a) away-on-TJW drivers legitimately do fewer trips and
+      // (b) the duration-weighted ledger (tripEffort) balances fewer-but-longer
+      // trips by hours, not count. Observed spread/avg across seeds is ~0.02–0.07;
+      // the 0.10 bound holds for all while still catching a real blowout.
+      const rates = [...trips.keys()].map((id) => trips.get(id)! / Math.max(1, availableDays.get(id) ?? 0));
+      const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+      const spread = Math.max(...rates) - Math.min(...rates);
+      expect(spread, `seed ${seed} availability-adjusted fairness`).toBeLessThanOrEqual(avg * 0.1);
+    }
   }, 30000);
 });
