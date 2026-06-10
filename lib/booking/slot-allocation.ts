@@ -93,3 +93,60 @@ export function findSlot(bucket: TimeBucket, table: SlotCell[][]): SlotCell | nu
   }
   return null;
 }
+
+/**
+ * Vehicle occupancy for `day`, as ExistingTrips for buildSlotTable. A trip that
+ * starts before today or ends after today (e.g. a multi-day TJW away out of
+ * province) occupies the vehicle for the WHOLE day — every bucket — so it is
+ * never handed to another booking. Same-day trips occupy only their own bucket.
+ *
+ * This is the vehicle-side mirror of the driver-side spanning-TJW handling; the
+ * caller must query trips that overlap the day (startAt < dayEnd && endAt >
+ * dayStart), not just trips that start on the day.
+ */
+export function vehicleOccupancyForDay(
+  trips: Array<{ vehicleId: string | null; startAt: Date; endAt: Date; timeBucket: TimeBucket }>,
+  day: Date,
+): ExistingTrip[] {
+  const dayStart = new Date(day);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const out: ExistingTrip[] = [];
+  for (const t of trips) {
+    if (!t.vehicleId) continue;
+    const spansWholeDay = t.startAt < dayStart || t.endAt > dayEnd;
+    if (spansWholeDay) {
+      for (const bucket of TIME_BUCKETS) out.push({ vehicleId: t.vehicleId, timeBucket: bucket });
+    } else {
+      out.push({ vehicleId: t.vehicleId, timeBucket: t.timeBucket });
+    }
+  }
+  return out;
+}
+
+/**
+ * Assigns a free vehicle to each booking, reserving as it goes. Bookings whose
+ * bucket has no free vehicle land in `noVehicle` — the caller must overflow
+ * them (NO_SLOT), never persist them ASSIGNED with a null vehicle. The driver
+ * solver is independent of vehicle capacity, so it can over-assign a bucket;
+ * this is where that surfaces instead of silently producing a carless driver.
+ */
+export function allocateVehicles<T extends { bookingId: string }>(
+  items: T[],
+  bucketOf: (bookingId: string) => TimeBucket,
+  table: SlotCell[][],
+): { withVehicle: Array<{ item: T; vehicleId: string }>; noVehicle: T[] } {
+  const withVehicle: Array<{ item: T; vehicleId: string }> = [];
+  const noVehicle: T[] = [];
+  for (const item of items) {
+    const slot = findSlot(bucketOf(item.bookingId), table);
+    if (slot) {
+      slot.busy = true; // reserve so later items don't reuse it
+      withVehicle.push({ item, vehicleId: slot.vehicleId });
+    } else {
+      noVehicle.push(item);
+    }
+  }
+  return { withVehicle, noVehicle };
+}

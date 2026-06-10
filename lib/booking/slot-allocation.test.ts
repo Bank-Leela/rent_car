@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { TimeBucket } from "@prisma/client";
 import {
+  allocateVehicles,
   bucketFromStart,
   buildSlotTable,
   findSlot,
+  vehicleOccupancyForDay,
   TIME_BUCKETS,
   type SlotInput,
   type ExistingTrip,
@@ -92,5 +95,84 @@ describe("findSlot", () => {
       { vehicleId: "duty", timeBucket: "AFTER_16" },
     ]);
     expect(findSlot("AFTER_16", table)).toBeNull();
+  });
+});
+
+describe("allocateVehicles (C1: no free vehicle -> overflow, never assign vehicleless)", () => {
+  const vehicles: SlotInput[] = [
+    { vehicleId: "v1", registrationNumber: "B-1", isDutyVehicle: false },
+    { vehicleId: "v2", registrationNumber: "B-2", isDutyVehicle: false },
+    { vehicleId: "duty", registrationNumber: "DUTY", isDutyVehicle: true },
+  ];
+  const bucketOf = (m: Record<string, TimeBucket>) => (id: string) => m[id]!;
+
+  it("assigns distinct vehicles when capacity suffices", () => {
+    const r = allocateVehicles(
+      [{ bookingId: "a" }, { bookingId: "b" }],
+      bucketOf({ a: "MORNING_08_12", b: "MORNING_08_12" }),
+      buildSlotTable(vehicles, []),
+    );
+    expect(r.noVehicle).toHaveLength(0);
+    expect(new Set(r.withVehicle.map((w) => w.vehicleId)).size).toBe(2);
+  });
+
+  it("overflows the excess when a bucket has more bookings than free vehicles", () => {
+    // 3 morning bookings, only 2 non-duty vehicles free (duty pre-blocked in morning).
+    const r = allocateVehicles(
+      [{ bookingId: "a" }, { bookingId: "b" }, { bookingId: "c" }],
+      bucketOf({ a: "MORNING_08_12", b: "MORNING_08_12", c: "MORNING_08_12" }),
+      buildSlotTable(vehicles, []),
+    );
+    expect(r.withVehicle).toHaveLength(2);
+    expect(r.noVehicle.map((i) => i.bookingId)).toEqual(["c"]);
+    expect(r.withVehicle.every((w) => w.vehicleId !== "duty")).toBe(true); // never the pre-blocked duty car
+  });
+
+  it("uses the duty vehicle for fringe buckets (after-16) so all three fit", () => {
+    const r = allocateVehicles(
+      [{ bookingId: "a" }, { bookingId: "b" }, { bookingId: "c" }],
+      bucketOf({ a: "AFTER_16", b: "AFTER_16", c: "AFTER_16" }),
+      buildSlotTable(vehicles, []),
+    );
+    expect(r.noVehicle).toHaveLength(0);
+    expect(r.withVehicle.map((w) => w.vehicleId).sort()).toEqual(["duty", "v1", "v2"]);
+  });
+});
+
+describe("vehicleOccupancyForDay (C2: multi-day trips occupy the vehicle every spanned day)", () => {
+  const D = (s: string) => new Date(s);
+  const day = D("2026-06-10T00:00:00");
+
+  it("a same-day trip occupies only its own bucket", () => {
+    const occ = vehicleOccupancyForDay(
+      [{ vehicleId: "v1", startAt: D("2026-06-10T09:00:00"), endAt: D("2026-06-10T11:00:00"), timeBucket: "MORNING_08_12" }],
+      day,
+    );
+    expect(occ).toEqual([{ vehicleId: "v1", timeBucket: "MORNING_08_12" }]);
+  });
+
+  it("a multi-day TJW started yesterday blocks the vehicle in EVERY bucket today (the C2 leak)", () => {
+    const occ = vehicleOccupancyForDay(
+      [{ vehicleId: "v1", startAt: D("2026-06-09T06:00:00"), endAt: D("2026-06-11T18:00:00"), timeBucket: "BEFORE_08" }],
+      day,
+    );
+    expect(occ.map((o) => o.timeBucket).sort()).toEqual([...TIME_BUCKETS].sort());
+    expect(occ.every((o) => o.vehicleId === "v1")).toBe(true);
+  });
+
+  it("a TJW starting today but ending tomorrow also blocks all buckets today", () => {
+    const occ = vehicleOccupancyForDay(
+      [{ vehicleId: "v1", startAt: D("2026-06-10T06:00:00"), endAt: D("2026-06-11T14:00:00"), timeBucket: "BEFORE_08" }],
+      day,
+    );
+    expect(occ).toHaveLength(TIME_BUCKETS.length);
+  });
+
+  it("skips trips with no vehicle", () => {
+    const occ = vehicleOccupancyForDay(
+      [{ vehicleId: null, startAt: D("2026-06-09T06:00:00"), endAt: D("2026-06-11T18:00:00"), timeBucket: "BEFORE_08" }],
+      day,
+    );
+    expect(occ).toEqual([]);
   });
 });

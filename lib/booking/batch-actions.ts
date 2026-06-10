@@ -7,7 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
-import { buildSlotTable, findSlot } from "@/lib/booking/slot-allocation";
+import { allocateVehicles, buildSlotTable, vehicleOccupancyForDay } from "@/lib/booking/slot-allocation";
 import { tripEffort } from "@/lib/booking/classification";
 import type { DriverRotationState } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
@@ -113,13 +113,18 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     where: { isActive: true },
     select: { id: true, registrationNumber: true, isDutyVehicle: true },
   });
+  // Vehicles occupied today, INCLUDING multi-day TJW trips that started earlier
+  // and are still away out of province (spanning predicate, mirroring the
+  // driver-side activeTjwCommitments check). vehicleOccupancyForDay blocks a
+  // spanning trip's vehicle in every bucket so it is never re-assigned today.
   const occupancy = await prisma.booking.findMany({
     where: {
-      startAt: { gte: dayStart, lt: dayEnd },
+      startAt: { lt: dayEnd },
+      endAt: { gt: dayStart },
       status: { in: ["APPROVED", "ASSIGNED"] },
       vehicleId: { not: null },
     },
-    select: { vehicleId: true, timeBucket: true },
+    select: { vehicleId: true, timeBucket: true, startAt: true, endAt: true },
   });
   const slotTable = buildSlotTable(
     vehicles.map((v) => ({
@@ -127,7 +132,7 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
       registrationNumber: v.registrationNumber,
       isDutyVehicle: v.isDutyVehicle,
     })),
-    occupancy.map((o) => ({ vehicleId: o.vehicleId, timeBucket: o.timeBucket })),
+    vehicleOccupancyForDay(occupancy, date),
   );
 
   const result = solveDay({
@@ -138,18 +143,23 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     activeTjwCommitments: commitments,
   });
 
+  // Assign a vehicle to each matched booking. The driver solver is independent
+  // of vehicle capacity, so a bucket can be over-assigned — those bookings land
+  // in `noVehicle` and are surfaced as NO_SLOT below instead of being persisted
+  // as carless ASSIGNED rows.
+  const bucketOf = (id: string) => pending.find((p) => p.id === id)!.timeBucket;
+  const { withVehicle, noVehicle } = allocateVehicles(result.assignments, bucketOf, slotTable);
+
   // --- Persist assignments + bump rotation timestamps + record overflow. ---
   await prisma.$transaction(async (tx) => {
-    for (const a of result.assignments) {
+    for (const { item: a, vehicleId } of withVehicle) {
       const booking = pending.find((p) => p.id === a.bookingId)!;
-      const slot = findSlot(booking.timeBucket, slotTable);
-      if (slot) slot.busy = true; // reserve so later assignments don't reuse it
       await tx.booking.update({
         where: { id: a.bookingId },
         data: {
           primaryDriverId: a.primaryDriverId,
           secondaryDriverId: a.secondaryDriverId,
-          vehicleId: slot?.vehicleId ?? null,
+          vehicleId,
           status: "ASSIGNED",
           driverScheduleStatus: "CONFIRMED",
           decidedAt: new Date(),
@@ -181,6 +191,14 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
         },
       });
     }
+    // Solver matched these, but no vehicle was free in their bucket → surface as
+    // NO_SLOT overflow rather than a driver with no car. Not assigned, not stamped.
+    for (const a of noVehicle) {
+      await tx.booking.update({
+        where: { id: a.bookingId },
+        data: { overflowReason: "NO_SLOT" },
+      });
+    }
     for (const o of result.overflows) {
       await tx.booking.update({
         where: { id: o.bookingId },
@@ -195,8 +213,11 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
 
   const stats: BatchStats = {
     pendingCount: pending.length,
-    matchedCount: result.assignments.length,
-    overflowByReason: tallyOverflows(result.overflows),
+    matchedCount: withVehicle.length,
+    overflowByReason: tallyOverflows([
+      ...result.overflows,
+      ...noVehicle.map(() => ({ reason: "NO_SLOT" })),
+    ]),
   };
   return { ok: true, stats };
 }
