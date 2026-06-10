@@ -46,7 +46,6 @@ function rng(seed: number) {
   };
 }
 const rand = rng(SEED);
-const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
 const randInt = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1));
 
 // ---------- pool ----------
@@ -94,7 +93,7 @@ const drivers: PersistentDriver[] = DRIVERS.map((d) => ({
 }));
 
 // ---------- scenario generator ----------
-function generateBookings(date: Date, scenario: Scenario, dutyDriverId: string): SolverBookingInput[] {
+function generateBookings(date: Date, scenario: Scenario): SolverBookingInput[] {
   const out: SolverBookingInput[] = [];
   // Synthesise the WERN booking for the duty driver (1 of the 11).
   out.push(makeWern(date));
@@ -142,7 +141,7 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
   } else {
     startAt.setHours(13 + (idx % 3), 0, 0, 0);   // 13–15
   }
-  let durationH = 2 + randInt(0, 1);
+  const durationH = 2 + randInt(0, 1);
   let endAt = new Date(startAt.getTime() + durationH * 3_600_000);
 
   // Pick category by scenario.
@@ -258,7 +257,7 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
     dutyDriverId = null;
   }
 
-  const bookings = generateBookings(date, SCENARIO, dutyDriverId ?? "");
+  const bookings = generateBookings(date, SCENARIO);
   outcomes.totalBookings += bookings.length;
 
   const states: DriverRotationState[] = drivers.map((d) => ({

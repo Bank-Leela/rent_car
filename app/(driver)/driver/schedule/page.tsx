@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format, startOfDay, endOfDay, addDays, subDays, isSameDay } from "date-fns";
 import { Calendar, ChevronRight, MapPin, Coffee } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -77,12 +78,7 @@ export default async function DriverSchedule() {
   );
 }
 
-type Row = Awaited<ReturnType<typeof loadRow>>;
-async function loadRow() {
-  return prisma.booking.findFirstOrThrow({
-    include: { vehicle: true, requester: true },
-  });
-}
+type Row = Prisma.BookingGetPayload<{ include: { vehicle: true; requester: true } }>;
 
 function DayGroupedList({ bookings, now, muted }: { bookings: Row[]; now: Date; muted?: boolean }) {
   // Group by yyyy-MM-dd

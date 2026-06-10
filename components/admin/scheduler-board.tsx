@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Car, User, Wand2 } from "lucide-react";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
-import { cn } from "@/lib/utils";
 
 export type SchedulerVehicle = {
   id: string;

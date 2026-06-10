@@ -6,7 +6,6 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
 import { sendEmail } from "@/lib/email/client";
-import { requesterDeniedEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
 import { rollbackRotationStampsForBooking } from "@/lib/booking/batch-actions";
 

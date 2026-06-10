@@ -20,8 +20,6 @@ import { JOB_WEIGHT } from "@/lib/booking/classification";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const FAIRNESS_WINDOW_DAYS = 30;
-// CR-06: trip weight placeholder until the client provides per-JobType ฿.
-const TRIP_WEIGHT = 1;
 
 export async function matchBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");

@@ -17,6 +17,7 @@ import {
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount flag; recharts must render client-only to avoid SSR/hydration mismatch
   useEffect(() => setMounted(true), []);
   return mounted;
 }

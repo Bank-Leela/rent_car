@@ -2,6 +2,7 @@ import Link from "next/link";
 import { format, startOfDay, endOfDay, addDays } from "date-fns";
 import { Coffee, ChevronRight, MapPin } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -84,12 +85,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-type AssignmentRow = Awaited<ReturnType<typeof loadAssignments>>[number];
-async function loadAssignments() {
-  return prisma.booking.findMany({
-    include: { vehicle: true, requester: true, primaryDriver: { include: { user: true } } },
-  });
-}
+type AssignmentRow = Prisma.BookingGetPayload<{
+  include: { vehicle: true; requester: true; primaryDriver: { include: { user: true } } };
+}>;
 
 function AssignmentCard({ booking }: { booking: AssignmentRow }) {
   return (

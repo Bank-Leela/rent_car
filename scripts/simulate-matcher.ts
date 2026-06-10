@@ -5,7 +5,7 @@
 // Usage:  npx tsx scripts/simulate-matcher.ts [--bookings=200] [--seed=42]
 
 import type { JobType, TimeBucket } from "@prisma/client";
-import { buildSlotTable, bucketFromStart, type SlotInput, type ExistingTrip } from "../lib/booking/slot-allocation";
+import { buildSlotTable, type SlotInput, type ExistingTrip } from "../lib/booking/slot-allocation";
 import {
   buildDriverMatrix,
   type DriverInput,
@@ -75,7 +75,6 @@ const allBookings: DayBooking[] = [];
 
 type Outcome = { ok: true } | { ok: false; reason: string };
 const outcomes: Outcome[] = [];
-let escalated = 0;
 
 const dayString = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -168,7 +167,6 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
 
   if (!result.ok) {
     outcomes.push({ ok: false, reason: result.error });
-    escalated += 1; // every miss would in prod escalate to Khun Top
     continue;
   }
   outcomes.push({ ok: true });

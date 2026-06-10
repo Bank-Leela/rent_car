@@ -107,6 +107,7 @@ export function BookingRequestPdf({
           <View style={styles.signatureBox}>
             <Text style={styles.sectionTitle}>Department Head</Text>
             {signatureDataUri ? (
+              // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image renders into a PDF, not a DOM <img>; alt is not applicable
               <Image src={signatureDataUri} style={styles.signatureImage} />
             ) : (
               <View style={{ height: 60 }} />

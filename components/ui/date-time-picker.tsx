@@ -80,13 +80,13 @@ export function DateTimePicker({
   // picker would still show the previous internal state.
   useEffect(() => {
     const parsed = parseValue(defaultValue);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional sync of internal state to a controlled defaultValue change
     setValue(parsed);
     if (parsed) {
       setHour(parsed.getHours());
       setMinute(parsed.getMinutes());
       setViewMonth(parsed);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultValue]);
 
   const minDate = parseValue(min);

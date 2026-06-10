@@ -16,6 +16,7 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
   const t = useTranslations("common");
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount flag; next-themes hydration guard (avoid SSR/client mismatch)
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {

@@ -29,9 +29,6 @@ export const JOB_TYPES = [
 ] as const satisfies readonly JobType[];
 
 export const MORNING_AFTERNOON_GAP_HOURS = 2;
-// "Morning" here = the trip ends at or before noon (12:00). Anything past
-// that is treated as a full-day commitment for the 1/day rule.
-const MORNING_CUTOFF_HOUR = 12;
 
 export interface DriverInput {
   driverId: string;

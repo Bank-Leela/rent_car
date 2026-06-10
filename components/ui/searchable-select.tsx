@@ -51,10 +51,12 @@ export function SearchableSelect({
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the search text when the popover closes
     else setQuery("");
   }, [open]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset keyboard highlight to the top when the filter changes
     setActiveIndex(0);
   }, [query]);
 
