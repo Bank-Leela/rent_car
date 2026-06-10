@@ -12,7 +12,9 @@ scanning cannot.
 
 ### When to use graph tools FIRST
 
-- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
+- **Exploring code**: `query_graph` instead of Grep (`semantic_search_nodes`
+  needs embeddings — currently 0 embedded; install `sentence-transformers`
+  to enable, otherwise it degrades to empty results)
 - **Understanding impact**: `get_impact_radius` instead of manually tracing imports
 - **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
 - **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
@@ -29,7 +31,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 | `get_impact_radius` | Understanding blast radius of a change |
 | `get_affected_flows` | Finding which execution paths are impacted |
 | `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
+| `semantic_search_nodes` | Finding functions/classes by name or keyword (requires embeddings; not installed) |
 | `get_architecture_overview` | Understanding high-level codebase structure |
 | `refactor_tool` | Planning renames, finding dead code |
 
@@ -39,3 +41,9 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 2. Use `detect_changes` for code review.
 3. Use `get_affected_flows` to understand impact.
 4. Use `query_graph` pattern="tests_for" to check coverage.
+
+## Verify before done
+
+Run `npm run typecheck && npm test` after `.ts`/`.tsx` changes. Full
+risk-tier + verification rules: `@HARNESS_PROTOCOL.md` §5. Scope/boundary
+(what needs per-turn auth): §2 risk tiers.
