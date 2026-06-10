@@ -89,6 +89,18 @@ describe("canTakeTrip", () => {
     };
     expect(canTakeTrip(afternoon, [wideTrip])).toBe(false);
   });
+
+  it("a trip ending after noon (12:30) is not 'morning' — blocks a second trip", () => {
+    const midday = {
+      startAt: new Date("2026-06-10T10:00:00"),
+      endAt: new Date("2026-06-10T12:30:00"),
+    };
+    const later = {
+      startAt: new Date("2026-06-10T15:00:00"),
+      endAt: new Date("2026-06-10T17:00:00"),
+    };
+    expect(canTakeTrip(later, [midday])).toBe(false);
+  });
 });
 
 describe("filterAvailable", () => {

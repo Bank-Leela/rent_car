@@ -48,21 +48,42 @@ export interface ScheduledTrip {
  *  - 2 trips already      → cannot take.
  *  - Any overlap          → cannot take.
  */
-export function canTake(next: { startAt: Date; endAt: Date }, existing: ScheduledTrip[]): boolean {
+// Canonical same-day chaining rule shared by both assignment paths (the batch
+// solver via canTake, and the single-booking matcher via canTakeTrip):
+//   - 0 existing trips        → can take.
+//   - 2 existing trips        → cannot (1/day cap + the single override).
+//   - Overlap                 → cannot.
+//   - Otherwise allowed only as a morning(+afternoon) chain: ONE of the two
+//     trips must END strictly before noon, and there must be a 2-hour gap.
+//     A long midday trip (ends ≥ 12:00) therefore blocks a second trip.
+export function canChain(
+  next: { startAt: Date; endAt: Date },
+  existing: { startAt: Date; endAt: Date }[],
+): boolean {
   if (existing.length === 0) return true;
   if (existing.length >= MAX_JOBS_PER_DAY) return false;
 
-  for (const e of existing) {
-    const overlap = next.startAt < e.endAt && e.startAt < next.endAt;
-    if (overlap) return false;
-  }
-  // After the overlap check, there's exactly one existing trip. Check the
-  // 2-hour buffer in either direction.
   const e = existing[0]!;
-  const gap = next.startAt >= e.endAt
-    ? next.startAt.getTime() - e.endAt.getTime()
-    : e.startAt.getTime() - next.endAt.getTime();
-  return gap >= TWO_HOUR_BUFFER_MS;
+  const newStart = next.startAt.getTime();
+  const newEnd = next.endAt.getTime();
+  const exStart = e.startAt.getTime();
+  const exEnd = e.endAt.getTime();
+
+  // Overlap always blocks.
+  if (newStart < exEnd && exStart < newEnd) return false;
+
+  // "Morning" = ends strictly before noon (12:00). 12:01–12:59 is NOT morning.
+  const endsBeforeNoon = (d: Date) => d.getHours() < MORNING_END_HOUR;
+
+  // Existing is a morning trip, the new one comes ≥2h later.
+  if (endsBeforeNoon(e.endAt) && exEnd + TWO_HOUR_BUFFER_MS <= newStart) return true;
+  // Mirror: the new trip is the morning one, existing comes ≥2h later.
+  if (endsBeforeNoon(next.endAt) && newEnd + TWO_HOUR_BUFFER_MS <= exStart) return true;
+  return false;
+}
+
+export function canTake(next: { startAt: Date; endAt: Date }, existing: ScheduledTrip[]): boolean {
+  return canChain(next, existing);
 }
 
 /** Comparator: older-or-null wins. Returns negative if `a` comes first. */

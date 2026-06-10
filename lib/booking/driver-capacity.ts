@@ -19,6 +19,7 @@
 //   earnings ↑, trips this month ↑, lastAssignedAt ↑ (oldest/null first).
 
 import type { JobType } from "@prisma/client";
+import { canChain } from "./rotations";
 
 export const JOB_TYPES = [
   "TJW",
@@ -76,34 +77,10 @@ export interface TripWindow {
  * override.
  */
 export function canTakeTrip(newTrip: TripWindow, existing: TripWindow[]): boolean {
-  if (existing.length === 0) return true;
-  if (existing.length >= 2) return false;
-  const e = existing[0]!;
-  const gapMs = MORNING_AFTERNOON_GAP_HOURS * 60 * 60 * 1000;
-
-  const newStart = newTrip.startAt.getTime();
-  const newEnd = newTrip.endAt.getTime();
-  const exStart = e.startAt.getTime();
-  const exEnd = e.endAt.getTime();
-
-  // Overlapping windows always block.
-  if (newStart < exEnd && exStart < newEnd) return false;
-
-  // Existing trip is morning (ends ≤ noon), new trip is afternoon with gap.
-  if (
-    e.endAt.getHours() <= MORNING_CUTOFF_HOUR &&
-    exEnd + gapMs <= newStart
-  ) {
-    return true;
-  }
-  // Mirror: new trip is morning, existing trip is afternoon with gap.
-  if (
-    newTrip.endAt.getHours() <= MORNING_CUTOFF_HOUR &&
-    newEnd + gapMs <= exStart
-  ) {
-    return true;
-  }
-  return false;
+  // Unified with the batch solver: same 1/day + 2h-buffer chaining rule. This
+  // replaces the old morning-cutoff variant that classed 12:01–12:59 as
+  // "morning" (allowing a wrongful second trip) and diverged from the solver.
+  return canChain(newTrip, existing);
 }
 
 export interface DriverAvailabilityInput {

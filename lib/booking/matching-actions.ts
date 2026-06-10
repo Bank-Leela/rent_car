@@ -16,6 +16,7 @@ import {
   type TripWindow,
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
+import { JOB_WEIGHT } from "@/lib/booking/classification";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const FAIRNESS_WINDOW_DAYS = 30;
@@ -251,15 +252,18 @@ async function loadEarningsScores(driverIds: string[]): Promise<Map<string, numb
         { secondaryDriverId: { in: driverIds } },
       ],
     },
-    select: { primaryDriverId: true, secondaryDriverId: true },
+    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true },
   });
   const scores = new Map<string, number>(driverIds.map((id) => [id, 0]));
   for (const b of rows) {
+    // Weight by job type (TJW>OT>NORMAL), same ledger the batch solver uses,
+    // instead of a flat 1 per trip — so both paths rank fairness identically.
+    const w = JOB_WEIGHT[b.jobType] ?? 0;
     if (b.primaryDriverId && scores.has(b.primaryDriverId)) {
-      scores.set(b.primaryDriverId, scores.get(b.primaryDriverId)! + TRIP_WEIGHT);
+      scores.set(b.primaryDriverId, scores.get(b.primaryDriverId)! + w);
     }
     if (b.secondaryDriverId && scores.has(b.secondaryDriverId)) {
-      scores.set(b.secondaryDriverId, scores.get(b.secondaryDriverId)! + TRIP_WEIGHT);
+      scores.set(b.secondaryDriverId, scores.get(b.secondaryDriverId)! + w);
     }
   }
   return scores;
