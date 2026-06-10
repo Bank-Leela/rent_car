@@ -179,6 +179,62 @@ describe("match", () => {
     expect(r).toEqual({ ok: false, error: "NO_SECONDARY_DRIVER" });
   });
 
+  // The on-call (WERN duty) driver is reserved for the whole day, exactly like
+  // the batch solver's dutyDriverId. The 08:00–16:00 WERN pseudo-trip alone
+  // leaks pre-dawn trips ending ≥2h before 08:00 (they satisfy the morning-
+  // chain rule), so match() must hard-exclude the on-call driver.
+  const wernWindow = {
+    startAt: new Date("2026-06-10T08:00:00"),
+    endAt: new Date("2026-06-10T16:00:00"),
+  };
+  const preDawnTrip = {
+    startAt: new Date("2026-06-10T04:00:00"),
+    endAt: new Date("2026-06-10T05:00:00"),
+  };
+
+  it("reserves the on-call driver all day: picks another driver for a pre-dawn trip", () => {
+    const r = match({
+      jobType: "OT",
+      timeBucket: "MORNING_08_12",
+      newTrip: preDawnTrip,
+      estimatedDistance: 50,
+      slotTable: buildSlotTable(vehicles, []),
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: [
+        { driverId: "A", existing: [wernWindow] }, // on-call; pre-dawn clears the WERN window
+        { driverId: "B", existing: [] },
+        { driverId: "C", existing: [] },
+      ],
+      driverRankInputs: rankInputs, // all tie → input order A,B,C; A would win without the reserve
+      onCallDriverId: "A",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).toBe("B");
+  });
+
+  it("reserves the on-call driver all day: NO_PRIMARY_DRIVER when they are the only one free", () => {
+    const blockAllDay = {
+      startAt: new Date("2026-06-10T00:00:00"),
+      endAt: new Date("2026-06-10T23:59:00"),
+    };
+    const r = match({
+      jobType: "OT",
+      timeBucket: "MORNING_08_12",
+      newTrip: preDawnTrip,
+      estimatedDistance: 50,
+      slotTable: buildSlotTable(vehicles, []),
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: [
+        { driverId: "A", existing: [wernWindow] }, // on-call; pre-dawn would slip through
+        { driverId: "B", existing: [blockAllDay] }, // blocked
+        { driverId: "C", existing: [blockAllDay] }, // blocked
+      ],
+      driverRankInputs: rankInputs,
+      onCallDriverId: "A",
+    });
+    expect(r).toEqual({ ok: false, error: "NO_PRIMARY_DRIVER" });
+  });
+
   it("does not require a secondary at exactly 400 km", () => {
     const r = match({
       jobType: "TJW",

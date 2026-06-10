@@ -29,6 +29,12 @@ export interface MatchInput {
   driverMatrix: DriverMatrixCell[][];
   driverAvailability: DriverAvailabilityInput[];
   driverRankInputs: RankInput[];
+  /** The day's on-call (WERN duty) driver, if any. Reserved for the whole
+   *  day and never auto-assigned a regular trip — same full-day reserve the
+   *  batch solver applies to its dutyDriverId. A temporal pseudo-trip alone
+   *  leaks pre-dawn trips that clear the 08:00–16:00 WERN window, so the
+   *  exclusion is enforced here as a hard filter. */
+  onCallDriverId?: string | null;
 }
 
 export interface MatchResult {
@@ -44,7 +50,9 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
   if (!slot) return { ok: false, error: "NO_SLOT" };
 
   const availableIds = new Set(filterAvailable(input.newTrip, input.driverAvailability));
-  const eligible = input.driverRankInputs.filter((r) => availableIds.has(r.driverId));
+  const eligible = input.driverRankInputs.filter(
+    (r) => availableIds.has(r.driverId) && r.driverId !== input.onCallDriverId,
+  );
   const ranked = rankCandidates(eligible);
   if (ranked.length === 0) return { ok: false, error: "NO_PRIMARY_DRIVER" };
 
