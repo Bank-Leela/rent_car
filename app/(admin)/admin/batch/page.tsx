@@ -19,6 +19,71 @@ const OVERFLOW_TONE: Record<string, string> = {
     "border-destructive/40 bg-destructive/10 text-destructive",
 };
 
+type DetailBooking = {
+  ajarnName: string;
+  ajarnPhone: string;
+  ajarnEmail: string;
+  destination: string;
+  province: string;
+  outOfProvince: boolean;
+  passengerCount: number;
+  maleCount: number | null;
+  femaleCount: number | null;
+  pickupLocation: string | null;
+  estimatedDistance: number | null;
+  passengerNotes: string | null;
+  isEmergency: boolean;
+  outsideChula: boolean;
+};
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div className="flex gap-1">
+      <dt className="shrink-0 font-medium text-foreground/70">{label}:</dt>
+      <dd className="min-w-0 truncate">{value}</dd>
+    </div>
+  );
+}
+
+// Shows the professor (ajarn) plus every captured input for one booking.
+function BookingInputs({ b, labels }: { b: DetailBooking; labels: Record<string, string> }) {
+  return (
+    <div className="mt-1 space-y-1">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
+          {labels.ajarn}: {b.ajarnName}
+        </span>
+        {b.isEmergency && (
+          <span className="rounded bg-rose-100 px-1.5 py-0.5 font-medium text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+            {labels.emergency}
+          </span>
+        )}
+        {b.outsideChula && (
+          <span className="rounded bg-sky-100 px-1.5 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+            {labels.outsideChula}
+          </span>
+        )}
+      </div>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
+        <Field label={labels.phone} value={b.ajarnPhone} />
+        <Field label={labels.email} value={b.ajarnEmail} />
+        <Field
+          label={labels.destination}
+          value={`${b.destination} (${b.province})${b.outOfProvince ? " · ตจว" : ""}`}
+        />
+        <Field
+          label={labels.passengers}
+          value={`${b.passengerCount} — ♂${b.maleCount ?? 0} ♀${b.femaleCount ?? 0}`}
+        />
+        <Field label={labels.pickup} value={b.pickupLocation} />
+        <Field label={labels.distance} value={b.estimatedDistance != null ? `${b.estimatedDistance} km` : null} />
+        <Field label={labels.notes} value={b.passengerNotes} />
+      </dl>
+    </div>
+  );
+}
+
 export default async function AdminBatchPage({
   searchParams,
 }: {
@@ -26,6 +91,19 @@ export default async function AdminBatchPage({
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("adminBatch");
+  const tf = await getTranslations("bookingForm");
+  const L = {
+    ajarn: tf("ajarnName"),
+    phone: tf("ajarnPhone"),
+    email: tf("ajarnEmail"),
+    destination: tf("destination"),
+    passengers: tf("passengerCount"),
+    pickup: tf("pickupLocation"),
+    distance: tf("estimatedDistance"),
+    notes: tf("passengerNotes"),
+    emergency: tf("emergencyLabel"),
+    outsideChula: tf("outsideChulaLabel"),
+  };
   const { date: dateParam } = await searchParams;
 
   const todayIso = format(startOfDay(new Date()), "yyyy-MM-dd");
@@ -108,6 +186,7 @@ export default async function AdminBatchPage({
                     {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} · {b.jobType}
                     {b.outOfProvince ? " · ตจว" : ""}
                   </span>
+                  <BookingInputs b={b} labels={L} />
                 </li>
               ))}
             </ul>
@@ -146,6 +225,7 @@ export default async function AdminBatchPage({
                       {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} ·{" "}
                       {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                     </div>
+                    <BookingInputs b={b} labels={L} />
                     {reason === "NEEDS_WERN_RECLAIM_DECISION" && (
                       <ReclaimDecisionForm bookingId={b.id} />
                     )}
@@ -168,7 +248,7 @@ export default async function AdminBatchPage({
             <ul className="divide-y text-sm">
               {assigned.map((b) => (
                 <li key={b.id} className="py-3 flex items-start justify-between gap-3 flex-wrap">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
                       {b.jobNumber}
                     </Link>
@@ -176,6 +256,7 @@ export default async function AdminBatchPage({
                     <div className="text-xs text-muted-foreground">
                       {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} · {b.jobType}
                     </div>
+                    <BookingInputs b={b} labels={L} />
                   </div>
                   <div className="text-xs">
                     {b.vehicle && <div>{b.vehicle.registrationNumber}</div>}

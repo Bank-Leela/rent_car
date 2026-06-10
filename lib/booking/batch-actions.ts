@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
+import { buildSlotTable, findSlot } from "@/lib/booking/slot-allocation";
 import { JOB_WEIGHT } from "@/lib/booking/classification";
 import type { DriverRotationState } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
@@ -107,6 +108,28 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     submittedAt: b.createdAt,
   }));
 
+  // --- Algorithm 1: slot table so each matched booking also gets a vehicle. ---
+  const vehicles = await prisma.vehicle.findMany({
+    where: { isActive: true },
+    select: { id: true, registrationNumber: true, isDutyVehicle: true },
+  });
+  const occupancy = await prisma.booking.findMany({
+    where: {
+      startAt: { gte: dayStart, lt: dayEnd },
+      status: { in: ["APPROVED", "ASSIGNED"] },
+      vehicleId: { not: null },
+    },
+    select: { vehicleId: true, timeBucket: true },
+  });
+  const slotTable = buildSlotTable(
+    vehicles.map((v) => ({
+      vehicleId: v.id,
+      registrationNumber: v.registrationNumber,
+      isDutyVehicle: v.isDutyVehicle,
+    })),
+    occupancy.map((o) => ({ vehicleId: o.vehicleId, timeBucket: o.timeBucket })),
+  );
+
   const result = solveDay({
     date,
     bookings: solverBookings,
@@ -119,11 +142,14 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   await prisma.$transaction(async (tx) => {
     for (const a of result.assignments) {
       const booking = pending.find((p) => p.id === a.bookingId)!;
+      const slot = findSlot(booking.timeBucket, slotTable);
+      if (slot) slot.busy = true; // reserve so later assignments don't reuse it
       await tx.booking.update({
         where: { id: a.bookingId },
         data: {
           primaryDriverId: a.primaryDriverId,
           secondaryDriverId: a.secondaryDriverId,
+          vehicleId: slot?.vehicleId ?? null,
           status: "ASSIGNED",
           driverScheduleStatus: "CONFIRMED",
           decidedAt: new Date(),
@@ -355,6 +381,14 @@ type DemoSlot = {
   jobType: JobType;
   estimatedDistance: number;
   outOfProvince: boolean;
+  ajarn: string;
+  ajarnEmail: string;
+  pickup: string;
+  male: number;
+  female: number;
+  emergency?: boolean;
+  outsideChula?: boolean;
+  notes?: string;
 };
 
 const DEMO_SLOTS: DemoSlot[] = [
@@ -364,6 +398,9 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "เชียงใหม่",
     startHour: 6, endHour: 18, endDayOffset: 1,
     jobType: "TJW", estimatedDistance: 700, outOfProvince: true,
+    ajarn: "ศ.นพ. สมศักดิ์ ใจดี", ajarnEmail: "somsak.j@chula.ac.th",
+    pickup: "อาคาร อปร ชั้น 1", male: 2, female: 1, outsideChula: true,
+    notes: "ต้องการรถตู้สำหรับอุปกรณ์",
   },
   {
     purpose: `${BATCH_DEMO_TAG} TJW Nakhon Pathom outreach (overnight)`,
@@ -371,6 +408,8 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "นครปฐม",
     startHour: 7, endHour: 17, endDayOffset: 1,
     jobType: "TJW", estimatedDistance: 110, outOfProvince: true,
+    ajarn: "รศ.พญ. วิภา รักเรียน", ajarnEmail: "wipa.r@chula.ac.th",
+    pickup: "หน้าคณะแพทยศาสตร์", male: 1, female: 3, outsideChula: true,
   },
   {
     purpose: `${BATCH_DEMO_TAG} OT early-bird airport run`,
@@ -378,6 +417,9 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "กรุงเทพมหานคร",
     startHour: 5, endHour: 9,
     jobType: "OT", estimatedDistance: 60, outOfProvince: false,
+    ajarn: "อ.ดร. ธนกร พิทักษ์", ajarnEmail: "thanakorn.p@chula.ac.th",
+    pickup: "ล็อบบี้ อาคารภูมิสิริ", male: 1, female: 0, emergency: true,
+    outsideChula: true, notes: "เที่ยวบินเช้า ต้องตรงเวลา",
   },
   {
     purpose: `${BATCH_DEMO_TAG} OT evening seminar pickup`,
@@ -385,6 +427,8 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "กรุงเทพมหานคร",
     startHour: 17, endHour: 21,
     jobType: "OT", estimatedDistance: 25, outOfProvince: false,
+    ajarn: "ผศ.นพ. กิตติ มานะ", ajarnEmail: "kitti.m@chula.ac.th",
+    pickup: "จามจุรีสแควร์ ทางออก 2", male: 2, female: 2, outsideChula: true,
   },
   {
     purpose: `${BATCH_DEMO_TAG} WERN duty round — campus shuttle`,
@@ -392,6 +436,8 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "กรุงเทพมหานคร",
     startHour: 8, endHour: 12,
     jobType: "WERN", estimatedDistance: 15, outOfProvince: false,
+    ajarn: "อ.พญ. ชนิดา ศรีสุข", ajarnEmail: "chanida.s@chula.ac.th",
+    pickup: "อาคารแพทยพัฒน์", male: 0, female: 1,
   },
   {
     purpose: `${BATCH_DEMO_TAG} NORMAL morning lab supply`,
@@ -399,6 +445,8 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "กรุงเทพมหานคร",
     startHour: 9, endHour: 11,
     jobType: "NORMAL", estimatedDistance: 8, outOfProvince: false,
+    ajarn: "อ.ดร. ปรีชา ตั้งใจ", ajarnEmail: "preecha.t@chula.ac.th",
+    pickup: "อาคารวิจัย ชั้น G", male: 1, female: 1,
   },
   {
     purpose: `${BATCH_DEMO_TAG} NORMAL afternoon ajarn ride to King Chulalongkorn Hospital`,
@@ -406,6 +454,8 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "กรุงเทพมหานคร",
     startHour: 13, endHour: 15,
     jobType: "NORMAL", estimatedDistance: 6, outOfProvince: false,
+    ajarn: "ศ.พญ. อรทัย ดีงาม", ajarnEmail: "orathai.d@chula.ac.th",
+    pickup: "โถงผู้ป่วยนอก", male: 0, female: 2,
   },
   {
     purpose: `${BATCH_DEMO_TAG} NORMAL document drop to Ministry`,
@@ -413,6 +463,8 @@ const DEMO_SLOTS: DemoSlot[] = [
     province: "นนทบุรี",
     startHour: 14, endHour: 16,
     jobType: "NORMAL", estimatedDistance: 35, outOfProvince: true,
+    ajarn: "อ.นพ. ภาคิน วงศ์ไทย", ajarnEmail: "pakin.w@chula.ac.th",
+    pickup: "อาคารบริหาร", male: 1, female: 0, outsideChula: true,
   },
 ];
 
@@ -493,9 +545,17 @@ async function seedBatchDemoForDate(date: Date): Promise<number> {
         province: s.province,
         startAt,
         endAt,
-        passengerCount: 2,
-        ajarnName: "อ.สมศักดิ์ ทดสอบ",
+        passengerCount: Math.max(1, s.male + s.female),
+        maleCount: s.male,
+        femaleCount: s.female,
+        passengerNotes: s.notes ?? null,
+        pickupLocation: s.pickup,
+        ajarnName: s.ajarn,
         ajarnPhone: "0812345678",
+        ajarnEmail: s.ajarnEmail,
+        isEmergency: s.emergency ?? false,
+        emergencyReason: s.emergency ? "ผู้ป่วยฉุกเฉิน ต้องเดินทางด่วน" : null,
+        outsideChula: s.outsideChula ?? false,
         status: "APPROVED",
         decidedAt: new Date(),
         jobType: s.jobType,
