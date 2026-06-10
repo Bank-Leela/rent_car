@@ -1,102 +1,111 @@
 import { describe, it, expect } from "vitest";
-import { solveDay, type SolverBookingInput, LONG_TRIP_KM } from "./batch-solver";
-import { canChain, MAX_JOBS_PER_DAY, type DriverRotationState } from "./rotations";
-import type { JobType } from "@prisma/client";
+import { simulate, type DayContext } from "./simulation";
+import { canChain, MAX_JOBS_PER_DAY } from "./rotations";
+import { LONG_TRIP_KM } from "./batch-solver";
+import { WORK_DAY_END_HOUR } from "./classification";
 
-// Property/fuzz test: run many random days through the real solver and assert
-// the scheduling rules hold on every single day, with rotation state carried
-// across days (so the rotation paths are exercised too).
-
-function mulberry32(seed: number) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// Property/fuzz test: run many random days through the real solver — now WITH
+// multi-day TJW trips carried across days (the prior version always passed
+// activeTjwCommitments: []) — and assert the scheduling + cross-day TJW rules
+// hold on every single day. The simulation core lives in ./simulation.
 
 function overlaps(a: { startAt: Date; endAt: Date }, b: { startAt: Date; endAt: Date }) {
   return a.startAt < b.endAt && b.startAt < a.endAt;
 }
+function startOfDayMs(d: Date) {
+  const r = new Date(d);
+  r.setHours(0, 0, 0, 0);
+  return r.getTime();
+}
+function sameCalendarDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
-describe("solver invariants (fuzz, 500 random days)", () => {
-  it("never violates the scheduling rules", () => {
-    const rng = mulberry32(7);
-    const randint = (a: number, b: number) => a + Math.floor(rng() * (b - a + 1));
-    const NUM_DRIVERS = 6;
-    const NUM_DAYS = 500;
-    const drivers: DriverRotationState[] = Array.from({ length: NUM_DRIVERS }, (_, i) => ({
-      driverId: `D${i + 1}`,
-      lastTjwAt: null, lastOtAt: null, lastDutyAt: null, lastAssignedAt: null, earningsScore: 0,
-    }));
-    const totals = new Map<string, number>(drivers.map((d) => [d.driverId, 0]));
-    const base = new Date("2026-01-01T00:00:00");
+function assertDay(
+  ctx: DayContext,
+  trips: Map<string, number>,
+  availableDays: Map<string, number>,
+) {
+  const { date, output, input, activeTjwCommitments, dutyDriverId } = ctx;
 
-    for (let day = 0; day < NUM_DAYS; day++) {
-      const date = new Date(base); date.setDate(date.getDate() + day);
-      const dutyDriverId = `D${(day % NUM_DRIVERS) + 1}`;
-      const bookings: SolverBookingInput[] = [];
-      let seq = 0;
-      const dist = new Map<string, number | null>();
-      const mk = (jt: JobType, sh: number, eh: number, d: number | null) => {
-        const s = new Date(date); s.setHours(sh, 0, 0, 0);
-        const e = new Date(date); e.setHours(eh, 0, 0, 0);
-        const id = `${day}-${seq++}`;
-        dist.set(id, d);
-        bookings.push({ bookingId: id, jobType: jt, startAt: s, endAt: e, estimatedDistance: d, outOfProvince: jt === "TJW", submittedAt: new Date(date.getTime() + seq) });
-      };
-      for (let i = 0; i < randint(0, 2); i++) mk("TJW", 6, 18, randint(100, 800));
-      for (let i = 0; i < randint(0, 3); i++) mk("OT", i % 2 ? 18 : 5, i % 2 ? 21 : 9, randint(20, 90));
-      for (let i = 0; i < randint(0, 1); i++) mk("WERN", 8, 12, 15);
-      for (let i = 0; i < randint(0, 5); i++) { const am = i % 2 === 0; mk("NORMAL", am ? 9 : 13, am ? 11 : 15, randint(5, 60)); }
+  // Classify drivers by their active TJW commitment today.
+  const away = new Set<string>();
+  const returning = new Set<string>();
+  for (const c of activeTjwCommitments) {
+    // (7) Freed on return: no commitment is stale (already ended before today).
+    expect(c.endAt.getTime()).toBeGreaterThan(startOfDayMs(date));
+    const returnee = sameCalendarDay(c.endAt, date) && c.endAt.getHours() < WORK_DAY_END_HOUR;
+    if (returnee) returning.add(c.driverId);
+    else away.add(c.driverId);
+  }
+  for (const id of away) returning.delete(id); // a driver both away and returning → away wins
 
-      const out = solveDay({ date, bookings, drivers, dutyDriverId, activeTjwCommitments: [] });
+  const dist = new Map(input.bookings.map((b) => [b.bookingId, b.estimatedDistance]));
 
-      // (1) Completeness: every booking is either assigned or overflowed, once.
-      expect(out.assignments.length + out.overflows.length).toBe(bookings.length);
+  for (const a of output.assignments) {
+    // (1) Away means away: a driver mid multi-day TJW is never assigned today.
+    expect(away.has(a.primaryDriverId)).toBe(false);
+    if (a.secondaryDriverId) expect(away.has(a.secondaryDriverId)).toBe(false);
 
-      // (2) Secondary driver only on > 400 km trips, and never == primary.
-      for (const a of out.assignments) {
-        if (a.secondaryDriverId !== null) {
-          expect(dist.get(a.bookingId)!).toBeGreaterThan(LONG_TRIP_KM);
-          expect(a.secondaryDriverId).not.toBe(a.primaryDriverId);
-        }
-      }
+    // (2) Return-day driver is OT-only (Phase C), never TJW/WERN/NORMAL.
+    const touchesReturnee =
+      returning.has(a.primaryDriverId) || (a.secondaryDriverId !== null && returning.has(a.secondaryDriverId));
+    if (touchesReturnee) expect(a.jobType).toBe("OT");
 
-      // (3) Per-driver day legality: <= 2 trips, no overlap, legal chain pair.
-      for (const [, trips] of out.driverDay) {
-        expect(trips.length).toBeLessThanOrEqual(MAX_JOBS_PER_DAY);
-        for (let i = 0; i < trips.length; i++) {
-          for (let j = i + 1; j < trips.length; j++) {
-            expect(overlaps(trips[i]!, trips[j]!)).toBe(false);
-          }
-        }
-        if (trips.length === 2) {
-          expect(canChain(trips[1]!, [trips[0]!])).toBe(true);
-        }
-      }
+    // (4) Secondary only on > 400 km trips, never == primary.
+    if (a.secondaryDriverId !== null) {
+      expect(dist.get(a.bookingId)!).toBeGreaterThan(LONG_TRIP_KM);
+      expect(a.secondaryDriverId).not.toBe(a.primaryDriverId);
+    }
+  }
 
-      // carry rotation state forward
-      const stamp = date;
-      const W: Record<JobType, number> = { TJW: 4, OT: 3, WERN: 0, NORMAL: 2, SMUS: 2 };
-      for (const a of out.assignments) {
-        for (const id of [a.primaryDriverId, a.secondaryDriverId]) {
-          if (!id) continue;
-          totals.set(id, totals.get(id)! + 1);
-          const d = drivers.find((x) => x.driverId === id)!;
-          if (a.jobType === "TJW") d.lastTjwAt = stamp;
-          else if (a.jobType === "OT") d.lastOtAt = stamp;
-          else if (a.jobType === "WERN") d.lastDutyAt = stamp;
-          d.lastAssignedAt = stamp;
-          d.earningsScore += W[a.jobType] ?? 0;
-        }
+  // (5) Completeness: every booking assigned or overflowed exactly once.
+  expect(output.assignments.length + output.overflows.length).toBe(input.bookings.length);
+
+  // (3) Per-driver day legality: <= 2 trips, no overlap, legal chain pair.
+  for (const [, dayTrips] of output.driverDay) {
+    expect(dayTrips.length).toBeLessThanOrEqual(MAX_JOBS_PER_DAY);
+    for (let i = 0; i < dayTrips.length; i++) {
+      for (let j = i + 1; j < dayTrips.length; j++) {
+        expect(overlaps(dayTrips[i]!, dayTrips[j]!)).toBe(false);
       }
     }
+    if (dayTrips.length === 2) expect(canChain(dayTrips[1]!, [dayTrips[0]!])).toBe(true);
+  }
 
-    // (4) Fairness: spread between busiest and idlest driver stays small.
-    const counts = [...totals.values()];
-    const spread = Math.max(...counts) - Math.min(...counts);
-    expect(spread).toBeLessThanOrEqual(Math.max(...counts) * 0.05); // within 5%
+  // Accumulate availability-adjusted fairness inputs (§6.3).
+  const todays = new Map<string, number>();
+  for (const a of output.assignments) {
+    todays.set(a.primaryDriverId, (todays.get(a.primaryDriverId) ?? 0) + 1);
+    if (a.secondaryDriverId) todays.set(a.secondaryDriverId, (todays.get(a.secondaryDriverId) ?? 0) + 1);
+  }
+  for (const d of ctx.drivers) {
+    trips.set(d.driverId, (trips.get(d.driverId) ?? 0) + (todays.get(d.driverId) ?? 0));
+    const unavailable = away.has(d.driverId) || d.driverId === dutyDriverId;
+    if (!unavailable) availableDays.set(d.driverId, (availableDays.get(d.driverId) ?? 0) + 1);
+  }
+}
+
+describe("solver invariants (fuzz, 500 random days, multi-day TJW)", () => {
+  it("never violates the scheduling or cross-day TJW rules", () => {
+    const trips = new Map<string, number>();
+    const availableDays = new Map<string, number>();
+
+    simulate({
+      days: 500,
+      seed: 7,
+      multiDayTjwProb: 0.4,
+      onDay: (ctx) => assertDay(ctx, trips, availableDays),
+    });
+
+    // (6.3) Fairness as a SOFT, availability-adjusted assertion: trips per
+    // available-day should be close across drivers. Raw trip counts are NOT
+    // asserted because away-on-TJW drivers legitimately do fewer trips.
+    const rates = [...trips.keys()].map((id) => trips.get(id)! / Math.max(1, availableDays.get(id) ?? 0));
+    const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
+    const spread = Math.max(...rates) - Math.min(...rates);
+    // Calibrated to the seed-7 baseline (observed spread/avg ≈ 0.033); 0.06
+    // leaves a modest margin while still catching a real fairness regression.
+    expect(spread).toBeLessThanOrEqual(avg * 0.06);
   }, 30000);
 });

@@ -251,6 +251,25 @@ describe("solveDay — Phase C TJW return-day fallback", () => {
   });
 });
 
+describe("solveDay — multi-day TJW away exclusion", () => {
+  it("never assigns a driver who is mid multi-day TJW (away all day)", () => {
+    const input: SolverInput = {
+      date: D("2026-06-10"),
+      bookings: [booking({ bookingId: "n1", jobType: "NORMAL" })],
+      // A would normally win FCFS, but A is out on a 3-day TJW (Jun 9 → Jun 11);
+      // today (Jun 10) is mid-trip, so A must be skipped entirely.
+      drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
+      dutyDriverId: null,
+      activeTjwCommitments: [
+        { driverId: "A", startAt: D("2026-06-09T06:00:00"), endAt: D("2026-06-11T18:00:00") },
+      ],
+    };
+    const out = solveDay(input);
+    expect(out.assignments).toHaveLength(1);
+    expect(out.assignments[0]!.primaryDriverId).toBe("B");
+  });
+});
+
 describe("solveDay — FCFS submitter order within a category", () => {
   it("earlier-submitted booking wins when drivers are scarce", () => {
     const input: SolverInput = {
