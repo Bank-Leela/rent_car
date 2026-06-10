@@ -14,7 +14,7 @@ import {
   type SolverOutput,
   type TjwCommitment,
 } from "./batch-solver";
-import { JOB_WEIGHT, WORK_DAY_END_HOUR } from "./classification";
+import { tripEffort, WORK_DAY_END_HOUR } from "./classification";
 import type { DriverRotationState } from "./rotations";
 
 const JOB_TYPES: JobType[] = ["TJW", "OT", "WERN", "NORMAL"];
@@ -234,7 +234,8 @@ export function simulate(opts: SimulateOptions): SimulateResult {
         else if (a.jobType === "OT") d.lastOtAt = stamp;
         else if (a.jobType === "WERN") d.lastDutyAt = stamp;
         d.lastAssignedAt = stamp;
-        d.earningsScore += JOB_WEIGHT[a.jobType] ?? 0;
+        const ab = bookingById.get(a.bookingId)!;
+        d.earningsScore += tripEffort(a.jobType, ab.startAt, ab.endAt);
       }
     }
     for (const o of output.overflows) {

@@ -31,7 +31,7 @@
 //     returning from TJW today before the 16:00 cutoff.
 
 import type { JobType, OverflowReason } from "@prisma/client";
-import { JOB_WEIGHT, WORK_DAY_END_HOUR } from "./classification";
+import { tripEffort, WORK_DAY_END_HOUR } from "./classification";
 import {
   canTake,
   MAX_JOBS_PER_DAY,
@@ -326,5 +326,5 @@ function commitTrip(drivers: MutableDriver[], driverId: string, booking: SolverB
     endAt: booking.endAt,
     jobType: booking.jobType,
   });
-  d.earningsScore += JOB_WEIGHT[booking.jobType] ?? 0;
+  d.earningsScore += tripEffort(booking.jobType, booking.startAt, booking.endAt);
 }

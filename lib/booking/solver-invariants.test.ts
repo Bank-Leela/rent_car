@@ -100,7 +100,10 @@ describe("solver invariants (fuzz, 500 random days, multi-day TJW)", () => {
 
     // (6.3) Fairness as a SOFT, availability-adjusted assertion: trips per
     // available-day should be close across drivers. Raw trip counts are NOT
-    // asserted because away-on-TJW drivers legitimately do fewer trips.
+    // asserted because (a) away-on-TJW drivers legitimately do fewer trips, and
+    // (b) the ledger is duration-weighted (tripEffort), so a driver doing
+    // fewer-but-longer trips is balanced by hours, not count — which loosens
+    // count parity by design. The bound is calibrated to that (~5%) baseline.
     const rates = [...trips.keys()].map((id) => trips.get(id)! / Math.max(1, availableDays.get(id) ?? 0));
     const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
     const spread = Math.max(...rates) - Math.min(...rates);

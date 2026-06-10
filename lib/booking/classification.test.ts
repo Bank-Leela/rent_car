@@ -1,7 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { classifyJobType, isOvernight } from "./classification";
+import { classifyJobType, isOvernight, tripEffort } from "./classification";
 
 const D = (s: string) => new Date(s);
+
+describe("tripEffort (duration-weighted fairness ledger)", () => {
+  it("WERN scores 0 (duty driver keeps its own rotation)", () => {
+    expect(tripEffort("WERN", D("2026-06-10T08:00:00"), D("2026-06-10T12:00:00"))).toBe(0);
+  });
+
+  it("NORMAL = real hours", () => {
+    expect(tripEffort("NORMAL", D("2026-06-10T09:00:00"), D("2026-06-10T11:00:00"))).toBe(2);
+  });
+
+  it("OT = real hours", () => {
+    expect(tripEffort("OT", D("2026-06-10T05:00:00"), D("2026-06-10T09:00:00"))).toBe(4);
+    expect(tripEffort("OT", D("2026-06-10T18:00:00"), D("2026-06-10T21:00:00"))).toBe(3);
+  });
+
+  it("same-day TJW = one TJW-day = 12", () => {
+    expect(tripEffort("TJW", D("2026-06-10T06:00:00"), D("2026-06-10T18:00:00"))).toBe(12);
+  });
+
+  it("multi-day TJW = spanDays x 12 (the case this change exists to fix)", () => {
+    // Jun 9 -> Jun 10 = 2 days
+    expect(tripEffort("TJW", D("2026-06-09T06:00:00"), D("2026-06-10T18:00:00"))).toBe(24);
+    // Jun 9 -> Jun 11 = 3 days
+    expect(tripEffort("TJW", D("2026-06-09T06:00:00"), D("2026-06-11T18:00:00"))).toBe(36);
+  });
+
+  it("a short-hours TJW still counts a full TJW-day", () => {
+    expect(tripEffort("TJW", D("2026-06-10T06:00:00"), D("2026-06-10T08:00:00"))).toBe(12);
+  });
+});
 
 describe("isOvernight", () => {
   it("returns true when end is on a later calendar day", () => {

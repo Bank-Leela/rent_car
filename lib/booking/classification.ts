@@ -56,11 +56,26 @@ export function classifyJobType(input: ClassifyInput): JobType {
   return "NORMAL";
 }
 
-/** Tier weight used by the general fairness ledger. Higher = bigger commitment. */
-export const JOB_WEIGHT: Record<JobType, number> = {
-  TJW: 4,
-  OT: 3,
-  WERN: 0, // duty driver is handled by its own rotation, not the general ledger
-  NORMAL: 2,
-  SMUS: 2,
-};
+/** A TJW away-day counts as a 12-hour commitment on the fairness ledger. */
+export const TJW_DAY_HOURS = 12;
+
+/** Inclusive calendar-day span of a trip (same-day = 1, Jun 9→Jun 11 = 3). */
+function spanDays(startAt: Date, endAt: Date): number {
+  const s = new Date(startAt);
+  s.setHours(0, 0, 0, 0);
+  const e = new Date(endAt);
+  e.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1);
+}
+
+/**
+ * Duration-weighted effort for the general fairness ledger, in committed hours.
+ * Replaces the old coarse per-job-type weight so a multi-day TJW is credited for
+ * every day the driver is away (a 3-day TJW = 36, vs a same-day TJW = 12, vs a
+ * 2 h NORMAL = 2). WERN stays 0 — the duty driver is handled by its own rotation.
+ */
+export function tripEffort(jobType: JobType, startAt: Date, endAt: Date): number {
+  if (jobType === "WERN") return 0;
+  if (jobType === "TJW") return spanDays(startAt, endAt) * TJW_DAY_HOURS;
+  return (endAt.getTime() - startAt.getTime()) / 3_600_000;
+}

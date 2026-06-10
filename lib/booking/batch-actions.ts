@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { buildSlotTable, findSlot } from "@/lib/booking/slot-allocation";
-import { JOB_WEIGHT } from "@/lib/booking/classification";
+import { tripEffort } from "@/lib/booking/classification";
 import type { DriverRotationState } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
 import type { JobType } from "@prisma/client";
@@ -227,11 +227,11 @@ async function loadWeightedEarnings(driverIds: string[]): Promise<Map<string, nu
         { secondaryDriverId: { in: driverIds } },
       ],
     },
-    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true },
+    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, startAt: true, endAt: true },
   });
   const scores = new Map<string, number>(driverIds.map((id) => [id, 0]));
   for (const b of rows) {
-    const weight = JOB_WEIGHT[b.jobType] ?? 0;
+    const weight = tripEffort(b.jobType, b.startAt, b.endAt);
     if (b.primaryDriverId && scores.has(b.primaryDriverId)) {
       scores.set(b.primaryDriverId, scores.get(b.primaryDriverId)! + weight);
     }
