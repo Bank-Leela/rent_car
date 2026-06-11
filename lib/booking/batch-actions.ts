@@ -7,7 +7,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
-import { allocateVehicles, buildSlotTable, vehicleOccupancyForDay } from "@/lib/booking/slot-allocation";
+import {
+  allocateVehicles,
+  bucketsForTrip,
+  buildSlotTable,
+  vehicleOccupancyForDay,
+} from "@/lib/booking/slot-allocation";
 import { tripEffort } from "@/lib/booking/classification";
 import type { DriverRotationState } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
@@ -124,7 +129,7 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
       status: { in: ["APPROVED", "ASSIGNED"] },
       vehicleId: { not: null },
     },
-    select: { vehicleId: true, timeBucket: true, startAt: true, endAt: true },
+    select: { vehicleId: true, startAt: true, endAt: true },
   });
   const slotTable = buildSlotTable(
     vehicles.map((v) => ({
@@ -147,8 +152,11 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   // of vehicle capacity, so a bucket can be over-assigned — those bookings land
   // in `noVehicle` and are surfaced as NO_SLOT below instead of being persisted
   // as carless ASSIGNED rows.
-  const bucketOf = (id: string) => pending.find((p) => p.id === id)!.timeBucket;
-  const { withVehicle, noVehicle } = allocateVehicles(result.assignments, bucketOf, slotTable);
+  const bucketsOf = (id: string) => {
+    const b = pending.find((p) => p.id === id)!;
+    return bucketsForTrip(b.startAt, b.endAt, date);
+  };
+  const { withVehicle, noVehicle } = allocateVehicles(result.assignments, bucketsOf, slotTable);
 
   // --- Persist assignments + bump rotation timestamps + record overflow. ---
   await prisma.$transaction(async (tx) => {

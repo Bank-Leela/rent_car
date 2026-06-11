@@ -45,6 +45,36 @@ export function bucketFromStart(startAt: Date): TimeBucket {
   return "AFTER_16";
 }
 
+const BUCKET_HOURS: Record<TimeBucket, readonly [number, number]> = {
+  BEFORE_08: [0, 8],
+  MORNING_08_12: [8, 12],
+  AFTERNOON_12_16: [12, 16],
+  AFTER_16: [16, 24],
+};
+
+/**
+ * Every bucket a trip's `[startAt, endAt]` overlaps on `day` (clamped to that
+ * day). A same-day trip yields its real buckets — a long trip occupies more
+ * than one (e.g. 05:00–09:00 → before-08 + morning), and a trip spanning beyond
+ * the day yields all four. The vehicle is busy in every bucket it returns, so a
+ * long trip never leaks its vehicle to a later slot the same day.
+ */
+export function bucketsForTrip(startAt: Date, endAt: Date, day: Date): TimeBucket[] {
+  const dayStart = new Date(day);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayMs = dayStart.getTime();
+  const s = Math.max(startAt.getTime(), dayMs);
+  const e = Math.min(endAt.getTime(), dayMs + 86_400_000);
+  const out: TimeBucket[] = [];
+  for (const bucket of TIME_BUCKETS) {
+    const [sh, eh] = BUCKET_HOURS[bucket];
+    const bs = dayMs + sh * 3_600_000;
+    const be = dayMs + eh * 3_600_000;
+    if (s < be && e > bs) out.push(bucket);
+  }
+  return out;
+}
+
 // CR-06: duty vehicle's morning + afternoon are always pre-occupied by the
 // campus rounds loop (บริหาร / คลัง / HR / สารบัญ). Treat them as busy in
 // the slot grid even if no Booking row exists.
@@ -95,58 +125,64 @@ export function findSlot(bucket: TimeBucket, table: SlotCell[][]): SlotCell | nu
 }
 
 /**
- * Vehicle occupancy for `day`, as ExistingTrips for buildSlotTable. A trip that
- * starts before today or ends after today (e.g. a multi-day TJW away out of
- * province) occupies the vehicle for the WHOLE day — every bucket — so it is
- * never handed to another booking. Same-day trips occupy only their own bucket.
- *
- * This is the vehicle-side mirror of the driver-side spanning-TJW handling; the
- * caller must query trips that overlap the day (startAt < dayEnd && endAt >
- * dayStart), not just trips that start on the day.
+ * Vehicle occupancy for `day`, as ExistingTrips for buildSlotTable: each trip
+ * marks its vehicle busy in EVERY bucket it overlaps (bucketsForTrip), so a long
+ * same-day trip or a multi-day TJW away out of province is never handed to
+ * another booking. The caller must query trips that overlap the day
+ * (startAt < dayEnd && endAt > dayStart), not just trips that start on the day.
  */
 export function vehicleOccupancyForDay(
-  trips: Array<{ vehicleId: string | null; startAt: Date; endAt: Date; timeBucket: TimeBucket }>,
+  trips: Array<{ vehicleId: string | null; startAt: Date; endAt: Date }>,
   day: Date,
 ): ExistingTrip[] {
-  const dayStart = new Date(day);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
   const out: ExistingTrip[] = [];
   for (const t of trips) {
     if (!t.vehicleId) continue;
-    const spansWholeDay = t.startAt < dayStart || t.endAt > dayEnd;
-    if (spansWholeDay) {
-      for (const bucket of TIME_BUCKETS) out.push({ vehicleId: t.vehicleId, timeBucket: bucket });
-    } else {
-      out.push({ vehicleId: t.vehicleId, timeBucket: t.timeBucket });
+    for (const timeBucket of bucketsForTrip(t.startAt, t.endAt, day)) {
+      out.push({ vehicleId: t.vehicleId, timeBucket });
     }
   }
   return out;
 }
 
 /**
- * Assigns a free vehicle to each booking, reserving as it goes. Bookings whose
- * bucket has no free vehicle land in `noVehicle` — the caller must overflow
+ * Assigns a free vehicle to each booking, reserving as it goes. `bucketsOf`
+ * gives every bucket a booking's trip occupies (via bucketsForTrip) — a vehicle
+ * is taken only if free in ALL of them, and reserved in all of them, so a long
+ * trip never leaks its vehicle to a later slot the same day. Bookings with no
+ * vehicle free across their span land in `noVehicle` — the caller must overflow
  * them (NO_SLOT), never persist them ASSIGNED with a null vehicle. The driver
- * solver is independent of vehicle capacity, so it can over-assign a bucket;
- * this is where that surfaces instead of silently producing a carless driver.
+ * solver is independent of vehicle capacity, so it can over-assign; this is
+ * where that surfaces instead of silently producing a carless driver.
  */
 export function allocateVehicles<T extends { bookingId: string }>(
   items: T[],
-  bucketOf: (bookingId: string) => TimeBucket,
+  bucketsOf: (bookingId: string) => TimeBucket[],
   table: SlotCell[][],
 ): { withVehicle: Array<{ item: T; vehicleId: string }>; noVehicle: T[] } {
   const withVehicle: Array<{ item: T; vehicleId: string }> = [];
   const noVehicle: T[] = [];
   for (const item of items) {
-    const slot = findSlot(bucketOf(item.bookingId), table);
-    if (slot) {
-      slot.busy = true; // reserve so later items don't reuse it
-      withVehicle.push({ item, vehicleId: slot.vehicleId });
-    } else {
-      noVehicle.push(item);
-    }
+    const vehicleId = reserveVehicle(bucketsOf(item.bookingId), table);
+    if (vehicleId) withVehicle.push({ item, vehicleId });
+    else noVehicle.push(item);
   }
   return { withVehicle, noVehicle };
+}
+
+/**
+ * First vehicle (row) free in ALL the given buckets; marks those cells busy and
+ * returns its id, or null if none fits. Non-duty preferred (table is sorted
+ * duty-last). Empty bucket list → null (a trip must occupy at least one bucket).
+ */
+function reserveVehicle(buckets: TimeBucket[], table: SlotCell[][]): string | null {
+  if (buckets.length === 0) return null;
+  for (const row of table) {
+    const cells = buckets.map((b) => row.find((c) => c.bucket === b)!);
+    if (cells.every((c) => !c.busy)) {
+      for (const c of cells) c.busy = true;
+      return cells[0]!.vehicleId;
+    }
+  }
+  return null;
 }
