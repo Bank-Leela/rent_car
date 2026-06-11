@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, startOfDay } from "date-fns";
-import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck } from "lucide-react";
+import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Zap } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -8,6 +8,9 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { OnCallShiftForm } from "@/components/forms/matching-form";
+import { loadWeightedEarnings } from "@/lib/booking/earnings";
+import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
+import type { SlotInput } from "@/lib/booking/slot-allocation";
 
 export default async function AdminQueue() {
   const session = await requireAnyRole(["ADMIN", "APPROVER"]);
@@ -55,6 +58,78 @@ export default async function AdminQueue() {
   const todayIso = format(today, "yyyy-MM-dd");
   const todayOnCallName =
     todayShift?.driver.user.name ?? todayShift?.driver.user.email ?? null;
+
+  // Overtime placement recommendations for over-capacity WAITLIST bookings:
+  // an early/evening OT that the time-blind day-cap waitlisted can still fit a
+  // driver who's free at that hour. Surface who/what is free so P'Top can place it.
+  const overtimeReco = new Map<string, { name: string; reg: string; time: string }>();
+  const waitlist = pending.filter((b) => b.status === "WAITLIST");
+  if (waitlist.length > 0) {
+    const dayStartMs = [...new Set(waitlist.map((b) => startOfDay(b.startAt).getTime()))];
+    const rangeStart = new Date(Math.min(...dayStartMs));
+    const rangeEnd = new Date(Math.max(...dayStartMs));
+    rangeEnd.setDate(rangeEnd.getDate() + 1);
+
+    const [vehicles, dayBookings, shifts, earnings] = await Promise.all([
+      prisma.vehicle.findMany({
+        where: { isActive: true },
+        select: { id: true, registrationNumber: true, isDutyVehicle: true },
+      }),
+      prisma.booking.findMany({
+        where: { startAt: { lt: rangeEnd }, endAt: { gt: rangeStart }, status: { in: ["APPROVED", "ASSIGNED"] } },
+        select: { primaryDriverId: true, secondaryDriverId: true, vehicleId: true, startAt: true, endAt: true },
+      }),
+      prisma.onCallShift.findMany({ where: { date: { in: dayStartMs.map((t) => new Date(t)) } } }),
+      loadWeightedEarnings(allDrivers.map((d) => d.id)),
+    ]);
+
+    const driverName = new Map(allDrivers.map((d) => [d.id, d.user.name ?? d.user.email ?? d.id]));
+    const vehicleReg = new Map(vehicles.map((v) => [v.id, v.registrationNumber]));
+    const dutyByDay = new Map(shifts.map((s) => [startOfDay(s.date).getTime(), s.driverId]));
+    const slotVehicles: SlotInput[] = vehicles.map((v) => ({
+      vehicleId: v.id,
+      registrationNumber: v.registrationNumber,
+      isDutyVehicle: v.isDutyVehicle,
+    }));
+
+    for (const b of waitlist) {
+      const dayStart = startOfDay(b.startAt);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+      const driverTrips = new Map<string, { startAt: Date; endAt: Date }[]>();
+      const vehicleTrips: { vehicleId: string | null; startAt: Date; endAt: Date }[] = [];
+      for (const x of dayBookings) {
+        if (!(x.startAt < dayEnd && x.endAt > dayStart)) continue;
+        for (const id of [x.primaryDriverId, x.secondaryDriverId]) {
+          if (!id) continue;
+          const arr = driverTrips.get(id) ?? [];
+          arr.push({ startAt: x.startAt, endAt: x.endAt });
+          driverTrips.set(id, arr);
+        }
+        if (x.vehicleId) vehicleTrips.push({ vehicleId: x.vehicleId, startAt: x.startAt, endAt: x.endAt });
+      }
+      const reco = recommendOvertimePlacement({
+        booking: { startAt: b.startAt, endAt: b.endAt },
+        dutyDriverId: dutyByDay.get(dayStart.getTime()) ?? null,
+        drivers: allDrivers.map((d) => ({
+          driverId: d.id,
+          earningsScore: earnings.get(d.id) ?? 0,
+          lastAssignedAt: d.lastAssignedAt,
+          trips: driverTrips.get(d.id) ?? [],
+        })),
+        vehicles: slotVehicles,
+        vehicleTrips,
+        day: dayStart,
+      });
+      if (reco.kind === "overtime-fit") {
+        overtimeReco.set(b.id, {
+          name: driverName.get(reco.driverId) ?? reco.driverId,
+          reg: vehicleReg.get(reco.vehicleId) ?? reco.vehicleId,
+          time: format(b.startAt, "HH:mm"),
+        });
+      }
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -107,6 +182,16 @@ export default async function AdminQueue() {
                     <div className="mt-1 text-xs text-muted-foreground">
                       {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                     </div>
+                    {overtimeReco.has(b.id) && (
+                      <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                        <Zap className="h-3.5 w-3.5 shrink-0" />
+                        {t("overtimeFit", {
+                          name: overtimeReco.get(b.id)!.name,
+                          reg: overtimeReco.get(b.id)!.reg,
+                          time: overtimeReco.get(b.id)!.time,
+                        })}
+                      </div>
+                    )}
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </Link>

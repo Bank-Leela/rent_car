@@ -299,7 +299,8 @@
     "queueEmptyDescription": "Once the fleet head approves a booking, it shows up here, oldest first.",
     "upcomingEmptyTitle": "Nothing scheduled",
     "upcomingEmptyDescription": "Once vehicles are assigned, the next 20 trips will show up here.",
-    "submittedAt": "submitted {date}"
+    "submittedAt": "submitted {date}",
+    "overtimeFit": "⚡ Fits as overtime — {name} + {reg} are free at {time}"
   },
   "bookingDetail": {
     "trip": "Trip",

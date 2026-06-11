@@ -299,7 +299,8 @@
     "queueEmptyDescription": "เมื่อหัวหน้างานยานยนต์อนุมัติแล้ว รายการจะแสดงที่นี่ เรียงจากเก่าสุดก่อน",
     "upcomingEmptyTitle": "ยังไม่มีกำหนดการ",
     "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่",
-    "submittedAt": "ส่งเมื่อ {date}"
+    "submittedAt": "ส่งเมื่อ {date}",
+    "overtimeFit": "⚡ จัดได้แบบ OT/ล่วงเวลา — {name} + {reg} ว่างช่วง {time}"
   },
   "bookingDetail": {
     "trip": "การเดินทาง",
