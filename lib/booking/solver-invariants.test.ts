@@ -98,7 +98,7 @@ describe("solver invariants (fuzz, multi-day TJW)", () => {
       simulate({
         days: 500,
         seed,
-        multiDayTjwProb: 0.4,
+        longTjwProb: 0.4,
         onDay: (ctx) => assertDay(ctx, trips, availableDays),
       });
 

@@ -4,14 +4,14 @@ import { mulberry32, generateDay, simulate, type DayContext } from "./simulation
 const sameCalendarDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-function collectTjw(multiDayTjwProb: number) {
+function collectTjw(longTjwProb: number) {
   const rng = mulberry32(123);
   const base = new Date("2026-01-01T00:00:00");
   const tjw: { startAt: Date; endAt: Date }[] = [];
   for (let day = 0; day < 200; day++) {
     const date = new Date(base);
     date.setDate(date.getDate() + day);
-    for (const b of generateDay(rng, date, { numDrivers: 6, multiDayTjwProb })) {
+    for (const b of generateDay(rng, date, { numDrivers: 6, longTjwProb })) {
       if (b.jobType === "TJW") tjw.push({ startAt: b.startAt, endAt: b.endAt });
     }
   }
@@ -37,17 +37,15 @@ describe("mulberry32", () => {
   });
 });
 
-describe("generateDay — multi-day TJW", () => {
-  it("makes every TJW span more than one calendar day when prob = 1", () => {
-    const tjw = collectTjw(1);
-    expect(tjw.length).toBeGreaterThan(0);
-    for (const t of tjw) expect(sameCalendarDay(t.startAt, t.endAt)).toBe(false);
-  });
-
-  it("keeps every TJW same-day when prob = 0", () => {
-    const tjw = collectTjw(0);
-    expect(tjw.length).toBeGreaterThan(0);
-    for (const t of tjw) expect(sameCalendarDay(t.startAt, t.endAt)).toBe(true);
+describe("generateDay — TJW is always overnight", () => {
+  it("every TJW ends on a later calendar day, regardless of longTjwProb", () => {
+    // A same-day out-of-province trip is NORMAL/OT, never TJW — so the generator
+    // must never emit a same-day TJW, at any longTjwProb.
+    for (const longTjwProb of [0, 0.4, 1]) {
+      const tjw = collectTjw(longTjwProb);
+      expect(tjw.length).toBeGreaterThan(0);
+      for (const t of tjw) expect(sameCalendarDay(t.startAt, t.endAt)).toBe(false);
+    }
   });
 
   it("tags TJW out-of-province", () => {
@@ -55,7 +53,7 @@ describe("generateDay — multi-day TJW", () => {
     const date = new Date("2026-03-01T00:00:00");
     let sawTjw = false;
     for (let i = 0; i < 50; i++) {
-      for (const b of generateDay(rng, date, { numDrivers: 6, multiDayTjwProb: 0.5 })) {
+      for (const b of generateDay(rng, date, { numDrivers: 6, longTjwProb: 0.5 })) {
         if (b.jobType === "TJW") {
           sawTjw = true;
           expect(b.outOfProvince).toBe(true);
@@ -83,7 +81,7 @@ describe("simulate — day-loop + cross-day commitment carry", () => {
     simulate({
       days: 60,
       seed: 1,
-      multiDayTjwProb: 1,
+      longTjwProb: 1,
       onDay: (ctx) => {
         if (ctx.activeTjwCommitments.length > 0) withCommitments.push(ctx.day);
       },

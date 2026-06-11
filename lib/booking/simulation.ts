@@ -31,15 +31,16 @@ export function mulberry32(seed: number): () => number {
 
 export interface GenerateDayOptions {
   numDrivers: number;
-  /** Fraction of TJW trips that span more than one day. */
-  multiDayTjwProb: number;
+  /** Fraction of TJW trips that run 2–3 days; the rest are a single overnight. */
+  longTjwProb: number;
 }
 
 /**
- * One day's synthetic bookings. Mirrors the load profile the prior sim used,
- * plus multi-day TJW: with probability `multiDayTjwProb` a TJW trip ends on a
- * later calendar day (k ∈ 1..3) at ~14:00 or ~18:00 — a mix of before/after the
- * 16:00 return cutoff so the Phase-C return path is exercised.
+ * One day's synthetic bookings. TJW is ALWAYS overnight + out-of-province — a
+ * same-day out-of-province trip is NORMAL/OT, never TJW (see classifyJobType).
+ * Every TJW ends on a later calendar day at ~14:00 or ~18:00 (mix before/after
+ * the 16:00 return cutoff so the Phase-C return path is exercised). `longTjwProb`
+ * of them run 2–3 days; the rest a single overnight.
  */
 export function generateDay(
   rng: () => number,
@@ -76,10 +77,9 @@ export function generateDay(
   };
 
   for (let i = 0; i < counts.TJW; i++) {
-    const multiDay = rng() < opts.multiDayTjwProb;
-    const span = multiDay ? randint(1, 3) : 0;
-    const endHour = span === 0 ? 18 : rng() < 0.5 ? 14 : 18;
-    mk("TJW", at(6), at(endHour, span), randint(100, 800)); // some >400 km → secondary
+    const nights = rng() < opts.longTjwProb ? randint(2, 3) : 1; // always overnight (≥1 night)
+    const endHour = rng() < 0.5 ? 14 : 18; // returns before / after the 16:00 cutoff
+    mk("TJW", at(6), at(endHour, nights), randint(100, 800)); // some >400 km → secondary
   }
   for (let i = 0; i < counts.OT; i++) {
     const evening = i % 2 === 1;
@@ -103,8 +103,8 @@ export interface SimulateOptions {
   seed: number;
   /** default 6 */
   numDrivers?: number;
-  /** default 0.4 */
-  multiDayTjwProb?: number;
+  /** Fraction of TJW that run 2–3 days (default 0.4); the rest a single overnight. */
+  longTjwProb?: number;
   /** Per-day hook — the property test asserts invariants here. */
   onDay?: (ctx: DayContext) => void;
 }
@@ -174,7 +174,7 @@ function gini(values: number[]): number {
 
 export function simulate(opts: SimulateOptions): SimulateResult {
   const numDrivers = opts.numDrivers ?? 6;
-  const multiDayTjwProb = opts.multiDayTjwProb ?? 0.4;
+  const longTjwProb = opts.longTjwProb ?? 0.4;
   const rng = mulberry32(opts.seed);
   const base = new Date("2026-01-01T00:00:00");
 
@@ -215,7 +215,7 @@ export function simulate(opts: SimulateOptions): SimulateResult {
       .map((c) => ({ driverId: c.driverId, startAt: c.startAt, endAt: c.endAt }));
 
     const dutyDriverId = `D${(day % numDrivers) + 1}`;
-    const bookings = generateDay(rng, date, { numDrivers, multiDayTjwProb });
+    const bookings = generateDay(rng, date, { numDrivers, longTjwProb });
     totalBookings += bookings.length;
     const bookingById = new Map(bookings.map((b) => [b.bookingId, b]));
 

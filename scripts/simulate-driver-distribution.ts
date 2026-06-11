@@ -12,14 +12,14 @@ import type { JobType } from "@prisma/client";
 
 const NUM_DAYS = 1000;
 const SEED = 42;
-const MULTI_DAY_TJW_PROB = 0.4;
+const LONG_TJW_PROB = 0.4; // fraction of (always-overnight) TJW that run 2–3 days
 const JOB_TYPES: JobType[] = ["TJW", "OT", "WERN", "NORMAL"];
 
-const { metrics } = simulate({ days: NUM_DAYS, seed: SEED, multiDayTjwProb: MULTI_DAY_TJW_PROB });
+const { metrics } = simulate({ days: NUM_DAYS, seed: SEED, longTjwProb: LONG_TJW_PROB });
 
 console.log(
-  `Simulated ${metrics.days} days, ${metrics.numDrivers} drivers (duty rotates daily, ` +
-    `${Math.round(MULTI_DAY_TJW_PROB * 100)}% of TJW trips span >1 day).`,
+  `Simulated ${metrics.days} days, ${metrics.numDrivers} drivers (duty rotates daily; ` +
+    `TJW always overnight, ${Math.round(LONG_TJW_PROB * 100)}% of them 2–3 days).`,
 );
 console.log(
   `Bookings: ${metrics.totalBookings} | assigned: ${metrics.totalAssigned} | ` +
