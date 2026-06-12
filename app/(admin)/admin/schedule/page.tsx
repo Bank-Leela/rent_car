@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { bookingHalf } from "@/lib/booking/slot-capacity";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 
 export default async function SchedulePage({
@@ -41,6 +40,7 @@ export default async function SchedulePage({
         purpose: true,
         destination: true,
         startAt: true,
+        endAt: true,
         vehicleId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
@@ -51,13 +51,15 @@ export default async function SchedulePage({
   const bookings = dayBookings.map((b) => {
     const u = b.primaryDriver?.user;
     const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
+    const sameDay = b.endAt.toDateString() === b.startAt.toDateString();
     return {
       id: b.id,
       jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
       timeLabel: format(b.startAt, "HH:mm"),
-      half: bookingHalf(b.startAt),
+      startHour: b.startAt.getHours() + b.startAt.getMinutes() / 60,
+      endHour: sameDay ? b.endAt.getHours() + b.endAt.getMinutes() / 60 : 24,
       vehicleId: b.vehicleId,
       driverName,
     };

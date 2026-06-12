@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Car, User, Wand2 } from "lucide-react";
+import { Car, Wand2, GripVertical } from "lucide-react";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
+import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 
 export type SchedulerVehicle = {
   id: string;
@@ -18,12 +19,17 @@ export type SchedulerBooking = {
   purpose: string;
   destination: string;
   timeLabel: string;
-  half: "MORNING" | "AFTERNOON";
+  startHour: number;
+  endHour: number;
   vehicleId: string | null;
   driverName: string | null;
 };
 
-const HALVES = ["MORNING", "AFTERNOON"] as const;
+const DAY_START = 6;
+const DAY_END = 20;
+const DAY_HOURS = DAY_END - DAY_START;
+const HOURS = Array.from({ length: DAY_HOURS + 1 }, (_, i) => DAY_START + i);
+const pct = (h: number) => Math.max(0, Math.min(1, (h - DAY_START) / DAY_HOURS)) * 100;
 
 export function SchedulerBoard({
   vehicles,
@@ -36,14 +42,21 @@ export function SchedulerBoard({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ assigned: number; failures: string[] } | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
 
   const queue = bookings.filter((b) => !b.vehicleId);
-  const cellBookings = (vehicleId: string, half: string) =>
-    bookings.filter((b) => b.vehicleId === vehicleId && b.half === half);
+  const onVehicle = (vehicleId: string) => bookings.filter((b) => b.vehicleId === vehicleId);
 
-  // Fully auto: run the matcher over each unassigned request. The matcher
-  // picks the vehicle (Algorithm 1) and the driver (rotation order) per
-  // booking; sequential calls see prior assignments via the DB.
+  function reassign(bookingId: string, vehicleId: string) {
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.append("bookingId", bookingId);
+      fd.append("vehicleId", vehicleId);
+      await reassignVehicleAction(fd);
+      router.refresh();
+    });
+  }
+
   function autoAssignAll() {
     if (queue.length === 0) return;
     setResult(null);
@@ -62,26 +75,32 @@ export function SchedulerBoard({
     });
   }
 
-  const card = (b: SchedulerBooking) => (
-    <div
-      key={b.id}
-      className="rounded-md border bg-card p-2 text-xs shadow-sm"
-    >
-      <div className="flex items-center gap-1">
-        <span className="font-mono text-[10px] text-muted-foreground">{b.jobNumber}</span>
-        <span className="font-medium">{b.timeLabel}</span>
-      </div>
-      <div className="truncate text-muted-foreground">
-        {b.purpose} → {b.destination}
-      </div>
-      {b.driverName && (
-        <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary">
-          <User className="h-3 w-3" aria-hidden />
-          {b.driverName}
+  const onDragStart = (id: string) => (e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const block = (b: SchedulerBooking) => {
+    const left = pct(b.startHour);
+    const width = Math.max(pct(b.endHour) - left, 4);
+    return (
+      <div
+        key={b.id}
+        draggable
+        onDragStart={onDragStart(b.id)}
+        title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
+        className="group absolute inset-y-1 cursor-grab overflow-hidden rounded-md border bg-card px-2 py-1 text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing"
+        style={{ left: `${left}%`, width: `${width}%` }}
+      >
+        <div className="flex items-center gap-1 font-medium">
+          <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+          {b.timeLabel}
         </div>
-      )}
-    </div>
-  );
+        <div className="truncate text-muted-foreground">{b.purpose}</div>
+        {b.driverName && <div className="truncate text-[10px] font-medium text-primary">{b.driverName}</div>}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -111,7 +130,7 @@ export function SchedulerBoard({
         </div>
       )}
 
-      {/* Unassigned queue */}
+      {/* Unassigned queue — drag a card onto a car row to assign it. */}
       <div className="rounded-xl border bg-muted/30 p-3">
         <h2 className="mb-2 text-sm font-semibold">
           {t("queue")} <span className="text-muted-foreground">({queue.length})</span>
@@ -121,41 +140,83 @@ export function SchedulerBoard({
         ) : (
           <div className="flex flex-wrap gap-2">
             {queue.map((b) => (
-              <div key={b.id} className="w-56">
-                {card(b)}
+              <div
+                key={b.id}
+                draggable
+                onDragStart={onDragStart(b.id)}
+                title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose}`}
+                className="w-56 cursor-grab rounded-md border bg-card p-2 text-xs shadow-sm active:cursor-grabbing"
+              >
+                <div className="flex items-center gap-1">
+                  <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
+                  <span className="font-mono text-[10px] text-muted-foreground">{b.jobNumber}</span>
+                  <span className="font-medium">{b.timeLabel}</span>
+                </div>
+                <div className="truncate text-muted-foreground">{b.purpose} → {b.destination}</div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Vehicle × half grid (result visualization) */}
+      {/* Timeline: cars = rows, time on the X-axis. Drop a card on a row to assign its car. */}
       {vehicles.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("noVehicles")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <div className="min-w-160 space-y-2">
-            <div className="grid grid-cols-[10rem_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
-              <div />
-              <div className="px-1">{t("morning")}</div>
-              <div className="px-1">{t("afternoon")}</div>
+        <div className="overflow-x-auto rounded-xl border">
+          <div className="min-w-[56rem]">
+            {/* hour header */}
+            <div className="flex border-b bg-muted/30">
+              <div className="w-40 shrink-0" />
+              <div className="relative h-6 flex-1">
+                {HOURS.map((h) => (
+                  <span
+                    key={h}
+                    className="absolute -translate-x-1/2 text-[10px] text-muted-foreground"
+                    style={{ left: `${pct(h)}%`, top: "4px" }}
+                  >
+                    {h}:00
+                  </span>
+                ))}
+              </div>
             </div>
+
+            {/* car rows */}
             {vehicles.map((v) => (
-              <div key={v.id} className="grid grid-cols-[10rem_1fr_1fr] gap-2 rounded-lg border p-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
+              <div key={v.id} className="flex border-b last:border-b-0">
+                <div className="flex w-40 shrink-0 items-center gap-2 px-2 py-2 text-sm font-medium">
                   <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate">{v.registrationNumber}</span>
                   {v.isDutyVehicle && (
-                    <span className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                    <span className="shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                       {t("duty")}
                     </span>
                   )}
                 </div>
-                {HALVES.map((half) => (
-                  <div key={half} className="min-h-12 space-y-1 rounded-md bg-muted/20 p-1">
-                    {cellBookings(v.id, half).map(card)}
-                  </div>
-                ))}
+                <div
+                  className={`relative h-16 flex-1 transition-colors ${dragOver === v.id ? "bg-primary/10" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragOver !== v.id) setDragOver(v.id);
+                  }}
+                  onDragLeave={() => setDragOver((cur) => (cur === v.id ? null : cur))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(null);
+                    const id = e.dataTransfer.getData("text/plain");
+                    if (id) reassign(id, v.id);
+                  }}
+                >
+                  {HOURS.slice(1).map((h) => (
+                    <div
+                      key={h}
+                      aria-hidden
+                      className="absolute inset-y-0 w-px bg-border/60"
+                      style={{ left: `${pct(h)}%` }}
+                    />
+                  ))}
+                  {onVehicle(v.id).map(block)}
+                </div>
               </div>
             ))}
           </div>
