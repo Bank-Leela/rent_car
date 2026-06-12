@@ -59,7 +59,7 @@ export function SchedulerBoard({
       fd.append("bookingId", bookingId);
       fd.append("vehicleId", vehicleId);
       const res = await reassignVehicleAction(fd);
-      if (!res?.ok) setDropError(t("dropNoDriver"));
+      if (!res?.ok) setDropError(t(res?.error === "vehicleBusy" ? "dropConflict" : "dropNoDriver"));
       router.refresh();
     });
   }

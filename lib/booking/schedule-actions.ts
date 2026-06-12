@@ -21,6 +21,23 @@ export async function reassignVehicleAction(formData: FormData): Promise<ActionR
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: "bookingNotFound" };
 
+  // Conflict check — only when actually moving to a DIFFERENT car (a driverless
+  // rescue keeps the same car, so its own slot must not block it). Block if the
+  // target car already has an overlapping booking at this time.
+  if (vehicleId !== booking.vehicleId) {
+    const conflict = await prisma.booking.findFirst({
+      where: {
+        id: { not: bookingId },
+        vehicleId,
+        status: { in: ["APPROVED", "ASSIGNED"] },
+        startAt: { lt: booking.endAt },
+        endAt: { gt: booking.startAt },
+      },
+      select: { id: true },
+    });
+    if (conflict) return { ok: false, error: "vehicleBusy" };
+  }
+
   const dayStart = startOfDay(booking.startAt);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
