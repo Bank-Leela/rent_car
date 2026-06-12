@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Car, Wand2, GripVertical } from "lucide-react";
+import { Car, Wand2, GripVertical, AlertTriangle } from "lucide-react";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
 import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 
@@ -22,6 +22,7 @@ export type SchedulerBooking = {
   startHour: number;
   endHour: number;
   vehicleId: string | null;
+  hasDriver: boolean;
   driverName: string | null;
 };
 
@@ -43,30 +44,43 @@ export function SchedulerBoard({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ assigned: number; failures: string[] } | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
 
+  // Not fully assigned: missing a vehicle (queue) OR has a vehicle but no driver.
   const queue = bookings.filter((b) => !b.vehicleId);
+  const needsDriver = bookings.filter((b) => b.vehicleId && !b.hasDriver);
+  const work = [...queue, ...needsDriver];
   const onVehicle = (vehicleId: string) => bookings.filter((b) => b.vehicleId === vehicleId);
 
   function reassign(bookingId: string, vehicleId: string) {
+    setDropError(null);
     startTransition(async () => {
       const fd = new FormData();
       fd.append("bookingId", bookingId);
       fd.append("vehicleId", vehicleId);
-      await reassignVehicleAction(fd);
+      const res = await reassignVehicleAction(fd);
+      if (!res?.ok) setDropError(t("dropNoDriver"));
       router.refresh();
     });
   }
 
   function autoAssignAll() {
-    if (queue.length === 0) return;
+    if (work.length === 0) return;
     setResult(null);
+    setDropError(null);
     startTransition(async () => {
       let assigned = 0;
       const failures: string[] = [];
-      for (const b of queue) {
+      for (const b of work) {
         const fd = new FormData();
         fd.append("bookingId", b.id);
-        const res = await matchBookingAction(fd);
+        let res;
+        if (b.vehicleId) {
+          fd.append("vehicleId", b.vehicleId); // already on a car, just needs a driver
+          res = await reassignVehicleAction(fd);
+        } else {
+          res = await matchBookingAction(fd);
+        }
         if (res?.ok) assigned += 1;
         else failures.push(`${b.jobNumber}: ${res?.error ?? "error"}`);
       }
@@ -89,7 +103,9 @@ export function SchedulerBoard({
         draggable
         onDragStart={onDragStart(b.id)}
         title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
-        className="group absolute inset-y-1 cursor-grab overflow-hidden rounded-md border bg-card px-2 py-1 text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing"
+        className={`group absolute inset-y-1 cursor-grab overflow-hidden rounded-md bg-card px-2 py-1 text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
+          b.hasDriver ? "border" : "border-2 border-destructive/60"
+        }`}
         style={{ left: `${left}%`, width: `${width}%` }}
       >
         <div className="flex items-center gap-1 font-medium">
@@ -97,7 +113,14 @@ export function SchedulerBoard({
           {b.timeLabel}
         </div>
         <div className="truncate text-muted-foreground">{b.purpose}</div>
-        {b.driverName && <div className="truncate text-[10px] font-medium text-primary">{b.driverName}</div>}
+        {b.hasDriver ? (
+          <div className="truncate text-[10px] font-medium text-primary">{b.driverName}</div>
+        ) : (
+          <div className="flex items-center gap-1 truncate text-[10px] font-medium text-destructive">
+            <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
+            {t("noDriver")}
+          </div>
+        )}
       </div>
     );
   };
@@ -109,13 +132,20 @@ export function SchedulerBoard({
         <button
           type="button"
           onClick={autoAssignAll}
-          disabled={pending || queue.length === 0}
+          disabled={pending || work.length === 0}
           className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
         >
           <Wand2 className="h-4 w-4" aria-hidden />
-          {pending ? t("assigning") : t("autoAssign", { count: queue.length })}
+          {pending ? t("assigning") : t("autoAssign", { count: work.length })}
         </button>
       </div>
+
+      {dropError && (
+        <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+          {dropError}
+        </div>
+      )}
 
       {result && (
         <div className="space-y-1 rounded-md border bg-muted/30 p-2 text-sm">
@@ -159,13 +189,12 @@ export function SchedulerBoard({
         )}
       </div>
 
-      {/* Timeline: cars = rows, time on the X-axis. Drop a card on a row to assign its car. */}
+      {/* Timeline: cars = rows, time on the X-axis. Drop a card on a row to assign its car + a free driver. */}
       {vehicles.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("noVehicles")}</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border">
           <div className="min-w-[56rem]">
-            {/* hour header */}
             <div className="flex border-b bg-muted/30">
               <div className="w-40 shrink-0" />
               <div className="relative h-6 flex-1">
@@ -181,7 +210,6 @@ export function SchedulerBoard({
               </div>
             </div>
 
-            {/* car rows */}
             {vehicles.map((v) => (
               <div key={v.id} className="flex border-b last:border-b-0">
                 <div className="flex w-40 shrink-0 items-center gap-2 px-2 py-2 text-sm font-medium">

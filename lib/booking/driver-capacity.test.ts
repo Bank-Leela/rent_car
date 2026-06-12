@@ -3,10 +3,49 @@ import {
   buildDriverMatrix,
   canTakeTrip,
   filterAvailable,
+  pickFreeDriver,
   rankCandidates,
   type DriverAvailabilityInput,
   type DriverInput,
+  type FreeDriverInput,
 } from "./driver-capacity";
+
+const PD = (s: string) => new Date(s);
+function fd(driverId: string, over: Partial<FreeDriverInput> = {}): FreeDriverInput {
+  return { driverId, earningsScore: 0, lastAssignedAt: null, trips: [], ...over };
+}
+
+describe("pickFreeDriver", () => {
+  const trip = { startAt: PD("2026-06-10T14:00:00"), endAt: PD("2026-06-10T16:00:00") };
+
+  it("picks the fairest (lowest earnings) free driver", () => {
+    expect(
+      pickFreeDriver(trip, [fd("A", { earningsScore: 5 }), fd("B", { earningsScore: 2 }), fd("C", { earningsScore: 9 })], null),
+    ).toBe("B");
+  });
+
+  it("excludes the on-call (duty) driver even when fairest", () => {
+    expect(pickFreeDriver(trip, [fd("A", { earningsScore: 0 }), fd("B", { earningsScore: 3 })], "A")).toBe("B");
+  });
+
+  it("skips a driver with an overlapping trip", () => {
+    const busy = { startAt: PD("2026-06-10T15:00:00"), endAt: PD("2026-06-10T18:00:00") };
+    expect(pickFreeDriver(trip, [fd("A", { earningsScore: 0, trips: [busy] }), fd("B", { earningsScore: 9 })], null)).toBe("B");
+  });
+
+  it("skips a driver already at the 2-job cap", () => {
+    const two = [
+      { startAt: PD("2026-06-10T08:00:00"), endAt: PD("2026-06-10T10:00:00") },
+      { startAt: PD("2026-06-10T11:00:00"), endAt: PD("2026-06-10T12:00:00") },
+    ];
+    expect(pickFreeDriver(trip, [fd("A", { earningsScore: 0, trips: two }), fd("B", { earningsScore: 9 })], null)).toBe("B");
+  });
+
+  it("returns null when no driver is free", () => {
+    const busy = { startAt: PD("2026-06-10T13:00:00"), endAt: PD("2026-06-10T17:00:00") };
+    expect(pickFreeDriver(trip, [fd("A", { trips: [busy] }), fd("B", { trips: [busy] })], null)).toBeNull();
+  });
+});
 
 describe("buildDriverMatrix", () => {
   const drivers: DriverInput[] = [

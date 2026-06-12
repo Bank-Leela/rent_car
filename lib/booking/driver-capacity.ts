@@ -119,3 +119,34 @@ export function rankCandidates(rows: RankInput[]): string[] {
     })
     .map((r) => r.driverId);
 }
+
+export interface FreeDriverInput {
+  driverId: string;
+  earningsScore: number;
+  lastAssignedAt: Date | null;
+  /** The driver's other bookings that day. */
+  trips: TripWindow[];
+}
+
+/**
+ * The fairest driver who can legally take `trip` (no overlap + the 1/day-cap +
+ * 2 h chain rule via canTakeTrip), excluding the on-call (duty) driver — or null
+ * if none. Used by the schedule board's drag-to-car: assign a driver alongside
+ * the vehicle, or block the drop. Same eligibility + fairness order as the matcher.
+ */
+export function pickFreeDriver(
+  trip: TripWindow,
+  drivers: FreeDriverInput[],
+  dutyDriverId: string | null,
+): string | null {
+  const eligible = drivers
+    .filter((d) => d.driverId !== dutyDriverId)
+    .filter((d) => canTakeTrip(trip, d.trips))
+    .sort(
+      (a, b) =>
+        a.earningsScore - b.earningsScore ||
+        (a.lastAssignedAt?.getTime() ?? -Infinity) - (b.lastAssignedAt?.getTime() ?? -Infinity) ||
+        a.driverId.localeCompare(b.driverId),
+    );
+  return eligible[0]?.driverId ?? null;
+}

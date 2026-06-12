@@ -42,6 +42,7 @@ export default async function SchedulePage({
         startAt: true,
         endAt: true,
         vehicleId: true,
+        primaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
     }),
@@ -61,6 +62,7 @@ export default async function SchedulePage({
       startHour: b.startAt.getHours() + b.startAt.getMinutes() / 60,
       endHour: sameDay ? b.endAt.getHours() + b.endAt.getMinutes() / 60 : 24,
       vehicleId: b.vehicleId,
+      hasDriver: b.primaryDriverId != null,
       driverName,
     };
   });
