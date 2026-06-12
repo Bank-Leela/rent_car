@@ -13,6 +13,7 @@ import {
   ReleaseButton,
   ConfirmScheduleButton,
 } from "@/components/forms/claim-form";
+import { DetailField } from "@/components/detail-field";
 
 export default async function DriverBookingDetail({
   params,
@@ -123,6 +124,12 @@ export default async function DriverBookingDetail({
             <Field label={t("ajarnName")} value={booking.ajarnName} />
             <Field label={t("ajarnPhone")} value={booking.ajarnPhone} />
             <Field label={t("ajarnEmail")} value={booking.ajarnEmail} colSpan />
+            {booking.coordinatorName && (
+              <>
+                <Field label={t("coordinatorName")} value={booking.coordinatorName} />
+                <Field label={t("coordinatorPhone")} value={booking.coordinatorPhone} />
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -226,13 +233,9 @@ export default async function DriverBookingDetail({
   );
 }
 
-function Field({ label, value, colSpan }: { label: string; value: string; colSpan?: boolean }) {
-  return (
-    <div className={colSpan ? "sm:col-span-2" : ""}>
-      <div className="text-sm uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5">{value}</div>
-    </div>
-  );
+// Driver pages render slightly larger labels than the other detail pages.
+function Field(props: Omit<React.ComponentProps<typeof DetailField>, "labelClassName">) {
+  return <DetailField labelClassName="text-sm" {...props} />;
 }
 
 function SlotCard({

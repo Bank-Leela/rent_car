@@ -12,6 +12,7 @@ import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton } from "@/components/forms/matching-form";
 import { CompleteTripForm } from "@/components/forms/complete-trip-form";
+import { DetailField as Field } from "@/components/detail-field";
 
 export default async function AdminBookingDetail({
   params,
@@ -162,6 +163,12 @@ export default async function AdminBookingDetail({
             <Field label={t("ajarnName")} value={booking.ajarnName} />
             <Field label={t("ajarnPhone")} value={booking.ajarnPhone} />
             <Field label={t("ajarnEmail")} value={booking.ajarnEmail} colSpan />
+            {booking.coordinatorName && (
+              <>
+                <Field label={t("coordinatorName")} value={booking.coordinatorName} />
+                <Field label={t("coordinatorPhone")} value={booking.coordinatorPhone} />
+              </>
+            )}
           </CardContent>
         </Card>
       )}
@@ -313,11 +320,3 @@ export default async function AdminBookingDetail({
   );
 }
 
-function Field({ label, value, colSpan }: { label: string; value: string; colSpan?: boolean }) {
-  return (
-    <div className={colSpan ? "sm:col-span-2" : ""}>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5">{value}</div>
-    </div>
-  );
-}

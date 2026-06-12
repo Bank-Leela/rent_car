@@ -6,6 +6,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
+import { isThaiLocale } from "@/i18n/config";
 
 export default async function SchedulePage({
   searchParams,
@@ -15,7 +16,7 @@ export default async function SchedulePage({
   await requireRole("ADMIN");
   const t = await getTranslations("scheduler");
   const locale = await getLocale();
-  const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
+  const dfLocale = isThaiLocale(locale) ? th : enUS;
 
   const { date } = await searchParams;
   const day = date ? parse(date, "yyyy-MM-dd", new Date()) : new Date();
@@ -48,7 +49,7 @@ export default async function SchedulePage({
     }),
   ]);
 
-  const isThai = locale.toLowerCase().startsWith("th");
+  const isThai = isThaiLocale(locale);
   const bookings = dayBookings.map((b) => {
     const u = b.primaryDriver?.user;
     const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;

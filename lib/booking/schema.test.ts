@@ -11,6 +11,8 @@ const baseInput = {
   ajarnName: "ศ. ดร. สมชาย สุขดี",
   ajarnPhone: "0812345678",
   ajarnEmail: "somchai@chula.ac.th",
+  coordinatorName: "สมหญิง ประสานดี",
+  coordinatorPhone: "0898765432",
   jobType: "OT",
   passengerCount: "4",
   passengerNotes: "",
@@ -59,6 +61,24 @@ describe("newBookingSchema ajarn fields", () => {
     if (!result.success) {
       const fieldErrors = result.error.issues.map((i) => i.path.join("."));
       expect(fieldErrors).toContain("ajarnName");
+    }
+  });
+
+  it("rejects a missing coordinator name", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, coordinatorName: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("coordinatorName");
+    }
+  });
+
+  it("rejects a missing coordinator phone", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, coordinatorPhone: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("coordinatorPhone");
     }
   });
 });

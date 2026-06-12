@@ -1,10 +1,12 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { ChangeUsernameForm } from "@/components/forms/change-username-form";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
+import { ChangeDepartmentForm } from "@/components/forms/change-department-form";
+import { listDepartments } from "@/lib/departments";
 
 export default async function AccountPage({
   searchParams,
@@ -13,6 +15,7 @@ export default async function AccountPage({
 }) {
   const session = await requireUser();
   const t = await getTranslations("account");
+  const locale = await getLocale();
   const { forceChange } = await searchParams;
 
   const user = await prisma.user.findUniqueOrThrow({
@@ -23,8 +26,10 @@ export default async function AccountPage({
       name: true,
       mustChangePassword: true,
       usernameChangedAt: true,
+      departmentId: true,
     },
   });
+  const departments = await listDepartments(locale);
 
   // proxy.ts redirects mustChangePassword users here with ?forceChange=1.
   // Surface the stronger banner so they know they can't navigate away.
@@ -59,6 +64,19 @@ export default async function AccountPage({
           <ChangeUsernameForm
             currentUsername={user.username ?? ""}
             alreadyChanged={!!user.usernameChangedAt}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("departmentTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChangeDepartmentForm
+            departments={departments}
+            currentDepartmentId={user.departmentId}
+            locale={locale}
           />
         </CardContent>
       </Card>

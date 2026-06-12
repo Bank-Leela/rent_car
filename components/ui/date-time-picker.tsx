@@ -18,6 +18,7 @@ import { th, enUS, type Locale } from "date-fns/locale";
 import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useLocale } from "next-intl";
 import { cn } from "@/lib/utils";
+import { isThaiLocale } from "@/i18n/config";
 
 interface DateTimePickerProps {
   name: string;
@@ -63,7 +64,7 @@ export function DateTimePicker({
   dateOnly,
 }: DateTimePickerProps) {
   const locale = useLocale();
-  const dfLocale: Locale = locale.toLowerCase().startsWith("th") ? th : enUS;
+  const dfLocale: Locale = isThaiLocale(locale) ? th : enUS;
   const initial = parseValue(defaultValue);
   const [value, setValue] = useState<Date | null>(initial);
   const [viewMonth, setViewMonth] = useState<Date>(initial ?? new Date());
@@ -202,7 +203,7 @@ export function DateTimePicker({
           </div>
 
           <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            {(locale.toLowerCase().startsWith("th") ? WEEKDAYS_TH : WEEKDAYS_EN).map((w, i) => (
+            {(isThaiLocale(locale) ? WEEKDAYS_TH : WEEKDAYS_EN).map((w, i) => (
               <div key={i} className="py-1">{w}</div>
             ))}
           </div>

@@ -134,20 +134,42 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     };
     const parentStatus = await slotStatusFor(data.startAt);
 
+    // Everything the parent and its recurrence children share. Per-occurrence
+    // values (jobNumber, startAt/endAt, jobType, timeBucket, status) are
+    // spread in at each create.
+    const sharedData = {
+      requesterId: userId,
+      departmentId: data.departmentId,
+      purpose: data.purpose,
+      destination: data.destination,
+      province: data.province,
+      ajarnName: data.ajarnName,
+      ajarnPhone: data.ajarnPhone,
+      ajarnEmail: data.ajarnEmail,
+      coordinatorName: data.coordinatorName,
+      coordinatorPhone: data.coordinatorPhone,
+      outOfProvince: data.outOfProvince,
+      outsideChula: data.outsideChula,
+      outOfHoursReason,
+      passengerCount: data.passengerCount,
+      passengerNotes: data.passengerNotes,
+      estimatedDistance: data.estimatedDistance,
+      needsOutsourcing: data.needsOutsourcing,
+      isEmergency: data.isEmergency,
+      emergencyReason: data.emergencyReason,
+      maleCount: data.maleCount,
+      femaleCount: data.femaleCount,
+      pickupLocation: data.pickupLocation,
+      preferredVehicleId: data.preferredVehicleId,
+    };
+
     const jobNumber = await nextJobNumber(tx);
     const parent = await tx.booking.create({
       data: {
+        ...sharedData,
         jobNumber,
-        requesterId: userId,
-        departmentId: data.departmentId,
-        purpose: data.purpose,
-        destination: data.destination,
-        province: data.province,
         startAt: data.startAt,
         endAt: data.endAt,
-        ajarnName: data.ajarnName,
-        ajarnPhone: data.ajarnPhone,
-        ajarnEmail: data.ajarnEmail,
         jobType:
           data.jobType ??
           classifyJobType({
@@ -155,20 +177,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             endAt: data.endAt,
             outOfProvince: data.outOfProvince,
           }),
-        outOfProvince: data.outOfProvince,
-        outsideChula: data.outsideChula,
         timeBucket: bucketFromStart(data.startAt),
-        outOfHoursReason,
-        passengerCount: data.passengerCount,
-        passengerNotes: data.passengerNotes,
-        estimatedDistance: data.estimatedDistance,
-        needsOutsourcing: data.needsOutsourcing,
-        isEmergency: data.isEmergency,
-        emergencyReason: data.emergencyReason,
-        maleCount: data.maleCount,
-        femaleCount: data.femaleCount,
-        pickupLocation: data.pickupLocation,
-        preferredVehicleId: data.preferredVehicleId,
         status: parentStatus,
       },
     });
@@ -208,17 +217,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         const childStatus = await slotStatusFor(childStart);
         const child = await tx.booking.create({
           data: {
+            ...sharedData,
             jobNumber: childJob,
-            requesterId: userId,
-            departmentId: data.departmentId,
-            purpose: data.purpose,
-            destination: data.destination,
-            province: data.province,
             startAt: childStart,
             endAt: childEnd,
-            ajarnName: data.ajarnName,
-            ajarnPhone: data.ajarnPhone,
-            ajarnEmail: data.ajarnEmail,
             jobType:
               data.jobType ??
               classifyJobType({
@@ -226,20 +228,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
                 endAt: childEnd,
                 outOfProvince: data.outOfProvince,
               }),
-            outOfProvince: data.outOfProvince,
-            outsideChula: data.outsideChula,
             timeBucket: bucketFromStart(childStart),
-            outOfHoursReason,
-            passengerCount: data.passengerCount,
-            passengerNotes: data.passengerNotes,
-            estimatedDistance: data.estimatedDistance,
-            needsOutsourcing: data.needsOutsourcing,
-            isEmergency: data.isEmergency,
-            emergencyReason: data.emergencyReason,
-            maleCount: data.maleCount,
-            femaleCount: data.femaleCount,
-            pickupLocation: data.pickupLocation,
-            preferredVehicleId: data.preferredVehicleId,
             status: childStatus,
             recurrenceParentId: parent.id,
           },

@@ -18,6 +18,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
+import { isThaiLocale } from "@/i18n/config";
 
 const STATUS_TINT: Record<string, string> = {
   APPROVED:
@@ -48,7 +49,7 @@ export default async function DriverCalendar({
   const tc = await getTranslations("common");
   const tcal = await getTranslations("calendar");
   const localeCode = await getLocale();
-  const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
+  const loc: Locale = isThaiLocale(localeCode) ? th : enUS;
 
   const driver = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!driver) {

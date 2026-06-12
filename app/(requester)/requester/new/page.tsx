@@ -2,16 +2,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingForm } from "@/components/forms/booking-form";
+import { listDepartments } from "@/lib/departments";
 
 export default async function NewBookingPage() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("newBookingPage");
   const locale = await getLocale();
 
-  const departments = await prisma.department.findMany({
-    orderBy: locale.toLowerCase().startsWith("th") ? { nameTh: "asc" } : { nameEn: "asc" },
-    select: { id: true, nameEn: true, nameTh: true },
-  });
+  const departments = await listDepartments(locale);
   const me = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { departmentId: true },

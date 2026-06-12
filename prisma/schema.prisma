@@ -310,6 +310,10 @@ model Booking {
   ajarnName        String   @default("")
   ajarnPhone       String   @default("")
   ajarnEmail       String   @default("")
+  // Coordinator (ผู้ประสานงาน): the contact person arranging the trip,
+  // distinct from the requester whose name rides on the booking.
+  coordinatorName  String   @default("")
+  coordinatorPhone String   @default("")
   // Required justification when start/end falls outside driver work hours
   // (07:00–18:00) or spans midnight. Set on submission or time edit.
   outOfHoursReason String?

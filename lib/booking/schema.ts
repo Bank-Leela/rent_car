@@ -17,6 +17,8 @@ export const newBookingSchema = z
     ajarnName: z.string().trim().min(2, "Ajarn name is required"),
     ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
     ajarnEmail: z.string().trim().email("Invalid email address"),
+    coordinatorName: z.string().trim().min(2, "Coordinator name is required"),
+    coordinatorPhone: z.string().trim().min(6, "Coordinator phone is required"),
     // CR-07: jobType is no longer picked by the requester. The classifier
     // (lib/booking/classification.ts) derives it from startAt/endAt +
     // outOfProvince. Field is optional here for back-compat with older

@@ -14,9 +14,9 @@ import {
   LEAD_TIME_OUTSIDE_DAYS,
 } from "@/lib/booking/rules";
 import { createBookingAction } from "@/lib/booking/actions";
-import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { MapPin } from "lucide-react";
+import { isThaiLocale } from "@/i18n/config";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -158,7 +158,8 @@ export function BookingForm({
   const t = useTranslations("bookingForm");
   const now = new Date();
   const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
-  const isThai = locale.toLowerCase().startsWith("th");
+  const isThai = isThaiLocale(locale);
+  const defaultDepartment = departments.find((d) => d.id === defaultDepartmentId) ?? null;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -233,16 +234,18 @@ export function BookingForm({
   // pre-validate the submission so the user sees an in-form message rather
   // than a browser-native tooltip.
   const baseRequired: Array<{ name: string; labelKey: string }> = [
-    { name: "departmentId", labelKey: "department" },
-    { name: "ajarnName", labelKey: "ajarnName" },
-    { name: "ajarnPhone", labelKey: "ajarnPhone" },
-    { name: "ajarnEmail", labelKey: "ajarnEmail" },
+    { name: "startAt", labelKey: "startLabel" },
+    { name: "endAt", labelKey: "endLabel" },
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
     { name: "province", labelKey: "province" },
-    { name: "startAt", labelKey: "startLabel" },
-    { name: "endAt", labelKey: "endLabel" },
     { name: "passengerCount", labelKey: "passengerCount" },
+    { name: "ajarnName", labelKey: "ajarnName" },
+    { name: "departmentId", labelKey: "department" },
+    { name: "ajarnPhone", labelKey: "ajarnPhone" },
+    { name: "ajarnEmail", labelKey: "ajarnEmail" },
+    { name: "coordinatorName", labelKey: "coordinatorName" },
+    { name: "coordinatorPhone", labelKey: "coordinatorPhone" },
   ];
 
   const richStrong = { strong: (chunks: React.ReactNode) => <strong>{chunks}</strong> };
@@ -297,41 +300,72 @@ export function BookingForm({
             {t("requiredFieldsHint")}
           </p>
 
-          <div className="grid gap-2">
-            <ReqLabel htmlFor="departmentId">{t("department")}</ReqLabel>
-            <SearchableSelect
-              id="departmentId"
-              name="departmentId"
-              required
-              defaultValue={defaultDepartmentId ?? ""}
-              placeholder={t("departmentPlaceholder")}
-              searchPlaceholder={t("departmentSearchPlaceholder")}
-              emptyText={t("departmentEmpty")}
-              ariaLabel={t("department")}
-              options={departments.map((d) => ({
-                value: d.id,
-                label: isThai ? d.nameTh : d.nameEn,
-              }))}
-            />
-          </div>
-
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
-            <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
-              <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
-                <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
+            <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("scheduleSectionHelper")}</p>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2 min-w-0">
+                <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
+                <DateTimePicker
+                  id="startAt"
+                  name="startAt"
+                  required
+                  min={minStart}
+                  max={endValue || maxStart}
+                  defaultValue={startValue}
+                  placeholder={t("startLabel")}
+                  onChange={handleStartChange}
+                />
               </div>
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
-                <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
+              <div className="grid gap-2 min-w-0">
+                <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
+                <DateTimePicker
+                  id="endAt"
+                  name="endAt"
+                  required
+                  min={startValue || minStart}
+                  max={maxStart}
+                  defaultValue={endValue}
+                  placeholder={t("endLabel")}
+                  onChange={handleEndChange}
+                />
               </div>
             </div>
+            {endBeforeStart && (
+              <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
+            )}
+            <p className="text-xs text-muted-foreground pb-1">
+              {t.rich("endHelper", richStrong)}
+            </p>
+            <button
+              type="button"
+              onClick={fillEarliest}
+              className="inline-flex h-9 items-center rounded-md px-2 -mx-2 text-xs font-medium text-primary hover:bg-primary/5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("useEarliest", { date: earliestDateLabel })}
+            </button>
+            <details className="rounded-md border bg-background p-3">
+              <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("recurringDescription")}
+                </p>
+                <RecurrenceWeekdays />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
+                    <DateTimePicker
+                      id="recurringUntil"
+                      name="recurringUntil"
+                      dateOnly
+                      min={startValue || minStart}
+                      max={maxStart}
+                      placeholder={t("repeatUntil")}
+                    />
+                  </div>
+                </div>
+              </div>
+            </details>
           </fieldset>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
@@ -397,52 +431,6 @@ export function BookingForm({
           </fieldset>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
-            <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("scheduleSectionHelper")}</p>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <div className="grid gap-2 min-w-0">
-                <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
-                <DateTimePicker
-                  id="startAt"
-                  name="startAt"
-                  required
-                  min={minStart}
-                  max={endValue || maxStart}
-                  defaultValue={startValue}
-                  placeholder={t("startLabel")}
-                  onChange={handleStartChange}
-                />
-              </div>
-              <div className="grid gap-2 min-w-0">
-                <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
-                <DateTimePicker
-                  id="endAt"
-                  name="endAt"
-                  required
-                  min={startValue || minStart}
-                  max={maxStart}
-                  defaultValue={endValue}
-                  placeholder={t("endLabel")}
-                  onChange={handleEndChange}
-                />
-              </div>
-            </div>
-            {endBeforeStart && (
-              <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
-            )}
-            <p className="text-xs text-muted-foreground pb-1">
-              {t.rich("endHelper", richStrong)}
-            </p>
-            <button
-              type="button"
-              onClick={fillEarliest}
-              className="inline-flex h-9 items-center rounded-md px-2 -mx-2 text-xs font-medium text-primary hover:bg-primary/5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t("useEarliest", { date: earliestDateLabel })}
-            </button>
-          </fieldset>
-
-          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("loadSectionTitle")}</legend>
             <p className="-mt-1 text-xs text-muted-foreground">{t("loadSectionHelper")}</p>
             <div className="grid sm:grid-cols-2 gap-4">
@@ -493,6 +481,72 @@ export function BookingForm({
             </div>
           </fieldset>
 
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("requesterGroupTitle")}
+            </p>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
+              <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
+            </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="departmentDisplay">{t("department")}</ReqLabel>
+              {/* Locked: the department rides on the user profile, not the form. */}
+              <input type="hidden" id="departmentId" name="departmentId" value={defaultDepartmentId ?? ""} />
+              <Input
+                id="departmentDisplay"
+                value={
+                  defaultDepartment
+                    ? isThai
+                      ? defaultDepartment.nameTh
+                      : defaultDepartment.nameEn
+                    : t("departmentNotSet")
+                }
+                readOnly
+                disabled
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("departmentLockedHint")}{" "}
+                <a href="/account" className="font-medium text-primary hover:underline">
+                  {t("departmentEditLink")}
+                </a>
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
+                <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
+              </div>
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
+                <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
+              </div>
+            </div>
+            <div className="space-y-3 border-t pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("coordinatorGroupTitle")}
+              </p>
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="coordinatorName">{t("coordinatorName")}</ReqLabel>
+                <Input id="coordinatorName" name="coordinatorName" required autoComplete="off" />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <ReqLabel htmlFor="coordinatorPhone">{t("coordinatorPhone")}</ReqLabel>
+                  <Input
+                    id="coordinatorPhone"
+                    name="coordinatorPhone"
+                    type="tel"
+                    required
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
@@ -533,29 +587,6 @@ export function BookingForm({
               </div>
             )}
           </div>
-
-          <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
-            <div className="mt-3 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                {t("recurringDescription")}
-              </p>
-              <RecurrenceWeekdays />
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
-                  <DateTimePicker
-                    id="recurringUntil"
-                    name="recurringUntil"
-                    dateOnly
-                    min={startValue || minStart}
-                    max={maxStart}
-                    placeholder={t("repeatUntil")}
-                  />
-                </div>
-              </div>
-            </div>
-          </details>
 
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

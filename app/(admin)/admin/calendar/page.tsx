@@ -18,6 +18,7 @@ import { th, enUS, type Locale } from "date-fns/locale";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
+import { isThaiLocale } from "@/i18n/config";
 
 const LIVE_STATUSES = new Set(["PENDING_APPROVAL", "APPROVED", "ASSIGNED"]);
 
@@ -100,7 +101,7 @@ export default async function AdminCalendar({
   const t = await getTranslations("calendar");
   const tc = await getTranslations("common");
   const localeCode = await getLocale();
-  const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
+  const loc: Locale = isThaiLocale(localeCode) ? th : enUS;
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
   const vehicleFilter = qs.vehicle && qs.vehicle !== "all" ? qs.vehicle : null;
