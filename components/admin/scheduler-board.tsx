@@ -40,12 +40,18 @@ export type SchedulerBooking = {
   driverName: string | null;
 };
 
-// The axis defaults to 6:00–20:00 but expands to fit any booking that starts
-// earlier (e.g. a 05:00 OT) or ends later — so an out-of-window trip is never
-// clamped to the edge and lost.
-const DEFAULT_START = 6;
-const DEFAULT_END = 20;
-const pctOf = (h: number, start: number, hours: number) => Math.max(0, Math.min(1, (h - start) / hours)) * 100;
+// The axis spans the full day, 00:00–24:00. (Kept as min/max bounds so a stray
+// out-of-range value can never clamp a block off-screen.)
+const DEFAULT_START = 0;
+const DEFAULT_END = 24;
+// Small gutter on each side so the 00:00 / 24:00 edge labels (and end-of-day
+// blocks) don't collide with the rounded frame. Labels, gridlines, and blocks
+// all map through this, so they stay aligned.
+const AXIS_PAD = 3;
+const pctOf = (h: number, start: number, hours: number) => {
+  const f = Math.max(0, Math.min(1, (h - start) / hours));
+  return AXIS_PAD + f * (100 - 2 * AXIS_PAD);
+};
 
 // A timeline block: absolutely positioned by exact minute (startHour carries
 // minutes/60), draggable via @dnd-kit. The source dims while a DragOverlay
@@ -159,19 +165,11 @@ function CarRow({
         ref={setNodeRef}
         className={`relative h-16 flex-1 transition-colors ${isOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : ""}`}
       >
-        {hours.slice(0, -1).map((h) => (
-          <div
-            key={`half-${h}`}
-            aria-hidden
-            className="absolute inset-y-0 w-px bg-border/25"
-            style={{ left: `${pctOf(h + 0.5, dayStart, dayHours)}%` }}
-          />
-        ))}
-        {hours.slice(1).map((h) => (
+        {hours.map((h) => (
           <div
             key={h}
             aria-hidden
-            className="absolute inset-y-0 w-px bg-border/60"
+            className="absolute inset-y-0 w-px bg-border/40"
             style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
           />
         ))}
@@ -322,24 +320,22 @@ export function SchedulerBoard({
           <p className="text-sm text-muted-foreground">{t("noVehicles")}</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border">
-            <div className="min-w-[56rem]">
+            <div className="min-w-[64rem]">
               <div className="flex border-b bg-muted/30">
                 <div className="w-24 shrink-0 border-r" />
-                <div className="relative h-6 flex-1">
-                  {hours.map((h, i) => {
-                    // Anchor the edge labels inward so they aren't clipped:
-                    // first label's left edge sits on 0%, last label's right edge on 100%.
-                    const anchor = i === 0 ? "translate-x-0" : i === hours.length - 1 ? "-translate-x-full" : "-translate-x-1/2";
-                    return (
-                      <span
-                        key={h}
-                        className={`absolute ${anchor} text-[10px] tabular-nums text-muted-foreground`}
-                        style={{ left: `${pctOf(h, dayStart, dayHours)}%`, top: "4px" }}
-                      >
-                        {h}:00
-                      </span>
-                    );
-                  })}
+                <div className="relative h-8 flex-1">
+                  {hours.map((h) => (
+                    // Every label centered on its tick. The AXIS_PAD gutter keeps
+                    // 00:00 / 24:00 off the frame, so no edge anchoring is needed —
+                    // and centering stops the ends colliding with 01:00 / 23:00.
+                    <span
+                      key={h}
+                      className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground"
+                      style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
+                    >
+                      {String(h).padStart(2, "0")}:00
+                    </span>
+                  ))}
                 </div>
               </div>
 

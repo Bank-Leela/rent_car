@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   runBatchAction,
   simulateAndRunBatchAction,
@@ -82,13 +82,15 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1">
           <Label htmlFor="batchDate" className="text-xs">{t("date")}</Label>
-          <Input
-            id="batchDate"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-44"
-          />
+          <div className="w-48">
+            <DateTimePicker
+              name="batchDate"
+              id="batchDate"
+              dateOnly
+              defaultValue={`${defaultDate}T00:00`}
+              onChange={(v) => setDate(v || defaultDate)}
+            />
+          </div>
         </div>
         <Button type="button" onClick={run} disabled={pending}>
           {pending ? t("running") : t("run")}
