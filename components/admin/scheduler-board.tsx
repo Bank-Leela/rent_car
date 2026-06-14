@@ -22,8 +22,10 @@ import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 export type SchedulerVehicle = {
   id: string;
   registrationNumber: string;
-  isDutyVehicle: boolean;
 };
+
+// Cars are shown as A, B, C… (index → letter) instead of plate numbers.
+const carLabel = (i: number) => String.fromCharCode(65 + i);
 
 export type SchedulerBooking = {
   id: string;
@@ -119,6 +121,8 @@ function QueueCard({ b }: { b: SchedulerBooking }) {
 // A car row = a droppable lane. Drop a card here to assign this car + a driver.
 function CarRow({
   vehicle,
+  label,
+  isDuty,
   bookings,
   dutyLabel,
   noDriverLabel,
@@ -127,6 +131,8 @@ function CarRow({
   hours,
 }: {
   vehicle: SchedulerVehicle;
+  label: string;
+  isDuty: boolean;
   bookings: SchedulerBooking[];
   dutyLabel: string;
   noDriverLabel: string;
@@ -137,10 +143,13 @@ function CarRow({
   const { setNodeRef, isOver } = useDroppable({ id: vehicle.id });
   return (
     <div className="flex border-b last:border-b-0">
-      <div className="flex w-40 shrink-0 items-center gap-2 px-2 py-2 text-sm font-medium">
+      <div
+        className="flex w-24 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium"
+        title={vehicle.registrationNumber}
+      >
         <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="truncate">{vehicle.registrationNumber}</span>
-        {vehicle.isDutyVehicle && (
+        <span className="truncate">{label}</span>
+        {isDuty && (
           <span className="shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             {dutyLabel}
           </span>
@@ -177,9 +186,11 @@ function CarRow({
 export function SchedulerBoard({
   vehicles,
   bookings,
+  dutyVehicleId,
 }: {
   vehicles: SchedulerVehicle[];
   bookings: SchedulerBooking[];
+  dutyVehicleId: string | null;
 }) {
   const t = useTranslations("scheduler");
   const router = useRouter();
@@ -313,7 +324,7 @@ export function SchedulerBoard({
           <div className="overflow-x-auto rounded-xl border">
             <div className="min-w-[56rem]">
               <div className="flex border-b bg-muted/30">
-                <div className="w-40 shrink-0" />
+                <div className="w-24 shrink-0 border-r" />
                 <div className="relative h-6 flex-1">
                   {hours.map((h, i) => {
                     // Anchor the edge labels inward so they aren't clipped:
@@ -332,10 +343,12 @@ export function SchedulerBoard({
                 </div>
               </div>
 
-              {vehicles.map((v) => (
+              {vehicles.map((v, i) => (
                 <CarRow
                   key={v.id}
                   vehicle={v}
+                  label={carLabel(i)}
+                  isDuty={v.id === dutyVehicleId}
                   bookings={onVehicle(v.id)}
                   dutyLabel={t("duty")}
                   noDriverLabel={t("noDriver")}

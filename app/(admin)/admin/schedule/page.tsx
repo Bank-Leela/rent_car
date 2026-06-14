@@ -22,11 +22,12 @@ export default async function SchedulePage({
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
 
-  const [vehicles, dayBookings] = await Promise.all([
+  const [vehicles, dayBookings, onCall] = await Promise.all([
     prisma.vehicle.findMany({
       where: { isActive: true },
-      orderBy: [{ isDutyVehicle: "asc" }, { registrationNumber: "asc" }],
-      select: { id: true, registrationNumber: true, isDutyVehicle: true },
+      // Stable order so the A–F labels stay put day-to-day (duty rotates, not the label).
+      orderBy: { registrationNumber: "asc" },
+      select: { id: true, registrationNumber: true },
     }),
     prisma.booking.findMany({
       where: {
@@ -42,11 +43,22 @@ export default async function SchedulePage({
         startAt: true,
         endAt: true,
         vehicleId: true,
+        jobType: true,
         primaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
     }),
+    prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
   ]);
+
+  // The wern (duty) car rotates per day with the on-call driver: it's whatever
+  // car the day's duty driver is on (fallback: the day's WERN-job car). No
+  // static isDutyVehicle flag — follows the driver rotation.
+  const dutyDriverId = onCall?.driverId ?? null;
+  const dutyVehicleId =
+    (dutyDriverId && dayBookings.find((b) => b.primaryDriverId === dutyDriverId && b.vehicleId)?.vehicleId) ||
+    dayBookings.find((b) => b.jobType === "WERN" && b.vehicleId)?.vehicleId ||
+    null;
 
   const isThai = locale.toLowerCase().startsWith("th");
   const bookings = dayBookings.map((b) => {
@@ -99,7 +111,7 @@ export default async function SchedulePage({
         </div>
       </div>
 
-      <SchedulerBoard vehicles={vehicles} bookings={bookings} />
+      <SchedulerBoard vehicles={vehicles} bookings={bookings} dutyVehicleId={dutyVehicleId} />
     </div>
   );
 }
