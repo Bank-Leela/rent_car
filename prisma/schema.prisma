@@ -247,11 +247,16 @@ model Vehicle {
   registrationNumber String      @unique
   type               VehicleType
   capacity           Int
-  // CR-05: marks the reserve fleet (คันเวร). These vehicles appear as a
-  // dedicated row in the slot grid and are reserved for on-call work.
+  // DEPRECATED: retired from logic by the car=driver model (the duty car is
+  // the on-call driver's own car). Column kept to avoid a destructive migration.
   isDutyVehicle      Boolean     @default(false)
   notes              String?
   isActive           Boolean     @default(true)
+
+  // car=driver (1:1): each car has one assigned driver. @unique enforces that a
+  // driver owns at most one car. Nullable: an unpaired car is a valid state.
+  assignedDriverId   String?     @unique
+  assignedDriver     Driver?     @relation("VehicleDriver", fields: [assignedDriverId], references: [id])
 
   bookings Booking[]
 
@@ -281,6 +286,8 @@ model Driver {
   secondaryBookings Booking[] @relation("SecondaryDriver")
   claims            BookingClaim[]
   onCallShifts      OnCallShift[]
+  // car=driver (1:1) back-relation.
+  assignedVehicle   Vehicle?  @relation("VehicleDriver")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
