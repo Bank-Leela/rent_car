@@ -9,6 +9,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { CancelForm } from "@/components/forms/cancel-form";
 import { EvaluationForm } from "@/components/forms/evaluation-form";
 import { TimeChangeForm } from "@/components/forms/time-change-form";
+import { Field } from "@/components/detail-field";
 
 export default async function RequesterBookingDetail({
   params,
@@ -218,15 +219,6 @@ export default async function RequesterBookingDetail({
           </CardContent>
         </Card>
       )}
-    </div>
-  );
-}
-
-function Field({ label, value, colSpan }: { label: string; value: string; colSpan?: boolean }) {
-  return (
-    <div className={colSpan ? "sm:col-span-2" : ""}>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5">{value}</div>
     </div>
   );
 }

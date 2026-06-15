@@ -8,6 +8,7 @@ import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { StartTripForm, EndTripForm } from "@/components/forms/trip-forms";
+import { Field as DetailField } from "@/components/detail-field";
 import {
   ClaimButton,
   ReleaseButton,
@@ -226,13 +227,9 @@ export default async function DriverBookingDetail({
   );
 }
 
-function Field({ label, value, colSpan }: { label: string; value: string; colSpan?: boolean }) {
-  return (
-    <div className={colSpan ? "sm:col-span-2" : ""}>
-      <div className="text-sm uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-0.5">{value}</div>
-    </div>
-  );
+// Driver detail uses the larger "sm" label; thin adapter over the shared Field.
+function Field(props: { label: string; value: string; colSpan?: boolean }) {
+  return <DetailField {...props} size="sm" />;
 }
 
 function SlotCard({

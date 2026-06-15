@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { Section } from "@/components/section";
 
 export default async function DriverSchedule() {
   const session = await requireRole("DRIVER");
@@ -143,25 +144,5 @@ function DayGroupedList({ bookings, now, muted }: { bookings: Row[]; now: Date; 
         );
       })}
     </div>
-  );
-}
-
-function Section({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }

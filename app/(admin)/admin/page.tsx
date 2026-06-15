@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/empty-state";
 import { OnCallShiftForm } from "@/components/forms/matching-form";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
+import { Section } from "@/components/section";
 
 export default async function AdminQueue() {
   const session = await requireAnyRole(["ADMIN", "APPROVER"]);
@@ -272,25 +273,5 @@ export default async function AdminQueue() {
         )}
       </Section>
     </div>
-  );
-}
-
-function Section({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }
