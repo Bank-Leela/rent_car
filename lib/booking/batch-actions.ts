@@ -2,18 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { startOfDay, subDays } from "date-fns";
+import { startOfDay } from "date-fns";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
-import { tripEffort } from "@/lib/booking/classification";
+import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import type { DriverRotationState, ScheduledTrip } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
 import type { JobType } from "@prisma/client";
-
-const FAIRNESS_WINDOW_DAYS = 30;
 
 const runBatchSchema = z.object({
   date: z.string().min(8), // YYYY-MM-DD
@@ -247,33 +245,6 @@ function tallyOverflows(overflows: { reason: string }[]): Record<string, number>
 }
 
 // ---- helpers ----
-
-async function loadWeightedEarnings(driverIds: string[]): Promise<Map<string, number>> {
-  if (driverIds.length === 0) return new Map();
-  const since = subDays(new Date(), FAIRNESS_WINDOW_DAYS);
-  const rows = await prisma.booking.findMany({
-    where: {
-      startAt: { gte: since },
-      status: { in: ["ASSIGNED", "COMPLETED"] },
-      OR: [
-        { primaryDriverId: { in: driverIds } },
-        { secondaryDriverId: { in: driverIds } },
-      ],
-    },
-    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, startAt: true, endAt: true },
-  });
-  const scores = new Map<string, number>(driverIds.map((id) => [id, 0]));
-  for (const b of rows) {
-    const weight = tripEffort(b.jobType, b.startAt, b.endAt);
-    if (b.primaryDriverId && scores.has(b.primaryDriverId)) {
-      scores.set(b.primaryDriverId, scores.get(b.primaryDriverId)! + weight);
-    }
-    if (b.secondaryDriverId && scores.has(b.secondaryDriverId)) {
-      scores.set(b.secondaryDriverId, scores.get(b.secondaryDriverId)! + weight);
-    }
-  }
-  return scores;
-}
 
 async function stampPrimary(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],

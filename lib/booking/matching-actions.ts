@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { startOfDay, subDays } from "date-fns";
+import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { matchBookingSchema } from "@/lib/booking/schema";
@@ -16,10 +16,8 @@ import {
   type TripWindow,
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
-import { tripEffort } from "@/lib/booking/classification";
+import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import type { ActionResult } from "@/lib/booking/actions";
-
-const FAIRNESS_WINDOW_DAYS = 30;
 
 export async function matchBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
@@ -121,7 +119,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
 
   const driverIds = drivers.map((d) => d.id);
   const [earnings, monthCounts] = await Promise.all([
-    loadEarningsScores(driverIds),
+    loadWeightedEarnings(driverIds),
     loadTripsThisMonth(driverIds),
   ]);
   const driverRankInputs: RankInput[] = drivers.map((d) => ({
@@ -227,35 +225,6 @@ export async function escalateToKhunTopAction(formData: FormData): Promise<Actio
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
   return { ok: true };
-}
-
-async function loadEarningsScores(driverIds: string[]): Promise<Map<string, number>> {
-  if (driverIds.length === 0) return new Map();
-  const since = subDays(new Date(), FAIRNESS_WINDOW_DAYS);
-  const rows = await prisma.booking.findMany({
-    where: {
-      startAt: { gte: since },
-      status: { in: ["ASSIGNED", "COMPLETED"] },
-      OR: [
-        { primaryDriverId: { in: driverIds } },
-        { secondaryDriverId: { in: driverIds } },
-      ],
-    },
-    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, startAt: true, endAt: true },
-  });
-  const scores = new Map<string, number>(driverIds.map((id) => [id, 0]));
-  for (const b of rows) {
-    // Duration-weighted effort (committed hours; multi-day TJW = spanDays x 12),
-    // the same ledger the batch solver uses — so both paths rank fairness identically.
-    const w = tripEffort(b.jobType, b.startAt, b.endAt);
-    if (b.primaryDriverId && scores.has(b.primaryDriverId)) {
-      scores.set(b.primaryDriverId, scores.get(b.primaryDriverId)! + w);
-    }
-    if (b.secondaryDriverId && scores.has(b.secondaryDriverId)) {
-      scores.set(b.secondaryDriverId, scores.get(b.secondaryDriverId)! + w);
-    }
-  }
-  return scores;
 }
 
 async function loadTripsThisMonth(driverIds: string[]): Promise<Map<string, number>> {

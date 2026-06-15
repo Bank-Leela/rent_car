@@ -1,10 +1,6 @@
 // Shared fairness ledger loader. Duration-weighted earnings per driver over the
-// fairness window — the same ledger the batch solver and single-booking matcher
-// rank by, reused here for the overtime recommendation.
-//
-// NOTE: batch-actions.ts (loadWeightedEarnings) and matching-actions.ts
-// (loadEarningsScores) still hold identical private copies; consolidating them
-// onto this module is a follow-up dedup.
+// fairness window — the single source the batch solver, single-booking matcher,
+// and overtime recommendation all rank by.
 
 import { subDays } from "date-fns";
 import { prisma } from "@/lib/db";
