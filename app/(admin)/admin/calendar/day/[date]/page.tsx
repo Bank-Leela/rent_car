@@ -6,44 +6,8 @@ import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
-import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
+import { conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
 import type { Prisma } from "@prisma/client";
-
-const LIVE_STATUSES = new Set(["PENDING_APPROVAL", "APPROVED", "ASSIGNED"]);
-
-type DayBooking = {
-  id: string;
-  vehicleId: string | null;
-  startAt: Date;
-  endAt: Date;
-  status: string;
-};
-
-/** Ids of bookings that share a vehicle with another within the buffer window. */
-function conflictIds(items: DayBooking[]): Set<string> {
-  const ids = new Set<string>();
-  const byVehicle = new Map<string, DayBooking[]>();
-  for (const b of items) {
-    if (!b.vehicleId || !LIVE_STATUSES.has(b.status)) continue;
-    const list = byVehicle.get(b.vehicleId) ?? [];
-    list.push(b);
-    byVehicle.set(b.vehicleId, list);
-  }
-  for (const list of byVehicle.values()) {
-    if (list.length < 2) continue;
-    list.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-    for (let i = 1; i < list.length; i++) {
-      const prev = list[i - 1]!;
-      const curr = list[i]!;
-      const gapMin = (curr.startAt.getTime() - prev.endAt.getTime()) / 60000;
-      if (gapMin < VEHICLE_BUFFER_MINUTES) {
-        ids.add(prev.id);
-        ids.add(curr.id);
-      }
-    }
-  }
-  return ids;
-}
 
 const BAR_COLOR: Record<string, string> = {
   PENDING_APPROVAL: "bg-amber-200 border-amber-400 text-amber-950 dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-400/40",
@@ -86,7 +50,7 @@ export default async function CalendarDay({
     },
   });
 
-  const conflicts = conflictIds(bookings);
+  const conflicts = conflictingBookingIds(bookings);
   const monthHref = `/admin/calendar?month=${format(day, "yyyy-MM")}`;
   const toggle = (v: View) =>
     `/admin/calendar/day/${date}${v === "timeline" ? "?view=timeline" : ""}`;

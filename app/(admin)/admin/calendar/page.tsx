@@ -17,45 +17,13 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { th, enUS, type Locale } from "date-fns/locale";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
-
-const LIVE_STATUSES = new Set(["PENDING_APPROVAL", "APPROVED", "ASSIGNED"]);
+import { LIVE_STATUSES, conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
 
 function densityTint(count: number): string {
   if (count === 0) return "";
   if (count <= 3) return "bg-primary/5 dark:bg-primary/10";
   if (count <= 6) return "bg-primary/10 dark:bg-primary/15";
   return "bg-primary/20 dark:bg-primary/25";
-}
-
-type DayBooking = {
-  id: string;
-  vehicleId: string | null;
-  startAt: Date;
-  endAt: Date;
-  status: string;
-};
-
-function hasVehicleConflict(items: DayBooking[]): boolean {
-  const byVehicle = new Map<string, DayBooking[]>();
-  for (const b of items) {
-    if (!b.vehicleId) continue;
-    if (!LIVE_STATUSES.has(b.status)) continue;
-    const list = byVehicle.get(b.vehicleId) ?? [];
-    list.push(b);
-    byVehicle.set(b.vehicleId, list);
-  }
-  for (const list of byVehicle.values()) {
-    if (list.length < 2) continue;
-    list.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-    for (let i = 1; i < list.length; i++) {
-      const prev = list[i - 1]!;
-      const curr = list[i]!;
-      const gapMin = (curr.startAt.getTime() - prev.endAt.getTime()) / 60000;
-      if (gapMin < VEHICLE_BUFFER_MINUTES) return true;
-    }
-  }
-  return false;
 }
 
 const STATUS_TINT: Record<string, string> = {
@@ -225,7 +193,7 @@ export default async function AdminCalendar({
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
             const liveCount = items.filter((b) => LIVE_STATUSES.has(b.status)).length;
-            const conflict = hasVehicleConflict(items);
+            const conflict = conflictingBookingIds(items).size > 0;
             const surface = inMonth
               ? `bg-card ${densityTint(liveCount)}`
               : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
