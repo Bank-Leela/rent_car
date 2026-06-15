@@ -27,7 +27,12 @@ export default async function SchedulePage({
       where: { isActive: true },
       // Stable order so the A–F labels stay put day-to-day (duty rotates, not the label).
       orderBy: { registrationNumber: "asc" },
-      select: { id: true, registrationNumber: true },
+      select: {
+        id: true,
+        registrationNumber: true,
+        assignedDriverId: true,
+        assignedDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+      },
     }),
     prisma.booking.findMany({
       where: {
@@ -52,16 +57,18 @@ export default async function SchedulePage({
     prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
   ]);
 
-  // The wern (duty) car rotates per day with the on-call driver: it's whatever
-  // car the day's duty driver is on (fallback: the day's WERN-job car). No
-  // static isDutyVehicle flag — follows the driver rotation.
+  // car=driver: the duty car is the on-call driver's own car — always resolvable.
   const dutyDriverId = onCall?.driverId ?? null;
-  const dutyVehicleId =
-    (dutyDriverId && dayBookings.find((b) => b.primaryDriverId === dutyDriverId && b.vehicleId)?.vehicleId) ||
-    dayBookings.find((b) => b.jobType === "WERN" && b.vehicleId)?.vehicleId ||
-    null;
+  const dutyVehicleId = dutyDriverId
+    ? vehicles.find((v) => v.assignedDriverId === dutyDriverId)?.id ?? null
+    : null;
 
   const isThai = locale.toLowerCase().startsWith("th");
+  const vehicleRows = vehicles.map((v) => {
+    const du = v.assignedDriver?.user;
+    const driverName = du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null;
+    return { id: v.id, registrationNumber: v.registrationNumber, driverName };
+  });
   const bookings = dayBookings.map((b) => {
     const u = b.primaryDriver?.user;
     const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
@@ -115,7 +122,7 @@ export default async function SchedulePage({
         </div>
       </div>
 
-      <SchedulerBoard vehicles={vehicles} bookings={bookings} dutyVehicleId={dutyVehicleId} />
+      <SchedulerBoard vehicles={vehicleRows} bookings={bookings} dutyVehicleId={dutyVehicleId} />
     </div>
   );
 }

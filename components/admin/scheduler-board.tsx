@@ -22,6 +22,8 @@ import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 export type SchedulerVehicle = {
   id: string;
   registrationNumber: string;
+  // car=driver: the car's fixed driver. null only for an unpaired car.
+  driverName: string | null;
 };
 
 // Cars are shown as A, B, C… (index → letter) instead of plate numbers.
@@ -155,13 +157,18 @@ function CarRow({
   return (
     <div className="flex border-b last:border-b-0">
       <div
-        className="flex w-24 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium"
+        className="flex w-44 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium"
         title={vehicle.registrationNumber}
       >
         <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="truncate">{label}</span>
+        <span className="shrink-0">{label}</span>
+        {vehicle.driverName ? (
+          <span className="truncate text-xs font-normal text-muted-foreground">· {vehicle.driverName}</span>
+        ) : (
+          <span className="truncate text-[10px] font-normal text-destructive">· {noDriverLabel}</span>
+        )}
         {isDuty && (
-          <span className="shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <span className="ml-auto shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             {dutyLabel}
           </span>
         )}
@@ -200,7 +207,6 @@ export function SchedulerBoard({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ assigned: number; failures: string[] } | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
-  const [dropNote, setDropNote] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // 4px travel before a drag starts → a plain click still shows the title tooltip.
@@ -224,16 +230,17 @@ export function SchedulerBoard({
 
   function reassign(bookingId: string, vehicleId: string) {
     setDropError(null);
-    setDropNote(null);
     startTransition(async () => {
       const fd = new FormData();
       fd.append("bookingId", bookingId);
       fd.append("vehicleId", vehicleId);
       const res = await reassignVehicleAction(fd);
-      // Car-busy is the only hard block now. A successful drop with no free
-      // driver lands the car anyway — surface that as an amber heads-up.
-      if (!res.ok) setDropError(t(res.error === "vehicleBusy" ? "dropConflict" : "dropFailed"));
-      else if (res.driverless) setDropNote(t("dropDriverless"));
+      // car=driver: the drop lands the car + its driver. Blocks only on a busy
+      // car or a car with no assigned driver.
+      if (!res.ok) {
+        const key = res.error === "vehicleBusy" ? "dropConflict" : res.error === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed";
+        setDropError(t(key));
+      }
       router.refresh();
     });
   }
@@ -242,7 +249,6 @@ export function SchedulerBoard({
     if (work.length === 0) return;
     setResult(null);
     setDropError(null);
-    setDropNote(null);
     startTransition(async () => {
       let assigned = 0;
       const failures: string[] = [];
@@ -251,16 +257,13 @@ export function SchedulerBoard({
         fd.append("bookingId", b.id);
         let res;
         if (b.vehicleId) {
-          fd.append("vehicleId", b.vehicleId); // already on a car, just needs a driver
+          fd.append("vehicleId", b.vehicleId); // already on a car → attach that car's driver
           res = await reassignVehicleAction(fd);
         } else {
           res = await matchBookingAction(fd);
         }
-        // A driverless landing is not a real assignment for the auto-pass —
-        // it still needs a driver, so report it instead of counting it.
-        const driverless = !!res?.ok && "driverless" in res && res.driverless;
-        if (res?.ok && !driverless) assigned += 1;
-        else failures.push(`${b.jobNumber}: ${res?.ok ? "noDriver" : res?.error ?? "error"}`);
+        if (res?.ok) assigned += 1;
+        else failures.push(`${b.jobNumber}: ${res?.error ?? "error"}`);
       }
       setResult({ assigned, failures });
       router.refresh();
@@ -303,13 +306,6 @@ export function SchedulerBoard({
           </div>
         )}
 
-        {dropNote && (
-          <div className="flex items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-300">
-            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-            {dropNote}
-          </div>
-        )}
-
         {result && (
           <div className="space-y-1 rounded-md border bg-muted/30 p-2 text-sm">
             <p className="font-medium">{t("resultSummary", { assigned: result.assigned, failed: result.failures.length })}</p>
@@ -346,7 +342,7 @@ export function SchedulerBoard({
           <div className="overflow-x-auto rounded-xl border">
             <div className="min-w-[64rem]">
               <div className="flex border-b bg-muted/30">
-                <div className="w-24 shrink-0 border-r" />
+                <div className="w-44 shrink-0 border-r" />
                 <div className="relative h-8 flex-1">
                   {hours.map((h) => (
                     // Every label centered on its tick. The AXIS_PAD gutter keeps
