@@ -11,6 +11,7 @@
 // into "a free driver who has a car". No separate slot grid.
 
 import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "./classification";
+import { canChain } from "./rotations";
 
 export interface OvertimeRecoDriver {
   driverId: string;
@@ -42,23 +43,19 @@ function isOvertimeWindow(startAt: Date, endAt: Date): boolean {
   return endAt.getHours() === WORK_DAY_END_HOUR && endAt.getMinutes() > 0;
 }
 
-const overlaps = (
-  a: { startAt: Date; endAt: Date },
-  b: { startAt: Date; endAt: Date },
-): boolean => a.startAt < b.endAt && b.startAt < a.endAt;
-
 export function recommendOvertimePlacement(input: OvertimeRecoInput): OvertimeReco {
   const { booking, dutyDriverId, drivers } = input;
 
   if (!isOvertimeWindow(booking.startAt, booking.endAt)) return { kind: "not-applicable" };
 
-  // Fairest non-duty car-driver unit free at the booking time: has a car, no
-  // trip overlapping the booking. The 2-job/day cap is intentionally NOT applied
-  // — overtime is extra hours on top of the normal day.
+  // Fairest non-duty car-driver unit that can legally take this OT: has a car,
+  // and clears the chaining rule for an OT (no overlap + ≥2h gap to every other
+  // trip). canChain with jobType OT skips the 2-NORMAL cap — overtime is extra
+  // hours on top — but still enforces the 2h gap.
   const driver = drivers
     .filter((d) => d.driverId !== dutyDriverId)
     .filter((d) => d.vehicleId)
-    .filter((d) => !d.trips.some((t) => overlaps(t, booking)))
+    .filter((d) => canChain({ startAt: booking.startAt, endAt: booking.endAt, jobType: "OT" }, d.trips))
     .sort(
       (a, b) =>
         a.earningsScore - b.earningsScore ||

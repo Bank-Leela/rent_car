@@ -66,6 +66,9 @@ export function buildDriverMatrix(
 export interface TripWindow {
   startAt: Date;
   endAt: Date;
+  // Drives the job-type-aware chaining rule (OT uncapped vs NORMAL morning/
+  // afternoon). Omitted → treated as NORMAL.
+  jobType?: JobType;
 }
 
 /**

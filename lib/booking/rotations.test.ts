@@ -7,6 +7,7 @@ import {
   rankForRotation,
   type DriverRotationState,
 } from "./rotations";
+import type { JobType } from "@prisma/client";
 
 const D = (s: string) => new Date(s);
 
@@ -45,6 +46,35 @@ describe("canTake", () => {
   });
   it("overlap is rejected even with otherwise valid gap", () => {
     expect(canTake({ startAt: D("2026-06-10T10:00:00"), endAt: D("2026-06-10T12:00:00") }, [wrap(morning)])).toBe(false);
+  });
+});
+
+describe("canTake — job-type-aware (OT uncapped, 2h gap universal)", () => {
+  const mk = (s: string, e: string, jobType: JobType = "NORMAL") => ({ id: "x", jobType, startAt: D(s), endAt: D(e) });
+  const morningN = mk("2026-06-10T08:00:00", "2026-06-10T11:00:00");
+  const afternoonN = mk("2026-06-10T13:00:00", "2026-06-10T16:00:00");
+
+  it("OT stacks on top of a full morning+afternoon NORMAL day (exempt from the cap)", () => {
+    const eveningOt = { startAt: D("2026-06-10T18:00:00"), endAt: D("2026-06-10T20:00:00"), jobType: "OT" as const };
+    expect(canTake(eveningOt, [morningN, afternoonN])).toBe(true);
+  });
+
+  it("OT still obeys the 2h gap: ends 06:00 allows an 08:00 job, ends 06:30 blocks it", () => {
+    const job8 = { startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T10:00:00"), jobType: "NORMAL" as const };
+    expect(canTake(job8, [mk("2026-06-10T04:00:00", "2026-06-10T06:00:00", "OT")])).toBe(true);
+    expect(canTake(job8, [mk("2026-06-10T04:30:00", "2026-06-10T06:30:00", "OT")])).toBe(false);
+  });
+
+  it("two morning NORMALs are rejected (only one morning + one afternoon)", () => {
+    const existingMorning = mk("2026-06-10T08:00:00", "2026-06-10T09:00:00");
+    const secondMorning = { startAt: D("2026-06-10T11:00:00"), endAt: D("2026-06-10T12:00:00"), jobType: "NORMAL" as const };
+    expect(canTake(secondMorning, [existingMorning])).toBe(false);
+  });
+
+  it("an existing OT does not consume the NORMAL morning/afternoon slots", () => {
+    const earlyOt = mk("2026-06-10T04:00:00", "2026-06-10T06:00:00", "OT");
+    expect(canTake(morningN, [earlyOt])).toBe(true);
+    expect(canTake(afternoonN, [earlyOt, morningN])).toBe(true);
   });
 });
 

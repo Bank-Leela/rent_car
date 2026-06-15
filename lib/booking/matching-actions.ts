@@ -101,10 +101,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   for (const d of drivers) tripsByDriver.set(d.id, []);
   for (const b of dayBookings) {
     if (b.primaryDriverId && tripsByDriver.has(b.primaryDriverId)) {
-      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt });
+      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType });
     }
     if (b.secondaryDriverId && tripsByDriver.has(b.secondaryDriverId)) {
-      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt });
+      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType });
     }
   }
   if (onCallDriverId && tripsByDriver.has(onCallDriverId)) {
@@ -112,7 +112,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     dutyStart.setHours(8, 0, 0, 0);
     const dutyEnd = new Date(tripDay);
     dutyEnd.setHours(16, 0, 0, 0);
-    tripsByDriver.get(onCallDriverId)!.push({ startAt: dutyStart, endAt: dutyEnd });
+    tripsByDriver.get(onCallDriverId)!.push({ startAt: dutyStart, endAt: dutyEnd, jobType: "WERN" });
   }
   const driverAvailability: DriverAvailabilityInput[] = drivers.map((d) => ({
     driverId: d.id,
@@ -135,7 +135,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const decision = match({
     jobType: booking.jobType,
     timeBucket: booking.timeBucket,
-    newTrip: { startAt: booking.startAt, endAt: booking.endAt },
+    newTrip: { startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType },
     estimatedDistance: booking.estimatedDistance,
     driverCar,
     driverMatrix,

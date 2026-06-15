@@ -324,6 +324,35 @@ describe("solveDay — existing same-day assignments block non-duty overlap", ()
     expect(out.overflows).toEqual([{ bookingId: "n1", reason: "NO_PRIMARY_DRIVER" }]);
   });
 
+  it("an OT already on a driver does not block their afternoon NORMAL (OT is not a coverage slot)", () => {
+    const input: SolverInput = {
+      date: D("2026-06-10"),
+      bookings: [
+        booking({
+          bookingId: "pm",
+          jobType: "NORMAL",
+          startAt: D("2026-06-10T13:00:00"),
+          endAt: D("2026-06-10T15:00:00"),
+        }),
+      ],
+      drivers: [driver({ driverId: "A" })],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+      existingByDriver: new Map([
+        [
+          "A",
+          [
+            { id: "ot", jobType: "OT", startAt: D("2026-06-10T04:00:00"), endAt: D("2026-06-10T06:00:00") },
+            { id: "am", jobType: "NORMAL", startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T10:00:00") },
+          ],
+        ],
+      ]),
+    };
+    const out = solveDay(input);
+    expect(out.assignments).toHaveLength(1);
+    expect(out.assignments[0]!.primaryDriverId).toBe("A");
+  });
+
   it("still allows a non-overlapping morning→afternoon chain on an already-booked driver", () => {
     const input: SolverInput = {
       date: D("2026-06-10"),

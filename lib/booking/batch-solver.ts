@@ -255,8 +255,7 @@ function placeBooking(
   const duty = drivers.find(
     (d) => d.driverId === dutyDriverId &&
       !d.awayOnTjw &&
-      d.scheduledToday.length < MAX_JOBS_PER_DAY &&
-      canTake({ startAt: booking.startAt, endAt: booking.endAt }, d.scheduledToday),
+      canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday),
   );
   if (duty) {
     return { kind: "fail", reason: "NEEDS_WERN_RECLAIM_DECISION" };
@@ -273,7 +272,11 @@ function eligibleForPrimary(
   return drivers.filter((d) => {
     if (d.awayOnTjw) return false;
     if (d.driverId === dutyDriverId) return false;
-    if (d.scheduledToday.length >= MAX_JOBS_PER_DAY) return false;
+    // Cap is on NORMAL day-jobs only; OT is extra hours, never pre-excluded here
+    // (canChain still gates the exact gap/cap when the trip is placed).
+    if (booking.jobType === "NORMAL" && d.scheduledToday.filter((t) => t.jobType === "NORMAL").length >= MAX_JOBS_PER_DAY) {
+      return false;
+    }
     if (phaseC) {
       // Phase C only sees TJW returnees.
       if (!d.isTjwReturneeOtEligible) return false;
@@ -293,10 +296,14 @@ function rankForCategory(
   if (jobType === "TJW") return rankForRotation(pool, (d) => d.lastTjwAt);
   if (jobType === "OT") return rankForRotation(pool, (d) => d.lastOtAt);
   if (jobType === "WERN") return pickDutyRotation(pool) ? rankForRotation(pool, (d) => d.lastDutyAt) : [];
-  // NORMAL / SMUS: coverage rule (everyone ≥1 before any gets 2).
+  // NORMAL / SMUS: coverage rule (everyone ≥1 before any gets 2). Count NORMAL
+  // day-jobs only — OT is extra hours on top and must not push a driver out of
+  // the NORMAL pick (matches the NORMAL-only cap pre-filter in eligibleForPrimary).
+  const normalCount = (id: string) =>
+    allDrivers.find((x) => x.driverId === id)!.scheduledToday.filter((t) => t.jobType === "NORMAL").length;
   const ranked = pickGeneralRank(pool);
-  const tier0 = ranked.filter((id) => allDrivers.find((x) => x.driverId === id)!.scheduledToday.length === 0);
-  const tier1 = ranked.filter((id) => allDrivers.find((x) => x.driverId === id)!.scheduledToday.length === 1);
+  const tier0 = ranked.filter((id) => normalCount(id) === 0);
+  const tier1 = ranked.filter((id) => normalCount(id) === 1);
   return [...tier0, ...tier1];
 }
 
@@ -306,7 +313,7 @@ function canDriverTakeNew(
   booking: SolverBookingInput,
 ): boolean {
   const d = drivers.find((x) => x.driverId === driverId)!;
-  return canTake({ startAt: booking.startAt, endAt: booking.endAt }, d.scheduledToday);
+  return canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday);
 }
 
 function commitAssignment(

@@ -48,41 +48,53 @@ export interface ScheduledTrip {
  *  - 2 trips already      → cannot take.
  *  - Any overlap          → cannot take.
  */
-// Canonical same-day chaining rule shared by both assignment paths (the batch
-// solver via canTake, and the single-booking matcher via canTakeTrip):
-//   - 0 existing trips        → can take.
-//   - 2 existing trips        → cannot (1/day cap + the single override).
-//   - Overlap                 → cannot.
-//   - Otherwise allowed only as a morning(+afternoon) chain: ONE of the two
-//     trips must END strictly before noon, and there must be a 2-hour gap.
-//     A long midday trip (ends ≥ 12:00) therefore blocks a second trip.
-export function canChain(
-  next: { startAt: Date; endAt: Date },
-  existing: { startAt: Date; endAt: Date }[],
-): boolean {
+// Job-type-aware same-day chaining rule shared by both assignment paths (the
+// batch solver via canTake, and the single-booking matcher via canTakeTrip).
+// `jobType` defaults to NORMAL when omitted, so untyped callers get the
+// day-job rules.
+//
+//   - 0 existing trips                       → can take.
+//   - Overlap with any existing              → cannot.
+//   - <2h gap to ANY existing trip           → cannot (universal). e.g. an OT
+//     ending 06:00 lets an 08:00 job follow; ending 06:30 blocks it.
+//   - NORMAL day-cap: at most 2 NORMALs, and they must be ONE morning
+//     (ends ≤ 12:00) + ONE afternoon (starts ≥ 12:00). Two mornings, two
+//     afternoons, or a midday job (straddles noon) + another are rejected.
+//   - OT is exempt from the cap (extra hours on top) but still obeys the gap.
+//     TJW/WERN are gated by the solver (away / duty) — here they only obey gap.
+const minuteOfDay = (d: Date) => d.getHours() * 60 + d.getMinutes();
+const NOON_MIN = MORNING_END_HOUR * 60;
+const endsByNoon = (t: { endAt: Date }) => minuteOfDay(t.endAt) <= NOON_MIN;
+const startsAfterNoon = (t: { startAt: Date }) => minuteOfDay(t.startAt) >= NOON_MIN;
+
+type TimedJob = { startAt: Date; endAt: Date; jobType?: JobType };
+
+export function canChain(next: TimedJob, existing: TimedJob[]): boolean {
   if (existing.length === 0) return true;
-  if (existing.length >= MAX_JOBS_PER_DAY) return false;
 
-  const e = existing[0]!;
-  const newStart = next.startAt.getTime();
-  const newEnd = next.endAt.getTime();
-  const exStart = e.startAt.getTime();
-  const exEnd = e.endAt.getTime();
+  // Universal: no overlap, and ≥2h between the new trip and EVERY existing trip.
+  for (const e of existing) {
+    if (next.startAt < e.endAt && e.startAt < next.endAt) return false; // overlap
+    const gap2h =
+      next.endAt.getTime() + TWO_HOUR_BUFFER_MS <= e.startAt.getTime() ||
+      e.endAt.getTime() + TWO_HOUR_BUFFER_MS <= next.startAt.getTime();
+    if (!gap2h) return false;
+  }
 
-  // Overlap always blocks.
-  if (newStart < exEnd && exStart < newEnd) return false;
-
-  // "Morning" = ends strictly before noon (12:00). 12:01–12:59 is NOT morning.
-  const endsBeforeNoon = (d: Date) => d.getHours() < MORNING_END_HOUR;
-
-  // Existing is a morning trip, the new one comes ≥2h later.
-  if (endsBeforeNoon(e.endAt) && exEnd + TWO_HOUR_BUFFER_MS <= newStart) return true;
-  // Mirror: the new trip is the morning one, existing comes ≥2h later.
-  if (endsBeforeNoon(next.endAt) && newEnd + TWO_HOUR_BUFFER_MS <= exStart) return true;
-  return false;
+  // Cap applies to NORMAL only — OT is extra hours on top.
+  if ((next.jobType ?? "NORMAL") !== "NORMAL") return true;
+  const normals = [next, ...existing.filter((e) => (e.jobType ?? "NORMAL") === "NORMAL")];
+  if (normals.length > MAX_JOBS_PER_DAY) return false;
+  if (normals.length === MAX_JOBS_PER_DAY) {
+    // Exactly one morning + one afternoon.
+    if (normals.filter(endsByNoon).length !== 1 || normals.filter(startsAfterNoon).length !== 1) {
+      return false;
+    }
+  }
+  return true;
 }
 
-export function canTake(next: { startAt: Date; endAt: Date }, existing: ScheduledTrip[]): boolean {
+export function canTake(next: TimedJob, existing: ScheduledTrip[]): boolean {
   return canChain(next, existing);
 }
 

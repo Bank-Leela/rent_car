@@ -336,13 +336,21 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
     outcomes.overflow[o.reason] += 1;
   }
 
-  // Rule violation checks.
+  // Rule violation checks (job-type-aware: NORMAL capped at 2, OT is extra hours
+  // on top; the 2h gap is universal across every pair).
   for (const trips of result.driverDay.values()) {
-    if (trips.length > 2) outcomes.capViolations += 1;
-    if (trips.length === 2) {
-      const [a, b] = trips.sort((x, y) => x.startAt.getTime() - y.startAt.getTime()) as [typeof trips[0], typeof trips[0]];
-      const gapMs = b.startAt.getTime() - a.endAt.getTime();
-      if (gapMs < 2 * 3_600_000) outcomes.bufferViolations += 1;
+    if (trips.filter((t) => t.jobType === "NORMAL").length > 2) outcomes.capViolations += 1;
+    const sorted = [...trips].sort((x, y) => x.startAt.getTime() - y.startAt.getTime());
+    for (let i = 0; i < sorted.length; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        const a = sorted[i]!;
+        const b = sorted[j]!;
+        const overlap = a.startAt < b.endAt && b.startAt < a.endAt;
+        const gapOk =
+          a.endAt.getTime() + 2 * 3_600_000 <= b.startAt.getTime() ||
+          b.endAt.getTime() + 2 * 3_600_000 <= a.startAt.getTime();
+        if (overlap || !gapOk) outcomes.bufferViolations += 1;
+      }
     }
   }
   // Duty driver should never appear in a non-WERN trip's driver lineup.

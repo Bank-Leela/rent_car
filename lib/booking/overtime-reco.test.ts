@@ -36,6 +36,22 @@ describe("recommendOvertimePlacement", () => {
     expect(r).toEqual({ kind: "overtime-fit", driverId: "B", vehicleId: "vB" });
   });
 
+  it("respects the 2h gap: an OT 1h after a day-job is NOT recommended; 2h is", () => {
+    const dayJob = { startAt: D("2026-06-10T14:00:00"), endAt: D("2026-06-10T16:00:00") };
+    const tooSoon = recommendOvertimePlacement({
+      booking: { startAt: D("2026-06-10T17:00:00"), endAt: D("2026-06-10T19:00:00") }, // 1h after 16:00
+      dutyDriverId: null,
+      drivers: [driver("B", { trips: [dayJob] })],
+    });
+    expect(tooSoon).toEqual({ kind: "no-fit" });
+    const okGap = recommendOvertimePlacement({
+      booking: { startAt: D("2026-06-10T18:00:00"), endAt: D("2026-06-10T20:00:00") }, // 2h after 16:00
+      dutyDriverId: null,
+      drivers: [driver("B", { trips: [dayJob] })],
+    });
+    expect(okGap).toEqual({ kind: "overtime-fit", driverId: "B", vehicleId: "vB" });
+  });
+
   it("a within-window booking is not-applicable (not overtime)", () => {
     const r = recommendOvertimePlacement({
       booking: { startAt: D("2026-06-10T10:00:00"), endAt: D("2026-06-10T12:00:00") },
