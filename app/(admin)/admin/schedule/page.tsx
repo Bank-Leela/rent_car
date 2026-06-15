@@ -46,6 +46,7 @@ export default async function SchedulePage({
         jobType: true,
         primaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+        secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
     }),
     prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
@@ -64,6 +65,8 @@ export default async function SchedulePage({
   const bookings = dayBookings.map((b) => {
     const u = b.primaryDriver?.user;
     const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
+    const su = b.secondaryDriver?.user;
+    const secondaryDriverName = su ? (isThai ? su.thaiName ?? su.name : su.name ?? su.thaiName) ?? null : null;
     const sameDay = b.endAt.toDateString() === b.startAt.toDateString();
     return {
       id: b.id,
@@ -76,6 +79,7 @@ export default async function SchedulePage({
       vehicleId: b.vehicleId,
       hasDriver: b.primaryDriverId != null,
       driverName,
+      secondaryDriverName,
     };
   });
 

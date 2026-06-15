@@ -38,6 +38,7 @@ export type SchedulerBooking = {
   vehicleId: string | null;
   hasDriver: boolean;
   driverName: string | null;
+  secondaryDriverName: string | null;
 };
 
 // The axis spans the full day, 00:00–24:00. (Kept as min/max bounds so a stray
@@ -95,6 +96,10 @@ function TimelineBlock({
           <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
           {noDriverLabel}
         </div>
+      )}
+      {b.secondaryDriverName && (
+        // Long-haul TJW (>400km) relief driver — preview of the car=driver "co-driver".
+        <div className="truncate text-[10px] font-medium text-sky-600 dark:text-sky-400">+ {b.secondaryDriverName}</div>
       )}
     </div>
   );
