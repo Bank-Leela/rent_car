@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   addMonths,
   eachDayOfInterval,
@@ -37,6 +38,12 @@ interface DateTimePickerProps {
 const WEEKDAYS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const WEEKDAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"] as const;
 
+// Portal popover footprint: used to decide whether to flip above the trigger
+// and to clamp into the viewport. Height is a heuristic (date+time variant); a
+// few px off only nudges the flip threshold.
+const POPOVER_W = 352; // matches the original w-88 design width
+const POPOVER_H = 380;
+
 function toLocalISO(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -68,12 +75,14 @@ export function DateTimePicker({
   const [value, setValue] = useState<Date | null>(initial);
   const [viewMonth, setViewMonth] = useState<Date>(initial ?? new Date());
   const [open, setOpen] = useState(false);
-  // Flip the popover above the trigger when there isn't room below (e.g. the
-  // recurrence field near the bottom of the form) so it never opens off-screen.
-  const [dropUp, setDropUp] = useState(false);
+  // The popover renders in a portal on document.body with fixed positioning, so
+  // an `overflow-hidden` ancestor (e.g. a Card) can never clip it. These are its
+  // viewport coords, recomputed on open / scroll / resize.
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
 
   // Sync from controlled defaultValue when the parent mutates it (e.g.
   // a "fill earliest" button setting a date externally). Without this the
@@ -100,11 +109,39 @@ export function DateTimePicker({
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // The popover lives in a portal outside rootRef, so check it too —
+      // otherwise clicking a day registers as an outside click and closes.
+      if (rootRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  const reposition = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom;
+    // Flip above only when there isn't room below AND there's more room above.
+    const up = below < POPOVER_H && rect.top > below;
+    const top = up ? Math.max(8, rect.top - POPOVER_H - 8) : rect.bottom + 8;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_W - 8));
+    setCoords({ top, left });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    reposition();
+    // Capture-phase scroll catches scrolling in any ancestor, not just window.
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open, reposition]);
 
   function commit(day: Date, h: number, m: number) {
     const next = new Date(day);
@@ -130,13 +167,7 @@ export function DateTimePicker({
   }
 
   function toggleOpen() {
-    if (!open && rootRef.current) {
-      const rect = rootRef.current.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom;
-      // ~380px ≈ popover height; flip up only when below is tight and there's
-      // more room above.
-      setDropUp(below < 380 && rect.top > below);
-    }
+    if (!open) reposition(); // place before paint so it never flashes at (0,0)
     setOpen((v) => !v);
   }
 
@@ -171,13 +202,12 @@ export function DateTimePicker({
         <Calendar className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
       </button>
 
-      {open && (
+      {open && coords && createPortal(
         <div
+          ref={popoverRef}
           role="dialog"
-          className={cn(
-            "absolute z-50 w-88 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
-            dropUp ? "bottom-full mb-2" : "mt-2",
-          )}
+          style={{ position: "fixed", top: coords.top, left: coords.left, width: POPOVER_W }}
+          className="z-50 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl"
         >
           <div className="flex items-center justify-between pb-3">
             <button
@@ -284,7 +314,8 @@ export function DateTimePicker({
               ตกลง / Done
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
