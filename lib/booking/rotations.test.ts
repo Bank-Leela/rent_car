@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   canTake,
   pickGeneralRank,
-  pickOtRotation,
-  pickTjwRotation,
   rankForRotation,
   type DriverRotationState,
 } from "./rotations";
@@ -78,40 +76,43 @@ describe("canTake — job-type-aware (OT uncapped, 2h gap universal)", () => {
   });
 });
 
-describe("pickTjwRotation", () => {
-  it("driver with null lastTjwAt wins over anyone with a real timestamp", () => {
-    const got = pickTjwRotation([
+describe("rankForRotation (oldest-first, ledger tie-break)", () => {
+  const top = (
+    rows: DriverRotationState[],
+    key: (d: DriverRotationState) => Date | null,
+  ) => rankForRotation(rows, key)[0] ?? null;
+
+  it("driver with null timestamp wins over anyone with a real one", () => {
+    const got = top([
       driver({ driverId: "A", lastTjwAt: D("2026-05-01") }),
       driver({ driverId: "B", lastTjwAt: null }),
       driver({ driverId: "C", lastTjwAt: D("2026-04-15") }),
-    ]);
+    ], (d) => d.lastTjwAt);
     expect(got).toBe("B");
   });
 
   it("among real timestamps the oldest wins", () => {
-    const got = pickTjwRotation([
+    const got = top([
       driver({ driverId: "A", lastTjwAt: D("2026-05-10") }),
       driver({ driverId: "B", lastTjwAt: D("2026-05-01") }),
       driver({ driverId: "C", lastTjwAt: D("2026-05-05") }),
-    ]);
+    ], (d) => d.lastTjwAt);
     expect(got).toBe("B");
   });
 
-  it("category tie breaks on the general ledger (lowest earnings first)", () => {
-    const got = pickTjwRotation([
+  it("ties break on the general ledger (lowest earnings first)", () => {
+    const got = top([
       driver({ driverId: "A", lastTjwAt: D("2026-05-10"), earningsScore: 5 }),
       driver({ driverId: "B", lastTjwAt: D("2026-05-10"), earningsScore: 2 }),
-    ]);
+    ], (d) => d.lastTjwAt);
     expect(got).toBe("B");
   });
-});
 
-describe("pickOtRotation", () => {
-  it("respects the same oldest-first rule independently of TJW", () => {
-    const got = pickOtRotation([
+  it("works on any category key (e.g. lastOtAt) independently", () => {
+    const got = top([
       driver({ driverId: "A", lastOtAt: D("2026-05-10"), lastTjwAt: D("2026-05-15") }),
       driver({ driverId: "B", lastOtAt: D("2026-05-01"), lastTjwAt: null }),
-    ]);
+    ], (d) => d.lastOtAt);
     expect(got).toBe("B");
   });
 });

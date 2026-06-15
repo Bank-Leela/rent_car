@@ -14,6 +14,9 @@ import type { JobType } from "@prisma/client";
 
 export const WORK_DAY_START_HOUR = 8;   // anything starting before this is OT
 export const WORK_DAY_END_HOUR = 16;    // anything ending after this is OT
+// A trip beyond this distance (km) needs a relief co-driver (the 2-driver rule).
+// Re-exported from matching.ts and batch-solver.ts for their existing importers.
+export const LONG_TRIP_KM = 400;
 
 export interface ClassifyInput {
   startAt: Date;

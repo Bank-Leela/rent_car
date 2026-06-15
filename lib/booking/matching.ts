@@ -11,6 +11,8 @@ import {
   type RankInput,
   type TripWindow,
 } from "./driver-capacity";
+import { LONG_TRIP_KM } from "./classification";
+export { LONG_TRIP_KM };
 
 export type MatchError =
   | "NO_SLOT"
@@ -43,8 +45,6 @@ export interface MatchResult {
   primaryDriverId: string;
   secondaryDriverId: string | null;
 }
-
-export const LONG_TRIP_KM = 400;
 
 export function match(input: MatchInput): { ok: true; result: MatchResult } | { ok: false; error: MatchError } {
   // car=driver: pick the driver first; the vehicle is whatever car that driver

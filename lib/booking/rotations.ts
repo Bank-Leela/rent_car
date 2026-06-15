@@ -105,16 +105,6 @@ function olderFirst(a: Date | null, b: Date | null): number {
   return at - bt;
 }
 
-/** Pick the driver whose `lastTjwAt` is oldest. Tie → general ledger. */
-export function pickTjwRotation(eligible: DriverRotationState[]): string | null {
-  return rankForRotation(eligible, (d) => d.lastTjwAt)[0] ?? null;
-}
-
-/** Pick the driver whose `lastOtAt` is oldest. Tie → general ledger. */
-export function pickOtRotation(eligible: DriverRotationState[]): string | null {
-  return rankForRotation(eligible, (d) => d.lastOtAt)[0] ?? null;
-}
-
 /** Pick the driver whose `lastDutyAt` is oldest. Tie → general ledger. */
 export function pickDutyRotation(eligible: DriverRotationState[]): string | null {
   return rankForRotation(eligible, (d) => d.lastDutyAt)[0] ?? null;

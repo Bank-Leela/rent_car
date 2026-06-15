@@ -21,17 +21,17 @@
 //     to Khun Top rather than auto-deciding.
 //
 // Phases:
-//   - Per-booking primary pick using its category's rotation:
-//       TJW    → pickTjwRotation       (Driver.lastTjwAt)
-//       WERN   → OnCallShift if set, else pickDutyRotation
-//       OT     → pickOtRotation        (Driver.lastOtAt)
+//   - Per-booking primary pick using its category's rotation (rankForRotation):
+//       TJW    → oldest Driver.lastTjwAt
+//       WERN   → OnCallShift if set, else pickDutyRotation (oldest lastDutyAt)
+//       OT     → oldest Driver.lastOtAt
 //       NORMAL → pickGeneralRank with coverage rule (everyone ≥1 before 2)
 //   - >400 km secondary pick from the remaining pool, same rotation.
 //   - Phase C sweep: OT trips that overflowed are retried against drivers
 //     returning from TJW today before the 16:00 cutoff.
 
 import type { JobType, OverflowReason } from "@prisma/client";
-import { tripEffort, WORK_DAY_END_HOUR } from "./classification";
+import { tripEffort, WORK_DAY_END_HOUR, LONG_TRIP_KM } from "./classification";
 import {
   canTake,
   MAX_JOBS_PER_DAY,
@@ -42,7 +42,7 @@ import {
   type ScheduledTrip,
 } from "./rotations";
 
-export const LONG_TRIP_KM = 400;
+export { LONG_TRIP_KM };
 
 export interface SolverBookingInput {
   bookingId: string;
