@@ -132,6 +132,8 @@
     "noDriver": "No driver",
     "dropNoDriver": "No free driver for this time — can't place here.",
     "dropConflict": "That car is already booked at this time.",
+    "dropDriverless": "Placed on the car — no free driver right now. Assign one manually or run auto-assign.",
+    "dropFailed": "Couldn't place that booking.",
     "hint": "Auto-assign runs the matcher — it picks a vehicle and driver for each request by the rotation order.",
     "autoAssign": "Auto-assign {count}",
     "assigning": "Assigning…",

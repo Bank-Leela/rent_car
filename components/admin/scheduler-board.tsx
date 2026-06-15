@@ -195,6 +195,7 @@ export function SchedulerBoard({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ assigned: number; failures: string[] } | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  const [dropNote, setDropNote] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // 4px travel before a drag starts → a plain click still shows the title tooltip.
@@ -218,12 +219,16 @@ export function SchedulerBoard({
 
   function reassign(bookingId: string, vehicleId: string) {
     setDropError(null);
+    setDropNote(null);
     startTransition(async () => {
       const fd = new FormData();
       fd.append("bookingId", bookingId);
       fd.append("vehicleId", vehicleId);
       const res = await reassignVehicleAction(fd);
-      if (!res?.ok) setDropError(t(res?.error === "vehicleBusy" ? "dropConflict" : "dropNoDriver"));
+      // Car-busy is the only hard block now. A successful drop with no free
+      // driver lands the car anyway — surface that as an amber heads-up.
+      if (!res.ok) setDropError(t(res.error === "vehicleBusy" ? "dropConflict" : "dropFailed"));
+      else if (res.driverless) setDropNote(t("dropDriverless"));
       router.refresh();
     });
   }
@@ -232,6 +237,7 @@ export function SchedulerBoard({
     if (work.length === 0) return;
     setResult(null);
     setDropError(null);
+    setDropNote(null);
     startTransition(async () => {
       let assigned = 0;
       const failures: string[] = [];
@@ -245,8 +251,11 @@ export function SchedulerBoard({
         } else {
           res = await matchBookingAction(fd);
         }
-        if (res?.ok) assigned += 1;
-        else failures.push(`${b.jobNumber}: ${res?.error ?? "error"}`);
+        // A driverless landing is not a real assignment for the auto-pass —
+        // it still needs a driver, so report it instead of counting it.
+        const driverless = !!res?.ok && "driverless" in res && res.driverless;
+        if (res?.ok && !driverless) assigned += 1;
+        else failures.push(`${b.jobNumber}: ${res?.ok ? "noDriver" : res?.error ?? "error"}`);
       }
       setResult({ assigned, failures });
       router.refresh();
@@ -283,6 +292,13 @@ export function SchedulerBoard({
           <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-sm text-destructive">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
             {dropError}
+          </div>
+        )}
+
+        {dropNote && (
+          <div className="flex items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+            {dropNote}
           </div>
         )}
 

@@ -6,13 +6,17 @@ import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { pickFreeDriver, type FreeDriverInput } from "@/lib/booking/driver-capacity";
-import type { ActionResult } from "@/lib/booking/actions";
 
-// Drag-and-drop on the schedule board: drop a booking onto a car row. Assigns
-// the vehicle AND the fairest free driver for that time (same eligibility +
-// fairness as the matcher). Blocks the move if no driver is free — never leaves
-// a booking with a car but no driver.
-export async function reassignVehicleAction(formData: FormData): Promise<ActionResult> {
+// A car-busy conflict still blocks; otherwise the drop always lands. `driverless`
+// reports whether it landed without a driver (no one free at that time).
+type ReassignResult = { ok: false; error: string } | { ok: true; driverless: boolean };
+
+// Drag-and-drop on the schedule board: drop a booking onto a car row. Always
+// assigns the vehicle, and attaches the fairest free driver if one exists.
+// When no driver is free the booking still lands on the car — driverless, for
+// the board to flag red and the admin to staff later / via จัด. Only a car
+// already booked at that time blocks the drop.
+export async function reassignVehicleAction(formData: FormData): Promise<ReassignResult> {
   await requireRole("ADMIN");
   const bookingId = String(formData.get("bookingId") ?? "");
   const vehicleId = String(formData.get("vehicleId") ?? "");
@@ -78,22 +82,23 @@ export async function reassignVehicleAction(formData: FormData): Promise<ActionR
     candidates,
     shift?.driverId ?? null,
   );
-  if (!driverId) return { ok: false, error: "noEligibleDriver" };
 
+  // No hard block — the car is assigned regardless. A driver is attached only
+  // when one is free; otherwise the booking lands driverless (board flags red).
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
       data: {
         vehicleId,
         primaryDriverId: driverId,
-        status: "ASSIGNED",
-        driverScheduleStatus: "CONFIRMED",
-        decidedAt: new Date(),
+        ...(driverId
+          ? { status: "ASSIGNED", driverScheduleStatus: "CONFIRMED", decidedAt: new Date() }
+          : {}),
       },
     });
-    await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
+    if (driverId) await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
   });
 
   revalidatePath("/admin/schedule");
-  return { ok: true };
+  return { ok: true, driverless: !driverId };
 }
