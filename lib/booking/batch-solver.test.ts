@@ -288,3 +288,72 @@ describe("solveDay — FCFS submitter order within a category", () => {
     expect(out.overflows[0]!.bookingId).toBe("late");
   });
 });
+
+describe("solveDay — existing same-day assignments block non-duty overlap", () => {
+  it("does not stack an overlapping trip on a non-duty driver already booked", () => {
+    const input: SolverInput = {
+      date: D("2026-06-10"),
+      bookings: [
+        booking({
+          bookingId: "n1",
+          jobType: "NORMAL",
+          startAt: D("2026-06-10T09:00:00"),
+          endAt: D("2026-06-10T11:00:00"),
+        }),
+      ],
+      // Sole eligible driver already holds an overlapping trip today.
+      drivers: [driver({ driverId: "A" })],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+      existingByDriver: new Map([
+        [
+          "A",
+          [
+            {
+              id: "x",
+              jobType: "NORMAL",
+              startAt: D("2026-06-10T08:30:00"),
+              endAt: D("2026-06-10T10:00:00"),
+            },
+          ],
+        ],
+      ]),
+    };
+    const out = solveDay(input);
+    expect(out.assignments).toHaveLength(0);
+    expect(out.overflows).toEqual([{ bookingId: "n1", reason: "NO_PRIMARY_DRIVER" }]);
+  });
+
+  it("still allows a non-overlapping morning→afternoon chain on an already-booked driver", () => {
+    const input: SolverInput = {
+      date: D("2026-06-10"),
+      bookings: [
+        booking({
+          bookingId: "pm",
+          jobType: "NORMAL",
+          startAt: D("2026-06-10T13:00:00"),
+          endAt: D("2026-06-10T15:00:00"),
+        }),
+      ],
+      drivers: [driver({ driverId: "A" })],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+      existingByDriver: new Map([
+        [
+          "A",
+          [
+            {
+              id: "am",
+              jobType: "NORMAL",
+              startAt: D("2026-06-10T08:00:00"),
+              endAt: D("2026-06-10T10:00:00"),
+            },
+          ],
+        ],
+      ]),
+    };
+    const out = solveDay(input);
+    expect(out.assignments).toHaveLength(1);
+    expect(out.assignments[0]!.primaryDriverId).toBe("A");
+  });
+});

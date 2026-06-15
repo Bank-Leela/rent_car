@@ -9,7 +9,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import { tripEffort } from "@/lib/booking/classification";
-import type { DriverRotationState } from "@/lib/booking/rotations";
+import type { DriverRotationState, ScheduledTrip } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
 import type { JobType } from "@prisma/client";
 
@@ -117,12 +117,38 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   });
   const driverCar = driverVehicleMap(vehicles);
 
+  // --- Trips already on a car for this day (any job type). ---
+  // Seeds each driver's schedule so the solver can't stack a second trip on an
+  // already-booked car (overlap) or blow past the daily cap. Spanning TJW from
+  // yesterday is included via the startAt<dayEnd && endAt>dayStart window.
+  const assignedToday = await prisma.booking.findMany({
+    where: {
+      status: { in: ["ASSIGNED", "COMPLETED"] },
+      primaryDriverId: { not: null },
+      startAt: { lt: dayEnd },
+      endAt: { gt: dayStart },
+    },
+    select: { id: true, startAt: true, endAt: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
+  });
+  const existingByDriver = new Map<string, ScheduledTrip[]>();
+  const addTrip = (driverId: string | null, t: { id: string; startAt: Date; endAt: Date; jobType: JobType }) => {
+    if (!driverId) return;
+    const list = existingByDriver.get(driverId) ?? [];
+    list.push({ id: t.id, startAt: t.startAt, endAt: t.endAt, jobType: t.jobType });
+    existingByDriver.set(driverId, list);
+  };
+  for (const t of assignedToday) {
+    addTrip(t.primaryDriverId, t);
+    addTrip(t.secondaryDriverId, t);
+  }
+
   const result = solveDay({
     date,
     bookings: solverBookings,
     drivers: driverStates,
     dutyDriverId,
     activeTjwCommitments: commitments,
+    existingByDriver,
   });
 
   // Bind each assignment to its primary driver's car. A driver with no car

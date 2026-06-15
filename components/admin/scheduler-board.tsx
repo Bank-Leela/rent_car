@@ -56,6 +56,11 @@ const pctOf = (h: number, start: number, hours: number) => {
   return AXIS_PAD + f * (100 - 2 * AXIS_PAD);
 };
 
+// Vertical geometry for stacking concurrent trips: each overlap lane is a sub-row
+// of LANE_PX, with LANE_PAD breathing room top/bottom inside it.
+const LANE_PX = 64;
+const LANE_PAD = 4;
+
 // A timeline block: absolutely positioned by exact minute (startHour carries
 // minutes/60), draggable via @dnd-kit. The source dims while a DragOverlay
 // clone follows the cursor — smooth, no native-DnD jank.
@@ -64,11 +69,19 @@ function TimelineBlock({
   noDriverLabel,
   dayStart,
   dayHours,
+  top,
+  height,
+  conflict,
 }: {
   b: SchedulerBooking;
   noDriverLabel: string;
   dayStart: number;
   dayHours: number;
+  // Vertical placement within the car row: which stacked lane this block sits in.
+  top: number;
+  height: number;
+  // Overlaps another trip on a car that is NOT allowed to overlap (non-duty).
+  conflict: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: b.id });
   const left = pctOf(b.startHour, dayStart, dayHours);
@@ -81,10 +94,10 @@ function TimelineBlock({
       {...listeners}
       {...attributes}
       title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
-      className={`group absolute inset-y-1 cursor-grab touch-none overflow-hidden rounded-md bg-card px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
+      className={`group absolute cursor-grab touch-none overflow-hidden rounded-md bg-card px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
         b.hasDriver ? "border" : "border-2 border-destructive/60"
-      }`}
-      style={{ left: `${left}%`, width: `${width}%`, opacity: isDragging ? 0.4 : 1 }}
+      } ${conflict ? "ring-2 ring-destructive" : ""}`}
+      style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
       <div className="flex items-center gap-1 font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
@@ -154,6 +167,39 @@ function CarRow({
   hours: number[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: vehicle.id });
+
+  // Greedy lane packing: a block joins the first lane whose last trip ends at or
+  // before it starts, else opens a new lane. Concurrent trips land on separate
+  // stacked lanes so none is hidden behind another.
+  const sorted = [...bookings].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+  const laneEnds: number[] = [];
+  const laneOf = new Map<string, number>();
+  for (const b of sorted) {
+    let lane = laneEnds.findIndex((end) => end <= b.startHour);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(b.endHour);
+    } else {
+      laneEnds[lane] = b.endHour;
+    }
+    laneOf.set(b.id, lane);
+  }
+  const laneCount = Math.max(1, laneEnds.length);
+
+  // Mark blocks that overlap another on this car. Only flagged red on a non-duty
+  // car — the duty (WERN) car is allowed to overlap.
+  const conflictIds = new Set<string>();
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i]!;
+      const c = sorted[j]!;
+      if (a.startHour < c.endHour && c.startHour < a.endHour) {
+        conflictIds.add(a.id);
+        conflictIds.add(c.id);
+      }
+    }
+  }
+
   return (
     <div className="flex border-b last:border-b-0">
       <div
@@ -175,7 +221,8 @@ function CarRow({
       </div>
       <div
         ref={setNodeRef}
-        className={`relative h-16 flex-1 transition-colors ${isOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : ""}`}
+        className={`relative flex-1 transition-colors ${isOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : ""}`}
+        style={{ height: laneCount * LANE_PX }}
       >
         {hours.map((h) => (
           <div
@@ -185,9 +232,21 @@ function CarRow({
             style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
           />
         ))}
-        {bookings.map((b) => (
-          <TimelineBlock key={b.id} b={b} noDriverLabel={noDriverLabel} dayStart={dayStart} dayHours={dayHours} />
-        ))}
+        {bookings.map((b) => {
+          const lane = laneOf.get(b.id) ?? 0;
+          return (
+            <TimelineBlock
+              key={b.id}
+              b={b}
+              noDriverLabel={noDriverLabel}
+              dayStart={dayStart}
+              dayHours={dayHours}
+              top={lane * LANE_PX + LANE_PAD}
+              height={LANE_PX - 2 * LANE_PAD}
+              conflict={conflictIds.has(b.id) && !isDuty}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 
@@ -24,10 +25,19 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   });
   if (!vehicle?.assignedDriverId) return { ok: false, error: "noAssignedDriver" };
 
+  // car=driver: only the day's duty (WERN) car may hold overlapping trips — the
+  // on-call driver carries a full-day reservation plus any reclaimed trip. Every
+  // other car must never be double-booked.
+  const onCall = await prisma.onCallShift.findUnique({
+    where: { date: startOfDay(booking.startAt) },
+    select: { driverId: true },
+  });
+  const isDutyCar = !!onCall?.driverId && vehicle.assignedDriverId === onCall.driverId;
+
   // Block if the target car already has an overlapping booking at this time —
   // only when actually moving to a different car (re-dropping on the same car
-  // must not collide with itself).
-  if (vehicleId !== booking.vehicleId) {
+  // must not collide with itself), and never for the duty car.
+  if (vehicleId !== booking.vehicleId && !isDutyCar) {
     const conflict = await prisma.booking.findFirst({
       where: {
         id: { not: bookingId },

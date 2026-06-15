@@ -67,6 +67,11 @@ export interface SolverInput {
   drivers: DriverRotationState[];
   dutyDriverId: string | null;
   activeTjwCommitments: TjwCommitment[];
+  /** Trips already assigned to each driver for this day (any job type),
+   *  keyed by driverId. Seeds each driver's `scheduledToday` so the overlap /
+   *  daily-cap rules see prior commitments — without this the solver would
+   *  stack a second trip on an already-booked car. */
+  existingByDriver?: Map<string, ScheduledTrip[]>;
   config?: SolverConfig;
 }
 
@@ -133,9 +138,11 @@ export function solveDay(input: SolverInput): SolverOutput {
     const commitment = input.activeTjwCommitments.find((c) => c.driverId === d.driverId);
     const returneeToday = !!commitment && returnsBeforeCutoffToday(commitment, input.date);
     const stillAway = !!commitment && spansDay(commitment, input.date) && !returneeToday;
+    // Copy so the solver's own pushes never mutate the caller's array.
+    const existing = input.existingByDriver?.get(d.driverId);
     return {
       ...d,
-      scheduledToday: [],
+      scheduledToday: existing ? [...existing] : [],
       awayOnTjw: stillAway,
       isTjwReturneeOtEligible: returneeToday,
     };
