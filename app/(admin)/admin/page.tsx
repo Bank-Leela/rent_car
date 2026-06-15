@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/empty-state";
 import { OnCallShiftForm } from "@/components/forms/matching-form";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
-import type { SlotInput } from "@/lib/booking/slot-allocation";
 
 export default async function AdminQueue() {
   const session = await requireAnyRole(["ADMIN", "APPROVER"]);
@@ -73,7 +72,7 @@ export default async function AdminQueue() {
     const [vehicles, dayBookings, shifts, earnings] = await Promise.all([
       prisma.vehicle.findMany({
         where: { isActive: true },
-        select: { id: true, registrationNumber: true, isDutyVehicle: true },
+        select: { id: true, registrationNumber: true, assignedDriverId: true },
       }),
       prisma.booking.findMany({
         where: { startAt: { lt: rangeEnd }, endAt: { gt: rangeStart }, status: { in: ["APPROVED", "ASSIGNED"] } },
@@ -86,18 +85,15 @@ export default async function AdminQueue() {
     const driverName = new Map(allDrivers.map((d) => [d.id, d.user.name ?? d.user.email ?? d.id]));
     const vehicleReg = new Map(vehicles.map((v) => [v.id, v.registrationNumber]));
     const dutyByDay = new Map(shifts.map((s) => [startOfDay(s.date).getTime(), s.driverId]));
-    const slotVehicles: SlotInput[] = vehicles.map((v) => ({
-      vehicleId: v.id,
-      registrationNumber: v.registrationNumber,
-      isDutyVehicle: v.isDutyVehicle,
-    }));
+    // car=driver: driverId -> their assigned car.
+    const driverCar = new Map<string, string>();
+    for (const v of vehicles) if (v.assignedDriverId) driverCar.set(v.assignedDriverId, v.id);
 
     for (const b of waitlist) {
       const dayStart = startOfDay(b.startAt);
       const dayEnd = new Date(dayStart);
       dayEnd.setDate(dayEnd.getDate() + 1);
       const driverTrips = new Map<string, { startAt: Date; endAt: Date }[]>();
-      const vehicleTrips: { vehicleId: string | null; startAt: Date; endAt: Date }[] = [];
       for (const x of dayBookings) {
         if (!(x.startAt < dayEnd && x.endAt > dayStart)) continue;
         for (const id of [x.primaryDriverId, x.secondaryDriverId]) {
@@ -106,20 +102,17 @@ export default async function AdminQueue() {
           arr.push({ startAt: x.startAt, endAt: x.endAt });
           driverTrips.set(id, arr);
         }
-        if (x.vehicleId) vehicleTrips.push({ vehicleId: x.vehicleId, startAt: x.startAt, endAt: x.endAt });
       }
       const reco = recommendOvertimePlacement({
         booking: { startAt: b.startAt, endAt: b.endAt },
         dutyDriverId: dutyByDay.get(dayStart.getTime()) ?? null,
         drivers: allDrivers.map((d) => ({
           driverId: d.id,
+          vehicleId: driverCar.get(d.id) ?? null,
           earningsScore: earnings.get(d.id) ?? 0,
           lastAssignedAt: d.lastAssignedAt,
           trips: driverTrips.get(d.id) ?? [],
         })),
-        vehicles: slotVehicles,
-        vehicleTrips,
-        day: dayStart,
       });
       if (reco.kind === "overtime-fit") {
         overtimeReco.set(b.id, {
