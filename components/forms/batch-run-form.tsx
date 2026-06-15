@@ -6,11 +6,11 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { runBatchAction } from "@/lib/booking/batch-actions";
 import {
-  runBatchAction,
   simulateAndRunBatchAction,
   clearBatchDemoAction,
-} from "@/lib/booking/batch-actions";
+} from "@/lib/booking/batch-demo-actions";
 
 type Stats = {
   pendingCount: number;
