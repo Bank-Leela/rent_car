@@ -6,7 +6,7 @@ import { startOfDay, subDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { matchBookingSchema } from "@/lib/booking/schema";
-import { buildSlotTable, type SlotInput, type ExistingTrip } from "@/lib/booking/slot-allocation";
+import { driverVehicleMap } from "@/lib/booking/fleet";
 import {
   buildDriverMatrix,
   type DriverAvailabilityInput,
@@ -46,11 +46,12 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const dayEnd = new Date(tripDay);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  // --- Algorithm 1 inputs: vehicles + today's vehicle occupancy. ---
+  // car=driver: vehicle = chosen driver's car. Load the pairing, no slot search.
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
-    select: { id: true, registrationNumber: true, isDutyVehicle: true },
+    select: { id: true, assignedDriverId: true },
   });
+  const driverCar = driverVehicleMap(vehicles);
   const dayBookings = await prisma.booking.findMany({
     where: {
       startAt: { gte: tripDay, lt: dayEnd },
@@ -67,17 +68,6 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       endAt: true,
     },
   });
-  const vehicleInputs: SlotInput[] = vehicles.map((v) => ({
-    vehicleId: v.id,
-    registrationNumber: v.registrationNumber,
-    isDutyVehicle: v.isDutyVehicle,
-  }));
-  const existingTrips: ExistingTrip[] = dayBookings.map((b) => ({
-    vehicleId: b.vehicleId,
-    timeBucket: b.timeBucket,
-  }));
-  const slotTable = buildSlotTable(vehicleInputs, existingTrips);
-
   // --- Algorithm 2 inputs ---
   const drivers = await prisma.driver.findMany({
     where: { isActive: true },
@@ -147,7 +137,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     timeBucket: booking.timeBucket,
     newTrip: { startAt: booking.startAt, endAt: booking.endAt },
     estimatedDistance: booking.estimatedDistance,
-    slotTable,
+    driverCar,
     driverMatrix,
     driverAvailability,
     driverRankInputs,

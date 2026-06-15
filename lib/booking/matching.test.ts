@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { match, LONG_TRIP_KM } from "./matching";
-import { buildSlotTable } from "./slot-allocation";
 import { buildDriverMatrix, type DriverInput, type DriverAvailabilityInput } from "./driver-capacity";
-
-const vehicles = [
-  { vehicleId: "v1", registrationNumber: "B-1", isDutyVehicle: false },
-  { vehicleId: "v2", registrationNumber: "B-2", isDutyVehicle: false },
-];
 
 const drivers: DriverInput[] = [
   { driverId: "A", joinedAt: new Date("2026-01-01"), lastAssignedAt: null },
   { driverId: "B", joinedAt: new Date("2026-01-01"), lastAssignedAt: null },
   { driverId: "C", joinedAt: new Date("2026-01-01"), lastAssignedAt: null },
 ];
+
+// car=driver: each driver drives a fixed car.
+const driverCar = new Map<string, string>([
+  ["A", "vA"],
+  ["B", "vB"],
+  ["C", "vC"],
+]);
 
 const rankInputs = drivers.map((d) => ({
   driverId: d.driverId,
@@ -31,35 +32,32 @@ const morningTrip = {
 };
 
 describe("match", () => {
-  it("assigns a primary driver and a vehicle for a short trip", () => {
+  it("assigns the primary driver and that driver's car for a short trip", () => {
     const r = match({
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: 100,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.result.vehicleId).toBe("v1");
       expect(r.result.primaryDriverId).toBe("A");
+      expect(r.result.vehicleId).toBe("vA"); // A's car
       expect(r.result.secondaryDriverId).toBeNull();
     }
   });
 
-  it("returns NO_SLOT when every vehicle is busy in that bucket", () => {
+  it("returns NO_SLOT when the picked driver has no assigned car", () => {
     const r = match({
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: null,
-      slotTable: buildSlotTable(vehicles, [
-        { vehicleId: "v1", timeBucket: "MORNING_08_12" },
-        { vehicleId: "v2", timeBucket: "MORNING_08_12" },
-      ]),
+      driverCar: new Map(), // nobody paired
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
@@ -77,7 +75,7 @@ describe("match", () => {
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: null,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: drivers.map((d) => ({
         driverId: d.driverId,
@@ -100,7 +98,7 @@ describe("match", () => {
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
       estimatedDistance: 50,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
         { driverId: "A", existing: [morningTrip] },
@@ -116,6 +114,7 @@ describe("match", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.result.primaryDriverId).toBe("C");
+      expect(r.result.vehicleId).toBe("vC");
     }
   });
 
@@ -130,7 +129,7 @@ describe("match", () => {
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
       estimatedDistance: 50,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
         { driverId: "A", existing: [morningTrip] },
@@ -143,13 +142,13 @@ describe("match", () => {
     if (r.ok) expect(r.result.primaryDriverId).toBe("A");
   });
 
-  it("assigns a secondary driver when distance exceeds 400 km", () => {
+  it("assigns a secondary (co-)driver when distance exceeds 400 km", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: LONG_TRIP_KM + 1,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
@@ -157,6 +156,7 @@ describe("match", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.result.primaryDriverId).toBe("A");
+      expect(r.result.vehicleId).toBe("vA"); // one car; the co-driver rides along
       expect(r.result.secondaryDriverId).toBe("B");
     }
   });
@@ -167,7 +167,7 @@ describe("match", () => {
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: LONG_TRIP_KM + 100,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
         { driverId: "A", existing: [] },
@@ -180,9 +180,7 @@ describe("match", () => {
   });
 
   // The on-call (WERN duty) driver is reserved for the whole day, exactly like
-  // the batch solver's dutyDriverId. The 08:00–16:00 WERN pseudo-trip alone
-  // leaks pre-dawn trips ending ≥2h before 08:00 (they satisfy the morning-
-  // chain rule), so match() must hard-exclude the on-call driver.
+  // the batch solver's dutyDriverId.
   const wernWindow = {
     startAt: new Date("2026-06-10T08:00:00"),
     endAt: new Date("2026-06-10T16:00:00"),
@@ -198,14 +196,14 @@ describe("match", () => {
       timeBucket: "MORNING_08_12",
       newTrip: preDawnTrip,
       estimatedDistance: 50,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
-        { driverId: "A", existing: [wernWindow] }, // on-call; pre-dawn clears the WERN window
+        { driverId: "A", existing: [wernWindow] },
         { driverId: "B", existing: [] },
         { driverId: "C", existing: [] },
       ],
-      driverRankInputs: rankInputs, // all tie → input order A,B,C; A would win without the reserve
+      driverRankInputs: rankInputs,
       onCallDriverId: "A",
     });
     expect(r.ok).toBe(true);
@@ -222,12 +220,12 @@ describe("match", () => {
       timeBucket: "MORNING_08_12",
       newTrip: preDawnTrip,
       estimatedDistance: 50,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
-        { driverId: "A", existing: [wernWindow] }, // on-call; pre-dawn would slip through
-        { driverId: "B", existing: [blockAllDay] }, // blocked
-        { driverId: "C", existing: [blockAllDay] }, // blocked
+        { driverId: "A", existing: [wernWindow] },
+        { driverId: "B", existing: [blockAllDay] },
+        { driverId: "C", existing: [blockAllDay] },
       ],
       driverRankInputs: rankInputs,
       onCallDriverId: "A",
@@ -241,7 +239,7 @@ describe("match", () => {
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
       estimatedDistance: LONG_TRIP_KM,
-      slotTable: buildSlotTable(vehicles, []),
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,

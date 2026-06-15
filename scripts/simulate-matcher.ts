@@ -5,7 +5,7 @@
 // Usage:  npx tsx scripts/simulate-matcher.ts [--bookings=200] [--seed=42]
 
 import type { JobType, TimeBucket } from "@prisma/client";
-import { buildSlotTable, type SlotInput, type ExistingTrip } from "../lib/booking/slot-allocation";
+import type { SlotInput, ExistingTrip } from "../lib/booking/slot-allocation";
 import {
   buildDriverMatrix,
   type DriverInput,
@@ -136,7 +136,11 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
   dutyEnd.setHours(16, 0, 0, 0);
   tripsByDriver.get(onCallDriverId)!.push({ startAt: dutyStart, endAt: dutyEnd });
 
-  const slotTable = buildSlotTable(VEHICLES, existing);
+  // car=driver: each driver has a car (cycle VEHICLES to pair deterministically).
+  const driverCar = new Map<string, string>(
+    drivers.map((d, i) => [d.id, VEHICLES[i % VEHICLES.length]!.vehicleId]),
+  );
+  void existing; // vehicle occupancy no longer drives slot allocation
   const driverInputs: DriverInput[] = drivers.map((d) => ({
     driverId: d.id,
     joinedAt: d.joinedAt,
@@ -159,7 +163,7 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
     timeBucket: bucket,
     newTrip: { startAt, endAt },
     estimatedDistance: distance,
-    slotTable,
+    driverCar,
     driverMatrix,
     driverAvailability,
     driverRankInputs: rankInputs,

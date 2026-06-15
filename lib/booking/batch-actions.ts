@@ -7,12 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
-import {
-  allocateVehicles,
-  bucketsForTrip,
-  buildSlotTable,
-  vehicleOccupancyForDay,
-} from "@/lib/booking/slot-allocation";
+import { driverVehicleMap } from "@/lib/booking/fleet";
 import { tripEffort } from "@/lib/booking/classification";
 import type { DriverRotationState } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
@@ -113,32 +108,14 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     submittedAt: b.createdAt,
   }));
 
-  // --- Algorithm 1: slot table so each matched booking also gets a vehicle. ---
+  // car=driver: a booking's vehicle is its PRIMARY driver's assigned car
+  // (Vehicle.assignedDriverId). No independent slot search — picking the
+  // driver already picked the car.
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
-    select: { id: true, registrationNumber: true, isDutyVehicle: true },
+    select: { id: true, assignedDriverId: true },
   });
-  // Vehicles occupied today, INCLUDING multi-day TJW trips that started earlier
-  // and are still away out of province (spanning predicate, mirroring the
-  // driver-side activeTjwCommitments check). vehicleOccupancyForDay blocks a
-  // spanning trip's vehicle in every bucket so it is never re-assigned today.
-  const occupancy = await prisma.booking.findMany({
-    where: {
-      startAt: { lt: dayEnd },
-      endAt: { gt: dayStart },
-      status: { in: ["APPROVED", "ASSIGNED"] },
-      vehicleId: { not: null },
-    },
-    select: { vehicleId: true, startAt: true, endAt: true },
-  });
-  const slotTable = buildSlotTable(
-    vehicles.map((v) => ({
-      vehicleId: v.id,
-      registrationNumber: v.registrationNumber,
-      isDutyVehicle: v.isDutyVehicle,
-    })),
-    vehicleOccupancyForDay(occupancy, date),
-  );
+  const driverCar = driverVehicleMap(vehicles);
 
   const result = solveDay({
     date,
@@ -148,15 +125,16 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     activeTjwCommitments: commitments,
   });
 
-  // Assign a vehicle to each matched booking. The driver solver is independent
-  // of vehicle capacity, so a bucket can be over-assigned — those bookings land
-  // in `noVehicle` and are surfaced as NO_SLOT below instead of being persisted
-  // as carless ASSIGNED rows.
-  const bucketsOf = (id: string) => {
-    const b = pending.find((p) => p.id === id)!;
-    return bucketsForTrip(b.startAt, b.endAt, date);
-  };
-  const { withVehicle, noVehicle } = allocateVehicles(result.assignments, bucketsOf, slotTable);
+  // Bind each assignment to its primary driver's car. A driver with no car
+  // (an unpaired vehicle) can't be dispatched → NO_SLOT overflow. The co-driver
+  // (secondary) rides along in the primary's car — no second vehicle dispatched.
+  const withVehicle: { item: (typeof result.assignments)[number]; vehicleId: string }[] = [];
+  const noVehicle: typeof result.assignments = [];
+  for (const a of result.assignments) {
+    const vehicleId = driverCar.get(a.primaryDriverId) ?? null;
+    if (vehicleId) withVehicle.push({ item: a, vehicleId });
+    else noVehicle.push(a);
+  }
 
   // --- Persist assignments + bump rotation timestamps + record overflow. ---
   await prisma.$transaction(async (tx) => {

@@ -35,3 +35,13 @@ export function vehicleDriverMap(
   for (const v of vehicles) if (v.assignedDriverId) m.set(v.id, v.assignedDriverId);
   return m;
 }
+
+/** assignedDriverId -> vehicleId, omitting unpaired cars. The inverse lookup
+ *  the matcher needs: given a chosen driver, which car do they drive? */
+export function driverVehicleMap(
+  vehicles: { id: string; assignedDriverId: string | null }[],
+): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const v of vehicles) if (v.assignedDriverId) m.set(v.assignedDriverId, v.id);
+  return m;
+}

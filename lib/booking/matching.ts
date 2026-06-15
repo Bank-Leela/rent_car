@@ -3,7 +3,6 @@
 // assignment. Pure orchestration; DB I/O lives in matching-actions.ts.
 
 import type { JobType, TimeBucket } from "@prisma/client";
-import { findSlot, type SlotCell } from "./slot-allocation";
 import {
   filterAvailable,
   rankCandidates,
@@ -23,7 +22,9 @@ export interface MatchInput {
   timeBucket: TimeBucket;
   newTrip: TripWindow;
   estimatedDistance: number | null;
-  slotTable: SlotCell[][];
+  /** car=driver: assignedDriverId -> vehicleId. The booking's vehicle is the
+   *  chosen primary driver's car; there is no independent slot search. */
+  driverCar: Map<string, string>;
   /** UI snapshot of current driver loads. Not used as a hard filter; see
    *  driverAvailability for the temporal rule. */
   driverMatrix: DriverMatrixCell[][];
@@ -46,9 +47,8 @@ export interface MatchResult {
 export const LONG_TRIP_KM = 400;
 
 export function match(input: MatchInput): { ok: true; result: MatchResult } | { ok: false; error: MatchError } {
-  const slot = findSlot(input.timeBucket, input.slotTable);
-  if (!slot) return { ok: false, error: "NO_SLOT" };
-
+  // car=driver: pick the driver first; the vehicle is whatever car that driver
+  // is assigned to. Picking the driver IS picking the car.
   const availableIds = new Set(filterAvailable(input.newTrip, input.driverAvailability));
   const eligible = input.driverRankInputs.filter(
     (r) => availableIds.has(r.driverId) && r.driverId !== input.onCallDriverId,
@@ -57,6 +57,10 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
   if (ranked.length === 0) return { ok: false, error: "NO_PRIMARY_DRIVER" };
 
   const primaryDriverId = ranked[0]!;
+  // The primary's car. An unpaired driver (no car) can't be dispatched → NO_SLOT.
+  const vehicleId = input.driverCar.get(primaryDriverId) ?? null;
+  if (!vehicleId) return { ok: false, error: "NO_SLOT" };
+
   const needSecondary =
     input.estimatedDistance !== null && input.estimatedDistance > LONG_TRIP_KM;
   let secondaryDriverId: string | null = null;
@@ -67,6 +71,6 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
 
   return {
     ok: true,
-    result: { vehicleId: slot.vehicleId, primaryDriverId, secondaryDriverId },
+    result: { vehicleId, primaryDriverId, secondaryDriverId },
   };
 }
