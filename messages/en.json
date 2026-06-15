@@ -128,6 +128,7 @@
     "morning": "Morning",
     "afternoon": "Afternoon",
     "duty": "Duty",
+    "coDriver": "Co-driver",
     "noVehicles": "No active vehicles.",
     "noDriver": "No driver",
     "dropNoDriver": "No free driver for this time — can't place here.",

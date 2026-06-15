@@ -50,6 +50,7 @@ export default async function SchedulePage({
         vehicleId: true,
         jobType: true,
         primaryDriverId: true,
+        secondaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
         secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
@@ -64,6 +65,9 @@ export default async function SchedulePage({
     : null;
 
   const isThai = locale.toLowerCase().startsWith("th");
+  // car=driver: which car each driver is assigned to, to place a co-driver ghost.
+  const carByDriver = new Map<string, string>();
+  for (const v of vehicles) if (v.assignedDriverId) carByDriver.set(v.assignedDriverId, v.id);
   const vehicleRows = vehicles.map((v) => {
     const du = v.assignedDriver?.user;
     const driverName = du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null;
@@ -87,6 +91,8 @@ export default async function SchedulePage({
       hasDriver: b.primaryDriverId != null,
       driverName,
       secondaryDriverName,
+      secondaryDriverId: b.secondaryDriverId,
+      secondaryVehicleId: b.secondaryDriverId ? carByDriver.get(b.secondaryDriverId) ?? null : null,
     };
   });
 

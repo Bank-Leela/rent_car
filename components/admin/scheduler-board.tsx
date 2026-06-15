@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Car, Wand2, GripVertical, AlertTriangle } from "lucide-react";
+import { Car, Wand2, GripVertical, AlertTriangle, Link2 } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -40,7 +40,11 @@ export type SchedulerBooking = {
   vehicleId: string | null;
   hasDriver: boolean;
   driverName: string | null;
+  // Long-haul (>400km) co-driver: their name, id, and the car THEY are assigned
+  // to (car=driver). The board paints a linked ghost on that car's row.
   secondaryDriverName: string | null;
+  secondaryDriverId: string | null;
+  secondaryVehicleId: string | null;
 };
 
 // The axis spans the full day, 00:00–24:00. (Kept as min/max bounds so a stray
@@ -96,7 +100,7 @@ function TimelineBlock({
       title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
       className={`group absolute cursor-grab touch-none overflow-hidden rounded-md bg-card px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
         b.hasDriver ? "border" : "border-2 border-destructive/60"
-      } ${conflict ? "ring-2 ring-destructive" : ""}`}
+      } ${conflict ? "ring-2 ring-destructive" : b.secondaryDriverName ? "ring-1 ring-violet-400/70" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
       <div className="flex items-center gap-1 font-medium">
@@ -113,8 +117,50 @@ function TimelineBlock({
         </div>
       )}
       {b.secondaryDriverName && (
-        // Long-haul TJW (>400km) relief driver — preview of the car=driver "co-driver".
-        <div className="truncate text-[10px] font-medium text-sky-600 dark:text-sky-400">+ {b.secondaryDriverName}</div>
+        // Long-haul (>400km) co-driver — the violet + link icon ties this block
+        // to the matching ghost on the co-driver's own car row.
+        <div className="flex items-center gap-1 truncate text-[10px] font-medium text-violet-600 dark:text-violet-400">
+          <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+          {b.secondaryDriverName}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Read-only ghost painted on the CO-DRIVER's own car row for a long-haul trip.
+// Their car isn't dispatched (they ride in the primary's), but the row shows
+// they're out — same violet accent + link icon as the primary's block.
+function CoDriverGhost({
+  b,
+  dayStart,
+  dayHours,
+  top,
+  height,
+  coDriverLabel,
+}: {
+  b: SchedulerBooking;
+  dayStart: number;
+  dayHours: number;
+  top: number;
+  height: number;
+  coDriverLabel: string;
+}) {
+  const left = pctOf(b.startHour, dayStart, dayHours);
+  const width = Math.max(pctOf(b.endHour, dayStart, dayHours) - left, 1.2);
+  return (
+    <div
+      title={`${b.jobNumber} · ${b.timeLabel} · ${coDriverLabel}${b.driverName ? " → " + b.driverName : ""} · ${b.purpose}`}
+      className="absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 dark:bg-violet-950/30 dark:text-violet-200"
+      style={{ left: `${left}%`, width: `${width}%`, top, height }}
+    >
+      <div className="flex items-center gap-1 font-medium">
+        <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+        {b.timeLabel}
+      </div>
+      <div className="truncate text-[10px] font-medium">{coDriverLabel}</div>
+      {b.driverName && (
+        <div className="truncate text-[10px] text-violet-700 dark:text-violet-300">→ {b.driverName}</div>
       )}
     </div>
   );
@@ -150,8 +196,10 @@ function CarRow({
   label,
   isDuty,
   bookings,
+  coDriverBookings,
   dutyLabel,
   noDriverLabel,
+  coDriverLabel,
   dayStart,
   dayHours,
   hours,
@@ -160,42 +208,61 @@ function CarRow({
   label: string;
   isDuty: boolean;
   bookings: SchedulerBooking[];
+  // Long-haul trips where THIS car's driver rides as co-driver (painted as ghosts).
+  coDriverBookings: SchedulerBooking[];
   dutyLabel: string;
   noDriverLabel: string;
+  coDriverLabel: string;
   dayStart: number;
   dayHours: number;
   hours: number[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: vehicle.id });
 
-  // Greedy lane packing: a block joins the first lane whose last trip ends at or
-  // before it starts, else opens a new lane. Concurrent trips land on separate
+  // Row items = the car's own trips (draggable) + co-driver ghosts (read-only).
+  // Both occupy time, so both feed the lane packing.
+  type RowItem = {
+    key: string;
+    b: SchedulerBooking;
+    kind: "primary" | "co";
+    startHour: number;
+    endHour: number;
+  };
+  const items: RowItem[] = [
+    ...bookings.map((b) => ({ key: b.id, b, kind: "primary" as const, startHour: b.startHour, endHour: b.endHour })),
+    ...coDriverBookings.map((b) => ({ key: `co-${b.id}`, b, kind: "co" as const, startHour: b.startHour, endHour: b.endHour })),
+  ];
+
+  // Greedy lane packing: an item joins the first lane whose last item ends at or
+  // before it starts, else opens a new lane. Concurrent items land on separate
   // stacked lanes so none is hidden behind another.
-  const sorted = [...bookings].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+  const sorted = [...items].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
   const laneEnds: number[] = [];
   const laneOf = new Map<string, number>();
-  for (const b of sorted) {
-    let lane = laneEnds.findIndex((end) => end <= b.startHour);
+  for (const it of sorted) {
+    let lane = laneEnds.findIndex((end) => end <= it.startHour);
     if (lane === -1) {
       lane = laneEnds.length;
-      laneEnds.push(b.endHour);
+      laneEnds.push(it.endHour);
     } else {
-      laneEnds[lane] = b.endHour;
+      laneEnds[lane] = it.endHour;
     }
-    laneOf.set(b.id, lane);
+    laneOf.set(it.key, lane);
   }
   const laneCount = Math.max(1, laneEnds.length);
 
-  // Mark blocks that overlap another on this car. Only flagged red on a non-duty
-  // car — the duty (WERN) car is allowed to overlap.
+  // Flag PRIMARY trips that overlap another primary on this car. Only shown red
+  // on a non-duty car — the duty (WERN) car is allowed to overlap. Co-driver
+  // ghosts are ride-alongs and never count as conflicts.
+  const primaries = sorted.filter((it) => it.kind === "primary");
   const conflictIds = new Set<string>();
-  for (let i = 0; i < sorted.length; i++) {
-    for (let j = i + 1; j < sorted.length; j++) {
-      const a = sorted[i]!;
-      const c = sorted[j]!;
+  for (let i = 0; i < primaries.length; i++) {
+    for (let j = i + 1; j < primaries.length; j++) {
+      const a = primaries[i]!;
+      const c = primaries[j]!;
       if (a.startHour < c.endHour && c.startHour < a.endHour) {
-        conflictIds.add(a.id);
-        conflictIds.add(c.id);
+        conflictIds.add(a.b.id);
+        conflictIds.add(c.b.id);
       }
     }
   }
@@ -232,18 +299,30 @@ function CarRow({
             style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
           />
         ))}
-        {bookings.map((b) => {
-          const lane = laneOf.get(b.id) ?? 0;
-          return (
+        {items.map((it) => {
+          const lane = laneOf.get(it.key) ?? 0;
+          const top = lane * LANE_PX + LANE_PAD;
+          const height = LANE_PX - 2 * LANE_PAD;
+          return it.kind === "primary" ? (
             <TimelineBlock
-              key={b.id}
-              b={b}
+              key={it.key}
+              b={it.b}
               noDriverLabel={noDriverLabel}
               dayStart={dayStart}
               dayHours={dayHours}
-              top={lane * LANE_PX + LANE_PAD}
-              height={LANE_PX - 2 * LANE_PAD}
-              conflict={conflictIds.has(b.id) && !isDuty}
+              top={top}
+              height={height}
+              conflict={conflictIds.has(it.b.id) && !isDuty}
+            />
+          ) : (
+            <CoDriverGhost
+              key={it.key}
+              b={it.b}
+              dayStart={dayStart}
+              dayHours={dayHours}
+              top={top}
+              height={height}
+              coDriverLabel={coDriverLabel}
             />
           );
         })}
@@ -285,6 +364,10 @@ export function SchedulerBoard({
   const needsDriver = bookings.filter((b) => b.vehicleId && !b.hasDriver);
   const work = [...queue, ...needsDriver];
   const onVehicle = (vehicleId: string) => bookings.filter((b) => b.vehicleId === vehicleId);
+  // Long-haul trips whose CO-DRIVER is this car's driver — painted as a ghost on
+  // this row (their own car isn't dispatched; they ride in the primary's).
+  const coDriverOn = (vehicleId: string) =>
+    bookings.filter((b) => !!b.secondaryDriverName && b.secondaryVehicleId === vehicleId);
   const activeBooking = activeId ? bookings.find((b) => b.id === activeId) ?? null : null;
 
   function reassign(bookingId: string, vehicleId: string) {
@@ -425,8 +508,10 @@ export function SchedulerBoard({
                   label={carLabel(i)}
                   isDuty={v.id === dutyVehicleId}
                   bookings={onVehicle(v.id)}
+                  coDriverBookings={coDriverOn(v.id)}
                   dutyLabel={t("duty")}
                   noDriverLabel={t("noDriver")}
+                  coDriverLabel={t("coDriver")}
                   dayStart={dayStart}
                   dayHours={dayHours}
                   hours={hours}
