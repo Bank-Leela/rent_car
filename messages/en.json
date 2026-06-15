@@ -134,12 +134,22 @@
     "dropConflict": "That car is already booked at this time.",
     "dropDriverless": "Placed on the car — no free driver right now. Assign one manually or run auto-assign.",
     "dropFailed": "Couldn't place that booking.",
+    "noAssignedDriver": "No driver set for this car — set one in Cars & drivers.",
+    "coDriver": "+ co-driver",
     "hint": "Auto-assign runs the matcher — it picks a vehicle and driver for each request by the rotation order.",
     "autoAssign": "Auto-assign {count}",
     "assigning": "Assigning…",
     "resultSummary": "{assigned} assigned, {failed} could not be matched",
     "prevDay": "Previous day",
     "nextDay": "Next day"
+  },
+  "fleet": {
+    "title": "Cars & drivers",
+    "description": "Each car has one assigned driver.",
+    "car": "Car",
+    "driver": "Driver",
+    "unpaired": "— no driver —",
+    "saved": "Saved"
   },
   "notifications": {
     "bell": "{count, plural, =0 {No cases need attention} one {# case needs attention} other {# cases need attention}}"
