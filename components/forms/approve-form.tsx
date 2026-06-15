@@ -1,28 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { approveBookingAction, denyByApproverAction } from "@/lib/booking/approval-actions";
+import { useFormAction } from "@/components/forms/use-form-action";
+import { FormError } from "@/components/forms/form-error";
 
 export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; hasSignature: boolean }) {
   const t = useTranslations("approverActions");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(approveBookingAction, { bookingId });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await approveBookingAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-3"
-    >
+    <form action={run} className="space-y-3">
       <div className="grid gap-2">
         <Label htmlFor="comment">{t("commentOptional")}</Label>
         <Textarea id="comment" name="comment" rows={2} />
@@ -30,11 +20,7 @@ export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; ha
       {!hasSignature && (
         <p className="text-xs text-muted-foreground">{t("noSignatureWarning")}</p>
       )}
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
       <Button type="submit" disabled={pending}>
         {pending ? t("approving") : t("approve")}
       </Button>
@@ -44,29 +30,14 @@ export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; ha
 
 export function ApproverDenyForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("approverActions");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(denyByApproverAction, { bookingId });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await denyByApproverAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-3"
-    >
+    <form action={run} className="space-y-3">
       <div className="grid gap-2">
         <Label htmlFor="comment">{t("reason")}</Label>
         <Textarea id="comment" name="comment" rows={2} required />
       </div>
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
       <Button type="submit" variant="destructive" disabled={pending}>
         {pending ? t("denying") : t("deny")}
       </Button>
