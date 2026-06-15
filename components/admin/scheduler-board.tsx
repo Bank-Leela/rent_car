@@ -273,7 +273,10 @@ export function SchedulerBoard({
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    // id is REQUIRED: @dnd-kit derives the draggables' aria-describedby from it,
+    // and without a stable value it falls back to a module counter that drifts
+    // between SSR and client → hydration mismatch. Don't remove.
+    <DndContext id="scheduler-board" sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">{t("hint")}</p>
