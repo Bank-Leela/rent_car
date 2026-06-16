@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
+import { LONG_TRIP_KM } from "@/lib/booking/classification";
 
 export default async function SchedulePage({
   searchParams,
@@ -50,6 +51,7 @@ export default async function SchedulePage({
         endAt: true,
         vehicleId: true,
         jobType: true,
+        estimatedDistance: true,
         primaryDriverId: true,
         secondaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
@@ -76,7 +78,9 @@ export default async function SchedulePage({
   });
   // Placement recommendation for each unassigned (queue) booking — the same
   // suggestion the batch overflow list shows, surfaced on the board's queue.
-  const queueRaw = dayBookings.filter((b) => !b.vehicleId).map((b) => ({ id: b.id, startAt: b.startAt, endAt: b.endAt }));
+  const queueRaw = dayBookings
+    .filter((b) => !b.vehicleId)
+    .map((b) => ({ id: b.id, startAt: b.startAt, endAt: b.endAt, estimatedDistance: b.estimatedDistance }));
   const recos = await recommendForBookings(dayStart, queueRaw, isThai);
   const dutyTag = t("duty");
   const assignReco = t("assignReco");
@@ -87,11 +91,16 @@ export default async function SchedulePage({
     const secondaryDriverName = su ? (isThai ? su.thaiName ?? su.name : su.name ?? su.thaiName) ?? null : null;
     const sameDay = b.endAt.toDateString() === b.startAt.toDateString();
     const r = recos.get(b.id);
+    const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
     const reco =
       r && r.kind !== "none"
         ? {
             vehicleId: r.vehicleId,
-            label: `${r.registrationNumber ?? ""}${r.driverName ? " · " + r.driverName : ""}${r.kind === "reclaim" ? ` (${dutyTag})` : ""}`,
+            secondaryDriverId: r.secondaryDriverId,
+            label:
+              `${r.registrationNumber ?? ""}${r.driverName ? " · " + r.driverName : ""}` +
+              `${r.kind === "reclaim" ? ` (${dutyTag})` : ""}` +
+              `${r.secondaryDriverName ? " + " + r.secondaryDriverName : longTrip ? " + ?" : ""}`,
             assignLabel: assignReco,
           }
         : null;

@@ -73,7 +73,7 @@ export type SchedulerBooking = {
   jobType: JobType;
   // Recommended placement for an unassigned (queue) booking — fairest free car,
   // or the duty car (reclaim). null when assigned or none available.
-  reco: { vehicleId: string; label: string; assignLabel: string } | null;
+  reco: { vehicleId: string; secondaryDriverId: string | null; label: string; assignLabel: string } | null;
   hasDriver: boolean;
   driverName: string | null;
   // Long-haul (>400km) co-driver: their name, id, and the car THEY are assigned
@@ -239,7 +239,12 @@ function QueueCard({ b }: { b: SchedulerBooking }) {
           onPointerDown={(e) => e.stopPropagation()}
         >
           <span className="text-muted-foreground">💡 {b.reco.label}</span>
-          <AssignRecoButton bookingId={b.id} vehicleId={b.reco.vehicleId} label={b.reco.assignLabel} />
+          <AssignRecoButton
+            bookingId={b.id}
+            vehicleId={b.reco.vehicleId}
+            secondaryDriverId={b.reco.secondaryDriverId}
+            label={b.reco.assignLabel}
+          />
         </div>
       )}
     </div>

@@ -9,6 +9,7 @@ import { BatchRunForm } from "@/components/forms/batch-run-form";
 import { ReclaimDecisionForm } from "@/components/forms/reclaim-decision-form";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
+import { LONG_TRIP_KM } from "@/lib/booking/classification";
 
 const OVERFLOW_TONE: Record<string, string> = {
   NO_PRIMARY_DRIVER:
@@ -240,10 +241,21 @@ export default async function AdminBatchPage({
                       const car = r.registrationNumber ?? "";
                       const name = r.driverName ?? "";
                       const msg = r.kind === "reclaim" ? t("recoReclaim", { car, name }) : t("recoFit", { car, name });
+                      const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
+                      const sec = r.secondaryDriverName
+                        ? " " + t("recoCoDriver", { name: r.secondaryDriverName })
+                        : longTrip
+                          ? " " + t("recoCoDriverNone")
+                          : "";
                       return (
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span>💡 {msg}</span>
-                          <AssignRecoButton bookingId={b.id} vehicleId={r.vehicleId} label={t("assignReco")} />
+                          <span>💡 {msg}{sec}</span>
+                          <AssignRecoButton
+                            bookingId={b.id}
+                            vehicleId={r.vehicleId}
+                            secondaryDriverId={r.secondaryDriverId}
+                            label={t("assignReco")}
+                          />
                         </div>
                       );
                     })()}

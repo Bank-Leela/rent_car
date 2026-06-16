@@ -235,6 +235,8 @@
     "recoFit": "Recommend: {car} ({name}) — free at this time",
     "recoReclaim": "No free car — duty car {car} ({name})",
     "recoNone": "No car available to recommend",
+    "recoCoDriver": "+ co-driver {name}",
+    "recoCoDriverNone": "(co-driver needed — none free)",
     "assignReco": "Assign",
     "simulate": "Simulate day",
     "simulating": "Simulating…",

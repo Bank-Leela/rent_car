@@ -1,6 +1,7 @@
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
+import { LONG_TRIP_KM } from "@/lib/booking/classification";
 import { recommendPlacement, type Placement, type RecoDriver } from "@/lib/booking/placement-reco";
 
 /**
@@ -11,7 +12,7 @@ import { recommendPlacement, type Placement, type RecoDriver } from "@/lib/booki
  */
 export async function recommendForBookings(
   date: Date,
-  bookings: Array<{ id: string; startAt: Date; endAt: Date }>,
+  bookings: Array<{ id: string; startAt: Date; endAt: Date; estimatedDistance: number | null }>,
   isThai: boolean,
 ): Promise<Map<string, Placement>> {
   if (bookings.length === 0) return new Map();
@@ -70,7 +71,15 @@ export async function recommendForBookings(
 
   const out = new Map<string, Placement>();
   for (const b of bookings) {
-    out.set(b.id, recommendPlacement({ booking: { startAt: b.startAt, endAt: b.endAt }, dutyDriverId, drivers: recoDrivers }));
+    out.set(
+      b.id,
+      recommendPlacement({
+        booking: { startAt: b.startAt, endAt: b.endAt },
+        needsSecondary: (b.estimatedDistance ?? 0) > LONG_TRIP_KM,
+        dutyDriverId,
+        drivers: recoDrivers,
+      }),
+    );
   }
   return out;
 }

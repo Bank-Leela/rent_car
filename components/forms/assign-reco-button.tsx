@@ -11,10 +11,12 @@ import { useFormAction } from "@/components/forms/use-form-action";
 export function AssignRecoButton({
   bookingId,
   vehicleId,
+  secondaryDriverId,
   label,
 }: {
   bookingId: string;
   vehicleId: string;
+  secondaryDriverId?: string | null;
   label: string;
 }) {
   const router = useRouter();
@@ -32,6 +34,7 @@ export function AssignRecoButton({
         onClick={() => {
           const fd = new FormData();
           fd.set("vehicleId", vehicleId);
+          if (secondaryDriverId) fd.set("secondaryDriverId", secondaryDriverId);
           run(fd);
         }}
       >

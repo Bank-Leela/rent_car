@@ -235,6 +235,8 @@
     "recoFit": "แนะนำ: {car} ({name}) — ว่างช่วงเวลานี้",
     "recoReclaim": "ไม่มีรถว่าง — ใช้รถเวร {car} ({name})",
     "recoNone": "ไม่มีรถที่แนะนำได้",
+    "recoCoDriver": "+ ผู้ช่วย {name}",
+    "recoCoDriverNone": "(ต้องมีผู้ช่วย — ไม่มีคนว่าง)",
     "assignReco": "จัดให้",
     "simulate": "จำลองข้อมูลทั้งวัน",
     "simulating": "กำลังจำลอง…",

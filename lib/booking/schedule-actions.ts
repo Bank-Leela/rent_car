@@ -14,6 +14,9 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   await requireRole("ADMIN");
   const bookingId = String(formData.get("bookingId") ?? "");
   const vehicleId = String(formData.get("vehicleId") ?? "");
+  // Optional co-driver for >400km trips (recommendation-assign). Only set when
+  // explicitly passed, so a plain drag-drop never clears an existing co-driver.
+  const secondaryDriverIdIn = String(formData.get("secondaryDriverId") ?? "") || null;
   if (!bookingId || !vehicleId) return { ok: false, error: "invalidInput" };
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
@@ -52,18 +55,21 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   }
 
   const driverId = vehicle.assignedDriverId;
+  const secondary = secondaryDriverIdIn && secondaryDriverIdIn !== driverId ? secondaryDriverIdIn : null;
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
       data: {
         vehicleId,
         primaryDriverId: driverId,
+        ...(secondary ? { secondaryDriverId: secondary } : {}),
         status: "ASSIGNED",
         driverScheduleStatus: "CONFIRMED",
         decidedAt: new Date(),
       },
     });
     await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
+    if (secondary) await tx.driver.update({ where: { id: secondary }, data: { lastAssignedAt: booking.startAt } });
   });
 
   revalidatePath("/admin/schedule");
