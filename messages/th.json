@@ -83,6 +83,15 @@
     "theme": "ธีม",
     "apply": "ใช้"
   },
+  "errorPage": {
+    "title": "เกิดข้อผิดพลาด",
+    "description": "เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองใหม่อีกครั้ง",
+    "retry": "ลองใหม่",
+    "reference": "รหัสอ้างอิง: {digest}",
+    "notFoundTitle": "ไม่พบหน้าที่ต้องการ",
+    "notFoundDescription": "ไม่พบหน้าที่คุณต้องการ หรืออาจถูกย้ายไปแล้ว",
+    "backHome": "กลับสู่หน้าหลัก"
+  },
   "language": {
     "label": "ภาษา",
     "english": "English",

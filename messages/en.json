@@ -83,6 +83,15 @@
     "theme": "Theme",
     "apply": "Apply"
   },
+  "errorPage": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. Please try again.",
+    "retry": "Try again",
+    "reference": "Reference: {digest}",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The page you’re looking for doesn’t exist or may have been moved.",
+    "backHome": "Back to home"
+  },
   "language": {
     "label": "Language",
     "english": "English",
