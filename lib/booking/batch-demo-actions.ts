@@ -17,7 +17,6 @@ import type { JobType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { runBatchAction, type BatchStats } from "@/lib/booking/batch-actions";
-import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const runBatchSchema = z.object({ date: z.string().min(8) });
@@ -252,50 +251,29 @@ export async function simulateAndRunBatchAction(
   return { ok: true, stats: runResult.stats, seededCount };
 }
 
+const DEMO_TAGS = ["BatchDemo:", "LongHaulDemo:", "FreeDayDemo:", "FiveAmDemo:"] as const;
+
 /**
- * Wipe all BatchDemo:* bookings for the given day (and the OnCallShift if
- * it points at the auto-seeded duty driver). Used by the "Clear demo data"
- * button so admins can reset between scenarios.
+ * Full demo reset. Wipes EVERY *Demo: booking across ALL dates (not just the
+ * selected day) — accumulated multi-day TJW trips otherwise leave every driver
+ * "away" and re-saturate the pool so nothing auto-assigns — then clears the
+ * drivers' rotation stamps back to a clean fairness baseline. FK cascade removes
+ * each booking's child rows. The date in the form is ignored; this is a global
+ * reset. Used by the "Clear demo data" button.
  */
 export async function clearBatchDemoAction(formData: FormData): Promise<ActionResult & { clearedCount?: number }> {
   await requireRole("ADMIN");
-  const te = await getTranslations("errors");
+  void formData;
 
-  const parsed = runBatchSchema.safeParse({ date: formData.get("date") });
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
-  }
-  const date = new Date(`${parsed.data.date}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return { ok: false, error: te("invalidInput") };
-  const dayStart = startOfDay(date);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-
-  const prior = await prisma.booking.findMany({
-    where: {
-      purpose: { startsWith: BATCH_DEMO_TAG },
-      startAt: { gte: dayStart, lt: dayEnd },
-    },
-    select: { id: true, primaryDriverId: true, secondaryDriverId: true, jobType: true },
+  const del = await prisma.booking.deleteMany({
+    where: { OR: DEMO_TAGS.map((tag) => ({ purpose: { startsWith: tag } })) },
   });
-
-  await prisma.$transaction(async (tx) => {
-    if (prior.length) {
-      await tx.auditLog.deleteMany({ where: { bookingId: { in: prior.map((p) => p.id) } } });
-      await tx.booking.deleteMany({ where: { id: { in: prior.map((p) => p.id) } } });
-    }
+  await prisma.driver.updateMany({
+    where: { isActive: true },
+    data: { lastTjwAt: null, lastOtAt: null, lastDutyAt: null, lastAssignedAt: null },
   });
-
-  // Recompute rotation stamps so cleared assignments don't keep stale lastTjwAt etc.
-  const driverJobPairs = new Map<string, JobType>();
-  for (const b of prior) {
-    if (b.primaryDriverId) driverJobPairs.set(b.primaryDriverId, b.jobType);
-    if (b.secondaryDriverId) driverJobPairs.set(b.secondaryDriverId, b.jobType);
-  }
-  for (const [driverId, jobType] of driverJobPairs) {
-    await recomputeRotationStamp(driverId, jobType);
-  }
 
   revalidatePath("/admin/batch");
-  return { ok: true, clearedCount: prior.length };
+  revalidatePath("/admin/schedule");
+  return { ok: true, clearedCount: del.count };
 }
