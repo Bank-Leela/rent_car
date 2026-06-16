@@ -88,6 +88,7 @@ export default async function SchedulePage({
       startHour: b.startAt.getHours() + b.startAt.getMinutes() / 60,
       endHour: sameDay ? b.endAt.getHours() + b.endAt.getMinutes() / 60 : 24,
       vehicleId: b.vehicleId,
+      jobType: b.jobType,
       hasDriver: b.primaryDriverId != null,
       driverName,
       secondaryDriverName,

@@ -16,8 +16,37 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import type { JobType } from "@prisma/client";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
 import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
+
+// Per-job-type colour, tuned for both light and dark themes. Fills + borders
+// only — the conflict (red) and co-driver (violet) cues stay as rings so they
+// never clash with these. TJW=ค้างคืน, OT=ล่วงเวลา, WERN=เวร, NORMAL=ทั่วไป.
+const JOB_COLOR: Record<string, { block: string; dot: string; label: string }> = {
+  TJW: {
+    block: "bg-blue-50 border-blue-300 dark:bg-blue-950/50 dark:border-blue-700",
+    dot: "bg-blue-500",
+    label: "ค้างคืน · TJW",
+  },
+  OT: {
+    block: "bg-amber-50 border-amber-300 dark:bg-amber-950/50 dark:border-amber-700",
+    dot: "bg-amber-500",
+    label: "ล่วงเวลา · OT",
+  },
+  WERN: {
+    block: "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/50 dark:border-emerald-700",
+    dot: "bg-emerald-500",
+    label: "เวร · WERN",
+  },
+  NORMAL: {
+    block: "bg-slate-100 border-slate-300 dark:bg-slate-800/70 dark:border-slate-600",
+    dot: "bg-slate-400",
+    label: "ทั่วไป · NORMAL",
+  },
+};
+const jobStyle = (jt: string) => JOB_COLOR[jt] ?? JOB_COLOR.NORMAL!;
+const JOB_LEGEND = ["TJW", "OT", "WERN", "NORMAL"] as const;
 
 export type SchedulerVehicle = {
   id: string;
@@ -38,6 +67,7 @@ export type SchedulerBooking = {
   startHour: number;
   endHour: number;
   vehicleId: string | null;
+  jobType: JobType;
   hasDriver: boolean;
   driverName: string | null;
   // Long-haul (>400km) co-driver: their name, id, and the car THEY are assigned
@@ -98,9 +128,17 @@ function TimelineBlock({
       {...listeners}
       {...attributes}
       title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
-      className={`group absolute cursor-grab touch-none overflow-hidden rounded-md bg-card px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
-        b.hasDriver ? "border" : "border-2 border-destructive/60"
-      } ${conflict ? "ring-2 ring-destructive" : b.secondaryDriverName ? "ring-1 ring-violet-400/70" : ""}`}
+      className={`group absolute cursor-grab touch-none overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
+        jobStyle(b.jobType).block
+      } ${
+        conflict
+          ? "ring-2 ring-destructive"
+          : b.secondaryDriverName
+            ? "ring-1 ring-violet-400/70"
+            : !b.hasDriver
+              ? "ring-1 ring-destructive/70"
+              : ""
+      }`}
       style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
       <div className="flex items-center gap-1 font-medium">
@@ -175,11 +213,12 @@ function QueueCard({ b }: { b: SchedulerBooking }) {
       {...listeners}
       {...attributes}
       title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose}`}
-      className="w-56 cursor-grab touch-none rounded-md border bg-card p-2 text-left text-xs shadow-sm active:cursor-grabbing"
+      className={`w-56 cursor-grab touch-none rounded-md border p-2 text-left text-xs shadow-sm active:cursor-grabbing ${jobStyle(b.jobType).block}`}
       style={{ opacity: isDragging ? 0.4 : 1 }}
     >
       <div className="flex items-center gap-1">
         <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
+        <span className={`h-2 w-2 shrink-0 rounded-full ${jobStyle(b.jobType).dot}`} aria-hidden />
         <span className="font-mono text-[10px] text-muted-foreground">{b.jobNumber}</span>
         <span className="font-medium">{b.timeLabel}</span>
       </div>
@@ -439,6 +478,16 @@ export function SchedulerBoard({
             <Wand2 className="h-4 w-4" aria-hidden />
             {pending ? t("assigning") : t("autoAssign", { count: work.length })}
           </button>
+        </div>
+
+        {/* Job-type colour legend — each booking block is tinted by its type. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          {JOB_LEGEND.map((jt) => (
+            <span key={jt} className="inline-flex items-center gap-1.5">
+              <span className={`h-2.5 w-2.5 rounded-full ${JOB_COLOR[jt]!.dot}`} aria-hidden />
+              {JOB_COLOR[jt]!.label}
+            </span>
+          ))}
         </div>
 
         {dropError && (
