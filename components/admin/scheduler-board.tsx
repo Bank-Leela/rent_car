@@ -139,7 +139,7 @@ function TimelineBlock({
       {...listeners}
       {...attributes}
       title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
-      className={`group absolute cursor-grab touch-none overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
+      className={`group absolute cursor-grab touch-none rounded-md border px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
         jobStyle(b.jobType).block
       } ${
         conflict
@@ -156,7 +156,10 @@ function TimelineBlock({
     >
       <div className="flex items-center gap-1 whitespace-nowrap font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
-        {b.timeLabel}–{b.endLabel}
+        {/* bg-inherit lets a short block's time label spill past the bar's right
+            edge and stay readable (carries the bar's own colour) instead of being
+            clipped — a 2h block is too narrow to contain "13:00–15:00". */}
+        <span className="rounded-r-sm bg-inherit pr-1">{b.timeLabel}–{b.endLabel}</span>
       </div>
       <div className="truncate text-muted-foreground">{b.purpose}</div>
       {b.hasDriver ? (
@@ -202,14 +205,14 @@ function CoDriverGhost({
   return (
     <div
       title={`${b.jobNumber} · ${b.timeLabel} · ${coDriverLabel}${b.driverName ? " → " + b.driverName : ""} · ${b.purpose}`}
-      className={`absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 ${
+      className={`absolute rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 hover:z-10 dark:bg-violet-950/30 dark:text-violet-200 ${
         b.continuesBefore ? "rounded-l-none border-l-4" : ""
       } ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
     >
       <div className="flex items-center gap-1 whitespace-nowrap font-medium">
         <Link2 className="h-3 w-3 shrink-0" aria-hidden />
-        {b.timeLabel}–{b.endLabel}
+        <span className="rounded-r-sm bg-inherit pr-1">{b.timeLabel}–{b.endLabel}</span>
       </div>
       <div className="truncate text-[10px] font-medium">{coDriverLabel}</div>
       {b.driverName && (
