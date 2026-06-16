@@ -64,11 +64,16 @@ export type SchedulerBooking = {
   jobNumber: string;
   purpose: string;
   destination: string;
+  // Start as "HH:mm", or "↪ <date>" when the trip began on an earlier day.
   timeLabel: string;
-  // End time as "HH:mm" (with " +1" when the trip ends the next day).
+  // End time as "HH:mm", with "↩ <return date>" when it ends on a later day.
   endLabel: string;
   startHour: number;
   endHour: number;
+  // True when this trip spills past the viewed day's start/end (multi-day) — the
+  // block is clamped to the axis and its clipped edge is rendered flush.
+  continuesBefore: boolean;
+  continuesAfter: boolean;
   vehicleId: string | null;
   jobType: JobType;
   // Recommended placement for an unassigned (queue) booking — fairest free car,
@@ -144,6 +149,8 @@ function TimelineBlock({
             : !b.hasDriver
               ? "ring-1 ring-destructive/70"
               : ""
+      } ${b.continuesBefore ? "rounded-l-none border-l-4 border-l-foreground/40" : ""} ${
+        b.continuesAfter ? "rounded-r-none border-r-4 border-r-foreground/40" : ""
       }`}
       style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
@@ -195,7 +202,9 @@ function CoDriverGhost({
   return (
     <div
       title={`${b.jobNumber} · ${b.timeLabel} · ${coDriverLabel}${b.driverName ? " → " + b.driverName : ""} · ${b.purpose}`}
-      className="absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 dark:bg-violet-950/30 dark:text-violet-200"
+      className={`absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 ${
+        b.continuesBefore ? "rounded-l-none border-l-4" : ""
+      } ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
     >
       <div className="flex items-center gap-1 whitespace-nowrap font-medium">

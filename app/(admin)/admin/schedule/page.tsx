@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
+import { daySpan } from "@/lib/booking/day-window";
 
 export default async function SchedulePage({
   searchParams,
@@ -39,7 +40,11 @@ export default async function SchedulePage({
     prisma.booking.findMany({
       where: {
         status: { in: ["APPROVED", "ASSIGNED"] },
-        startAt: { gte: dayStart, lt: dayEnd },
+        // Overlap, not start-in-day: a multi-day TJW must appear on every day it
+        // spans (departure, any middle day, and the return day) so the board
+        // shows the car/driver committed until they get back.
+        startAt: { lt: dayEnd },
+        endAt: { gt: dayStart },
       },
       orderBy: { startAt: "asc" },
       select: {
@@ -89,7 +94,8 @@ export default async function SchedulePage({
     const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
     const su = b.secondaryDriver?.user;
     const secondaryDriverName = su ? (isThai ? su.thaiName ?? su.name : su.name ?? su.thaiName) ?? null : null;
-    const sameDay = b.endAt.toDateString() === b.startAt.toDateString();
+    // Project the (possibly multi-day) trip onto this viewed day.
+    const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
     const r = recos.get(b.id);
     const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
     const reco =
@@ -109,12 +115,20 @@ export default async function SchedulePage({
       jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
-      timeLabel: format(b.startAt, "HH:mm"),
-      endLabel: sameDay
-        ? format(b.endAt, "HH:mm")
-        : `${format(b.endAt, "HH:mm")} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`,
-      startHour: b.startAt.getHours() + b.startAt.getMinutes() / 60,
-      endHour: sameDay ? b.endAt.getHours() + b.endAt.getMinutes() / 60 : 24,
+      // On its departure day a trip shows its start time; on a later (return or
+      // middle) day it shows "↪ <departure date>" so it's clear it's continuing.
+      timeLabel: span.continuesBefore
+        ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}`
+        : format(b.startAt, "HH:mm"),
+      // Ending the same day → just the time; ending a later day → the return time
+      // plus the return date ("↩ <date>").
+      endLabel: span.continuesAfter
+        ? `${format(b.endAt, "HH:mm")} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
+        : format(b.endAt, "HH:mm"),
+      startHour: span.startHour,
+      endHour: span.endHour,
+      continuesBefore: span.continuesBefore,
+      continuesAfter: span.continuesAfter,
       vehicleId: b.vehicleId,
       jobType: b.jobType,
       hasDriver: b.primaryDriverId != null,
