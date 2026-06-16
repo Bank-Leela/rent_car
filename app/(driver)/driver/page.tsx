@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format, startOfDay, endOfDay, addDays } from "date-fns";
+import { format, startOfDay, addDays } from "date-fns";
 import { Coffee, ChevronRight, MapPin } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import type { Prisma } from "@prisma/client";
@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { EmptyState } from "@/components/empty-state";
+import { daySpan } from "@/lib/booking/day-window";
 
 export default async function DriverHome() {
   const session = await requireRole("DRIVER");
@@ -29,12 +30,20 @@ export default async function DriverHome() {
     OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
   };
 
+  // Day windows (local midnights). Overlap queries below so a multi-day trip
+  // shows on its return/middle days too — a driver mid-trip is still on duty.
+  const todayStart = startOfDay(now);
+  const todayEnd = addDays(todayStart, 1);
+  const tmrStart = todayEnd;
+  const tmrEnd = addDays(tmrStart, 1);
+
   const [today, tomorrow] = await Promise.all([
     prisma.booking.findMany({
       where: {
         ...driverFilter,
         status: { in: ["ASSIGNED", "COMPLETED"] },
-        startAt: { gte: startOfDay(now), lte: endOfDay(now) },
+        startAt: { lt: todayEnd },
+        endAt: { gt: todayStart },
       },
       orderBy: { startAt: "asc" },
       include: { vehicle: true, requester: true, primaryDriver: { include: { user: true } } },
@@ -43,7 +52,8 @@ export default async function DriverHome() {
       where: {
         ...driverFilter,
         status: "ASSIGNED",
-        startAt: { gte: startOfDay(addDays(now, 1)), lte: endOfDay(addDays(now, 1)) },
+        startAt: { lt: tmrEnd },
+        endAt: { gt: tmrStart },
       },
       orderBy: { startAt: "asc" },
       include: { vehicle: true, requester: true, primaryDriver: { include: { user: true } } },
@@ -61,7 +71,9 @@ export default async function DriverHome() {
         {today.length === 0 ? (
           <EmptyState icon={Coffee} title={t("noTripsToday")} description={t("noTripsTodayDescription")} />
         ) : (
-          today.map((b) => <AssignmentCard key={b.id} booking={b} />)
+          today.map((b) => (
+            <AssignmentCard key={b.id} booking={b} dayStart={todayStart} dayEnd={todayEnd} />
+          ))
         )}
       </Section>
 
@@ -69,7 +81,9 @@ export default async function DriverHome() {
         {tomorrow.length === 0 ? (
           <EmptyState icon={Coffee} title={t("noTripsTomorrow")} description={t("noTripsTomorrowDescription")} />
         ) : (
-          tomorrow.map((b) => <AssignmentCard key={b.id} booking={b} />)
+          tomorrow.map((b) => (
+            <AssignmentCard key={b.id} booking={b} dayStart={tmrStart} dayEnd={tmrEnd} />
+          ))
         )}
       </Section>
     </div>
@@ -89,7 +103,27 @@ type AssignmentRow = Prisma.BookingGetPayload<{
   include: { vehicle: true; requester: true; primaryDriver: { include: { user: true } } };
 }>;
 
-function AssignmentCard({ booking }: { booking: AssignmentRow }) {
+function AssignmentCard({
+  booking,
+  dayStart,
+  dayEnd,
+}: {
+  booking: AssignmentRow;
+  dayStart: Date;
+  dayEnd: Date;
+}) {
+  // Multi-day trips: on the return day show "↩ <return time>", on the departure
+  // day "<start> ↪", on a middle day "↪↩" (away all day) — never a misleading
+  // raw prior-day start time.
+  const span = daySpan(booking.startAt, booking.endAt, dayStart, dayEnd);
+  const timeLabel =
+    span.continuesBefore && span.continuesAfter
+      ? "↪↩"
+      : span.continuesBefore
+        ? `↩ ${format(booking.endAt, "HH:mm")}`
+        : span.continuesAfter
+          ? `${format(booking.startAt, "HH:mm")} ↪`
+          : format(booking.startAt, "HH:mm");
   return (
     <Link
       href={`/driver/${booking.id}`}
@@ -101,7 +135,7 @@ function AssignmentCard({ booking }: { booking: AssignmentRow }) {
           <BookingStatusBadge status={booking.status} />
         </div>
         <div className="mt-2 flex items-baseline gap-3">
-          <span className="text-3xl font-semibold tabular-nums">{format(booking.startAt, "HH:mm")}</span>
+          <span className="text-3xl font-semibold tabular-nums">{timeLabel}</span>
           <span className="text-lg font-medium truncate">{booking.destination}</span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">

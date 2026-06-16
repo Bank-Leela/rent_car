@@ -6,6 +6,7 @@ import {
   endOfWeek,
   eachDayOfInterval,
   format,
+  addDays,
   addMonths,
   subMonths,
   isSameMonth,
@@ -18,6 +19,15 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
+import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
+
+// Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
+// day, else the real start time.
+function cellTime(startAt: Date, endAt: Date, span: DaySpan): string {
+  if (span.continuesBefore && span.continuesAfter) return "↪↩";
+  if (span.continuesBefore) return `↩${format(endAt, "HH:mm")}`;
+  return format(startAt, "HH:mm");
+}
 
 const STATUS_TINT: Record<string, string> = {
   APPROVED:
@@ -70,7 +80,9 @@ export default async function DriverCalendar({
   // denormalized fields, plus active claims while still APPROVED.
   const bookings = await prisma.booking.findMany({
     where: {
-      startAt: { gte: gridStart, lte: gridEnd },
+      // Overlap the visible grid so a multi-day trip lands in every cell it spans.
+      startAt: { lte: gridEnd },
+      endAt: { gte: gridStart },
       OR: [
         { primaryDriverId: driverId },
         { secondaryDriverId: driverId },
@@ -82,12 +94,16 @@ export default async function DriverCalendar({
     include: { vehicle: { select: { registrationNumber: true } } },
   });
 
-  const byDay = new Map<string, typeof bookings>();
+  type DayItem = { b: (typeof bookings)[number]; span: DaySpan };
+  const byDay = new Map<string, DayItem[]>();
   for (const b of bookings) {
-    const key = format(b.startAt, "yyyy-MM-dd");
-    const list = byDay.get(key) ?? [];
-    list.push(b);
-    byDay.set(key, list);
+    for (const d of daysSpanned(b.startAt, b.endAt, gridStart, gridEnd)) {
+      const key = format(d, "yyyy-MM-dd");
+      const span = daySpan(b.startAt, b.endAt, d, addDays(d, 1));
+      const list = byDay.get(key) ?? [];
+      list.push({ b, span });
+      byDay.set(key, list);
+    }
   }
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -169,17 +185,17 @@ export default async function DriverCalendar({
                   )}
                 </div>
                 <div className="mt-1 space-y-1">
-                  {items.slice(0, 3).map((b) => (
+                  {items.slice(0, 3).map(({ b, span }) => (
                     <Link
                       key={b.id}
                       href={`/driver/${b.id}`}
                       className={`block rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${b.destination}`}
+                      title={`${b.jobNumber} · ${format(b.startAt, "EEE HH:mm")}–${format(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
                       <div className="font-medium truncate">
-                        {format(b.startAt, "HH:mm")} {b.vehicle?.registrationNumber ?? "—"}
+                        {cellTime(b.startAt, b.endAt, span)} {b.vehicle?.registrationNumber ?? "—"}
                       </div>
                       <div className="truncate opacity-80">{b.destination}</div>
                     </Link>

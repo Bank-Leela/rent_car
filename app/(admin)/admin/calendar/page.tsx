@@ -6,6 +6,7 @@ import {
   endOfWeek,
   eachDayOfInterval,
   format,
+  addDays,
   addMonths,
   subMonths,
   isSameMonth,
@@ -18,6 +19,16 @@ import { th, enUS, type Locale } from "date-fns/locale";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { LIVE_STATUSES, conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
+import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
+
+// Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
+// day, else the real start time — so a spanned cell never shows a misleading
+// prior-day start.
+function cellTime(startAt: Date, endAt: Date, span: DaySpan): string {
+  if (span.continuesBefore && span.continuesAfter) return "↪↩";
+  if (span.continuesBefore) return `↩${format(endAt, "HH:mm")}`;
+  return format(startAt, "HH:mm");
+}
 
 function densityTint(count: number): string {
   if (count === 0) return "";
@@ -79,7 +90,10 @@ export default async function AdminCalendar({
   const [bookings, allVehicles] = await Promise.all([
     prisma.booking.findMany({
       where: {
-        startAt: { gte: gridStart, lte: gridEnd },
+        // Overlap the visible grid (not start-in-day) so a multi-day trip lands
+        // in every cell it spans, including ones that began before the grid.
+        startAt: { lte: gridEnd },
+        endAt: { gte: gridStart },
         status: { not: "DRAFT" },
         ...(vehicleFilter ? { vehicleId: vehicleFilter } : {}),
       },
@@ -107,12 +121,18 @@ export default async function AdminCalendar({
     return s ? `?${s}` : "";
   };
 
-  const byDay = new Map<string, typeof bookings>();
+  // Bucket each booking into EVERY grid day it spans (not just its start day),
+  // carrying the per-day projection so a cell can show ↩/↪ continuation markers.
+  type DayItem = { b: (typeof bookings)[number]; span: DaySpan };
+  const byDay = new Map<string, DayItem[]>();
   for (const b of bookings) {
-    const key = format(b.startAt, "yyyy-MM-dd");
-    const list = byDay.get(key) ?? [];
-    list.push(b);
-    byDay.set(key, list);
+    for (const d of daysSpanned(b.startAt, b.endAt, gridStart, gridEnd)) {
+      const key = format(d, "yyyy-MM-dd");
+      const span = daySpan(b.startAt, b.endAt, d, addDays(d, 1));
+      const list = byDay.get(key) ?? [];
+      list.push({ b, span });
+      byDay.set(key, list);
+    }
   }
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -192,8 +212,8 @@ export default async function AdminCalendar({
             const items = byDay.get(key) ?? [];
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
-            const liveCount = items.filter((b) => LIVE_STATUSES.has(b.status)).length;
-            const conflict = conflictingBookingIds(items).size > 0;
+            const liveCount = items.filter((it) => LIVE_STATUSES.has(it.b.status)).length;
+            const conflict = conflictingBookingIds(items.map((it) => it.b)).size > 0;
             const surface = inMonth
               ? `bg-card ${densityTint(liveCount)}`
               : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
@@ -227,17 +247,17 @@ export default async function AdminCalendar({
                   </div>
                 </div>
                 <div className="mt-1 space-y-0.5">
-                  {items.slice(0, 5).map((b) => (
+                  {items.slice(0, 5).map(({ b, span }) => (
                     <Link
                       key={b.id}
                       href={`/admin/${b.id}`}
                       className={`flex items-baseline gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${format(b.startAt, "HH:mm")} · ${b.destination}`}
+                      title={`${b.jobNumber} · ${format(b.startAt, "EEE HH:mm")}–${format(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
                       <span className="font-medium tabular-nums shrink-0">
-                        {format(b.startAt, "HH:mm")}
+                        {cellTime(b.startAt, b.endAt, span)}
                       </span>
                       <span className="truncate opacity-90">{b.destination}</span>
                     </Link>

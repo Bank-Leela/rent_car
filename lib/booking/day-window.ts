@@ -1,3 +1,5 @@
+import { startOfDay, addDays } from "date-fns";
+
 // Project a booking's [startAt, endAt) onto a single viewed day so the scheduler
 // board can render multi-day trips on every day they span — not only the day they
 // start. A trip spilling past either edge of the viewed day is clamped to the
@@ -25,4 +27,20 @@ export function daySpan(startAt: Date, endAt: Date, dayStart: Date, dayEnd: Date
   // or lands exactly on midnight where localHour() would wrongly read 0).
   const endHour = endAt >= dayEnd ? 24 : localHour(endAt);
   return { startHour, endHour, continuesBefore, continuesAfter };
+}
+
+// Every calendar day (local midnight) that the trip [startAt, endAt) touches,
+// clamped to the [rangeStart, rangeEnd] window — for bucketing a multi-day trip
+// into every month-grid cell it spans, not only its departure day. A trip ending
+// exactly on a day's midnight does NOT count that day (endAt > dayMidnight),
+// matching daySpan's continuesAfter semantics.
+export function daysSpanned(startAt: Date, endAt: Date, rangeStart: Date, rangeEnd: Date): Date[] {
+  const out: Date[] = [];
+  const first = startOfDay(startAt < rangeStart ? rangeStart : startAt);
+  const last = startOfDay(rangeEnd);
+  for (let cur = first; cur <= last; cur = addDays(cur, 1)) {
+    const next = addDays(cur, 1);
+    if (startAt < next && endAt > cur) out.push(cur);
+  }
+  return out;
 }

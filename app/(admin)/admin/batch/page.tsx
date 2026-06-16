@@ -128,7 +128,12 @@ export default async function AdminBatchPage({
     prisma.booking.findMany({
       where: {
         status: "ASSIGNED",
-        startAt: { gte: dayStart, lt: dayEnd },
+        // Overlap, not start-in-day: a multi-day trip is still a commitment on
+        // its return/middle days, so it belongs in this day's roster too. (The
+        // pending + overflow lists stay start-in-day — those are this day's new
+        // work to place, not standing commitments.)
+        startAt: { lt: dayEnd },
+        endAt: { gt: dayStart },
       },
       orderBy: { startAt: "asc" },
       include: {
