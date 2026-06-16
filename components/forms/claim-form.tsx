@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +7,7 @@ import {
   releaseClaimAction,
   confirmScheduleAction,
 } from "@/lib/booking/driver-actions";
+import { useFormAction } from "@/components/forms/use-form-action";
 
 export function ClaimButton({
   bookingId,
@@ -19,19 +19,13 @@ export function ClaimButton({
   disabled?: boolean;
 }) {
   const t = useTranslations("claimForm");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(claimBookingAction, { bookingId });
   const label = role === "PRIMARY" ? t("claimPrimary") : t("claimSecondary");
   return (
     <form
       action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
         formData.set("role", role);
-        startTransition(async () => {
-          const res = await claimBookingAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
+        run(formData);
       }}
       className="space-y-2"
     >
@@ -45,20 +39,9 @@ export function ClaimButton({
 
 export function ReleaseButton({ bookingId }: { bookingId: string }) {
   const t = useTranslations("claimForm");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(releaseClaimAction, { bookingId });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await releaseClaimAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-2"
-    >
+    <form action={run} className="space-y-2">
       <Button type="submit" disabled={pending} variant="ghost">
         {pending ? t("releasing") : t("release")}
       </Button>
@@ -69,20 +52,9 @@ export function ReleaseButton({ bookingId }: { bookingId: string }) {
 
 export function ConfirmScheduleButton({ bookingId }: { bookingId: string }) {
   const t = useTranslations("claimForm");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(confirmScheduleAction, { bookingId });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await confirmScheduleAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-2"
-    >
+    <form action={run} className="space-y-2">
       <Button type="submit" disabled={pending}>
         {pending ? t("confirming") : t("confirmSchedule")}
       </Button>

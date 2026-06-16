@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateBookingTimeAction } from "@/lib/booking/actions";
 import { WORK_START_HOUR, WORK_END_HOUR, isWithinWorkHours } from "@/lib/booking/rules";
+import { useFormAction } from "@/components/forms/use-form-action";
+import { FormError } from "@/components/forms/form-error";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -24,8 +26,8 @@ export function TimeChangeForm({
   outOfHoursReason: string | null;
 }) {
   const t = useTranslations("timeChangeForm");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  // bookingId travels via the hidden input below, so the hook doesn't stamp it.
+  const { error, pending, run } = useFormAction(updateBookingTimeAction);
   const [start, setStart] = useState<string>(datetimeLocalValue(startAt));
   const [end, setEnd] = useState<string>(datetimeLocalValue(endAt));
 
@@ -42,16 +44,7 @@ export function TimeChangeForm({
   }
 
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        startTransition(async () => {
-          const res = await updateBookingTimeAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-3"
-    >
+    <form action={run} className="space-y-3">
       <input type="hidden" name="bookingId" value={bookingId} />
       <p className="text-xs text-muted-foreground">
         {t("workHoursNotice", { from: `${String(WORK_START_HOUR).padStart(2, "0")}:00`, to: `${String(WORK_END_HOUR).padStart(2, "0")}:00` })}
@@ -96,11 +89,7 @@ export function TimeChangeForm({
         </div>
       )}
 
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
 
       <Button type="submit" disabled={pending} className="w-full sm:w-auto">
         {pending ? t("saving") : t("save")}

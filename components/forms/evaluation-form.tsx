@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitEvaluationAction } from "@/lib/booking/extra-actions";
+import { useFormAction } from "@/components/forms/use-form-action";
+import { FormError } from "@/components/forms/form-error";
 
 const RATING_VALUES = ["VERY_GOOD", "GOOD", "SLIGHTLY_NOT_GOOD", "NOT_GOOD"] as const;
 
@@ -15,9 +17,14 @@ export function EvaluationForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("evaluationForm");
   const router = useRouter();
   const [rating, setRating] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(submitEvaluationAction, {
+    bookingId,
+    onSuccess: () => {
+      setSubmitted(true);
+      router.refresh();
+    },
+  });
   const requiresComment = rating === "NOT_GOOD" || rating === "SLIGHTLY_NOT_GOOD";
 
   if (submitted) {
@@ -33,22 +40,7 @@ export function EvaluationForm({ bookingId }: { bookingId: string }) {
   }
 
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await submitEvaluationAction(formData);
-          if (res && !res.ok) {
-            setError(res.error);
-            return;
-          }
-          setSubmitted(true);
-          router.refresh();
-        });
-      }}
-      className="space-y-4"
-    >
+    <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label>{t("howWasTheTrip")}</Label>
         <div className="grid sm:grid-cols-2 gap-2">
@@ -82,11 +74,7 @@ export function EvaluationForm({ bookingId }: { bookingId: string }) {
         )}
       </div>
 
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
       <Button type="submit" disabled={pending || !rating}>
         {pending ? t("submitting") : t("submit")}
       </Button>
