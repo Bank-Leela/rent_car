@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { format, startOfDay, addDays } from "date-fns";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { BatchRunForm } from "@/components/forms/batch-run-form";
 import { ReclaimDecisionForm } from "@/components/forms/reclaim-decision-form";
+import { AssignRecoButton } from "@/components/forms/assign-reco-button";
+import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 
 const OVERFLOW_TONE: Record<string, string> = {
   NO_PRIMARY_DRIVER:
@@ -147,6 +149,10 @@ export default async function AdminBatchPage({
     }),
   ]);
 
+  // Recommendation for each leftover the solver couldn't place (P'Top override).
+  const isThai = (await getLocale()).toLowerCase().startsWith("th");
+  const recos = await recommendForBookings(dayStart, overflows, isThai);
+
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} description={t("description")} />
@@ -226,6 +232,21 @@ export default async function AdminBatchPage({
                       {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                     </div>
                     <BookingInputs b={b} labels={L} />
+                    {(() => {
+                      const r = recos.get(b.id);
+                      if (!r || r.kind === "none") {
+                        return <div className="text-xs text-muted-foreground">💡 {t("recoNone")}</div>;
+                      }
+                      const car = r.registrationNumber ?? "";
+                      const name = r.driverName ?? "";
+                      const msg = r.kind === "reclaim" ? t("recoReclaim", { car, name }) : t("recoFit", { car, name });
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span>💡 {msg}</span>
+                          <AssignRecoButton bookingId={b.id} vehicleId={r.vehicleId} label={t("assignReco")} />
+                        </div>
+                      );
+                    })()}
                     {reason === "NEEDS_WERN_RECLAIM_DECISION" && (
                       <ReclaimDecisionForm bookingId={b.id} />
                     )}

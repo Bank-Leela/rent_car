@@ -6,6 +6,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
+import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 
 export default async function SchedulePage({
   searchParams,
@@ -73,18 +74,34 @@ export default async function SchedulePage({
     const driverName = du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null;
     return { id: v.id, registrationNumber: v.registrationNumber, driverName };
   });
+  // Placement recommendation for each unassigned (queue) booking — the same
+  // suggestion the batch overflow list shows, surfaced on the board's queue.
+  const queueRaw = dayBookings.filter((b) => !b.vehicleId).map((b) => ({ id: b.id, startAt: b.startAt, endAt: b.endAt }));
+  const recos = await recommendForBookings(dayStart, queueRaw, isThai);
+  const dutyTag = t("duty");
+  const assignReco = t("assignReco");
   const bookings = dayBookings.map((b) => {
     const u = b.primaryDriver?.user;
     const driverName = u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
     const su = b.secondaryDriver?.user;
     const secondaryDriverName = su ? (isThai ? su.thaiName ?? su.name : su.name ?? su.thaiName) ?? null : null;
     const sameDay = b.endAt.toDateString() === b.startAt.toDateString();
+    const r = recos.get(b.id);
+    const reco =
+      r && r.kind !== "none"
+        ? {
+            vehicleId: r.vehicleId,
+            label: `${r.registrationNumber ?? ""}${r.driverName ? " · " + r.driverName : ""}${r.kind === "reclaim" ? ` (${dutyTag})` : ""}`,
+            assignLabel: assignReco,
+          }
+        : null;
     return {
       id: b.id,
       jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
       timeLabel: format(b.startAt, "HH:mm"),
+      endLabel: format(b.endAt, "HH:mm") + (sameDay ? "" : " +1"),
       startHour: b.startAt.getHours() + b.startAt.getMinutes() / 60,
       endHour: sameDay ? b.endAt.getHours() + b.endAt.getMinutes() / 60 : 24,
       vehicleId: b.vehicleId,
@@ -94,6 +111,7 @@ export default async function SchedulePage({
       secondaryDriverName,
       secondaryDriverId: b.secondaryDriverId,
       secondaryVehicleId: b.secondaryDriverId ? carByDriver.get(b.secondaryDriverId) ?? null : null,
+      reco,
     };
   });
 

@@ -19,6 +19,7 @@ import {
 import type { JobType } from "@prisma/client";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
 import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
+import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 
 // Per-job-type colour, tuned for both light and dark themes. Fills + borders
 // only — the conflict (red) and co-driver (violet) cues stay as rings so they
@@ -64,10 +65,15 @@ export type SchedulerBooking = {
   purpose: string;
   destination: string;
   timeLabel: string;
+  // End time as "HH:mm" (with " +1" when the trip ends the next day).
+  endLabel: string;
   startHour: number;
   endHour: number;
   vehicleId: string | null;
   jobType: JobType;
+  // Recommended placement for an unassigned (queue) booking — fairest free car,
+  // or the duty car (reclaim). null when assigned or none available.
+  reco: { vehicleId: string; label: string; assignLabel: string } | null;
   hasDriver: boolean;
   driverName: string | null;
   // Long-haul (>400km) co-driver: their name, id, and the car THEY are assigned
@@ -143,7 +149,7 @@ function TimelineBlock({
     >
       <div className="flex items-center gap-1 font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
-        {b.timeLabel}
+        {b.timeLabel}–{b.endLabel}
       </div>
       <div className="truncate text-muted-foreground">{b.purpose}</div>
       {b.hasDriver ? (
@@ -194,7 +200,7 @@ function CoDriverGhost({
     >
       <div className="flex items-center gap-1 font-medium">
         <Link2 className="h-3 w-3 shrink-0" aria-hidden />
-        {b.timeLabel}
+        {b.timeLabel}–{b.endLabel}
       </div>
       <div className="truncate text-[10px] font-medium">{coDriverLabel}</div>
       {b.driverName && (
@@ -220,11 +226,22 @@ function QueueCard({ b }: { b: SchedulerBooking }) {
         <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
         <span className={`h-2 w-2 shrink-0 rounded-full ${jobStyle(b.jobType).dot}`} aria-hidden />
         <span className="font-mono text-[10px] text-muted-foreground">{b.jobNumber}</span>
-        <span className="font-medium">{b.timeLabel}</span>
+        <span className="font-medium">{b.timeLabel}–{b.endLabel}</span>
       </div>
       <div className="truncate text-muted-foreground">
         {b.purpose} → {b.destination}
       </div>
+      {b.reco && (
+        // Recommended placement + one-click assign. Stop pointer propagation so
+        // tapping the button doesn't start a drag.
+        <div
+          className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <span className="text-muted-foreground">💡 {b.reco.label}</span>
+          <AssignRecoButton bookingId={b.id} vehicleId={b.reco.vehicleId} label={b.reco.assignLabel} />
+        </div>
+      )}
     </div>
   );
 }
@@ -578,7 +595,7 @@ export function SchedulerBoard({
             <div className="flex items-center gap-1">
               <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
               <span className="font-mono text-[10px] text-muted-foreground">{activeBooking.jobNumber}</span>
-              <span className="font-medium">{activeBooking.timeLabel}</span>
+              <span className="font-medium">{activeBooking.timeLabel}–{activeBooking.endLabel}</span>
             </div>
             <div className="truncate text-muted-foreground">{activeBooking.purpose}</div>
           </div>
