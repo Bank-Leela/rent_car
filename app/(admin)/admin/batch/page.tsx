@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { format, startOfDay, addDays } from "date-fns";
+import { th, enUS } from "date-fns/locale";
 import { getTranslations, getLocale } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -152,7 +153,15 @@ export default async function AdminBatchPage({
 
   // Recommendation for each leftover the solver couldn't place (P'Top override).
   const isThai = (await getLocale()).toLowerCase().startsWith("th");
+  const dfLocale = isThai ? th : enUS;
   const recos = await recommendForBookings(dayStart, overflows, isThai);
+
+  // End-time label: an overnight/multi-day trip shows the return day so it's
+  // clear when the driver gets back (e.g. "17:00 ↩ Tue 17 Jun").
+  const endLabel = (start: Date, end: Date) =>
+    end.toDateString() === start.toDateString()
+      ? format(end, "HH:mm")
+      : `${format(end, "HH:mm")} ↩ ${format(end, "EEE d MMM", { locale: dfLocale })}`;
 
   return (
     <div className="space-y-6">
@@ -190,7 +199,7 @@ export default async function AdminBatchPage({
                   </Link>
                   <span className="mx-2 text-muted-foreground">{b.purpose}</span>
                   <span className="text-xs text-muted-foreground">
-                    {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} · {b.jobType}
+                    {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
                     {b.outOfProvince ? " · ตจว" : ""}
                   </span>
                   <BookingInputs b={b} labels={L} />
@@ -229,7 +238,7 @@ export default async function AdminBatchPage({
                       </span>
                     </div>
                     <div className="text-xs opacity-80">
-                      {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} ·{" "}
+                      {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} ·{" "}
                       {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                     </div>
                     <BookingInputs b={b} labels={L} />
@@ -287,7 +296,7 @@ export default async function AdminBatchPage({
                     </Link>
                     <span className="ml-2">{b.purpose}</span>
                     <div className="text-xs text-muted-foreground">
-                      {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} · {b.jobType}
+                      {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
                     </div>
                     <BookingInputs b={b} labels={L} />
                   </div>

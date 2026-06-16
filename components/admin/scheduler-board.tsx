@@ -147,7 +147,7 @@ function TimelineBlock({
       }`}
       style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
-      <div className="flex items-center gap-1 font-medium">
+      <div className="flex items-center gap-1 whitespace-nowrap font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
         {b.timeLabel}–{b.endLabel}
       </div>
@@ -198,7 +198,7 @@ function CoDriverGhost({
       className="absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 dark:bg-violet-950/30 dark:text-violet-200"
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
     >
-      <div className="flex items-center gap-1 font-medium">
+      <div className="flex items-center gap-1 whitespace-nowrap font-medium">
         <Link2 className="h-3 w-3 shrink-0" aria-hidden />
         {b.timeLabel}–{b.endLabel}
       </div>

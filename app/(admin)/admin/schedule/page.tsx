@@ -110,7 +110,9 @@ export default async function SchedulePage({
       purpose: b.purpose,
       destination: b.destination,
       timeLabel: format(b.startAt, "HH:mm"),
-      endLabel: format(b.endAt, "HH:mm") + (sameDay ? "" : " +1"),
+      endLabel: sameDay
+        ? format(b.endAt, "HH:mm")
+        : `${format(b.endAt, "HH:mm")} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`,
       startHour: b.startAt.getHours() + b.startAt.getMinutes() / 60,
       endHour: sameDay ? b.endAt.getHours() + b.endAt.getMinutes() / 60 : 24,
       vehicleId: b.vehicleId,
