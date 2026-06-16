@@ -30,7 +30,7 @@ and the duty-overlap rule.
 | `MAX_JOBS_PER_DAY` | 2 | `rotations.ts` |
 | `MORNING_END_HOUR` | 12:00 | `rotations.ts` |
 | `TWO_HOUR_BUFFER_MS` | 2 h | `rotations.ts` |
-| `LONG_TRIP_KM` | 400 | `matching.ts` |
+| `LONG_TRIP_KM` | 400 | `classification.ts` (re-exported by matching/batch-solver) |
 | `TJW_DAY_HOURS` | 12 | `classification.ts` |
 | `FAIRNESS_WINDOW_DAYS` | 30 | `earnings.ts` |
 
@@ -65,28 +65,32 @@ crosses midnight is OT, **not** TJW (out-of-province is required for TJW).
 `earningsScore` ascending → `lastAssignedAt` ascending → `driverId`.
 
 **NORMAL** uses a coverage rule instead of a timestamp: lowest `earningsScore`
-first, and everyone with 0 trips today is served before anyone gets a 2nd
-(`pickGeneralRank`, tier-0 before tier-1).
+first, and everyone with 0 **NORMAL** trips today is served before anyone gets a
+2nd (`pickGeneralRank`, tier-0 before tier-1). The tier count is NORMAL-only, so
+an OT a driver already holds doesn't push them out of the NORMAL pick.
 
 ---
 
 ## 4. Eligibility — can a driver take this trip? (`rotations.ts:canChain`)
 
-The single rule shared by **both** assignment paths (`canTake` in the solver,
-`canTakeTrip` → `filterAvailable` in the matcher):
+**Job-type-aware.** The single rule shared by **both** assignment paths
+(`canTake` in the solver, `canTakeTrip` → `filterAvailable` in the matcher);
+`jobType` defaults to NORMAL for untyped callers.
 
-```
-0 existing trips today                          → CAN take
-≥ 2 existing trips today (MAX_JOBS_PER_DAY)      → CANNOT
-overlaps an existing trip                        → CANNOT   (hard, always)
-otherwise allowed ONLY as a morning→afternoon chain:
-  one of the two trips ends strictly before 12:00,
-  AND there is a ≥ 2 h gap between them
-  (a long midday trip that ends ≥ 12:00 blocks a 2nd trip)
-```
+- **No overlap** with any existing same-day trip.
+- **≥ 2h gap** between the new trip and *every* existing trip
+  (`next.end + 2h ≤ e.start` **or** `e.end + 2h ≤ next.start`) — universal, all
+  job types. E.g. an OT ending 06:00 lets an 08:00 job follow; ending 06:30 blocks it.
+- **NORMAL cap:** at most **2** NORMALs, and they must be one **morning**
+  (ends ≤ 12:00) + one **afternoon** (starts ≥ 12:00). Two mornings, two
+  afternoons, or a midday straddler (starts <12 & ends >12) + another are rejected.
+- **OT is exempt from the cap** (extra hours on top) but still obeys the 2h gap —
+  a driver can stack early-bird OT + morning + afternoon NORMAL + evening OT as
+  long as every pair keeps the gap.
+- **TJW** locks the driver away for the trip span; **WERN** = the reserved duty driver.
 
-"Existing trips" = the driver's other **same-day** commitments. This is why the
-batch path must load already-assigned trips (see §6).
+"Existing trips" = the driver's other **same-day** commitments — so the batch
+path must load already-assigned trips (`existingByDriver`, §6b).
 
 ---
 
@@ -152,7 +156,8 @@ TJW → OT → WERN → NORMAL → SMUS
 
 **Per booking** (`placeBooking`):
 1. `eligibleForPrimary` = drivers that are **not** away-on-TJW, **not** the duty
-   driver, under the 2-job cap, on the right side of the Phase-C returnee split.
+   driver, under the **NORMAL-only** cap (OT is exempt), on the right side of the
+   Phase-C returnee split.
 2. Rank by the category's rotation (`rankForCategory`); first who passes
    `canTake` (overlap/chain) wins.
 3. Long trip → pick a secondary the same way (minus the primary).
@@ -180,8 +185,30 @@ same driver.
   non-duty driver who passes `canTakeTrip`, or none.
 - **Overtime reco** (`overtime-reco.ts`) — for an OT booking waitlisted by the
   time-blind day-capacity gate: recommends the fairest non-duty car-driver unit
-  actually free at the booking's real time. The 2-job/day cap is **not** applied
-  (OT is extra hours on top of the normal day). Advisory, pure, no I/O.
+  actually free at the booking's real time. Gated by `canChain` with `jobType:
+  "OT"` — the 2-job/day cap is **not** applied (OT is extra hours) but the 2h gap
+  is. Advisory, pure, no I/O.
+
+---
+
+## 7b. Leftover handling — placement recommendation (`placement-reco.ts`)
+
+When the solver can't auto-place a trip (saturated pool / everyone away / duty),
+P'Top gets a one-click recommendation instead of just an overflow reason.
+
+`recommendPlacement` (pure): the **fairest non-duty car free at the trip's time**
+(overlap blocks; the 2-job cap is *relaxed* — this is a manual override) → else
+the **duty car** (`reclaim`, the only car allowed to overlap) → else `none`. For a
+> 400 km trip it also recommends a **co-driver** = the next-fairest free non-duty
+driver (rides in the primary's car), or null when none is free.
+
+`recommendForBookings` (`placement-reco-data.ts`) builds the pool — drivers +
+their assigned car + same-day trips (incl. **APPROVED**, to match the assign
+action's conflict set) + 30-day earnings + duty driver — and is consumed by
+**both** the batch overflow list (`admin/batch/page.tsx`) and the board queue
+(`scheduler-board.tsx`). Assign = `AssignRecoButton` → `reassignVehicleAction`,
+which sets primary + optional co-driver, allows the duty-car overlap for reclaim,
+and re-validates the co-driver at assign time.
 
 ---
 
@@ -190,8 +217,12 @@ same driver.
 Cars = rows, time = X-axis (00:00–24:00, auto-fit). Each car's trips are
 **lane-packed** greedily: a trip joins the first lane whose previous trip ends at
 or before it starts, else opens a new lane; row height = `lanes × 64px`. Overnight
-trips use `endHour = 24` as the right-edge sentinel. Non-duty overlaps get a red
-ring.
+trips use `endHour = 24` as the right-edge sentinel. Blocks show **start–end**
+time and are **tinted by job type** (TJW blue, OT amber, WERN emerald, NORMAL
+slate, both themes). Conflict (red ring) and co-driver (violet ring + a linked
+ghost on the co-driver's own car row) stay as overlays. Non-duty overlaps get a
+red ring. The unassigned queue carries each booking's placement recommendation
+(§7b) with an inline Assign.
 
 ---
 
@@ -217,8 +248,15 @@ ring.
 | `lib/booking/matching-actions.ts` | Loads data, calls `match`, persists |
 | `lib/booking/batch-solver.ts` | `solveDay()` — whole-day solver |
 | `lib/booking/batch-actions.ts` | Builds solver inputs, persists assignments + overflow |
+| `lib/booking/batch-demo-actions.ts` | Demo seed / simulate + full Clear-demo reset |
+| `lib/booking/earnings.ts` | Shared duration-weighted fairness loader (`loadWeightedEarnings`) |
+| `lib/booking/rotation-stamp.ts` | Recompute a driver's category rotation stamp |
 | `lib/booking/overtime-reco.ts` | Advisory OT placement |
-| `lib/booking/schedule-actions.ts` | Drag-drop reassign + duty overlap exception |
-| `components/admin/scheduler-board.tsx` | Timeline board, lane stacking, conflict ring |
+| `lib/booking/placement-reco.ts` | `recommendPlacement` — leftover/overflow suggestion (pure) |
+| `lib/booking/placement-reco-data.ts` | Server builder for the recommendation |
+| `lib/booking/schedule-actions.ts` | Drag-drop reassign (+ duty overlap exception, co-driver) |
+| `components/admin/scheduler-board.tsx` | Timeline board, lane stacking, job-type colours, queue reco |
+| `components/forms/assign-reco-button.tsx` | One-click assign-to-recommendation |
 
-See also: `docs/superpowers/specs/2026-06-15-duty-car-overlap-rule-design.md`.
+See also: `docs/superpowers/specs/2026-06-15-duty-car-overlap-rule-design.md`,
+`docs/superpowers/specs/2026-06-15-job-type-aware-chaining-design.md`.
