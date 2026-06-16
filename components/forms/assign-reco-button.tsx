@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
@@ -20,10 +21,15 @@ export function AssignRecoButton({
   label: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("scheduler");
   const { error, pending, run } = useFormAction(reassignVehicleAction, {
     bookingId,
     onSuccess: () => router.refresh(),
   });
+  // Map the action's machine code to a translated message (same scheme as the board).
+  const message = error
+    ? t(error === "vehicleBusy" ? "dropConflict" : error === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed")
+    : null;
   return (
     <span className="inline-flex items-center gap-2">
       <Button
@@ -40,7 +46,7 @@ export function AssignRecoButton({
       >
         {pending ? "…" : label}
       </Button>
-      {error && <span className="text-xs text-destructive">{error}</span>}
+      {message && <span className="text-xs text-destructive">{message}</span>}
     </span>
   );
 }

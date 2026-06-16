@@ -55,7 +55,23 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   }
 
   const driverId = vehicle.assignedDriverId;
-  const secondary = secondaryDriverIdIn && secondaryDriverIdIn !== driverId ? secondaryDriverIdIn : null;
+  // Re-validate the recommended co-driver: it was picked as free at render time,
+  // but could have been booked since. Drop it (place primary only) if it now has
+  // an overlapping trip — never silently double-book the co-driver.
+  let secondary = secondaryDriverIdIn && secondaryDriverIdIn !== driverId ? secondaryDriverIdIn : null;
+  if (secondary) {
+    const secBusy = await prisma.booking.findFirst({
+      where: {
+        id: { not: bookingId },
+        status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
+        OR: [{ primaryDriverId: secondary }, { secondaryDriverId: secondary }],
+        startAt: { lt: booking.endAt },
+        endAt: { gt: booking.startAt },
+      },
+      select: { id: true },
+    });
+    if (secBusy) secondary = null;
+  }
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },

@@ -34,9 +34,11 @@ export async function recommendForBookings(
   const earnings = await loadWeightedEarnings(drivers.map((d) => d.id));
 
   // Each driver's committed trips that day (primary or secondary), for overlap.
+  // Includes APPROVED so the reco never proposes a car that reassignVehicleAction
+  // (which blocks on APPROVED|ASSIGNED) would then reject as vehicleBusy.
   const assigned = await prisma.booking.findMany({
     where: {
-      status: { in: ["ASSIGNED", "COMPLETED"] },
+      status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
       primaryDriverId: { not: null },
       startAt: { lt: dayEnd },
       endAt: { gt: dayStart },
