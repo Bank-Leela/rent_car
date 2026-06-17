@@ -759,9 +759,11 @@
     "noProfileTitle": "No driver profile",
     "noProfileDescription": "Your account isn't attached to a driver record yet. Ask the admin to create one.",
     "scheduleTitle": "Schedule",
-    "scheduleSubtitle": "Your assigned trips for the next 30 days.",
+    "scheduleSubtitle": "Your assigned trips and on-call days for the next 30 days.",
     "scheduleEmptyTitle": "Nothing scheduled",
-    "scheduleEmptyDescription": "Once the admin assigns you to a trip it'll show up here.",
+    "scheduleEmptyDescription": "Once the admin assigns you to a trip or duty it'll show up here.",
+    "onCall": "On-call (duty)",
+    "onCallNote": "Campus duty rounds 08:00–16:00",
     "scheduleAllHeading": "All upcoming",
     "scheduleHistoryHeading": "Past trips (last 14 days)"
   }
