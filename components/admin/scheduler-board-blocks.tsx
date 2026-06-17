@@ -230,9 +230,9 @@ export function CarRow({
   }
   const laneCount = Math.max(1, laneEnds.length);
 
-  // Flag PRIMARY trips that overlap another primary on this car. Only shown red
-  // on a non-duty car — the duty (WERN) car is allowed to overlap. Co-driver
-  // ghosts are ride-alongs and never count as conflicts.
+  // Flag PRIMARY trips that overlap another primary on this car — on EVERY car,
+  // duty included (no car may be double-booked). Co-driver ghosts are ride-alongs
+  // and never count as conflicts.
   const primaries = sorted.filter((it) => it.kind === "primary");
   const conflictIds = new Set<string>();
   for (let i = 0; i < primaries.length; i++) {
@@ -291,7 +291,7 @@ export function CarRow({
               dayHours={dayHours}
               top={top}
               height={height}
-              conflict={conflictIds.has(it.b.id) && !isDuty}
+              conflict={conflictIds.has(it.b.id)}
             />
           ) : (
             <CoDriverGhost

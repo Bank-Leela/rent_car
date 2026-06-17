@@ -94,24 +94,26 @@ path must load already-assigned trips (`existingByDriver`, §6b).
 
 ---
 
-## 5. The duty (WERN) overlap rule
+## 5. The no-overlap rule
 
-**Only the duty car may hold overlapping trips. Every other car must never be
-double-booked.** Rationale: the on-call driver carries a full-day WERN
-reservation *plus* any trip "reclaimed" onto them; nobody else may stack trips.
+**No car may ever be double-booked — not even the duty car.** Overlap is the one
+constraint a manual override can NOT relax: an admin drag/assign may break the 2h
+chaining gap (P'Top's call), but never put two trips on the same car at the same
+time. The duty driver is still **reserved** (excluded from every auto pick) and a
+WERN reclaim is handled by freeing the duty car first (unassign WERN — drag it
+back to the queue — then assign the reclaimed trip), so the duty car never needs
+to overlap.
 
 Enforced in three places:
 
 - **Matcher / solver picks** exclude the duty driver entirely
-  (`matching.ts:54`, `batch-solver.ts:eligibleForPrimary`), so the duty car
-  never receives a normal auto-assignment — it can only gain a trip via WERN
-  reclaim. That makes it the *only* car that can overlap.
-- **Drag-drop** (`schedule-actions.ts:reassignVehicleAction`) blocks an
-  overlapping drop on any car **except** the duty car (looked up from
-  `OnCallShift` for the booking's day).
-- **Board** (`scheduler-board.tsx`) stacks concurrent blocks into lanes so the
-  duty car's allowed overlap is visible; any overlap on a **non-duty** car gets
-  a red conflict ring (should not occur after the solver fix — flags stale data).
+  (`matching.ts:54`, `batch-solver.ts:eligibleForPrimary`), so the duty car never
+  receives a normal auto-assignment.
+- **Drag-drop / assign-reco** (`schedule-actions.ts:reassignVehicleAction`)
+  blocks an overlapping drop on **every** car (the 2h gap is not checked here, so
+  it stays overridable). Re-dropping on the same car is the only skip.
+- **Board** (`scheduler-board.tsx`) stacks concurrent blocks into lanes; any
+  overlap on **any** car (duty included) gets a red conflict ring.
 
 ---
 
