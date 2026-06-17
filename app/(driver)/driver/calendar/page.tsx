@@ -106,6 +106,16 @@ export default async function DriverCalendar({
     }
   }
 
+  // Duty (on-call / WERN) days from the OnCallShift roster the admin sets. These
+  // aren't bookings, so without this the driver couldn't see when they're on call
+  // — that's the calendar↔admin-schedule sync gap (the duty driver is excluded
+  // from auto-assignment, so their calendar would otherwise look empty).
+  const dutyShifts = await prisma.onCallShift.findMany({
+    where: { driverId, date: { gte: gridStart, lte: gridEnd } },
+    select: { date: true },
+  });
+  const dutyDays = new Set(dutyShifts.map((s) => format(s.date, "yyyy-MM-dd")));
+
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
   const prevMonth = format(subMonths(monthAnchor, 1), "yyyy-MM");
   const nextMonth = format(addMonths(monthAnchor, 1), "yyyy-MM");
@@ -146,6 +156,9 @@ export default async function DriverCalendar({
             {tcal(`legend.${key}`)}
           </span>
         ))}
+        <span className="rounded border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {t("onCallLegend")}
+        </span>
       </div>
 
       <div className="rounded-lg border overflow-hidden">
@@ -160,15 +173,18 @@ export default async function DriverCalendar({
             const items = byDay.get(key) ?? [];
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
+            const isDuty = dutyDays.has(key);
             const surface = inMonth
               ? "bg-card"
               : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
             return (
               <div
                 key={key}
-                className={`relative min-h-20 border-t border-l p-1 ${surface}`}
+                className={`relative min-h-20 border-t border-l p-1 ${surface} ${
+                  isDuty ? "border-l-2 border-l-emerald-400 dark:border-l-emerald-600" : ""
+                }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   <span
                     className={
                       isToday
@@ -178,11 +194,18 @@ export default async function DriverCalendar({
                   >
                     {format(day, "d")}
                   </span>
-                  {items.length > 0 && (
-                    <span className="rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
-                      {items.length}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {isDuty && (
+                      <span className="rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+                        {t("onCall")}
+                      </span>
+                    )}
+                    {items.length > 0 && (
+                      <span className="rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
+                        {items.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-1 space-y-1">
                   {items.slice(0, 3).map(({ b, span }) => (

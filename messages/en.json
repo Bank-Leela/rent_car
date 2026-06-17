@@ -596,6 +596,8 @@
   },
   "driverCalendar": {
     "title": "My calendar",
+    "onCall": "On-call",
+    "onCallLegend": "On-call (duty)",
     "noProfileTitle": "No driver profile",
     "noProfileDescription": "Ask an administrator to add you to the driver pool."
   },
