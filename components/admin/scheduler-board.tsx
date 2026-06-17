@@ -12,6 +12,9 @@ import {
   useSensors,
   useDroppable,
   pointerWithin,
+  rectIntersection,
+  MeasuringStrategy,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -36,6 +39,15 @@ export type { SchedulerVehicle, SchedulerBooking } from "@/components/admin/sche
 // Droppable id for the unassigned-queue zone. Distinct from any vehicleId so the
 // drop handler can tell "back to queue" from "onto a car".
 const QUEUE_DROP_ID = "__queue__";
+
+// Pointer-first collision, falling back to rect overlap. The timeline lives in a
+// horizontally-scrolling container, where pointerWithin alone can return no hit
+// (stale rects / scroll offset) — so a dragged block found "nowhere to drop".
+// rectIntersection then guarantees the nearest overlapping lane/queue is picked.
+const boardCollision: CollisionDetection = (args) => {
+  const within = pointerWithin(args);
+  return within.length > 0 ? within : rectIntersection(args);
+};
 
 export function SchedulerBoard({
   vehicles,
@@ -156,7 +168,14 @@ export function SchedulerBoard({
     // id is REQUIRED: @dnd-kit derives the draggables' aria-describedby from it,
     // and without a stable value it falls back to a module counter that drifts
     // between SSR and client → hydration mismatch. Don't remove.
-    <DndContext id="scheduler-board" sensors={sensors} collisionDetection={pointerWithin} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext
+      id="scheduler-board"
+      sensors={sensors}
+      collisionDetection={boardCollision}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+    >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">{t("hint")}</p>
