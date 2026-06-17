@@ -258,6 +258,8 @@ export function SchedulerBoard({
                   dutyLabel={t("duty")}
                   noDriverLabel={t("noDriver")}
                   coDriverLabel={t("coDriver")}
+                  unassignLabel={t("unassign")}
+                  onUnassign={unassign}
                   dayStart={dayStart}
                   dayHours={dayHours}
                   hours={hours}

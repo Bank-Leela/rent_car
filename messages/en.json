@@ -139,6 +139,7 @@
     "afternoon": "Afternoon",
     "duty": "Duty",
     "coDriver": "+ co-driver",
+    "unassign": "Move back to Unassigned",
     "noVehicles": "No active vehicles.",
     "noDriver": "No driver",
     "dropNoDriver": "No free driver for this time — can't place here.",

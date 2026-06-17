@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, GripVertical, AlertTriangle, Link2 } from "lucide-react";
+import { Car, GripVertical, AlertTriangle, Link2, X } from "lucide-react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 import {
@@ -18,6 +18,8 @@ import {
 function TimelineBlock({
   b,
   noDriverLabel,
+  unassignLabel,
+  onUnassign,
   dayStart,
   dayHours,
   top,
@@ -26,6 +28,9 @@ function TimelineBlock({
 }: {
   b: SchedulerBooking;
   noDriverLabel: string;
+  unassignLabel: string;
+  // Move this trip back to the Unassigned queue (drag-free path).
+  onUnassign: (bookingId: string) => void;
   dayStart: number;
   dayHours: number;
   // Vertical placement within the car row: which stacked lane this block sits in.
@@ -60,6 +65,21 @@ function TimelineBlock({
       }`}
       style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
+      {/* Drag-free unassign: a hover ✕ sends the trip back to the queue. Stops
+          pointer propagation so pressing it never starts a drag. */}
+      <button
+        type="button"
+        title={unassignLabel}
+        aria-label={unassignLabel}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onUnassign(b.id);
+        }}
+        className="absolute right-0.5 top-0.5 z-10 grid h-4 w-4 place-items-center rounded-sm bg-background/70 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <X className="h-3 w-3" aria-hidden />
+      </button>
       <div className="flex items-center gap-1 whitespace-nowrap font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
         {/* bg-inherit lets a short block's time label spill past the bar's right
@@ -179,6 +199,8 @@ export function CarRow({
   dutyLabel,
   noDriverLabel,
   coDriverLabel,
+  unassignLabel,
+  onUnassign,
   dayStart,
   dayHours,
   hours,
@@ -192,6 +214,8 @@ export function CarRow({
   dutyLabel: string;
   noDriverLabel: string;
   coDriverLabel: string;
+  unassignLabel: string;
+  onUnassign: (bookingId: string) => void;
   dayStart: number;
   dayHours: number;
   hours: number[];
@@ -287,6 +311,8 @@ export function CarRow({
               key={it.key}
               b={it.b}
               noDriverLabel={noDriverLabel}
+              unassignLabel={unassignLabel}
+              onUnassign={onUnassign}
               dayStart={dayStart}
               dayHours={dayHours}
               top={top}
