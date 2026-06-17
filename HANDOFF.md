@@ -6,7 +6,30 @@ Quick state snapshot for resuming work in a fresh session.
 
 All 5 phases of `claude_code_implementation_plan.md` shipped.
 
-### Latest session — matching/scheduling + slot/vehicle audit
+### Latest session — multi-day calendar rendering + error boundaries
+
+- **Multi-day trips render on every day they span.** Day-scoped views queried
+  bookings by `startAt`-in-day, so a multi-day TJW (depart Jun 16, return Jun 17)
+  vanished on its return/middle days. New pure helper `lib/booking/day-window.ts`:
+  `daySpan()` projects a trip onto one viewed day (clamps a spill to the 0/24 axis,
+  flags `continuesBefore`/`continuesAfter`); `daysSpanned()` buckets a trip into
+  every day-cell it touches. All six day views switched to the overlap query
+  (`startAt < dayEnd && endAt > dayStart`) + these helpers: the scheduler board,
+  the admin day calendar (agenda + timeline), the admin + driver month grids, the
+  driver today/tomorrow dashboard, and the batch ASSIGNED roster (pending/overflow
+  stay start-in-day — that's the day's new work to place). Labels show
+  `↪ <departure date>` / `↩ <return date>`. 12 `daySpan`/`daysSpanned` unit tests.
+- **Short-block label fix:** a ≤2h scheduler-board block was too narrow to contain
+  "13:00–15:00"; the time label now spills past the bar (`bg-inherit` backing,
+  block `overflow-hidden` dropped) instead of clipping the end hour.
+- **Error robustness:** the app had NO error/404 boundaries — a thrown server
+  action / RSC query or any `notFound()` fell through to Next's bare default
+  screen. Added `error.tsx` + `not-found.tsx` for (admin)/(driver)/(requester),
+  a root `global-error.tsx` (catches root/group-layout throws), shared
+  `ErrorState`/`NotFoundState`, and an `errorPage` i18n namespace. `error.tsx`
+  uses Next 16's `unstable_retry` (per the in-tree docs), not legacy `reset`.
+
+### Prior session — matching/scheduling + slot/vehicle audit
 
 - **Matcher consistency:** single-booking `match()` now hard-excludes the
   on-call (WERN duty) driver all day, matching the batch solver — closed a
