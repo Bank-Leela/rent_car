@@ -11,10 +11,8 @@ import {
   useSensor,
   useSensors,
   useDroppable,
-  pointerWithin,
-  rectIntersection,
+  closestCenter,
   MeasuringStrategy,
-  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
@@ -40,14 +38,6 @@ export type { SchedulerVehicle, SchedulerBooking } from "@/components/admin/sche
 // drop handler can tell "back to queue" from "onto a car".
 const QUEUE_DROP_ID = "__queue__";
 
-// Pointer-first collision, falling back to rect overlap. The timeline lives in a
-// horizontally-scrolling container, where pointerWithin alone can return no hit
-// (stale rects / scroll offset) — so a dragged block found "nowhere to drop".
-// rectIntersection then guarantees the nearest overlapping lane/queue is picked.
-const boardCollision: CollisionDetection = (args) => {
-  const within = pointerWithin(args);
-  return within.length > 0 ? within : rectIntersection(args);
-};
 
 export function SchedulerBoard({
   vehicles,
@@ -171,7 +161,12 @@ export function SchedulerBoard({
     <DndContext
       id="scheduler-board"
       sensors={sensors}
-      collisionDetection={boardCollision}
+      // closestCenter: pick the droppable nearest the dragged block's centre —
+      // forgiving and never empty, so a block dragged UP to the far top queue
+      // reaches it (pointer-based detection missed it: the cursor stayed over a
+      // car row while the overlay reached the queue). Always-measure keeps rects
+      // fresh inside the horizontally-scrolling timeline.
+      collisionDetection={closestCenter}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
