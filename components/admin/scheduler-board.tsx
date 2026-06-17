@@ -11,7 +11,7 @@ import {
   useSensor,
   useSensors,
   useDroppable,
-  closestCenter,
+  rectIntersection,
   MeasuringStrategy,
   type DragStartEvent,
   type DragEndEvent,
@@ -161,12 +161,14 @@ export function SchedulerBoard({
     <DndContext
       id="scheduler-board"
       sensors={sensors}
-      // closestCenter: pick the droppable nearest the dragged block's centre —
-      // forgiving and never empty, so a block dragged UP to the far top queue
-      // reaches it (pointer-based detection missed it: the cursor stayed over a
-      // car row while the overlay reached the queue). Always-measure keeps rects
-      // fresh inside the horizontally-scrolling timeline.
-      collisionDetection={closestCenter}
+      // rectIntersection: pick the droppable the dragged block's OVERLAY overlaps
+      // most. pointerWithin missed the queue (cursor stayed over a car row while
+      // the overlay reached the queue); closestCenter overshot (the top queue's
+      // centre is too far, so it always picked the nearest car → a reassign +
+      // vehicleBusy). Overlap-based hits whatever the block is visually over —
+      // the queue when dragged up to it, the row when over a row. Always-measure
+      // keeps rects fresh in the horizontally-scrolling timeline.
+      collisionDetection={rectIntersection}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
