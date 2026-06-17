@@ -10,12 +10,13 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   pointerWithin,
   type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
-import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
+import { reassignVehicleAction, unassignBookingAction } from "@/lib/booking/schedule-actions";
 import {
   type SchedulerVehicle,
   type SchedulerBooking,
@@ -31,6 +32,10 @@ import { QueueCard, CarRow } from "@/components/admin/scheduler-board-blocks";
 // Public types — re-exported so existing importers (the schedule page) keep
 // working after the block/theme extraction.
 export type { SchedulerVehicle, SchedulerBooking } from "@/components/admin/scheduler-board-shared";
+
+// Droppable id for the unassigned-queue zone. Distinct from any vehicleId so the
+// drop handler can tell "back to queue" from "onto a car".
+const QUEUE_DROP_ID = "__queue__";
 
 export function SchedulerBoard({
   vehicles,
@@ -50,6 +55,10 @@ export function SchedulerBoard({
 
   // 4px travel before a drag starts → a plain click still shows the title tooltip.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  // The unassigned queue is itself a drop target: drag an assigned block up here
+  // to send the trip back to the queue (clears its car + driver).
+  const queueDrop = useDroppable({ id: QUEUE_DROP_ID });
 
   // Auto-fit the axis: start no later than 06:00, end no earlier than 20:00,
   // but stretch to swallow an early/late trip. endHour === 24 is the overnight
@@ -88,6 +97,18 @@ export function SchedulerBoard({
     });
   }
 
+  // Drag a block back up to the queue: clear its car + driver(s).
+  function unassign(bookingId: string) {
+    setDropError(null);
+    startTransition(async () => {
+      const res = await unassignBookingAction(
+        (() => { const fd = new FormData(); fd.append("bookingId", bookingId); return fd; })(),
+      );
+      if (!res.ok) setDropError(t("dropFailed"));
+      router.refresh();
+    });
+  }
+
   function autoAssignAll() {
     if (work.length === 0) return;
     setResult(null);
@@ -120,7 +141,15 @@ export function SchedulerBoard({
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const over = e.over;
-    if (over) reassign(String(e.active.id), String(over.id));
+    if (!over) return;
+    const bookingId = String(e.active.id);
+    if (over.id === QUEUE_DROP_ID) {
+      // Dropping a card that's already in the queue is a no-op.
+      const b = bookings.find((x) => x.id === bookingId);
+      if (b?.vehicleId) unassign(bookingId);
+    } else {
+      reassign(bookingId, String(over.id));
+    }
   }
 
   return (
@@ -172,13 +201,19 @@ export function SchedulerBoard({
           </div>
         )}
 
-        {/* Unassigned queue — drag a card onto a car row to assign it. */}
-        <div className="rounded-xl border bg-muted/30 p-3">
+        {/* Unassigned queue — drag a card onto a car row to assign it, or drag a
+            scheduled block back here to unassign it. Also a drop target. */}
+        <div
+          ref={queueDrop.setNodeRef}
+          className={`rounded-xl border bg-muted/30 p-3 transition-colors ${
+            queueDrop.isOver ? "ring-2 ring-inset ring-primary/50 bg-primary/5" : ""
+          }`}
+        >
           <h2 className="mb-2 text-sm font-semibold">
             {t("queue")} <span className="text-muted-foreground">({queue.length})</span>
           </h2>
           {queue.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("queueEmpty")}</p>
+            <p className="text-xs text-muted-foreground">{t("queueEmptyDroppable")}</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {queue.map((b) => (

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
+import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 
 // car=driver: dropping a booking on a car assigns the car AND its assigned
 // driver. Blocks only if the car is already booked at that time, or the car has
@@ -87,6 +89,63 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
     await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
     if (secondary) await tx.driver.update({ where: { id: secondary }, data: { lastAssignedAt: booking.startAt } });
   });
+
+  revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
+// Drag an assigned block back up to the queue: clear the trip's car + driver(s)
+// so it returns to the unassigned pool. Releases the drivers' claims and rolls
+// their rotation stamps back (so a removed TJW doesn't keep a driver "stamped"
+// as having done it — same recompute the cancellation path uses).
+export async function unassignBookingAction(formData: FormData): Promise<ReassignResult> {
+  await requireRole("ADMIN");
+  const bookingId = String(formData.get("bookingId") ?? "");
+  if (!bookingId) return { ok: false, error: "invalidInput" };
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, status: true },
+  });
+  if (!booking) return { ok: false, error: "bookingNotFound" };
+  // Nothing assigned → already in the queue.
+  if (!booking.primaryDriverId) return { ok: true };
+
+  const freedDrivers = [booking.primaryDriverId, booking.secondaryDriverId].filter(
+    (id): id is string => !!id,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.bookingClaim.deleteMany({ where: { bookingId } });
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        vehicleId: null,
+        primaryDriverId: null,
+        secondaryDriverId: null,
+        status: "APPROVED",
+        driverScheduleStatus: "UNCLAIMED",
+        decidedAt: null,
+        overflowReason: null,
+        escalatedToKhunTop: false,
+      },
+    });
+    await logTransition({
+      bookingId,
+      actorUserId: (await requireRole("ADMIN")).user.id,
+      fromStatus: booking.status,
+      toStatus: "APPROVED",
+      action: "UNASSIGNED",
+      metadata: { freedDrivers },
+      tx,
+    });
+  });
+
+  // Recompute each freed driver's category stamp from their remaining trips
+  // (this booking is now unassigned, so it's excluded).
+  for (const driverId of freedDrivers) {
+    await recomputeRotationStamp(driverId, booking.jobType);
+  }
 
   revalidatePath("/admin/schedule");
   return { ok: true };
