@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
@@ -85,7 +86,9 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   const tjwSpanning = await prisma.booking.findMany({
     where: {
       jobType: "TJW",
-      status: { in: ["ASSIGNED", "COMPLETED"] },
+      // Include APPROVED: a TJW claimed via the board matcher stays APPROVED but
+      // its driver is genuinely away — must still lock them out of a new trip.
+      status: { in: COMMITTED_STATUSES },
       startAt: { lt: dayEnd },
       endAt: { gt: dayStart },
     },
@@ -123,7 +126,9 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   // yesterday is included via the startAt<dayEnd && endAt>dayStart window.
   const assignedToday = await prisma.booking.findMany({
     where: {
-      status: { in: ["ASSIGNED", "COMPLETED"] },
+      // APPROVED-with-driver (board-claimed) trips occupy the car too — without
+      // them the solver would stack a second trip on an already-claimed car.
+      status: { in: COMMITTED_STATUSES },
       primaryDriverId: { not: null },
       startAt: { lt: dayEnd },
       endAt: { gt: dayStart },

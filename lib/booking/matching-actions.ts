@@ -18,6 +18,7 @@ import {
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import type { ActionResult } from "@/lib/booking/actions";
 
 export async function matchBookingAction(formData: FormData): Promise<ActionResult> {
@@ -53,8 +54,12 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const driverCar = driverVehicleMap(vehicles);
   const dayBookings = await prisma.booking.findMany({
     where: {
-      startAt: { gte: tripDay, lt: dayEnd },
-      status: { in: ["APPROVED", "ASSIGNED"] },
+      // Overlap, not start-in-day: a multi-day trip that began earlier still
+      // occupies the driver today. With a start-in-day window the matcher misses
+      // a driver who's still away on a multi-day TJW and assigns them anyway.
+      startAt: { lt: dayEnd },
+      endAt: { gt: tripDay },
+      status: { in: COMMITTED_STATUSES },
       id: { not: bookingId },
     },
     select: {
@@ -234,7 +239,8 @@ async function loadTripsThisMonth(driverIds: string[]): Promise<Map<string, numb
   const rows = await prisma.booking.findMany({
     where: {
       startAt: { gte: firstOfMonth },
-      status: { in: ["ASSIGNED", "COMPLETED"] },
+      // Count claimed (APPROVED) trips too, consistent with the fairness ledger.
+      status: { in: COMMITTED_STATUSES },
       OR: [
         { primaryDriverId: { in: driverIds } },
         { secondaryDriverId: { in: driverIds } },

@@ -5,6 +5,7 @@
 import { subDays } from "date-fns";
 import { prisma } from "@/lib/db";
 import { tripEffort } from "@/lib/booking/classification";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 
 export const FAIRNESS_WINDOW_DAYS = 30;
 
@@ -14,7 +15,10 @@ export async function loadWeightedEarnings(driverIds: string[]): Promise<Map<str
   const rows = await prisma.booking.findMany({
     where: {
       startAt: { gte: since },
-      status: { in: ["ASSIGNED", "COMPLETED"] },
+      // Count claimed (APPROVED) trips too — a board-matched assignment leaves
+      // status APPROVED, and that driver IS worked; otherwise they look idle and
+      // the fairness pick keeps landing on the same person.
+      status: { in: COMMITTED_STATUSES },
       OR: [{ primaryDriverId: { in: driverIds } }, { secondaryDriverId: { in: driverIds } }],
     },
     select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, startAt: true, endAt: true },
