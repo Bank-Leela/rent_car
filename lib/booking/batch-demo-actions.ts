@@ -154,17 +154,20 @@ async function seedBatchDemoForDate(date: Date): Promise<number> {
     throw new Error("No active requester with a department. Seed the DB first.");
   }
 
-  // Ensure OnCallShift for the day.
-  const existingDuty = await prisma.onCallShift.findUnique({ where: { date: dayStart } });
-  if (!existingDuty) {
-    const firstDriver = await prisma.driver.findFirst({
-      where: { isActive: true },
-      orderBy: { id: "asc" },
-      select: { id: true },
+  // Ensure OnCallShift for the day. Duty rotates by day (day-of-epoch modulo the
+  // pool) so consecutive days get different on-call drivers — WERN switches daily.
+  const dutyPool = await prisma.driver.findMany({
+    where: { isActive: true },
+    orderBy: { id: "asc" },
+    select: { id: true },
+  });
+  if (dutyPool.length) {
+    const dutyId = dutyPool[Math.floor(dayStart.getTime() / 86_400_000) % dutyPool.length]!.id;
+    await prisma.onCallShift.upsert({
+      where: { date: dayStart },
+      create: { date: dayStart, driverId: dutyId },
+      update: { driverId: dutyId },
     });
-    if (firstDriver) {
-      await prisma.onCallShift.create({ data: { date: dayStart, driverId: firstDriver.id } });
-    }
   }
 
   // Find the next jobNumber sequence in the current month bucket.

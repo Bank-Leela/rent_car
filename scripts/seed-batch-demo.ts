@@ -63,9 +63,12 @@ async function main() {
   if (drivers.length < 3) {
     throw new Error(`Need >=3 active drivers, have ${drivers.length}. Run npx prisma db seed first.`);
   }
-  const dutyDriver = drivers[0]!;
+  // Duty rotates by day: day-of-epoch modulo the pool, so consecutive days get
+  // consecutive drivers (WERN is supposed to switch every single day).
+  const dutyIdx = Math.floor(dayStart.getTime() / 86_400_000) % drivers.length;
+  const dutyDriver = drivers[dutyIdx]!;
 
-  // 3. OnCallShift for the day -> first driver.
+  // 3. OnCallShift for the day -> rotating duty driver.
   await prisma.onCallShift.upsert({
     where: { date: dayStart },
     create: { date: dayStart, driverId: dutyDriver.id },
