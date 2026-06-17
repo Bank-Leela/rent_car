@@ -3,6 +3,9 @@
 Internal vehicle booking and management app for a Thai university faculty. All
 five phases of `claude_code_implementation_plan.md` are implemented.
 
+> 📖 **New here?** Read [`docs/PROJECT-OVERVIEW.md`](docs/PROJECT-OVERVIEW.md) for
+> the full project map (roles, domain, scheduling, architecture, doc index).
+
 ## Stack
 
 - Next.js 16 (App Router) + TypeScript
