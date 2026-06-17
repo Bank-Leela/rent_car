@@ -1,12 +1,17 @@
 // Placement recommendation for a leftover (overflowed / unassigned) booking —
 // the suggestion P'Top sees when the auto-solver couldn't place a trip. Pure;
 // no I/O. The fairness order matches the solver/matcher (earnings ↑, then
-// lastAssignedAt ↑). The 2-job/day cap is intentionally NOT applied: this is a
-// manual override, so any non-duty car whose driver is free at the trip's time
-// (no overlapping trip) is fair game. If none is free, fall back to the duty
-// car — the only car allowed to overlap. For a >400 km trip a co-driver is also
-// recommended: the next-fairest free non-duty driver (rides in the primary's
-// car), or null when none is free.
+// lastAssignedAt ↑). The recommendation OBEYS the same eligibility rule as the
+// solver (`canChain`: no overlap, ≥2h gap to every existing trip, and the
+// NORMAL one-morning + one-afternoon cap) — it must never suggest a slot that
+// breaks the rules. Only P'Top may break them, by dragging the trip there by
+// hand. If no non-duty car can legally take it, fall back to the duty car — the
+// one car the rule lets overlap (the reclaim escalation P'Top decides on). For a
+// >400 km trip a co-driver is also recommended: the next-fairest free non-duty
+// driver who can legally take it (rides in the primary's car), or null if none.
+
+import type { JobType } from "@prisma/client";
+import { canChain } from "@/lib/booking/rotations";
 
 export interface RecoDriver {
   driverId: string;
@@ -16,12 +21,13 @@ export interface RecoDriver {
   driverName: string | null;
   earningsScore: number;
   lastAssignedAt: Date | null;
-  /** The driver's other committed trips that day (to check time overlap). */
-  trips: Array<{ startAt: Date; endAt: Date }>;
+  /** The driver's other committed trips that day — checked against the booking
+   *  for overlap + the 2h gap + the NORMAL cap (job-type aware). */
+  trips: Array<{ startAt: Date; endAt: Date; jobType: JobType }>;
 }
 
 export interface RecoInput {
-  booking: { startAt: Date; endAt: Date };
+  booking: { startAt: Date; endAt: Date; jobType: JobType };
   /** >400 km trip → also recommend a co-driver. */
   needsSecondary: boolean;
   /** Excluded from the "free" pool; offered only as the reclaim fallback. */
@@ -44,16 +50,15 @@ export type Placement =
   | ({ kind: "reclaim" } & Hit)
   | { kind: "none" };
 
-const overlaps = (a: { startAt: Date; endAt: Date }, b: { startAt: Date; endAt: Date }) =>
-  a.startAt < b.endAt && b.startAt < a.endAt;
-
 export function recommendPlacement(input: RecoInput): Placement {
   const { booking, needsSecondary, dutyDriverId, drivers } = input;
 
   const free = drivers
     .filter((d) => d.driverId !== dutyDriverId)
     .filter((d) => d.vehicleId)
-    .filter((d) => !d.trips.some((t) => overlaps(t, booking)))
+    // Full eligibility, not just overlap: respects the ≥2h gap + NORMAL cap, so
+    // the reco never proposes a rule-breaking slot.
+    .filter((d) => canChain(booking, d.trips))
     .sort(
       (a, b) =>
         a.earningsScore - b.earningsScore ||

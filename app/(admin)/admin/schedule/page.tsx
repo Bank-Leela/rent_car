@@ -85,7 +85,7 @@ export default async function SchedulePage({
   // suggestion the batch overflow list shows, surfaced on the board's queue.
   const queueRaw = dayBookings
     .filter((b) => !b.vehicleId)
-    .map((b) => ({ id: b.id, startAt: b.startAt, endAt: b.endAt, estimatedDistance: b.estimatedDistance }));
+    .map((b) => ({ id: b.id, startAt: b.startAt, endAt: b.endAt, estimatedDistance: b.estimatedDistance, jobType: b.jobType }));
   const recos = await recommendForBookings(dayStart, queueRaw, isThai);
   const dutyTag = t("duty");
   const assignReco = t("assignReco");

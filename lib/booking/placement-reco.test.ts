@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
+import type { JobType } from "@prisma/client";
 import { recommendPlacement, type RecoDriver } from "./placement-reco";
 
 const D = (s: string) => new Date(s);
+const trip = (s: string, e: string, jobType: JobType = "NORMAL") => ({ startAt: D(s), endAt: D(e), jobType });
 const drv = (id: string, o: Partial<RecoDriver> = {}): RecoDriver => ({
   driverId: id,
   vehicleId: `v${id}`,
@@ -14,8 +16,8 @@ const drv = (id: string, o: Partial<RecoDriver> = {}): RecoDriver => ({
 });
 
 describe("recommendPlacement", () => {
-  const booking = { startAt: D("2026-06-10T13:00:00"), endAt: D("2026-06-10T15:00:00") };
-  const overlap = [{ startAt: D("2026-06-10T13:00:00"), endAt: D("2026-06-10T15:00:00") }];
+  const booking = { startAt: D("2026-06-10T13:00:00"), endAt: D("2026-06-10T15:00:00"), jobType: "NORMAL" as JobType };
+  const overlap = [trip("2026-06-10T13:00:00", "2026-06-10T15:00:00")];
   const base = { booking, needsSecondary: false as boolean, dutyDriverId: null as string | null };
 
   it("picks the fairest free non-duty car", () => {
@@ -35,15 +37,38 @@ describe("recommendPlacement", () => {
     expect(r).toMatchObject({ kind: "fit", driverId: "C" });
   });
 
-  it("ignores the 2-job cap — a driver with 2 non-overlapping trips is still recommendable", () => {
+  it("respects the 2-hour gap — never recommends a slot <2h after an existing trip", () => {
+    // The bug: a 05:00–09:00 trip does not OVERLAP a 09:00–11:00 booking, but the
+    // gap is 0h. The reco must reject it (only P'Top may override by hand).
+    const r = recommendPlacement({
+      booking: { startAt: D("2026-06-10T09:00:00"), endAt: D("2026-06-10T11:00:00"), jobType: "NORMAL" },
+      needsSecondary: false,
+      dutyDriverId: null,
+      drivers: [drv("B", { trips: [trip("2026-06-10T05:00:00", "2026-06-10T09:00:00", "OT")] })],
+    });
+    expect(r).toEqual({ kind: "none" });
+  });
+
+  it("respects the 2-job NORMAL cap — a driver already on 2 NORMALs is not recommended", () => {
     const r = recommendPlacement({
       ...base,
       drivers: [
         drv("B", {
-          trips: [
-            { startAt: D("2026-06-10T06:00:00"), endAt: D("2026-06-10T08:00:00") },
-            { startAt: D("2026-06-10T09:00:00"), endAt: D("2026-06-10T11:00:00") },
-          ],
+          trips: [trip("2026-06-10T06:00:00", "2026-06-10T08:00:00"), trip("2026-06-10T09:00:00", "2026-06-10T11:00:00")],
+        }),
+      ],
+    });
+    expect(r).toEqual({ kind: "none" });
+  });
+
+  it("OT is exempt from the cap — recommendable on top of 2 NORMALs if the gap holds", () => {
+    const r = recommendPlacement({
+      booking: { startAt: D("2026-06-10T17:00:00"), endAt: D("2026-06-10T21:00:00"), jobType: "OT" },
+      needsSecondary: false,
+      dutyDriverId: null,
+      drivers: [
+        drv("B", {
+          trips: [trip("2026-06-10T06:00:00", "2026-06-10T08:00:00"), trip("2026-06-10T09:00:00", "2026-06-10T11:00:00")],
         }),
       ],
     });

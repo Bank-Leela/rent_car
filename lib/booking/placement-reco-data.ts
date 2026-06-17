@@ -1,4 +1,5 @@
 import { startOfDay } from "date-fns";
+import type { JobType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
@@ -12,7 +13,7 @@ import { recommendPlacement, type Placement, type RecoDriver } from "@/lib/booki
  */
 export async function recommendForBookings(
   date: Date,
-  bookings: Array<{ id: string; startAt: Date; endAt: Date; estimatedDistance: number | null }>,
+  bookings: Array<{ id: string; startAt: Date; endAt: Date; estimatedDistance: number | null; jobType: JobType }>,
   isThai: boolean,
 ): Promise<Map<string, Placement>> {
   if (bookings.length === 0) return new Map();
@@ -43,13 +44,13 @@ export async function recommendForBookings(
       startAt: { lt: dayEnd },
       endAt: { gt: dayStart },
     },
-    select: { startAt: true, endAt: true, primaryDriverId: true, secondaryDriverId: true },
+    select: { startAt: true, endAt: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
   });
-  const tripsByDriver = new Map<string, Array<{ startAt: Date; endAt: Date }>>();
-  const addTrip = (id: string | null, t: { startAt: Date; endAt: Date }) => {
+  const tripsByDriver = new Map<string, Array<{ startAt: Date; endAt: Date; jobType: JobType }>>();
+  const addTrip = (id: string | null, t: { startAt: Date; endAt: Date; jobType: JobType }) => {
     if (!id) return;
     const list = tripsByDriver.get(id) ?? [];
-    list.push({ startAt: t.startAt, endAt: t.endAt });
+    list.push({ startAt: t.startAt, endAt: t.endAt, jobType: t.jobType });
     tripsByDriver.set(id, list);
   };
   for (const a of assigned) {
@@ -76,7 +77,7 @@ export async function recommendForBookings(
     out.set(
       b.id,
       recommendPlacement({
-        booking: { startAt: b.startAt, endAt: b.endAt },
+        booking: { startAt: b.startAt, endAt: b.endAt, jobType: b.jobType },
         needsSecondary: (b.estimatedDistance ?? 0) > LONG_TRIP_KM,
         dutyDriverId,
         drivers: recoDrivers,
