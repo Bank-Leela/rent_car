@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
 import {
   requesterApprovedEmail,
@@ -94,15 +95,14 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       where: { id: bookingId },
       data: { status: "APPROVED", decidedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: booking.status,
-        toStatus: "APPROVED",
-        action: "BOOKING_APPROVED",
-        metadata: comment ? { comment } : undefined,
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: "APPROVED",
+      action: "BOOKING_APPROVED",
+      metadata: comment ? { comment } : undefined,
+      tx,
     });
   });
 
@@ -175,15 +175,14 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
       where: { id: bookingId },
       data: { status: "DENIED", denialReason: comment, decidedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "PENDING_APPROVAL",
-        toStatus: "DENIED",
-        action: "BOOKING_DENIED_BY_APPROVER",
-        metadata: { comment },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "PENDING_APPROVAL",
+      toStatus: "DENIED",
+      action: "BOOKING_DENIED_BY_APPROVER",
+      metadata: { comment },
+      tx,
     });
   });
 

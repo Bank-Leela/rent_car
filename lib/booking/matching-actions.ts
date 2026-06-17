@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import { matchBookingSchema } from "@/lib/booking/schema";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import {
@@ -171,15 +172,14 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     if (secondaryDriverId) {
       await tx.driver.update({ where: { id: secondaryDriverId }, data: { lastAssignedAt: stamp } });
     }
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: adminId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "MATCHED",
-        metadata: { vehicleId, primaryDriverId, secondaryDriverId },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: adminId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "MATCHED",
+      metadata: { vehicleId, primaryDriverId, secondaryDriverId },
+      tx,
     });
   });
 
@@ -210,15 +210,14 @@ export async function escalateToKhunTopAction(formData: FormData): Promise<Actio
       where: { id: bookingId },
       data: { escalatedToKhunTop: true },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: adminId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "ESCALATED_TO_KHUN_TOP",
-        metadata: { reason: "matcher_no_fit" },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: adminId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "ESCALATED_TO_KHUN_TOP",
+      metadata: { reason: "matcher_no_fit" },
+      tx,
     });
   });
 

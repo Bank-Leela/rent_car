@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import {
   claimBookingSchema,
   releaseClaimSchema,
@@ -88,15 +89,14 @@ export async function startTripAction(formData: FormData): Promise<ActionResult>
     await tx.trip.create({
       data: { bookingId, startMileage, startedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "ASSIGNED",
-        toStatus: "ASSIGNED",
-        action: "TRIP_STARTED",
-        metadata: { startMileage },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "ASSIGNED",
+      toStatus: "ASSIGNED",
+      action: "TRIP_STARTED",
+      metadata: { startMileage },
+      tx,
     });
   });
 
@@ -143,15 +143,14 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
       where: { id: bookingId },
       data: { status: "COMPLETED", completedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "ASSIGNED",
-        toStatus: "COMPLETED",
-        action: "TRIP_COMPLETED",
-        metadata: { endMileage, distanceKm: endMileage - trip.startMileage },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "ASSIGNED",
+      toStatus: "COMPLETED",
+      action: "TRIP_COMPLETED",
+      metadata: { endMileage, distanceKm: endMileage - trip.startMileage },
+      tx,
     });
   });
 
@@ -222,15 +221,14 @@ export async function claimBookingAction(formData: FormData): Promise<ActionResu
     else data.secondaryDriverId = driverId;
     if (booking.driverScheduleStatus === "UNCLAIMED") data.driverScheduleStatus = "CLAIMED";
     await tx.booking.update({ where: { id: bookingId }, data });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "DRIVER_CLAIMED",
-        metadata: { driverId, role },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "DRIVER_CLAIMED",
+      metadata: { driverId, role },
+      tx,
     });
   });
 
@@ -285,15 +283,14 @@ export async function releaseClaimAction(formData: FormData): Promise<ActionResu
     else data.secondaryDriverId = null;
     data.driverScheduleStatus = remaining.length === 0 ? "UNCLAIMED" : "CLAIMED";
     await tx.booking.update({ where: { id: bookingId }, data });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "DRIVER_RELEASED",
-        metadata: { driverId, role: claim.role },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "DRIVER_RELEASED",
+      metadata: { driverId, role: claim.role },
+      tx,
     });
   });
 
@@ -350,15 +347,14 @@ export async function confirmScheduleAction(formData: FormData): Promise<ActionR
       where: { id: bookingId },
       data: { driverScheduleStatus: "CONFIRMED", status: "ASSIGNED" },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "APPROVED",
-        toStatus: "ASSIGNED",
-        action: "SCHEDULE_CONFIRMED",
-        metadata: { primaryDriverId: driverId },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "APPROVED",
+      toStatus: "ASSIGNED",
+      action: "SCHEDULE_CONFIRMED",
+      metadata: { primaryDriverId: driverId },
+      tx,
     });
   });
 

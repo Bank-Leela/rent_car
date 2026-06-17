@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { Prisma, type BookingStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import {
   newBookingSchema,
   assignBookingSchema,
@@ -46,28 +46,6 @@ const bookingDetailInclude = {
 export type ActionResult =
   | { ok: true }
   | { ok: false; error: string; field?: string };
-
-async function logTransition(args: {
-  bookingId: string;
-  actorUserId: string;
-  fromStatus: BookingStatus | null;
-  toStatus: BookingStatus | null;
-  action: string;
-  metadata?: Prisma.InputJsonValue;
-  tx?: Prisma.TransactionClient;
-}) {
-  const client = args.tx ?? prisma;
-  await client.auditLog.create({
-    data: {
-      bookingId: args.bookingId,
-      actorUserId: args.actorUserId,
-      fromStatus: args.fromStatus,
-      toStatus: args.toStatus,
-      action: args.action,
-      metadata: args.metadata,
-    },
-  });
-}
 
 // ---- Create booking ----
 

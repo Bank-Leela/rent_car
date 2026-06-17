@@ -6,6 +6,7 @@ import { startOfDay } from "date-fns";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
@@ -187,19 +188,18 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
         await stampSecondary(tx, a.secondaryDriverId, a.jobType, stamp);
       }
 
-      await tx.auditLog.create({
-        data: {
-          bookingId: a.bookingId,
-          actorUserId: (await requireRole("ADMIN")).user.id,
-          fromStatus: "APPROVED",
-          toStatus: "ASSIGNED",
-          action: "BATCH_MATCHED",
-          metadata: {
-            primaryDriverId: a.primaryDriverId,
-            secondaryDriverId: a.secondaryDriverId,
-            jobType: a.jobType,
-          },
+      await logTransition({
+        bookingId: a.bookingId,
+        actorUserId: (await requireRole("ADMIN")).user.id,
+        fromStatus: "APPROVED",
+        toStatus: "ASSIGNED",
+        action: "BATCH_MATCHED",
+        metadata: {
+          primaryDriverId: a.primaryDriverId,
+          secondaryDriverId: a.secondaryDriverId,
+          jobType: a.jobType,
         },
+        tx,
       });
     }
     // Solver matched these, but no vehicle was free in their bucket → surface as
@@ -328,15 +328,13 @@ export async function resolveReclaimAction(formData: FormData): Promise<ActionRe
       needsOutsourcing: decision === "OUTSOURCE",
     },
   });
-  await prisma.auditLog.create({
-    data: {
-      bookingId,
-      actorUserId: adminId,
-      fromStatus: booking.status,
-      toStatus: booking.status,
-      action: "RECLAIM_DECISION",
-      metadata: { decision },
-    },
+  await logTransition({
+    bookingId,
+    actorUserId: adminId,
+    fromStatus: booking.status,
+    toStatus: booking.status,
+    action: "RECLAIM_DECISION",
+    metadata: { decision },
   });
   revalidatePath("/admin");
   revalidatePath("/admin/batch");
