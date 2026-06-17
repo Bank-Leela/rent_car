@@ -143,15 +143,19 @@ export function SchedulerBoard({
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const over = e.over;
-    if (!over) return;
     const bookingId = String(e.active.id);
-    if (over.id === QUEUE_DROP_ID) {
-      // Dropping a card that's already in the queue is a no-op.
-      const b = bookings.find((x) => x.id === bookingId);
-      if (b?.vehicleId) unassign(bookingId);
-    } else {
-      reassign(bookingId, String(over.id));
+    // Dropped squarely on a car row → (re)assign to that car.
+    const onCar = over != null && vehicles.some((v) => v.id === over.id);
+    if (onCar) {
+      reassign(bookingId, String(over!.id));
+      return;
     }
+    // Anywhere else — the Unassigned zone, the gap above it, or off all rows —
+    // means "take it off the car". Far-top queue droppables proved unreliable to
+    // hit precisely, so we don't depend on it: not-a-car = unassign (only for a
+    // block that currently has a car; a queue card with no car is a no-op).
+    const b = bookings.find((x) => x.id === bookingId);
+    if (b?.vehicleId) unassign(bookingId);
   }
 
   return (
