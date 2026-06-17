@@ -10,6 +10,10 @@ import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
 import { daySpan } from "@/lib/booking/day-window";
 
+// Compact clock for the board's narrow blocks: drop ":00" so a 2h block fits its
+// own start–end ("08:00–12:00" → "08–12"); keep the minutes only when non-zero.
+const hm = (d: Date) => (d.getMinutes() === 0 ? format(d, "HH") : format(d, "HH:mm"));
+
 export default async function SchedulePage({
   searchParams,
 }: {
@@ -119,12 +123,12 @@ export default async function SchedulePage({
       // middle) day it shows "↪ <departure date>" so it's clear it's continuing.
       timeLabel: span.continuesBefore
         ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}`
-        : format(b.startAt, "HH:mm"),
+        : hm(b.startAt),
       // Ending the same day → just the time; ending a later day → the return time
       // plus the return date ("↩ <date>").
       endLabel: span.continuesAfter
-        ? `${format(b.endAt, "HH:mm")} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
-        : format(b.endAt, "HH:mm"),
+        ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
+        : hm(b.endAt),
       startHour: span.startHour,
       endHour: span.endHour,
       continuesBefore: span.continuesBefore,
