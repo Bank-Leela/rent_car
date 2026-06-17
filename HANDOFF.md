@@ -6,7 +6,31 @@ Quick state snapshot for resuming work in a fresh session.
 
 All 5 phases of `claude_code_implementation_plan.md` shipped.
 
-### Latest session — multi-day calendar rendering + error boundaries
+### Latest session — scheduling correctness + board UX
+
+- **Claimed trips count as commitments** (`lib/booking/booking-status.ts`
+  `COMMITTED_STATUSES` = APPROVED|ASSIGNED|COMPLETED). The board matcher leaves a
+  claimed trip at status APPROVED; the solver's commitment/availability/earnings
+  queries used to filter ASSIGNED|COMPLETED only, so a driver still away on a
+  multi-day TJW looked both free (re-assigned while out) and idle (picked again).
+  Fixed in `earnings`, `batch-actions` (tjwSpanning + assignedToday), `matching-actions`.
+- **No overlap, ever — not even the duty car.** `reassignVehicleAction` blocks an
+  overlapping drop on every car; the old duty-car exception is gone. A manual
+  override may relax only the 2h chaining gap, never double-book a car. Board
+  flags any overlap (duty included) with a red ring. Rule doc §5 updated.
+- **Placement reco obeys the rules.** `recommendPlacement` now filters by
+  `canChain` (overlap + 2h gap + NORMAL cap), so it never suggests a rule-breaking
+  slot; only P'Top overrides, by dragging by hand.
+- **Board UX:** drag a scheduled block to the Unassigned queue **or** hover-✕ to
+  unassign (`unassignBookingAction` — frees car/driver, releases claims, rolls the
+  rotation stamp back). Times are compact (`08:00–12:00` → `08–12`) and contained,
+  so short blocks fit. DnD collision = `pointerWithin` → `rectIntersection` with
+  `MeasuringStrategy.Always` (the timeline scrolls horizontally).
+- **Refactors:** audit-log writes centralized in `lib/booking/audit.ts`
+  (`logTransition`); `scheduler-board.tsx` split into board / `-blocks` / `-shared`.
+- **Error boundaries** added (see below) — still current.
+
+### Earlier this session — multi-day calendar rendering + error boundaries
 
 - **Multi-day trips render on every day they span.** Day-scoped views queried
   bookings by `startAt`-in-day, so a multi-day TJW (depart Jun 16, return Jun 17)
@@ -19,9 +43,9 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   driver today/tomorrow dashboard, and the batch ASSIGNED roster (pending/overflow
   stay start-in-day — that's the day's new work to place). Labels show
   `↪ <departure date>` / `↩ <return date>`. 12 `daySpan`/`daysSpanned` unit tests.
-- **Short-block label fix:** a ≤2h scheduler-board block was too narrow to contain
-  "13:00–15:00"; the time label now spills past the bar (`bg-inherit` backing,
-  block `overflow-hidden` dropped) instead of clipping the end hour.
+- **Short-block label:** a ≤2h block was too narrow for "13:00–15:00". Final form
+  (superseding an earlier spill attempt): compact times ("08–12") truncated inside
+  the bar — see the latest-session board-UX note above.
 - **Error robustness:** the app had NO error/404 boundaries — a thrown server
   action / RSC query or any `notFound()` fell through to Next's bare default
   screen. Added `error.tsx` + `not-found.tsx` for (admin)/(driver)/(requester),
@@ -64,9 +88,9 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
 - **Scheduling rules: documented + test-enforced.** Source of truth is
   `docs/scheduling-algorithm.md` (priority; the `canChain` eligibility rule —
   universal 2h gap, NORMAL one-morning + one-afternoon, OT exempt from the cap;
-  duty-car-only overlap; >400 km co-driver). Leftovers the solver can't place get
-  a recommendation (`placement-reco.ts`: fairest free car → duty reclaim → plus a
-  co-driver for long trips) on the batch overflow list + the board queue. Read the
+  no-overlap on any car; >400 km co-driver). Leftovers the solver can't place get
+  a `canChain`-gated recommendation (`placement-reco.ts`: fairest legal car → duty
+  reclaim → co-driver for long trips) on the batch overflow list + the board queue. Read the
   doc before touching `lib/booking/*`.
 
 ### Earlier session deltas

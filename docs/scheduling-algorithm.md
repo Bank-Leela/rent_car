@@ -148,6 +148,12 @@ Solves the whole day's APPROVED-unassigned bookings at once.
   secondary), used to seed each driver's `scheduledToday` so `canTake` sees prior
   commitments. *Without this the solver double-books already-busy cars.*
 
+> Both inputs — plus the `earningsScore` loader — count a booking as committed
+> when its status is in `COMMITTED_STATUSES` (**APPROVED** \| ASSIGNED \|
+> COMPLETED), not just ASSIGNED\|COMPLETED. A trip *claimed* via the board matcher
+> stays APPROVED with a driver set; counting it stops a still-away driver from
+> being re-picked and from looking idle in the fairness ledger.
+
 **Order** — strict category priority (FCFS within each, by `submittedAt`):
 
 ```
@@ -198,33 +204,53 @@ same driver.
 When the solver can't auto-place a trip (saturated pool / everyone away / duty),
 P'Top gets a one-click recommendation instead of just an overflow reason.
 
-`recommendPlacement` (pure): the **fairest non-duty car free at the trip's time**
-(overlap blocks; the 2-job cap is *relaxed* — this is a manual override) → else
-the **duty car** (`reclaim`, the only car allowed to overlap) → else `none`. For a
-> 400 km trip it also recommends a **co-driver** = the next-fairest free non-duty
-driver (rides in the primary's car), or null when none is free.
+`recommendPlacement` (pure): the **fairest non-duty car that can _legally_ take
+the trip** — filtered by the full `canChain` rule (no overlap, ≥2h gap to every
+trip, NORMAL cap), job-type aware, so the reco **never suggests a rule-breaking
+slot**. Only P'Top may break the gap, and only by dragging the trip there by
+hand. → else the **duty car** as a `reclaim` suggestion → else `none`. For a
+> 400 km trip it also recommends a **co-driver** = the next-fairest driver who can
+legally take it (rides in the primary's car), or null when none.
 
 `recommendForBookings` (`placement-reco-data.ts`) builds the pool — drivers +
-their assigned car + same-day trips (incl. **APPROVED**, to match the assign
-action's conflict set) + 30-day earnings + duty driver — and is consumed by
-**both** the batch overflow list (`admin/batch/page.tsx`) and the board queue
-(`scheduler-board.tsx`). Assign = `AssignRecoButton` → `reassignVehicleAction`,
-which sets primary + optional co-driver, allows the duty-car overlap for reclaim,
-and re-validates the co-driver at assign time.
+their assigned car + same-day trips (incl. their `jobType`, and **APPROVED**
+claimed trips via `COMMITTED_STATUSES`) + 30-day earnings + duty driver — and is
+consumed by **both** the batch overflow list (`admin/batch/page.tsx`) and the
+board queue (`scheduler-board.tsx`). Assign = `AssignRecoButton` →
+`reassignVehicleAction`, which sets primary + optional co-driver, **blocks overlap
+on every car** (no duty exception; the 2h gap stays overridable), and re-validates
+the co-driver at assign time.
 
 ---
 
-## 8. Board rendering (`scheduler-board.tsx`)
+## 8. Board rendering (`scheduler-board.tsx` + `-blocks.tsx` + `-shared.ts`)
+
+Split into three: `scheduler-board.tsx` (the `SchedulerBoard` container + DnD),
+`scheduler-board-blocks.tsx` (`TimelineBlock` / `CoDriverGhost` / `QueueCard` /
+`CarRow`), `scheduler-board-shared.ts` (types, job-type theme, axis/lane geometry).
 
 Cars = rows, time = X-axis (00:00–24:00, auto-fit). Each car's trips are
 **lane-packed** greedily: a trip joins the first lane whose previous trip ends at
-or before it starts, else opens a new lane; row height = `lanes × 64px`. Overnight
-trips use `endHour = 24` as the right-edge sentinel. Blocks show **start–end**
-time and are **tinted by job type** (TJW blue, OT amber, WERN emerald, NORMAL
-slate, both themes). Conflict (red ring) and co-driver (violet ring + a linked
-ghost on the co-driver's own car row) stay as overlays. Non-duty overlaps get a
-red ring. The unassigned queue carries each booking's placement recommendation
-(§7b) with an inline Assign.
+or before it starts, else opens a new lane; row height = `lanes × 64px`. Blocks
+are **tinted by job type** (TJW blue, OT amber, WERN emerald, NORMAL slate, both
+themes) and show a **compact start–end** time (`08:00–12:00` → `08–12`; minutes
+shown only when non-zero) that truncates inside the bar; the full time is in the
+hover tooltip.
+
+- **Multi-day trips** (`day-window.ts`): each trip is projected onto the *viewed*
+  day with `daySpan` — clamped to the 0/24 axis, flagged `continuesBefore` /
+  `continuesAfter`. A trip shows on **every** day it spans (overlap query, not
+  start-in-day), with `↪ <departure date>` / `↩ <return date>` labels and a flush
+  clipped edge. Month grids bucket via `daysSpanned`.
+- **Overlap** on **any** car (duty included) gets a red conflict ring; co-driver =
+  violet ring + a linked ghost on the co-driver's own car row.
+- **DnD**: drag a queue card onto a car to assign; drag a scheduled block onto
+  another car to reassign, or up to the **Unassigned** zone (a droppable) to
+  unassign. Each block also has a hover **✕** (drag-free unassign →
+  `unassignBookingAction`). Collision = `pointerWithin` → `rectIntersection`
+  fallback with `MeasuringStrategy.Always` (the timeline scrolls horizontally).
+- The unassigned queue carries each booking's placement recommendation (§7b) with
+  an inline Assign.
 
 ---
 
@@ -251,13 +277,18 @@ red ring. The unassigned queue carries each booking's placement recommendation
 | `lib/booking/batch-solver.ts` | `solveDay()` — whole-day solver |
 | `lib/booking/batch-actions.ts` | Builds solver inputs, persists assignments + overflow |
 | `lib/booking/batch-demo-actions.ts` | Demo seed / simulate + full Clear-demo reset |
-| `lib/booking/earnings.ts` | Shared duration-weighted fairness loader (`loadWeightedEarnings`) |
+| `lib/booking/earnings.ts` | Shared duration-weighted fairness loader (`loadWeightedEarnings`); counts `COMMITTED_STATUSES` |
+| `lib/booking/booking-status.ts` | `COMMITTED_STATUSES` = APPROVED \| ASSIGNED \| COMPLETED — a driver-bearing booking that counts as a real commitment (claimed trips included) |
 | `lib/booking/rotation-stamp.ts` | Recompute a driver's category rotation stamp |
+| `lib/booking/audit.ts` | `logTransition` — single audit-log writer for every status change |
+| `lib/booking/day-window.ts` | `daySpan` / `daysSpanned` — project a (multi-day) trip onto a viewed day / its day cells |
 | `lib/booking/overtime-reco.ts` | Advisory OT placement |
-| `lib/booking/placement-reco.ts` | `recommendPlacement` — leftover/overflow suggestion (pure) |
+| `lib/booking/placement-reco.ts` | `recommendPlacement` — leftover/overflow suggestion, gated by `canChain` (pure) |
 | `lib/booking/placement-reco-data.ts` | Server builder for the recommendation |
-| `lib/booking/schedule-actions.ts` | Drag-drop reassign (+ duty overlap exception, co-driver) |
-| `components/admin/scheduler-board.tsx` | Timeline board, lane stacking, job-type colours, queue reco |
+| `lib/booking/schedule-actions.ts` | Drag-drop reassign + `unassignBookingAction` (back to queue); blocks overlap on every car; co-driver re-validation |
+| `components/admin/scheduler-board.tsx` | Board container + DnD (collision, queue droppable, unassign) |
+| `components/admin/scheduler-board-blocks.tsx` | `TimelineBlock` / `CoDriverGhost` / `QueueCard` / `CarRow` |
+| `components/admin/scheduler-board-shared.ts` | Board types, job-type theme, axis/lane geometry |
 | `components/forms/assign-reco-button.tsx` | One-click assign-to-recommendation |
 
 See also: `docs/superpowers/specs/2026-06-15-duty-car-overlap-rule-design.md`,

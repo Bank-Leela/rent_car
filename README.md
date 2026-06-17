@@ -7,7 +7,7 @@ five phases of `claude_code_implementation_plan.md` are implemented.
 
 - Next.js 16 (App Router) + TypeScript
 - PostgreSQL via Prisma ORM (v5)
-- NextAuth (Auth.js v5) with Google OAuth, restricted to `@chula.ac.th`
+- NextAuth (Auth.js v5) — admin-provisioned username/password credentials (CR-07/08)
 - Tailwind CSS + shadcn/ui (with @base-ui/react primitives)
 - React Hook Form + Zod
 - date-fns, next-intl, recharts
@@ -27,12 +27,11 @@ brew services start postgresql@16   # or `docker compose up -d`
 
 ```bash
 cp .env.example .env
-# edit .env: AUTH_SECRET (`openssl rand -base64 32`), GOOGLE_CLIENT_ID,
-# GOOGLE_CLIENT_SECRET. The rest are optional.
+# edit .env: AUTH_SECRET (`openssl rand -base64 32`). The rest are optional.
 ```
 
-Google OAuth: in the Google Cloud Console, add redirect URI
-`http://localhost:3000/api/auth/callback/google`.
+Sign-in is **username/password** (Auth.js Credentials) — accounts are
+admin-provisioned; `npm run db:seed` creates one per role. No OAuth setup needed.
 
 ### 3. Database
 
@@ -48,7 +47,7 @@ npm run dev
 ```
 
 Open <http://localhost:3000/login>. In dev mode, four "Dev impersonation"
-buttons let you preview each role view without setting up Google OAuth.
+buttons let you preview each role view without entering credentials.
 
 ### 5. Email delivery (optional)
 
@@ -128,8 +127,9 @@ sets up the schema automatically. `postinstall` runs `prisma generate`.
 
 1. **Neon Postgres** — sign up at <https://neon.tech>, create a project, copy
    the pooled connection string into Vercel env as `DATABASE_URL`.
-2. **Google OAuth** — in Cloud Console, add the production callback URI:
-   `https://YOUR-DOMAIN.vercel.app/api/auth/callback/google`.
+2. **Auth** — sign-in is username/password (Credentials, no OAuth). Just set
+   `AUTH_SECRET`; `db:seed` provisions the accounts. (Production hosting + DB are
+   handled by **Chula IT** — the Vercel + Neon steps here are the reference setup.)
 3. **Vercel** — sign up at <https://vercel.com>, import the GitHub repo, set
    these env vars:
 
@@ -139,8 +139,6 @@ sets up the schema automatically. `postinstall` runs `prisma generate`.
    | `AUTH_SECRET` | `openssl rand -base64 32` |
    | `AUTH_TRUST_HOST` | `true` |
    | `NEXTAUTH_URL` | `https://YOUR-DOMAIN.vercel.app` |
-   | `GOOGLE_CLIENT_ID` | from Google Cloud |
-   | `GOOGLE_CLIENT_SECRET` | from Google Cloud |
    | `RESEND_API_KEY` | optional — falls back to console logs |
    | `EMAIL_FROM` | `Vehicle Booking <noreply@yourdomain.com>` |
    | `LINE_CHANNEL_ACCESS_TOKEN` | optional |
