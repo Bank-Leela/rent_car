@@ -118,7 +118,20 @@
     "departmentUsage": "การใช้งานของภาควิชา",
     "profile": "โปรไฟล์",
     "schedule": "ตารางงาน",
-    "scheduleBoard": "กระดานรับงาน"
+    "scheduleBoard": "กระดานรับงาน",
+    "decisions": "การตัดสินใจของฉัน"
+  },
+  "decisions": {
+    "title": "การตัดสินใจของฉัน",
+    "description": "ทุกคำขอที่คุณอนุมัติหรือไม่อนุมัติ พร้อมเหตุผลของคุณ",
+    "filter_all": "ทั้งหมด",
+    "filter_approved": "อนุมัติแล้ว",
+    "filter_denied": "ไม่อนุมัติ",
+    "approved": "อนุมัติแล้ว",
+    "denied": "ไม่อนุมัติ",
+    "decidedOn": "เมื่อ {date}",
+    "emptyTitle": "ยังไม่มีการตัดสินใจ",
+    "emptyDescription": "คำขอที่คุณอนุมัติหรือไม่อนุมัติจะแสดงที่นี่"
   },
   "requesterUpcoming": {
     "title": "ทริปที่จะมาถึง",
