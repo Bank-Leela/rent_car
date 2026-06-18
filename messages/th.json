@@ -404,7 +404,15 @@
     "matchingTitle": "จับคู่รถ + คนขับอัตโนมัติ",
     "denyTitle": "ไม่อนุมัติ",
     "outsourceTitle": "เช่าจากภายนอก",
-    "completeTitle": "ปิดงาน (เสร็จสิ้น)"
+    "completeTitle": "ปิดงาน (เสร็จสิ้น)",
+    "decisionContextTitle": "ข้อมูลประกอบการตัดสินใจ",
+    "dayLoad": "ปริมาณงานในวันนั้น",
+    "freeCarsAtTime": "รถว่างช่วงเวลานี้",
+    "freeCarsCount": "ว่าง {free} จาก {total} คัน",
+    "flagEmergency": "ฉุกเฉิน",
+    "flagOutOfHours": "นอกเวลาทำการ",
+    "flagShortLead": "แจ้งล่วงหน้าไม่พอ",
+    "flagTwoDrivers": "เกิน 400 กม. — ต้องมีคนขับ 2 คน"
   },
   "completeTripForm": {
     "description": "บันทึกเลขไมล์ / ระยะทางสุดท้ายและเปลี่ยนสถานะการจองเป็นเสร็จสิ้น ผู้ขอจะเห็นแบบประเมินทริปบนหน้ารายละเอียดการจอง",

@@ -4,7 +4,14 @@ import { format, subDays } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { findBufferConflicts, shouldWarnAboutCancellations } from "@/lib/booking/rules";
+import {
+  findBufferConflicts,
+  shouldWarnAboutCancellations,
+  isWithinWorkHours,
+  checkLeadTime,
+  TWO_DRIVER_DISTANCE_KM,
+} from "@/lib/booking/rules";
+import { SLOT_HOLDING_STATUSES, dayCapacity, dayWindow } from "@/lib/booking/slot-capacity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
@@ -98,6 +105,41 @@ export default async function AdminBookingDetail({
         select: { signatureImageUrl: true },
       })
     : null;
+
+  // Decision context for the approver: day load + free cars at this time + risk
+  // flags, so the approve/deny call sees supply and risk, not just demand.
+  // Reuses the already-loaded vehicles + conflictsByVehicle; one extra count.
+  type DecisionFlag = "emergency" | "outOfHours" | "shortLead" | "twoDrivers";
+  let decisionContext: {
+    dayUsed: number;
+    dayCapacity: number;
+    freeCars: string[];
+    totalCars: number;
+    flags: DecisionFlag[];
+  } | null = null;
+  if (showApproverForms) {
+    const { start, end } = dayWindow(booking.startAt);
+    const dayUsed = await prisma.booking.count({
+      where: { status: { in: SLOT_HOLDING_STATUSES }, startAt: { gte: start, lt: end } },
+    });
+    const cap = dayCapacity(
+      vehicles.filter((v) => !v.isDutyVehicle).length,
+      vehicles.filter((v) => v.isDutyVehicle).length,
+    );
+    const freeCars = vehicles
+      .filter((v) => (conflictsByVehicle.get(v.id) ?? 0) === 0)
+      .map((v) => v.registrationNumber);
+    const flags: DecisionFlag[] = [];
+    if (booking.isEmergency) flags.push("emergency");
+    if (!isWithinWorkHours({ startAt: booking.startAt, endAt: booking.endAt })) flags.push("outOfHours");
+    if (!checkLeadTime({ startAt: booking.startAt, province: booking.province, now: new Date() }).ok) {
+      flags.push("shortLead");
+    }
+    if (typeof booking.estimatedDistance === "number" && booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM) {
+      flags.push("twoDrivers");
+    }
+    decisionContext = { dayUsed, dayCapacity: cap, freeCars, totalCars: vehicles.length, flags };
+  }
 
   return (
     <div className="space-y-6">
@@ -210,6 +252,83 @@ export default async function AdminBookingDetail({
             <CardTitle>{t("deniedTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">{booking.denialReason}</CardContent>
+        </Card>
+      )}
+
+      {decisionContext && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{tad("decisionContextTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">{tad("dayLoad")}</span>
+                <span className="font-medium tabular-nums">
+                  {decisionContext.dayUsed}/{decisionContext.dayCapacity}
+                </span>
+              </div>
+              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full ${
+                    decisionContext.dayCapacity > 0 && decisionContext.dayUsed >= decisionContext.dayCapacity
+                      ? "bg-rose-500"
+                      : decisionContext.dayCapacity > 0 &&
+                          decisionContext.dayUsed >= decisionContext.dayCapacity * 0.8
+                        ? "bg-amber-500"
+                        : "bg-emerald-500"
+                  }`}
+                  style={{
+                    width: `${
+                      decisionContext.dayCapacity > 0
+                        ? Math.min(100, Math.round((decisionContext.dayUsed / decisionContext.dayCapacity) * 100))
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <span className="text-muted-foreground">{tad("freeCarsAtTime")}</span>
+              <span className="text-right">
+                <span className="font-medium">
+                  {tad("freeCarsCount", {
+                    free: decisionContext.freeCars.length,
+                    total: decisionContext.totalCars,
+                  })}
+                </span>
+                {decisionContext.freeCars.length > 0 && (
+                  <span className="block text-xs text-muted-foreground">
+                    {decisionContext.freeCars.join(", ")}
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {decisionContext.flags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {decisionContext.flags.map((f) => (
+                  <span
+                    key={f}
+                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
+                      f === "emergency"
+                        ? "bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-300"
+                        : "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300"
+                    }`}
+                  >
+                    {f === "emergency"
+                      ? tad("flagEmergency")
+                      : f === "outOfHours"
+                        ? tad("flagOutOfHours")
+                        : f === "shortLead"
+                          ? tad("flagShortLead")
+                          : tad("flagTwoDrivers")}
+                  </span>
+                ))}
+              </div>
+            )}
+          </CardContent>
         </Card>
       )}
 

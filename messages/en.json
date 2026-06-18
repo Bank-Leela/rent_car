@@ -404,7 +404,15 @@
     "matchingTitle": "Auto-match driver + vehicle",
     "denyTitle": "Deny",
     "outsourceTitle": "Outsource",
-    "completeTitle": "Mark trip completed"
+    "completeTitle": "Mark trip completed",
+    "decisionContextTitle": "Decision context",
+    "dayLoad": "Day load",
+    "freeCarsAtTime": "Free cars at this time",
+    "freeCarsCount": "{free} of {total} free",
+    "flagEmergency": "Emergency",
+    "flagOutOfHours": "Out of hours",
+    "flagShortLead": "Short lead time",
+    "flagTwoDrivers": "Over 400 km — needs 2 drivers"
   },
   "completeTripForm": {
     "description": "Records the final mileage / distance and flips the booking to COMPLETED. The requester will then see the feedback form on their booking page.",
