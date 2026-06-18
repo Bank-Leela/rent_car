@@ -18,7 +18,7 @@ This is the high-level map. For depth, follow the links in each section and the
 | Role | Does |
 |------|------|
 | **REQUESTER** | Submits booking requests, tracks their history, evaluates completed trips. |
-| **APPROVER** | Approves / denies pending requests (fleet-section head). |
+| **APPROVER** | Approves / denies pending requests (fleet-section head) — works the same `/admin` queue as the ADMIN (inline Approve/Deny per card, triage badges + SLA banner), with its own `/admin/decisions` audit page. |
 | **ADMIN** ("P'Top") | Runs the daily batch, hand-assigns/overrides on the board, manages users, cars↔drivers, duty roster, reports. |
 | **DRIVER** | Sees today/tomorrow assignments, claims/releases trips on the board, starts + completes trips (mileage). |
 
@@ -56,13 +56,20 @@ DRAFT → PENDING_APPROVAL → APPROVED → ASSIGNED → COMPLETED
    work-hours + buffer rules, optional recurrence. Out-of-province is an explicit
    flag, not inferred.
 2. **Approval** (`approver` actions) — approve/deny with a comment; emails the
-   requester.
+   requester. The shared `/admin` queue carries triage badges + an SLA banner
+   (`lib/booking/triage.ts`); each pending card has inline Approve/Deny
+   (`components/forms/approver-queue-actions.tsx`) with canned deny-reason chips
+   (`lib/booking/deny-presets.ts`), and the booking detail page adds a
+   decision-context card (day load + free cars + risk flags). Approvers get a
+   personal audit at `/admin/decisions`.
 3. **Assignment** (ADMIN) — three ways:
    - **Batch solver** (`/admin/batch` → Run Batch): solves the whole day at once.
    - **Single matcher** (board auto-assign / `/admin/[id]`): one booking.
    - **Manual** drag-drop on the **schedule board** (`/admin/schedule`).
 4. **Dispatch** — driver sees it on `/driver` + `/driver/board`, claims it, then
    **starts** (start mileage) and **completes** (end mileage → distance) the trip.
+   The requester gets a read-only confirmation of their assigned driver for
+   today/tomorrow at `/requester/upcoming`.
 5. **Evaluation** — requester rates the completed trip (`EvaluationRating`); a
    pending evaluation blocks the requester's next submission.
 
@@ -90,7 +97,11 @@ Summary:
   queue, with one-click assign.
 - **Board** (`scheduler-board*.{tsx,ts}`): cars = rows, time = X-axis, job-type
   colours, lane-stacked, multi-day trips shown on every day they span, drag to
-  reassign / drop off the rows to unassign (also a hover ✕).
+  reassign / drop off the rows to unassign (also a hover ✕). The auto-assign
+  button (จัดอัตโนมัติ) now also resolves overlap conflicts among
+  already-assigned trips (`lib/booking/conflict-resolve.ts` +
+  `resolveScheduleConflictsAction` in `schedule-actions.ts`); WERN/duty is
+  pinned and never the loser.
 
 Measurement instrument: the pure **simulation harness** (`simulation.ts`) backs
 the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
@@ -126,20 +137,20 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 
 | Path | What |
 |------|------|
-| `app/(admin)/*` | P'Top: schedule board, batch, calendar, dashboard, fleet, users, evaluations, booking detail. |
+| `app/(admin)/*` | Shared ADMIN+APPROVER: queue, calendar, dashboard, evaluations, booking detail (all roles); schedule board, batch, fleet, users (ADMIN only); approver decisions + profile (APPROVER). |
 | `app/(driver)/*` | Driver: home, board, calendar, schedule, trip detail. |
-| `app/(requester)/*` | Requester: new request, history, detail. |
+| `app/(requester)/*` | Requester: new request, upcoming (confirmed driver for today/tomorrow), history, detail. |
 | `app/(login\|forgot\|reset\|account)` | Auth surfaces. |
 | `app/api/*` | NextAuth, dev sign-in, booking PDF, reports CSV, LINE webhook. |
-| `lib/booking/*` (~31 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window. |
+| `lib/booking/*` (~34 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window, plus approver triage, deny presets, and overlap conflict-resolve. |
 | `lib/{auth,email,line,pdf,reporting}/*` | Auth helpers, email, LINE, PDF, reporting. |
 | `components/*` | UI — forms, the scheduler board (split into `scheduler-board` / `-blocks` / `-shared`), shared UI. |
-| `prisma/` | Schema (19 models, 12 enums), 17 migrations, seed. |
+| `prisma/` | Schema (18 models, 12 enums), 17 migrations, seed. |
 | `scripts/` | Demo seed (`seed-batch-demo.ts`), simulation (`simulate-cr07.ts`), maintenance. |
 
-### Key data model (19 models)
+### Key data model (18 models)
 
-`User` / `UserRole` / `Account` / `Session` / `PasswordResetToken` (auth) ·
+`User` / `UserRole` / `Account` / `Session` / `VerificationToken` / `PasswordResetToken` (auth) ·
 `Department` · `Vehicle` · `Driver` (+ `OnCallShift` duty roster) · `Booking`
 (+ `RecurrenceRule`) · `BookingClaim` · `Approval` · `Trip` · `Cancellation` ·
 `Evaluation` · `AuditLog`.
@@ -155,7 +166,7 @@ Setup (Node 20, Postgres 16, migrate + seed): **[`SETUP.md`](../SETUP.md)** /
 npm run dev          # dev server (localhost:3000)
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
-npm test             # vitest (19 suites incl. solver invariants + fuzz)
+npm test             # vitest (21 suites / 233 tests incl. solver invariants + fuzz)
 npx tsx scripts/simulate-cr07.ts --scenario=<mixed|tjw|chain|tight|reclaim|…>
 ```
 

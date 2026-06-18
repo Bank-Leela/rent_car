@@ -43,7 +43,7 @@ and the duty-overlap rule.
 1. `outOfProvince && overnight` → **TJW**
 2. `overnight` (same area, crosses midnight) → **OT**
 3. starts before 08:00 → **OT**
-4. ends after 16:00 (or exactly 16:00 with minutes) → **OT**
+4. ends after 16:00 (or exactly 16:00 with minutes/seconds) → **OT**
 5. otherwise → **NORMAL**
 
 `overnight` = end falls on a later **local** calendar day. A Bangkok trip that
@@ -129,7 +129,7 @@ Used for one approved booking (auto-match button / drag).
 2. **Eligible** = drivers who pass `filterAvailable` **and are not** the on-call
    driver (`matching.ts:53-54`).
 3. **Rank** (`rankCandidates`): `earningsScore` ↑, `tripsThisMonth` ↑,
-   `lastAssignedAt` ↑.
+   `lastAssignedAt` ↑, then `driverId` (final tie-break for determinism).
 4. **Primary** = top ranked. Its car = `driverCar.get(primary)`; no car →
    `NO_SLOT`.
 5. **Long trip (> 400 km)** → also take rank #2 as **secondary**; none →

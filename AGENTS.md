@@ -13,7 +13,7 @@ not the gap), the **no-overlap rule** (no car may double-book — not even the d
 car; a manual override may relax only the 2h gap), the placement recommendation
 obeying `canChain`, and the >400 km co-driver pairing.
 
-Before changing any of `lib/booking/{rotations,batch-solver,batch-actions,matching,matching-actions,overtime-reco,driver-capacity,placement-reco,earnings,schedule-actions}.ts`
+Before changing any of `lib/booking/{rotations,batch-solver,batch-actions,matching,matching-actions,overtime-reco,driver-capacity,placement-reco,earnings,schedule-actions,conflict-resolve}.ts`
 or `components/admin/scheduler-board*.{tsx,ts}` (split into board / -blocks / -shared),
 the hotspots, read that doc first — this subsystem has churned because the rule
 kept being re-derived.

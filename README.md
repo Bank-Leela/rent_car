@@ -49,8 +49,9 @@ npm run db:seed
 npm run dev
 ```
 
-Open <http://localhost:3000/login>. In dev mode, four "Dev impersonation"
-buttons let you preview each role view without entering credentials.
+Open <http://localhost:3000/login>. In dev mode, a "Preview as" button is shown
+for each seeded user (one per `seed-user-*` account) to preview that role view
+without entering credentials.
 
 ### 5. Email delivery (optional)
 
@@ -90,10 +91,10 @@ body, and "View booking" CTA.
 
 ```
 app/
-  (admin)/        Administrator screens (queue, dashboard, booking detail)
-  (approver)/    Department head screens (inbox, profile, dept usage)
-  (driver)/      Driver screens (today, assignment detail)
-  (requester)/   Requester screens (list, new booking, detail)
+  (admin)/        ADMIN + APPROVER screens (queue, calendar, dashboard,
+                  evaluations, schedule, batch, fleet, users, decisions, detail)
+  (driver)/      Driver screens (today, board, calendar, schedule, assignment detail)
+  (requester)/   Requester screens (list, new booking, history, upcoming, detail)
   api/
     auth/        NextAuth handlers
     dev/         Dev-only impersonation (disabled in production)
@@ -160,4 +161,5 @@ sets up the schema automatically. `postinstall` runs `prisma generate`.
   generated in one request may not be downloadable later. Move `lib/storage.ts`
   to Vercel Blob or S3 before going live to real users.
 - **Dev impersonation is disabled in production** (`NODE_ENV !== "production"`
-  gate). Real Google sign-in is required.
+  gate; set `ENABLE_DEV_AUTH=true` to keep it on for stakeholder previews).
+  Sign-in is admin-provisioned username/password (Auth.js Credentials) — no OAuth.

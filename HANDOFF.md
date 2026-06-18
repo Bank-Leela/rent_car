@@ -6,7 +6,47 @@ Quick state snapshot for resuming work in a fresh session.
 
 All 5 phases of `claude_code_implementation_plan.md` shipped.
 
-### Latest session — scheduling correctness + board UX
+### Latest session — approver console + conflict-aware auto-assign + bug fixes
+
+- **Approver page (`/admin` queue, shared ADMIN+APPROVER).** Inline
+  Approve/Deny on each pending card (`components/forms/approver-queue-actions.tsx`
+  — one-tap approve via `approveBookingAction`; deny expands in place via
+  `denyByApproverAction`), so the queue clears without opening every detail page.
+  The notification bell is un-gated for approvers (`app/(admin)/layout.tsx`:
+  `showBell = isAdmin || roles.includes("APPROVER")`) — its count is
+  PENDING_APPROVAL + WAITLIST.
+- **Canned deny-reason chips.** `lib/booking/deny-presets.ts` (`DENY_PRESET_KEYS`:
+  noVehicle / leadTime / duplicate / outOfPolicy / missingDetails) +
+  `components/forms/deny-preset-chips.tsx`; reused on the detail-page
+  `ApproverDenyForm` (`components/forms/approve-form.tsx`).
+- **Queue triage.** `lib/booking/triage.ts` (`triageFlags` — emergency / outOfHours
+  / shortLead / dayFull / repeatCanceller, reusing the rule helpers; `waitingHours`
+  + `SLA_WARN_HOURS = 24`) drives per-card triage badges and an SLA banner on the
+  queue (`app/(admin)/admin/page.tsx`).
+- **Decision-context card** on the booking detail page (`app/(admin)/admin/[id]/page.tsx`):
+  day load + free cars at the trip's time + risk flags, so the approve/deny call
+  sees supply, not just demand.
+- **NEW route `/admin/decisions`** (`app/(admin)/admin/decisions/page.tsx`) —
+  approver-scoped "My decisions" audit (every booking this approver approved/denied,
+  filterable), linked in the approver nav.
+- **Auto-assign now resolves overlap conflicts.** The board's จัดอัตโนมัติ button
+  (`components/admin/scheduler-board.tsx`) not only places the Unassigned queue but
+  also re-homes the loser of every overlap among already-assigned trips:
+  `resolveScheduleConflictsAction` (`lib/booking/schedule-actions.ts`) using the new
+  pure `lib/booking/conflict-resolve.ts` (`pickConflictLoser` / `findConflictLosers`).
+  WERN/duty is **pinned** — never the loser; only a free non-duty car (`fit` reco)
+  auto-resolves, so overlap is never auto-relaxed onto the duty car.
+- **3 bug fixes:** cross-midnight OT is now detected (`lib/booking/overtime-reco.ts`
+  via `isOvernight`); a sub-minute spill past 16:00 (e.g. 16:00:30) now classifies
+  OT (`lib/booking/classification.ts`); `rankCandidates` gets a `driverId`
+  `localeCompare` final tie-break for determinism (`lib/booking/driver-capacity.ts`).
+- **Requester confirmation:** NEW route `/requester/upcoming`
+  (`app/(requester)/requester/upcoming/page.tsx`) — the confirmed (driver-assigned)
+  trips for today/tomorrow.
+- **Test suite: 233 tests** across 21 files. New pure unit tests:
+  `triage.test.ts` (12) and `conflict-resolve.test.ts` (16).
+
+### Previous session — scheduling correctness + board UX
 
 - **Claimed trips count as commitments** (`lib/booking/booking-status.ts`
   `COMMITTED_STATUSES` = APPROVED|ASSIGNED|COMPLETED). The board matcher leaves a
@@ -111,8 +151,9 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   email-in-chat onboarding. See `memory/line_scope.md`.
 - **Resend**: optional. `RESEND_API_KEY` empty -> console fallback.
   README §5 has the signup walkthrough.
-- **Test residue**: `lib/booking/*.test.ts` insert + delete fixture rows
-  on the real dev DB. `scripts/seed-calendar-cluster.ts` injects 3
+- **Test residue**: the suite is **233 tests across 21 files**; most are pure
+  unit tests, but a few `lib/booking/*.test.ts` (e.g. `actions.test.ts`) insert +
+  delete fixture rows on the real dev DB. `scripts/seed-calendar-cluster.ts` injects 3
   same-day bookings on `today+7d` to demo the density tint and
   conflict marker — re-run safely, it wipes prior cluster-seed rows.
 
