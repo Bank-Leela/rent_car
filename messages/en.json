@@ -111,6 +111,7 @@
     "batch": "Batch",
     "users": "Users",
     "myBookings": "My bookings",
+    "upcoming": "Upcoming",
     "history": "History",
     "newBooking": "New booking",
     "pendingApprovals": "Pending approvals",
@@ -118,6 +119,21 @@
     "profile": "Profile",
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board"
+  },
+  "requesterUpcoming": {
+    "title": "Upcoming trips",
+    "description": "Your confirmed driver and details for today and tomorrow.",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "emptyTitle": "No confirmed trips",
+    "emptyDescription": "Nothing with a driver assigned for today or tomorrow yet.",
+    "driver": "Driver",
+    "noPhone": "No phone on file",
+    "coDriver": "Co-driver",
+    "vehicle": "Vehicle",
+    "pickup": "Pickup",
+    "passengers": "{count} passengers",
+    "viewDetail": "View details"
   },
   "status": {
     "DRAFT": "Draft",

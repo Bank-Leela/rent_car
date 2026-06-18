@@ -111,6 +111,7 @@
     "batch": "จัดรอบ",
     "users": "ผู้ใช้",
     "myBookings": "การจองของฉัน",
+    "upcoming": "เร็ว ๆ นี้",
     "history": "ประวัติ",
     "newBooking": "จองใหม่",
     "pendingApprovals": "รออนุมัติ",
@@ -118,6 +119,21 @@
     "profile": "โปรไฟล์",
     "schedule": "ตารางงาน",
     "scheduleBoard": "กระดานรับงาน"
+  },
+  "requesterUpcoming": {
+    "title": "ทริปที่จะมาถึง",
+    "description": "คนขับและรายละเอียดที่ยืนยันแล้วสำหรับวันนี้และพรุ่งนี้",
+    "today": "วันนี้",
+    "tomorrow": "พรุ่งนี้",
+    "emptyTitle": "ยังไม่มีทริปที่ยืนยัน",
+    "emptyDescription": "ยังไม่มีทริปที่จัดคนขับแล้วสำหรับวันนี้หรือพรุ่งนี้",
+    "driver": "คนขับ",
+    "noPhone": "ไม่มีเบอร์โทร",
+    "coDriver": "คนขับเสริม",
+    "vehicle": "รถ",
+    "pickup": "จุดรับ",
+    "passengers": "ผู้โดยสาร {count} คน",
+    "viewDetail": "ดูรายละเอียด"
   },
   "status": {
     "DRAFT": "ฉบับร่าง",
