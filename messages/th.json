@@ -349,7 +349,15 @@
     "upcomingEmptyTitle": "ยังไม่มีกำหนดการ",
     "upcomingEmptyDescription": "เมื่อจัดรถแล้ว ทริปถัดไป 20 รายการจะแสดงที่นี่",
     "submittedAt": "ส่งเมื่อ {date}",
-    "overtimeFit": "⚡ จัดได้แบบ OT/ล่วงเวลา — {name} + {reg} ว่างช่วง {time}"
+    "overtimeFit": "⚡ จัดได้แบบ OT/ล่วงเวลา — {name} + {reg} ว่างช่วง {time}",
+    "slaWaiting": "{count, plural, other {มี # คำขอรอเกิน 24 ชม.}}",
+    "triageEmergency": "ฉุกเฉิน",
+    "triageOutOfHours": "นอกเวลาทำการ",
+    "triageShortLead": "แจ้งล่วงหน้าไม่พอ",
+    "triageDayFull": "วันเต็ม {used}/{capacity}",
+    "triageRepeatCanceller": "ยกเลิก {count}× ใน 90 วัน",
+    "triageWaitingDays": "รอ {days} วัน",
+    "triageWaitingHours": "รอ {hours} ชม."
   },
   "bookingDetail": {
     "trip": "การเดินทาง",

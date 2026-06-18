@@ -349,7 +349,15 @@
     "upcomingEmptyTitle": "Nothing scheduled",
     "upcomingEmptyDescription": "Once vehicles are assigned, the next 20 trips will show up here.",
     "submittedAt": "submitted {date}",
-    "overtimeFit": "⚡ Fits as overtime — {name} + {reg} are free at {time}"
+    "overtimeFit": "⚡ Fits as overtime — {name} + {reg} are free at {time}",
+    "slaWaiting": "{count, plural, one {# request waiting over 24h} other {# requests waiting over 24h}}",
+    "triageEmergency": "Emergency",
+    "triageOutOfHours": "Out of hours",
+    "triageShortLead": "Short lead time",
+    "triageDayFull": "Day full {used}/{capacity}",
+    "triageRepeatCanceller": "Cancelled {count}× in 90d",
+    "triageWaitingDays": "Waiting {days}d",
+    "triageWaitingHours": "Waiting {hours}h"
   },
   "bookingDetail": {
     "trip": "Trip",
