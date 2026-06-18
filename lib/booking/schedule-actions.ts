@@ -12,7 +12,12 @@ import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 // car=driver: dropping a booking on a car assigns the car AND its assigned
 // driver. Blocks only if the car is already booked at that time, or the car has
 // no assigned driver. The board maps the error code to a message.
-type ReassignResult = { ok: false; error: string } | { ok: true };
+// On a `vehicleBusy` block, the conflicting trip(s) ride back so the board can
+// name them — vital for a multi-day trip whose clash is on a day not on screen.
+export type ReassignConflict = { jobNumber: string; startAt: Date; endAt: Date };
+type ReassignResult =
+  | { ok: false; error: string; conflicts?: ReassignConflict[] }
+  | { ok: true };
 
 export async function reassignVehicleAction(formData: FormData): Promise<ReassignResult> {
   await requireRole("ADMIN");
@@ -37,7 +42,7 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   // must never double-book a car. Skip only when re-dropping on the same car (a
   // booking can't collide with itself; the query already excludes its own id).
   if (vehicleId !== booking.vehicleId) {
-    const conflict = await prisma.booking.findFirst({
+    const conflicts = await prisma.booking.findMany({
       where: {
         id: { not: bookingId },
         vehicleId,
@@ -45,9 +50,11 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
         startAt: { lt: booking.endAt },
         endAt: { gt: booking.startAt },
       },
-      select: { id: true },
+      orderBy: { startAt: "asc" },
+      take: 3,
+      select: { jobNumber: true, startAt: true, endAt: true },
     });
-    if (conflict) return { ok: false, error: "vehicleBusy" };
+    if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
   }
 
   const driverId = vehicle.assignedDriverId;

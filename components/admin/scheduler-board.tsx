@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { format } from "date-fns";
+import { th, enUS } from "date-fns/locale";
 import { Wand2, GripVertical, AlertTriangle } from "lucide-react";
 import {
   DndContext,
@@ -21,6 +23,7 @@ import {
   reassignVehicleAction,
   unassignBookingAction,
   resolveScheduleConflictsAction,
+  type ReassignConflict,
 } from "@/lib/booking/schedule-actions";
 import {
   type SchedulerVehicle,
@@ -59,6 +62,8 @@ export function SchedulerBoard({
   date: string;
 }) {
   const t = useTranslations("scheduler");
+  const locale = useLocale();
+  const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ assigned: number; failures: string[] } | null>(null);
@@ -92,6 +97,11 @@ export function SchedulerBoard({
     bookings.filter((b) => !!b.secondaryDriverName && b.secondaryVehicleId === vehicleId);
   const activeBooking = activeId ? bookings.find((b) => b.id === activeId) ?? null : null;
 
+  // "VB-202606-9 · 18 Jun 09:00–11:00" — names a blocking trip with its DAY, so a
+  // multi-day clash on a day that isn't on screen is visible in the reject banner.
+  const fmtConflict = (c: ReassignConflict) =>
+    `${c.jobNumber} · ${format(c.startAt, "d MMM", { locale: dfLocale })} ${format(c.startAt, "HH:mm")}–${format(c.endAt, "HH:mm")}`;
+
   function reassign(bookingId: string, vehicleId: string) {
     setDropError(null);
     startTransition(async () => {
@@ -102,7 +112,14 @@ export function SchedulerBoard({
       // car=driver: the drop lands the car + its driver. Blocks only on a busy
       // car or a car with no assigned driver.
       if (!res.ok) {
-        const key = res.error === "vehicleBusy" ? "dropConflict" : res.error === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed";
+        // vehicleBusy carries the conflicting trip(s) → name them (incl. the day)
+        // so a multi-day overlap on an off-screen day isn't a mystery.
+        if (res.error === "vehicleBusy" && res.conflicts?.length) {
+          setDropError(t("dropConflictDetail", { detail: res.conflicts.map(fmtConflict).join("; ") }));
+          router.refresh();
+          return;
+        }
+        const key = res.error === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed";
         setDropError(t(key));
       }
       router.refresh();

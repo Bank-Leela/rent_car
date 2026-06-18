@@ -173,6 +173,7 @@
     "noDriver": "No driver",
     "dropNoDriver": "No free driver for this time — can't place here.",
     "dropConflict": "That car is already booked at this time.",
+    "dropConflictDetail": "That car is already booked: {detail}",
     "dropDriverless": "Placed on the car — no free driver right now. Assign one manually or run auto-assign.",
     "dropFailed": "Couldn't place that booking.",
     "noAssignedDriver": "No driver set for this car — set one in Cars & drivers.",
