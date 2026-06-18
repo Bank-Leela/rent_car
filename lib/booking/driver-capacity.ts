@@ -109,7 +109,10 @@ export interface RankInput {
 }
 
 /**
- * Stable ordering: earnings ↑, trips ↑, lastAssignedAt ↑ (oldest/null first).
+ * Stable ordering: earnings ↑, trips ↑, lastAssignedAt ↑ (oldest/null first),
+ * then driverId — the final tiebreak makes a full fairness tie deterministic
+ * (matches pickFreeDriver / the rotation rankers), so which car wins a tie no
+ * longer depends on the DB's row order.
  */
 export function rankCandidates(rows: RankInput[]): string[] {
   return [...rows]
@@ -118,7 +121,8 @@ export function rankCandidates(rows: RankInput[]): string[] {
       if (a.tripsThisMonth !== b.tripsThisMonth) return a.tripsThisMonth - b.tripsThisMonth;
       const at = a.lastAssignedAt ? a.lastAssignedAt.getTime() : -Infinity;
       const bt = b.lastAssignedAt ? b.lastAssignedAt.getTime() : -Infinity;
-      return at - bt;
+      if (at !== bt) return at - bt;
+      return a.driverId.localeCompare(b.driverId);
     })
     .map((r) => r.driverId);
 }

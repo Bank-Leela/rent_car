@@ -80,3 +80,78 @@ describe("recommendOvertimePlacement", () => {
     expect(r).toEqual({ kind: "no-fit" });
   });
 });
+
+describe("recommendOvertimePlacement — overnight + boundaries", () => {
+  it("overnight OT (crosses midnight) is recommended, not skipped as not-applicable", () => {
+    // Regression: isOvertimeWindow was hour-only, so 22:00→02:00 read as
+    // "ends 02:00 ≤ 16:00" → not-applicable. An overnight trip is OT.
+    const r = recommendOvertimePlacement({
+      booking: { startAt: D("2026-06-10T22:00:00"), endAt: D("2026-06-11T02:00:00") },
+      dutyDriverId: null,
+      drivers: [driver("B")],
+    });
+    expect(r).toEqual({ kind: "overtime-fit", driverId: "B", vehicleId: "vB" });
+  });
+
+  it("other overnight shapes are recognised too (14:00→next 10:00, 17:00→next 00:30)", () => {
+    for (const [s, e] of [
+      ["2026-06-10T14:00:00", "2026-06-11T10:00:00"],
+      ["2026-06-10T17:00:00", "2026-06-11T00:30:00"],
+    ] as const) {
+      const r = recommendOvertimePlacement({
+        booking: { startAt: D(s), endAt: D(e) },
+        dutyDriverId: null,
+        drivers: [driver("B")],
+      });
+      expect(r.kind).toBe("overtime-fit");
+    }
+  });
+
+  it("a same-day trip ending exactly 16:00 is NOT overtime → not-applicable", () => {
+    const r = recommendOvertimePlacement({
+      booking: { startAt: D("2026-06-10T12:00:00"), endAt: D("2026-06-10T16:00:00") },
+      dutyDriverId: null,
+      drivers: [driver("B")],
+    });
+    expect(r).toEqual({ kind: "not-applicable" });
+  });
+
+  it("ending 16:01 and starting 07:59 are overtime; an 08:00–10:00 in-window trip is not", () => {
+    expect(
+      recommendOvertimePlacement({
+        booking: { startAt: D("2026-06-10T12:00:00"), endAt: D("2026-06-10T16:01:00") },
+        dutyDriverId: null,
+        drivers: [driver("B")],
+      }).kind,
+    ).toBe("overtime-fit");
+    expect(
+      recommendOvertimePlacement({
+        booking: { startAt: D("2026-06-10T07:59:00"), endAt: D("2026-06-10T09:00:00") },
+        dutyDriverId: null,
+        drivers: [driver("B")],
+      }).kind,
+    ).toBe("overtime-fit");
+    expect(
+      recommendOvertimePlacement({
+        booking: { startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T10:00:00") },
+        dutyDriverId: null,
+        drivers: [driver("B")],
+      }).kind,
+    ).toBe("not-applicable");
+  });
+
+  it("an all-duty pool and an empty pool both yield no-fit", () => {
+    const evening = { startAt: D("2026-06-10T20:00:00"), endAt: D("2026-06-10T21:00:00") };
+    expect(recommendOvertimePlacement({ booking: evening, dutyDriverId: null, drivers: [] })).toEqual({ kind: "no-fit" });
+    expect(recommendOvertimePlacement({ booking: evening, dutyDriverId: "A", drivers: [driver("A")] })).toEqual({ kind: "no-fit" });
+  });
+
+  it("breaks a full fairness tie by driverId", () => {
+    const r = recommendOvertimePlacement({
+      booking: { startAt: D("2026-06-10T20:00:00"), endAt: D("2026-06-10T21:00:00") },
+      dutyDriverId: null,
+      drivers: [driver("Z"), driver("A")],
+    });
+    expect(r).toMatchObject({ driverId: "A" });
+  });
+});

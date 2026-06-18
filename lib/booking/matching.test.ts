@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { JobType } from "@prisma/client";
 import { match, LONG_TRIP_KM } from "./matching";
 import { buildDriverMatrix, type DriverInput, type DriverAvailabilityInput } from "./driver-capacity";
 
@@ -246,5 +247,60 @@ describe("match", () => {
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.result.secondaryDriverId).toBeNull();
+  });
+});
+
+describe("match — OT cap exemption flows through the matcher (job-type-aware chaining)", () => {
+  const T = (hm: string) => new Date(`2026-06-10T${hm}:00`);
+  const fullNormalDay = [
+    { startAt: T("08:00"), endAt: T("11:00"), jobType: "NORMAL" as JobType },
+    { startAt: T("13:00"), endAt: T("16:00"), jobType: "NORMAL" as JobType },
+  ];
+
+  it("an OT is assignable to a driver who already has a full 2-NORMAL day (cap-exempt)", () => {
+    const eveningOverlap = [{ startAt: T("18:00"), endAt: T("20:00") }];
+    const r = match({
+      jobType: "OT",
+      timeBucket: "AFTER_16",
+      newTrip: { startAt: T("18:00"), endAt: T("20:00"), jobType: "OT" },
+      estimatedDistance: 50,
+      driverCar,
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: [
+        { driverId: "A", existing: fullNormalDay }, // full day, but OT is exempt
+        { driverId: "B", existing: eveningOverlap }, // busy at the OT time
+        { driverId: "C", existing: eveningOverlap },
+      ],
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).toBe("A");
+  });
+
+  it("an existing OT does not count toward the NORMAL cap (a new afternoon NORMAL is allowed)", () => {
+    const afternoonOverlap = [{ startAt: T("13:00"), endAt: T("15:00") }];
+    const r = match({
+      jobType: "NORMAL",
+      timeBucket: "AFTERNOON_12_16",
+      newTrip: { startAt: T("13:00"), endAt: T("15:00"), jobType: "NORMAL" },
+      estimatedDistance: null,
+      driverCar,
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: [
+        // A: an early OT + one morning NORMAL → still room for an afternoon NORMAL
+        {
+          driverId: "A",
+          existing: [
+            { startAt: T("05:00"), endAt: T("07:00"), jobType: "OT" },
+            { startAt: T("08:00"), endAt: T("11:00"), jobType: "NORMAL" },
+          ],
+        },
+        { driverId: "B", existing: afternoonOverlap },
+        { driverId: "C", existing: afternoonOverlap },
+      ],
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).toBe("A");
   });
 });

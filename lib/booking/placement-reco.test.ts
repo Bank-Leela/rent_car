@@ -108,3 +108,61 @@ describe("recommendPlacement", () => {
     expect(r).toMatchObject({ kind: "fit", driverId: "B", secondaryDriverId: null });
   });
 });
+
+describe("recommendPlacement — gap boundary, cap shape, reclaim", () => {
+  const morning = { startAt: D("2026-06-10T09:00:00"), endAt: D("2026-06-10T11:00:00"), jobType: "NORMAL" as JobType };
+  const afternoon = { startAt: D("2026-06-10T13:00:00"), endAt: D("2026-06-10T15:00:00"), jobType: "NORMAL" as JobType };
+
+  it("exact 2h gap → fit; one minute short → none (existing OT, so the cap isn't the cause)", () => {
+    const ok = recommendPlacement({
+      booking: morning, needsSecondary: false, dutyDriverId: null,
+      drivers: [drv("B", { trips: [trip("2026-06-10T05:00:00", "2026-06-10T07:00:00", "OT")] })],
+    });
+    expect(ok.kind).toBe("fit"); // ends 07:00, +2h = 09:00 == start
+    const bad = recommendPlacement({
+      booking: morning, needsSecondary: false, dutyDriverId: null,
+      drivers: [drv("B", { trips: [trip("2026-06-10T05:00:00", "2026-06-10T07:01:00", "OT")] })],
+    });
+    expect(bad.kind).toBe("none"); // 1 minute short of 2h
+  });
+
+  it("NORMAL cap shape: a second morning (both end ≤12) is rejected → none", () => {
+    const r = recommendPlacement({
+      booking: morning, needsSecondary: false, dutyDriverId: null,
+      drivers: [drv("B", { trips: [trip("2026-06-10T05:00:00", "2026-06-10T07:00:00")] })], // 2h gap, both mornings
+    });
+    expect(r.kind).toBe("none");
+  });
+
+  it("only the duty car can take it → reclaim (its driver + car)", () => {
+    const r = recommendPlacement({
+      booking: afternoon, needsSecondary: false, dutyDriverId: "A",
+      drivers: [drv("A"), drv("B", { trips: [trip("2026-06-10T13:00:00", "2026-06-10T15:00:00")] })],
+    });
+    expect(r).toMatchObject({ kind: "reclaim", driverId: "A", vehicleId: "vA" });
+  });
+
+  it("duty driver has no car → none, not reclaim", () => {
+    const r = recommendPlacement({
+      booking: afternoon, needsSecondary: false, dutyDriverId: "A",
+      drivers: [drv("A", { vehicleId: null }), drv("B", { trips: [trip("2026-06-10T13:00:00", "2026-06-10T15:00:00")] })],
+    });
+    expect(r).toEqual({ kind: "none" });
+  });
+
+  it("reclaim with needsSecondary but no free co-driver → secondaryDriverId null", () => {
+    const r = recommendPlacement({
+      booking: { ...afternoon, jobType: "TJW" }, needsSecondary: true, dutyDriverId: "A",
+      drivers: [drv("A"), drv("B", { trips: [trip("2026-06-10T13:00:00", "2026-06-10T15:00:00")] })],
+    });
+    expect(r).toMatchObject({ kind: "reclaim", secondaryDriverId: null });
+  });
+
+  it("a long trip gets the next-fairest free non-duty co-driver", () => {
+    const r = recommendPlacement({
+      booking: { ...afternoon, jobType: "TJW" }, needsSecondary: true, dutyDriverId: null,
+      drivers: [drv("B", { earningsScore: 1 }), drv("C", { earningsScore: 2 })],
+    });
+    expect(r).toMatchObject({ kind: "fit", driverId: "B", secondaryDriverId: "C" });
+  });
+});

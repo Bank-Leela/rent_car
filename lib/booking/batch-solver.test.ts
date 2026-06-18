@@ -386,3 +386,130 @@ describe("solveDay — existing same-day assignments block non-duty overlap", ()
     expect(out.assignments[0]!.primaryDriverId).toBe("A");
   });
 });
+
+describe("solveDay — NO_SECONDARY_DRIVER (long trip, no co-driver, no duty to reclaim)", () => {
+  it("overflows NO_SECONDARY_DRIVER, not NEEDS_WERN_RECLAIM, when there is no duty driver", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [
+        booking({
+          bookingId: "t",
+          jobType: "TJW",
+          outOfProvince: true,
+          startAt: D("2026-06-10T06:00:00"),
+          endAt: D("2026-06-11T18:00:00"),
+          estimatedDistance: 500,
+        }),
+      ],
+      drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
+      dutyDriverId: null, // nothing to reclaim
+      activeTjwCommitments: [],
+      // B is busy across the TJW span → A is the only fresh driver (primary), no secondary.
+      existingByDriver: new Map([
+        ["B", [{ id: "x", jobType: "NORMAL", startAt: D("2026-06-10T06:00:00"), endAt: D("2026-06-11T18:00:00") }]],
+      ]),
+    });
+    expect(out.overflows).toEqual([{ bookingId: "t", reason: "NO_SECONDARY_DRIVER" }]);
+  });
+});
+
+describe("solveDay — wernReclaimPolicy is currently inert (pins the audit gap)", () => {
+  // The same reclaim setup as the NEEDS_WERN_RECLAIM_DECISION test. The policy
+  // knob (config.wernReclaimPolicy) is read but never consumed in solveDay, so
+  // ALL THREE policies escalate identically. This test PINS that behavior so the
+  // gap stays visible and any future wiring (AUTO_RECLAIM / PROTECT_WERN) is an
+  // intentional, test-breaking change rather than a silent one.
+  const reclaimInput = (policy?: "ESCALATE" | "AUTO_RECLAIM" | "PROTECT_WERN"): SolverInput => ({
+    date: D("2026-06-10"),
+    bookings: [
+      booking({
+        bookingId: "ot1",
+        jobType: "OT",
+        startAt: D("2026-06-10T06:00:00"),
+        endAt: D("2026-06-10T15:00:00"),
+        estimatedDistance: LONG_TRIP_KM + 50,
+      }),
+    ],
+    drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
+    dutyDriverId: "A",
+    activeTjwCommitments: [],
+    config: policy ? { wernReclaimPolicy: policy } : undefined,
+  });
+
+  it("escalates regardless of policy (knob not yet wired)", () => {
+    for (const p of [undefined, "ESCALATE", "AUTO_RECLAIM", "PROTECT_WERN"] as const) {
+      const out = solveDay(reclaimInput(p));
+      expect(out.overflows).toEqual([{ bookingId: "ot1", reason: "NEEDS_WERN_RECLAIM_DECISION" }]);
+    }
+  });
+});
+
+describe("solveDay — fcfsOverridesCategoryPriority", () => {
+  // 1 driver, a NORMAL (submitted earlier) + a TJW (submitted later) that
+  // overlap on the day → only one can be placed.
+  const bookings = [
+    booking({ bookingId: "n1", jobType: "NORMAL", submittedAt: D("2026-06-01T08:00:00") }),
+    booking({
+      bookingId: "t1",
+      jobType: "TJW",
+      outOfProvince: true,
+      startAt: D("2026-06-10T06:00:00"),
+      endAt: D("2026-06-11T18:00:00"),
+      estimatedDistance: 100,
+      submittedAt: D("2026-06-05T08:00:00"),
+    }),
+  ];
+  const drivers = [driver({ driverId: "A" })];
+
+  it("default category priority places the TJW first (NORMAL overflows)", () => {
+    const out = solveDay({ date: D("2026-06-10"), bookings, drivers, dutyDriverId: null, activeTjwCommitments: [] });
+    expect(out.assignments[0]!.bookingId).toBe("t1");
+    expect(out.overflows[0]!.bookingId).toBe("n1");
+  });
+
+  it("FCFS override places the earlier-submitted NORMAL first (TJW overflows)", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings,
+      drivers,
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+      config: { fcfsOverridesCategoryPriority: true },
+    });
+    expect(out.assignments[0]!.bookingId).toBe("n1");
+    expect(out.overflows[0]!.bookingId).toBe("t1");
+  });
+});
+
+describe("solveDay — category rotation + distance boundary", () => {
+  const longTrip = (dist: number | null) => ({
+    date: D("2026-06-10"),
+    bookings: [
+      booking({
+        bookingId: "t",
+        jobType: "TJW" as const,
+        outOfProvince: true,
+        startAt: D("2026-06-10T06:00:00"),
+        endAt: D("2026-06-11T18:00:00"),
+        estimatedDistance: dist,
+      }),
+    ],
+    drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
+    dutyDriverId: null,
+    activeTjwCommitments: [],
+  });
+
+  it("TJW goes to the oldest lastTjwAt (null = oldest = first)", () => {
+    const out = solveDay({
+      ...longTrip(100),
+      drivers: [driver({ driverId: "A", lastTjwAt: D("2026-06-01") }), driver({ driverId: "B", lastTjwAt: null })],
+    });
+    expect(out.assignments[0]!.primaryDriverId).toBe("B");
+  });
+
+  it("400 km → no co-driver; 401 km → co-driver; null → no co-driver", () => {
+    expect(solveDay(longTrip(400)).assignments[0]!.secondaryDriverId).toBeNull();
+    expect(solveDay(longTrip(401)).assignments[0]!.secondaryDriverId).toBeTruthy();
+    expect(solveDay(longTrip(null)).assignments[0]!.secondaryDriverId).toBeNull();
+  });
+});

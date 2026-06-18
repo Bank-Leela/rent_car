@@ -10,7 +10,7 @@
 // car=driver: a car is busy iff its driver is busy, so "a free car" collapses
 // into "a free driver who has a car". No separate slot grid.
 
-import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "./classification";
+import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR, isOvernight } from "./classification";
 import { canChain } from "./rotations";
 
 export interface OvertimeRecoDriver {
@@ -38,6 +38,10 @@ export type OvertimeReco =
 
 /** True if the trip runs outside the normal 08:00–16:00 window (= overtime). */
 function isOvertimeWindow(startAt: Date, endAt: Date): boolean {
+  // A cross-midnight trip is overnight = OT (classifyJobType §2); the hour checks
+  // below are blind to the calendar date, so test this first — otherwise a
+  // 22:00→02:00 OT reads as "ends at 02:00 ≤ 16:00" and is wrongly skipped.
+  if (isOvernight(startAt, endAt)) return true;
   if (startAt.getHours() < WORK_DAY_START_HOUR) return true;
   if (endAt.getHours() > WORK_DAY_END_HOUR) return true;
   return endAt.getHours() === WORK_DAY_END_HOUR && endAt.getMinutes() > 0;

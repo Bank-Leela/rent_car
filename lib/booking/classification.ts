@@ -55,7 +55,16 @@ export function classifyJobType(input: ClassifyInput): JobType {
   if (overnight) return "OT";
   if (input.startAt.getHours() < WORK_DAY_START_HOUR) return "OT";
   if (input.endAt.getHours() > WORK_DAY_END_HOUR) return "OT";
-  if (input.endAt.getHours() === WORK_DAY_END_HOUR && input.endAt.getMinutes() > 0) return "OT";
+  // Strictly after 16:00 is OT — incl. sub-minute (16:00:30), which has
+  // getMinutes()===0 but is still past the window.
+  if (
+    input.endAt.getHours() === WORK_DAY_END_HOUR &&
+    (input.endAt.getMinutes() > 0 ||
+      input.endAt.getSeconds() > 0 ||
+      input.endAt.getMilliseconds() > 0)
+  ) {
+    return "OT";
+  }
   return "NORMAL";
 }
 

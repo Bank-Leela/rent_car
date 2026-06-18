@@ -126,3 +126,42 @@ describe("classifyJobType", () => {
     ).toBe("OT");
   });
 });
+
+describe("classifyJobType — work-window boundaries", () => {
+  const local = { outOfProvince: false };
+
+  it("ends exactly 16:00 → NORMAL; 16:30 → OT; 17:00 → OT", () => {
+    expect(classifyJobType({ ...local, startAt: D("2026-06-10T09:00:00"), endAt: D("2026-06-10T16:00:00") })).toBe("NORMAL");
+    expect(classifyJobType({ ...local, startAt: D("2026-06-10T12:00:00"), endAt: D("2026-06-10T16:30:00") })).toBe("OT");
+    expect(classifyJobType({ ...local, startAt: D("2026-06-10T12:00:00"), endAt: D("2026-06-10T17:00:00") })).toBe("OT");
+  });
+
+  it("ends 16:00:30 (sub-minute past 16:00) → OT, not NORMAL", () => {
+    // Regression: getMinutes()===0 hid the seconds, classifying 16:00:30 NORMAL.
+    expect(
+      classifyJobType({ ...local, startAt: D("2026-06-10T12:00:00"), endAt: new Date(2026, 5, 10, 16, 0, 30) }),
+    ).toBe("OT");
+  });
+
+  it("starts exactly 08:00 → NORMAL; 07:59 → OT", () => {
+    expect(classifyJobType({ ...local, startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T10:00:00") })).toBe("NORMAL");
+    expect(classifyJobType({ ...local, startAt: D("2026-06-10T07:59:00"), endAt: D("2026-06-10T10:00:00") })).toBe("OT");
+  });
+
+  it("out-of-province overnight is TJW; same-area overnight is OT (order matters)", () => {
+    expect(classifyJobType({ outOfProvince: true, startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-11T08:00:00") })).toBe("TJW");
+    expect(classifyJobType({ outOfProvince: false, startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-11T08:00:00") })).toBe("OT");
+  });
+});
+
+describe("isOvernight — exact midnight", () => {
+  it("ending exactly at next-day 00:00 is overnight (later calendar day)", () => {
+    expect(isOvernight(D("2026-06-10T20:00:00"), new Date(2026, 5, 11, 0, 0, 0))).toBe(true);
+  });
+});
+
+describe("tripEffort — fractional NORMAL hours", () => {
+  it("credits real fractional duration", () => {
+    expect(tripEffort("NORMAL", D("2026-06-10T09:00:00"), D("2026-06-10T10:30:00"))).toBe(1.5);
+  });
+});

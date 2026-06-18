@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canChain,
   canTake,
   pickGeneralRank,
   rankForRotation,
@@ -151,5 +152,53 @@ describe("rankForRotation deadlock check", () => {
     // Each of the three available drivers got at least one trip
     // (3 drivers, 4 days, so one gets a second turn — the first picked).
     expect(new Set(assigned).size).toBe(3);
+  });
+});
+
+describe("canChain — 2h-gap boundaries + NORMAL cap shapes", () => {
+  const N = (s: string, e: string, jobType: JobType = "NORMAL") => ({ startAt: D(s), endAt: D(e), jobType });
+
+  it("symmetric gap (new precedes existing): exactly 2h ok, 1 minute short blocked", () => {
+    const existing = [N("2026-06-10T08:00:00", "2026-06-10T10:00:00")];
+    expect(canChain(N("2026-06-10T04:00:00", "2026-06-10T06:00:00", "OT"), existing)).toBe(true); // ends 06:00, +2h = 08:00
+    expect(canChain(N("2026-06-10T04:00:00", "2026-06-10T06:01:00", "OT"), existing)).toBe(false); // 1h59m
+  });
+
+  it("an OT overlapping an existing trip is rejected (overlap beats the cap exemption)", () => {
+    expect(
+      canChain(N("2026-06-10T10:00:00", "2026-06-10T12:00:00", "OT"), [N("2026-06-10T08:00:00", "2026-06-10T11:00:00", "OT")]),
+    ).toBe(false);
+  });
+
+  it("OT is exempt from the 2-NORMAL cap — stacks on a full day, but still needs the gap", () => {
+    const fullDay = [N("2026-06-10T08:00:00", "2026-06-10T11:00:00"), N("2026-06-10T13:00:00", "2026-06-10T16:00:00")];
+    expect(canChain(N("2026-06-10T18:00:00", "2026-06-10T20:00:00", "OT"), fullDay)).toBe(true); // 2h after 16:00
+    expect(canChain(N("2026-06-10T17:00:00", "2026-06-10T19:00:00", "OT"), fullDay)).toBe(false); // 1h after 16:00
+  });
+
+  it("NORMAL cap rejects two afternoons", () => {
+    expect(
+      canChain(N("2026-06-10T15:00:00", "2026-06-10T16:00:00"), [N("2026-06-10T12:00:00", "2026-06-10T13:00:00")]),
+    ).toBe(false);
+  });
+
+  it("NORMAL cap rejects a midday straddler + another NORMAL", () => {
+    // existing 11:00–13:00 straddles noon (neither a clean morning nor afternoon)
+    expect(
+      canChain(N("2026-06-10T15:00:00", "2026-06-10T16:00:00"), [N("2026-06-10T11:00:00", "2026-06-10T13:00:00")]),
+    ).toBe(false);
+  });
+
+  it("NORMAL cap allows a clean morning (ends ≤12) + afternoon (starts ≥12) with the 2h gap", () => {
+    expect(
+      canChain(N("2026-06-10T13:00:00", "2026-06-10T15:00:00"), [N("2026-06-10T08:00:00", "2026-06-10T11:00:00")]),
+    ).toBe(true);
+  });
+
+  it("exact-12:00 edge: a trip ending 12:00 is a morning, one starting 12:00 is an afternoon", () => {
+    // morning ends 12:00, afternoon starts 14:00 (2h gap) → valid pair
+    expect(
+      canChain(N("2026-06-10T14:00:00", "2026-06-10T16:00:00"), [N("2026-06-10T08:00:00", "2026-06-10T12:00:00")]),
+    ).toBe(true);
   });
 });

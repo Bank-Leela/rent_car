@@ -110,3 +110,28 @@ describe("findConflictLosers", () => {
     expect(losers.has("normal")).toBe(true);
   });
 });
+
+describe("pickConflictLoser / findConflictLosers — edge cases", () => {
+  it("two WERN trips fall through to the later-submitted tie-break", () => {
+    const early = trip({ id: "w-early", jobType: "WERN", submittedAt: new Date("2026-06-01T08:00:00") });
+    const late = trip({ id: "w-late", jobType: "WERN", submittedAt: new Date("2026-06-02T08:00:00") });
+    expect(pickConflictLoser(early, late).id).toBe("w-late");
+  });
+
+  it("SMUS is the lowest priority (loses to NORMAL)", () => {
+    expect(pickConflictLoser(trip({ id: "n", jobType: "NORMAL" }), trip({ id: "s", jobType: "SMUS" })).id).toBe("s");
+  });
+
+  it("empty and single-trip pools produce no losers", () => {
+    expect(findConflictLosers([]).size).toBe(0);
+    expect(findConflictLosers([trip({ id: "only" })]).size).toBe(0);
+  });
+
+  it("a sub-minute overlap still counts as a conflict", () => {
+    const losers = findConflictLosers([
+      trip({ id: "a", jobType: "OT", startAt: new Date("2026-06-18T09:00:00"), endAt: new Date("2026-06-18T11:00:30") }),
+      trip({ id: "b", jobType: "NORMAL", startAt: new Date("2026-06-18T11:00:00"), endAt: new Date("2026-06-18T12:00:00") }),
+    ]);
+    expect([...losers]).toEqual(["b"]); // 30s overlap → NORMAL (lower) moves
+  });
+});
