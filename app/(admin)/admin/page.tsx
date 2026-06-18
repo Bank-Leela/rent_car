@@ -8,6 +8,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { OnCallShiftForm } from "@/components/forms/matching-form";
+import { ApproverQueueActions } from "@/components/forms/approver-queue-actions";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
 import { Section } from "@/components/section";
@@ -15,6 +16,7 @@ import { Section } from "@/components/section";
 export default async function AdminQueue() {
   const session = await requireAnyRole(["ADMIN", "APPROVER"]);
   const isAdmin = session.user.roles.includes("ADMIN");
+  const isApprover = session.user.roles.includes("APPROVER");
   const t = await getTranslations("admin");
   const tAuto = await getTranslations("matching");
   const today = startOfDay(new Date());
@@ -160,35 +162,43 @@ export default async function AdminQueue() {
           <ul className="space-y-2">
             {pending.map((b) => (
               <li key={b.id}>
-                <Link
-                  href={`/admin/${b.id}`}
-                  className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
-                      <BookingStatusBadge status={b.status} />
-                    </div>
-                    <div className="mt-1 font-medium truncate">{b.purpose}</div>
-                    <div className="mt-0.5 text-sm text-muted-foreground">
-                      {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {b.requester.name ?? b.requester.email} · {b.department.nameEn}
-                    </div>
-                    {overtimeReco.has(b.id) && (
-                      <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-                        <Zap className="h-3.5 w-3.5 shrink-0" />
-                        {t("overtimeFit", {
-                          name: overtimeReco.get(b.id)!.name,
-                          reg: overtimeReco.get(b.id)!.reg,
-                          time: overtimeReco.get(b.id)!.time,
-                        })}
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
+                  <Link
+                    href={`/admin/${b.id}`}
+                    className="group -m-1 flex items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
+                        <BookingStatusBadge status={b.status} />
                       </div>
-                    )}
-                  </div>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </Link>
+                      <div className="mt-1 font-medium truncate">{b.purpose}</div>
+                      <div className="mt-0.5 text-sm text-muted-foreground">
+                        {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {b.requester.name ?? b.requester.email} · {b.department.nameEn}
+                      </div>
+                      {overtimeReco.has(b.id) && (
+                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                          <Zap className="h-3.5 w-3.5 shrink-0" />
+                          {t("overtimeFit", {
+                            name: overtimeReco.get(b.id)!.name,
+                            reg: overtimeReco.get(b.id)!.reg,
+                            time: overtimeReco.get(b.id)!.time,
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  {isApprover && (
+                    <ApproverQueueActions
+                      bookingId={b.id}
+                      canDeny={b.status === "PENDING_APPROVAL"}
+                    />
+                  )}
+                </div>
               </li>
             ))}
           </ul>

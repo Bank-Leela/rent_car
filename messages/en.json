@@ -682,7 +682,15 @@
     "approving": "Approving…",
     "deny": "Deny",
     "denying": "Denying…",
-    "noSignatureWarning": "You don't have a stored signature. The PDF will still generate but the signature field will be blank — upload one in Profile."
+    "noSignatureWarning": "You don't have a stored signature. The PDF will still generate but the signature field will be blank — upload one in Profile.",
+    "cancel": "Cancel",
+    "denyPresets": {
+      "noVehicle": "No vehicle available that day",
+      "leadTime": "Insufficient lead time",
+      "duplicate": "Duplicate request",
+      "outOfPolicy": "Out of policy",
+      "missingDetails": "Missing trip details"
+    }
   },
   "bookingForm": {
     "title": "New booking",
