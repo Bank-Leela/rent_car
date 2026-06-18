@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { addDays, parse, startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
+import { findConflictLosers } from "@/lib/booking/conflict-resolve";
+import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 
 // car=driver: dropping a booking on a car assigns the car AND its assigned
 // driver. Blocks only if the car is already booked at that time, or the car has
@@ -140,4 +143,108 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
 
   revalidatePath("/admin/schedule");
   return { ok: true };
+}
+
+type ConflictResolveResult =
+  | { ok: false; error: string }
+  | { ok: true; resolved: number; failures: string[] };
+
+/**
+ * Auto-resolve overlap conflicts on a day's schedule (docs §5: no car may be
+ * double-booked). For every pair of PRIMARY trips that overlap on the same car,
+ * the loser (lower category priority; tie → later-submitted — see
+ * `conflict-resolve.ts`) is re-matched to a free legal car. Non-destructive: a
+ * loser only moves when `recommendPlacement` finds a `fit` (free non-duty car
+ * obeying canChain); a `reclaim`/`none` is left in place and reported. The duty
+ * car is never auto-reclaimed for a conflict. Driven by the board's auto-assign
+ * button, after it places the unassigned queue.
+ */
+export async function resolveScheduleConflictsAction(formData: FormData): Promise<ConflictResolveResult> {
+  const session = await requireRole("ADMIN");
+  const dateStr = String(formData.get("date") ?? "");
+  const day = dateStr ? parse(dateStr, "yyyy-MM-dd", new Date()) : new Date();
+  const dayStart = startOfDay(day);
+  const dayEnd = addDays(dayStart, 1);
+
+  // Assigned PRIMARY trips overlapping the viewed day (multi-day aware).
+  const trips = await prisma.booking.findMany({
+    where: {
+      status: { in: ["APPROVED", "ASSIGNED"] },
+      vehicleId: { not: null },
+      primaryDriverId: { not: null },
+      startAt: { lt: dayEnd },
+      endAt: { gt: dayStart },
+    },
+    select: {
+      id: true,
+      jobNumber: true,
+      vehicleId: true,
+      startAt: true,
+      endAt: true,
+      jobType: true,
+      estimatedDistance: true,
+      createdAt: true,
+      status: true,
+      secondaryDriverId: true,
+    },
+  });
+
+  const loserIds = findConflictLosers(
+    trips.map((t) => ({
+      id: t.id,
+      vehicleId: t.vehicleId!,
+      startAt: t.startAt,
+      endAt: t.endAt,
+      jobType: t.jobType,
+      submittedAt: t.createdAt,
+    })),
+  );
+  if (loserIds.size === 0) return { ok: true, resolved: 0, failures: [] };
+
+  const losers = trips.filter((t) => loserIds.has(t.id));
+  let resolved = 0;
+  const failures: string[] = [];
+
+  for (const l of losers) {
+    // Recompute the reco per loser so a prior move in this run is visible (its
+    // new car shows as busy, so two losers never get sent to the same car).
+    const recos = await recommendForBookings(
+      dayStart,
+      [{ id: l.id, startAt: l.startAt, endAt: l.endAt, estimatedDistance: l.estimatedDistance, jobType: l.jobType }],
+      false,
+    );
+    const reco = recos.get(l.id);
+    // Only a free non-duty car (`fit`) auto-resolves. `reclaim` (duty-only) and
+    // `none` are left in place — overlap is never auto-relaxed onto the duty car.
+    if (!reco || reco.kind !== "fit") {
+      failures.push(`${l.jobNumber}: ${reco?.kind === "reclaim" ? "onlyDutyCarFree" : "noFreeCar"}`);
+      continue;
+    }
+
+    const fd = new FormData();
+    fd.set("bookingId", l.id);
+    fd.set("vehicleId", reco.vehicleId);
+    // Co-driver for a >400 km trip: prefer a fresh free one; else carry the
+    // loser's existing co-driver through so reassignVehicleAction RE-VALIDATES it
+    // (drops it if now busy) rather than silently preserving a stale one.
+    const coDriver = reco.secondaryDriverId ?? l.secondaryDriverId;
+    if (coDriver) fd.set("secondaryDriverId", coDriver);
+    const res = await reassignVehicleAction(fd);
+    if (res.ok) {
+      resolved += 1;
+      await logTransition({
+        bookingId: l.id,
+        actorUserId: session.user.id,
+        fromStatus: l.status,
+        toStatus: "ASSIGNED",
+        action: "CONFLICT_RESOLVED",
+        metadata: { movedToVehicle: reco.vehicleId },
+      });
+    } else {
+      failures.push(`${l.jobNumber}: ${res.error}`);
+    }
+  }
+
+  revalidatePath("/admin/schedule");
+  return { ok: true, resolved, failures };
 }

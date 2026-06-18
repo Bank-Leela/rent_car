@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
+import { findConflictLosers } from "@/lib/booking/conflict-resolve";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
 import { daySpan } from "@/lib/booking/day-window";
 
@@ -61,6 +62,7 @@ export default async function SchedulePage({
         vehicleId: true,
         jobType: true,
         estimatedDistance: true,
+        createdAt: true,
         primaryDriverId: true,
         secondaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
@@ -144,6 +146,21 @@ export default async function SchedulePage({
     };
   });
 
+  // Overlap conflicts among already-assigned trips (the red ring): the count of
+  // "loser" trips the auto-assign button will try to re-match to a free car.
+  const conflictCount = findConflictLosers(
+    dayBookings
+      .filter((b) => b.vehicleId && b.primaryDriverId)
+      .map((b) => ({
+        id: b.id,
+        vehicleId: b.vehicleId!,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        jobType: b.jobType,
+        submittedAt: b.createdAt,
+      })),
+  ).size;
+
   const isoOf = (d: Date) => format(d, "yyyy-MM-dd");
   const navBtn =
     "inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -176,7 +193,13 @@ export default async function SchedulePage({
         </div>
       </div>
 
-      <SchedulerBoard vehicles={vehicleRows} bookings={bookings} dutyVehicleId={dutyVehicleId} />
+      <SchedulerBoard
+        vehicles={vehicleRows}
+        bookings={bookings}
+        dutyVehicleId={dutyVehicleId}
+        conflictCount={conflictCount}
+        date={isoOf(dayStart)}
+      />
     </div>
   );
 }
