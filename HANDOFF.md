@@ -54,6 +54,12 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   superseded by the vitest suite, superseded demos/sims, + 2 untracked incl. a
   hardcoded-cred file); kept 9 live tools (sim / seed / maintenance), now indexed
   in `scripts/README.md`. App source untouched — it was already clean.
+- **`wernReclaimPolicy` wired** (`batch-solver.ts`, docs §6b). The knob was read
+  into config but never consumed (solver always escalated). Now `placeBooking`
+  branches on it when a long trip is staffable only by the duty driver:
+  `ESCALATE` (default, unchanged) raises `NEEDS_WERN_RECLAIM_DECISION`;
+  `AUTO_RECLAIM` takes the duty driver as the co-driver; `PROTECT_WERN` overflows
+  `NO_SECONDARY_DRIVER`. Default stays ESCALATE → no prod behaviour change.
 
 ### Previous session — scheduling correctness + board UX
 

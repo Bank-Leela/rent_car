@@ -176,10 +176,18 @@ TJW → OT → WERN → NORMAL → SMUS
 against TJW **returnees** who got back before 16:00.
 
 **WERN reclaim** — if a long trip can't find a fresh secondary but **the duty
-driver could fit**, it doesn't silently use them; it raises
-`NEEDS_WERN_RECLAIM_DECISION` for the admin (`reclaim-decision-form`):
-`RECLAIM_WERN` (move the duty driver onto the trip) or `OUTSOURCE`. Policy:
-`ESCALATE` (default) / `AUTO_RECLAIM` / `PROTECT_WERN`.
+driver could fit**, the `wernReclaimPolicy` decides (if the duty driver can't fit
+either, it's a plain `NO_SECONDARY_DRIVER` regardless of policy):
+
+- **`ESCALATE`** (default) — raise `NEEDS_WERN_RECLAIM_DECISION` for the admin
+  (`reclaim-decision-form`): `RECLAIM_WERN` (move the duty driver onto the trip)
+  or `OUTSOURCE`. The duty driver is never used silently.
+- **`AUTO_RECLAIM`** — take the duty driver as the co-driver now (no escalation);
+  for a TJW this locks them away for the span, abandoning duty rounds — the point.
+- **`PROTECT_WERN`** — never reclaim; overflow `NO_SECONDARY_DRIVER` instead.
+
+The default is `ESCALATE`, so production behaviour is unchanged; the other two
+are opt-in via `SolverConfig`.
 
 **Provisional rotation stamping** — on success the solver bumps
 `lastTjwAt` / `lastOtAt` / `lastDutyAt` so a same-day re-run doesn't re-pick the

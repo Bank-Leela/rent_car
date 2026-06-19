@@ -16,9 +16,11 @@
 //     inside each category. NORMAL fills the remaining slots after the
 //     other three are placed. When the flag is true (override), all
 //     bookings are processed in a single FCFS pass.
-//   wernReclaimPolicy = ESCALATE        → when a >400 km trip can only
-//     be staffed by reassigning today's duty driver, surface the choice
-//     to Khun Top rather than auto-deciding.
+//   wernReclaimPolicy                   → when a >400 km trip can only be
+//     staffed by reclaiming today's duty driver as the co-driver:
+//       ESCALATE (default) → surface NEEDS_WERN_RECLAIM_DECISION to Khun Top.
+//       AUTO_RECLAIM       → take the duty driver automatically.
+//       PROTECT_WERN       → never reclaim; overflow NO_SECONDARY_DRIVER.
 //
 // Phases:
 //   - Per-booking primary pick using its category's rotation (rankForRotation):
@@ -173,7 +175,7 @@ export function solveDay(input: SolverInput): SolverOutput {
   const otOverflows: SolverBookingInput[] = [];
 
   for (const booking of order) {
-    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ false);
+    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ false, config.wernReclaimPolicy);
     if (result.kind === "ok") {
       commitAssignment(drivers, booking, result.primaryDriverId, result.secondaryDriverId);
       assignments.push({
@@ -195,7 +197,7 @@ export function solveDay(input: SolverInput): SolverOutput {
 
   // Phase C: retry OT overflows against TJW returnees.
   for (const booking of otOverflows) {
-    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ true);
+    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ true, config.wernReclaimPolicy);
     if (result.kind === "ok") {
       commitAssignment(drivers, booking, result.primaryDriverId, result.secondaryDriverId);
       assignments.push({
@@ -226,6 +228,7 @@ function placeBooking(
   booking: SolverBookingInput,
   dutyDriverId: string | null,
   phaseC: boolean,
+  wernReclaimPolicy: Required<SolverConfig>["wernReclaimPolicy"],
 ): PlaceResult {
   // Primary candidates depend on category.
   const primaryEligible = eligibleForPrimary(drivers, booking, dutyDriverId, phaseC);
@@ -250,17 +253,29 @@ function placeBooking(
     return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: secondaryId };
   }
 
-  // No fresh secondary. If the duty driver could fit, that's the WERN reclaim
-  // escalation. Otherwise plain NO_SECONDARY_DRIVER.
+  // No fresh secondary. If the duty driver can't even fit, it's a plain
+  // NO_SECONDARY_DRIVER regardless of policy.
   const duty = drivers.find(
     (d) => d.driverId === dutyDriverId &&
       !d.awayOnTjw &&
       canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday),
   );
-  if (duty) {
-    return { kind: "fail", reason: "NEEDS_WERN_RECLAIM_DECISION" };
+  if (!duty) return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
+
+  // The duty driver could be reclaimed as the co-driver. What happens is the
+  // wernReclaimPolicy (docs §6b):
+  //   ESCALATE (default) → raise the decision for P'Top (RECLAIM_WERN / OUTSOURCE).
+  //   AUTO_RECLAIM       → take the duty driver now (commitAssignment locks them
+  //                        away for a TJW span, abandoning duty rounds — the point).
+  //   PROTECT_WERN       → never reclaim; overflow NO_SECONDARY_DRIVER instead.
+  switch (wernReclaimPolicy) {
+    case "AUTO_RECLAIM":
+      return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: duty.driverId };
+    case "PROTECT_WERN":
+      return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
+    default:
+      return { kind: "fail", reason: "NEEDS_WERN_RECLAIM_DECISION" };
   }
-  return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
 }
 
 function eligibleForPrimary(

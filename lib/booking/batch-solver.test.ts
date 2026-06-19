@@ -413,12 +413,9 @@ describe("solveDay — NO_SECONDARY_DRIVER (long trip, no co-driver, no duty to 
   });
 });
 
-describe("solveDay — wernReclaimPolicy is currently inert (pins the audit gap)", () => {
-  // The same reclaim setup as the NEEDS_WERN_RECLAIM_DECISION test. The policy
-  // knob (config.wernReclaimPolicy) is read but never consumed in solveDay, so
-  // ALL THREE policies escalate identically. This test PINS that behavior so the
-  // gap stays visible and any future wiring (AUTO_RECLAIM / PROTECT_WERN) is an
-  // intentional, test-breaking change rather than a silent one.
+describe("solveDay — wernReclaimPolicy (docs §6b)", () => {
+  // A long OT staffable only by reclaiming the duty driver (A) as the co-driver:
+  // primary = B (the lone fresh driver), no fresh secondary, duty A could fit.
   const reclaimInput = (policy?: "ESCALATE" | "AUTO_RECLAIM" | "PROTECT_WERN"): SolverInput => ({
     date: D("2026-06-10"),
     bookings: [
@@ -436,11 +433,26 @@ describe("solveDay — wernReclaimPolicy is currently inert (pins the audit gap)
     config: policy ? { wernReclaimPolicy: policy } : undefined,
   });
 
-  it("escalates regardless of policy (knob not yet wired)", () => {
-    for (const p of [undefined, "ESCALATE", "AUTO_RECLAIM", "PROTECT_WERN"] as const) {
+  it("ESCALATE (default) raises NEEDS_WERN_RECLAIM_DECISION for the admin", () => {
+    for (const p of [undefined, "ESCALATE"] as const) {
       const out = solveDay(reclaimInput(p));
+      expect(out.assignments).toHaveLength(0);
       expect(out.overflows).toEqual([{ bookingId: "ot1", reason: "NEEDS_WERN_RECLAIM_DECISION" }]);
     }
+  });
+
+  it("AUTO_RECLAIM takes the duty driver as the co-driver — no overflow", () => {
+    const out = solveDay(reclaimInput("AUTO_RECLAIM"));
+    expect(out.overflows).toHaveLength(0);
+    expect(out.assignments).toEqual([
+      { bookingId: "ot1", primaryDriverId: "B", secondaryDriverId: "A", jobType: "OT" },
+    ]);
+  });
+
+  it("PROTECT_WERN never reclaims duty — overflows NO_SECONDARY_DRIVER instead", () => {
+    const out = solveDay(reclaimInput("PROTECT_WERN"));
+    expect(out.assignments).toHaveLength(0);
+    expect(out.overflows).toEqual([{ bookingId: "ot1", reason: "NO_SECONDARY_DRIVER" }]);
   });
 });
 
