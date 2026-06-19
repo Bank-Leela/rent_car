@@ -45,6 +45,15 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   trips for today/tomorrow.
 - **Test suite: 233 tests** across 21 files. New pure unit tests:
   `triage.test.ts` (12) and `conflict-resolve.test.ts` (16).
+- **A rejected board drop now names the conflict.** `reassignVehicleAction`
+  returns the conflicting trip(s) on a `vehicleBusy` block (new `ReassignConflict`
+  type); the board banner shows each WITH ITS DATE (e.g. "VB-… · 18 Jun
+  09:00–11:00") so a multi-day overlap on a day that isn't on screen isn't a
+  mystery (`scheduler.dropConflictDetail` i18n).
+- **`scripts/` pruned.** Removed 12 stale one-off scripts (old phase-smoke tests
+  superseded by the vitest suite, superseded demos/sims, + 2 untracked incl. a
+  hardcoded-cred file); kept 9 live tools (sim / seed / maintenance), now indexed
+  in `scripts/README.md`. App source untouched — it was already clean.
 
 ### Previous session — scheduling correctness + board UX
 

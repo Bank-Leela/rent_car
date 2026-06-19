@@ -146,7 +146,7 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 | `lib/{auth,email,line,pdf,reporting}/*` | Auth helpers, email, LINE, PDF, reporting. |
 | `components/*` | UI — forms, the scheduler board (split into `scheduler-board` / `-blocks` / `-shared`), shared UI. |
 | `prisma/` | Schema (18 models, 12 enums), 17 migrations, seed. |
-| `scripts/` | Demo seed (`seed-batch-demo.ts`), simulation (`simulate-cr07.ts`), maintenance. |
+| `scripts/` | One-off dev tools — simulation, demo seeding, data maintenance; indexed in [`scripts/README.md`](../scripts/README.md). |
 
 ### Key data model (18 models)
 

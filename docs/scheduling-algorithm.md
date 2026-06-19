@@ -249,6 +249,9 @@ hover tooltip.
   unassign. Each block also has a hover **✕** (drag-free unassign →
   `unassignBookingAction`). Collision = `pointerWithin` → `rectIntersection`
   fallback with `MeasuringStrategy.Always` (the timeline scrolls horizontally).
+  A rejected drop (overlap) returns the conflicting trip(s) (`ReassignConflict`)
+  and the banner names each **with its date** (e.g. `VB-… · 18 Jun 09:00–11:00`),
+  so a multi-day clash on a day that isn't on screen is visible.
 - The unassigned queue carries each booking's placement recommendation (§7b) with
   an inline Assign.
 - **Auto-assign button** (`จัดอัตโนมัติ {n}`) places the queue **and** resolves
