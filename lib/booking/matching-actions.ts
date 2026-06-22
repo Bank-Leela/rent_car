@@ -17,6 +17,7 @@ import {
   type TripWindow,
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
+import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "@/lib/booking/classification";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import type { ActionResult } from "@/lib/booking/actions";
@@ -113,9 +114,9 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   }
   if (onCallDriverId && tripsByDriver.has(onCallDriverId)) {
     const dutyStart = new Date(tripDay);
-    dutyStart.setHours(8, 0, 0, 0);
+    dutyStart.setHours(WORK_DAY_START_HOUR, 0, 0, 0);
     const dutyEnd = new Date(tripDay);
-    dutyEnd.setHours(16, 0, 0, 0);
+    dutyEnd.setHours(WORK_DAY_END_HOUR, 0, 0, 0);
     tripsByDriver.get(onCallDriverId)!.push({ startAt: dutyStart, endAt: dutyEnd, jobType: "WERN" });
   }
   const driverAvailability: DriverAvailabilityInput[] = drivers.map((d) => ({
