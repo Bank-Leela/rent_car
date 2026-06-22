@@ -165,6 +165,17 @@ export default async function RequesterBookingDetail({
         </Card>
       )}
 
+      {booking.status === "WAITLIST" && (
+        <Card className="border-amber-300 ring-amber-300/50 dark:border-amber-900/40 dark:ring-amber-900/40">
+          <CardHeader>
+            <CardTitle className="text-amber-900 dark:text-amber-200">{t("waitlistTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-amber-800 dark:text-amber-300/90">
+            {t("waitlistExplain")}
+          </CardContent>
+        </Card>
+      )}
+
       {booking.status === "DENIED" && booking.denialReason && (
         <Card>
           <CardHeader>

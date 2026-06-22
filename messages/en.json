@@ -316,6 +316,7 @@
     "saving": "Saving…",
     "cancel": "Cancel",
     "disable": "Disable",
+    "confirmDisable": "Confirm disable",
     "enable": "Enable",
     "inactiveBadge": "Disabled",
     "mustChangeBadge": "Temp password"
@@ -395,6 +396,8 @@
     "coDriver": "Co-driver",
     "department": "Department",
     "deniedTitle": "Denied",
+    "waitlistTitle": "On the waitlist",
+    "waitlistExplain": "Your day was at capacity, so this request is waiting for the fleet head to fit it into a free slot or confirm an alternative. You'll be notified once it's assigned or if it can't be accommodated.",
     "history": "History",
     "flag": "Flag",
     "flaggedForOutsourcing": "Requester flagged for outsourcing",
