@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { format, startOfDay, subDays } from "date-fns";
 import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Zap, AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
@@ -15,7 +16,11 @@ import { SLOT_HOLDING_STATUSES, dayCapacity } from "@/lib/booking/slot-capacity"
 import { triageFlags, waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 import { Section } from "@/components/section";
 
-export default async function AdminQueue() {
+export default async function AdminQueue({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await requireAnyRole(["ADMIN", "APPROVER"]);
   const isAdmin = session.user.roles.includes("ADMIN");
   const isApprover = session.user.roles.includes("APPROVER");
@@ -24,23 +29,39 @@ export default async function AdminQueue() {
   const now = new Date();
   const today = startOfDay(now);
 
+  // Free-text filter across the three lists (job number / purpose / destination
+  // / requester / department) — the daily "find that one booking" need.
+  const term = ((await searchParams).q ?? "").trim();
+  const searchFilter: Prisma.BookingWhereInput = term
+    ? {
+        OR: [
+          { jobNumber: { contains: term, mode: "insensitive" } },
+          { purpose: { contains: term, mode: "insensitive" } },
+          { destination: { contains: term, mode: "insensitive" } },
+          { requester: { name: { contains: term, mode: "insensitive" } } },
+          { department: { nameEn: { contains: term, mode: "insensitive" } } },
+        ],
+      }
+    : {};
+
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
   // detail page surfaces role-appropriate action forms.
   const [pending, approved, upcoming, todayShift, allDrivers] = await Promise.all([
     prisma.booking.findMany({
       // P'Top's decision queue: normal pending plus over-capacity WAITLIST
       // cases (the 11th+ booking of a day) for him to fit or deny.
-      where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] } },
+      where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] }, ...searchFilter },
       orderBy: { startAt: "asc" },
       include: { requester: true, department: true },
     }),
     prisma.booking.findMany({
-      where: { status: "APPROVED" },
+      where: { status: "APPROVED", ...searchFilter },
       orderBy: { createdAt: "asc" },
+      take: 50, // bounded — the awaiting-assignment log shouldn't grow without limit
       include: { requester: true, department: true },
     }),
     prisma.booking.findMany({
-      where: { status: "ASSIGNED", endAt: { gte: new Date() } },
+      where: { status: "ASSIGNED", endAt: { gte: new Date() }, ...searchFilter },
       orderBy: { startAt: "asc" },
       take: 20,
       include: { vehicle: true, primaryDriver: { include: { user: true } } },
@@ -193,6 +214,31 @@ export default async function AdminQueue() {
         title={t("title")}
         description={t("description", { count: approved.length })}
       />
+
+      <form action="/admin" className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          name="q"
+          defaultValue={term}
+          placeholder={t("searchPlaceholder")}
+          aria-label={t("searchPlaceholder")}
+          className="h-10 w-full max-w-xs rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        <button
+          type="submit"
+          className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          {t("search")}
+        </button>
+        {term && (
+          <Link
+            href="/admin"
+            className="inline-flex h-10 items-center rounded-md border px-4 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t("clear")}
+          </Link>
+        )}
+      </form>
 
       {slaOverdue > 0 && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
