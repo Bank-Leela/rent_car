@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db";
 import type { Role } from "@prisma/client";
 
 export const DEV_COOKIE = "dev_user_id";
-// Dev impersonation runs in development by default. In production, set
-// ENABLE_DEV_AUTH=true to keep it on (useful for stakeholder previews before
-// real Google OAuth is configured). Remove that env var once OAuth is live —
-// otherwise anyone with the URL can become admin.
-export const DEV_ENABLED =
-  process.env.NODE_ENV !== "production" || process.env.ENABLE_DEV_AUTH === "true";
+// Dev impersonation runs ONLY outside production (NODE_ENV !== "production").
+// There is deliberately NO env escape hatch: getDevSession() is preferred over
+// real auth, and /api/dev/sign-in sets the session from a bare user id, so a
+// single flag flipped on the production host would turn it into credential-free
+// impersonation of any user (incl. ADMIN). A preview that needs it must run a
+// non-production build.
+export const DEV_ENABLED = process.env.NODE_ENV !== "production";
 
 export type DevSession = {
   user: {

@@ -160,6 +160,7 @@ sets up the schema automatically. `postinstall` runs `prisma generate`.
   read-only outside `/tmp`, and `/tmp` doesn't persist across instances. PDFs
   generated in one request may not be downloadable later. Move `lib/storage.ts`
   to Vercel Blob or S3 before going live to real users.
-- **Dev impersonation is disabled in production** (`NODE_ENV !== "production"`
-  gate; set `ENABLE_DEV_AUTH=true` to keep it on for stakeholder previews).
-  Sign-in is admin-provisioned username/password (Auth.js Credentials) — no OAuth.
+- **Dev impersonation is disabled in production** — hard-gated on
+  `NODE_ENV !== "production"` with no env escape hatch (it would be a
+  credential-free admin backdoor). Sign-in is admin-provisioned
+  username/password (Auth.js Credentials) — no OAuth.
