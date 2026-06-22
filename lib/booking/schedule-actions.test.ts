@@ -1,0 +1,176 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { addDays, startOfDay } from "date-fns";
+
+// Run the server actions outside a request: mock Next runtime + i18n + session
+// (as ADMIN) + side-effect clients. Seeds against the real dev DB (like
+// actions.test.ts), so this exercises the actual overlap SELECT + persistence —
+// the no-double-book rule the whole subsystem exists to enforce.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async () => (k: string) => k),
+}));
+vi.mock("@/lib/session", () => ({
+  getSession: vi.fn(async () => ({ user: { id: "seed-user-admin", roles: ["ADMIN"] } })),
+}));
+vi.mock("@/lib/email/client", () => ({ sendEmail: vi.fn(async () => {}) }));
+vi.mock("@/lib/line/client", () => ({ sendLineNotification: vi.fn(async () => {}) }));
+
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import {
+  reassignVehicleAction,
+  unassignBookingAction,
+  resolveScheduleConflictsAction,
+} from "@/lib/booking/schedule-actions";
+
+const REQ_ID = "seed-user-requester";
+const DEPT = "seed-dept-medicine";
+const MARKER = "RESCH-TEST";
+// A quiet far-future day (beyond the seed's ~21-day duty roster + demo data) so
+// nothing else collides on the cars we test.
+const DAY = startOfDay(addDays(new Date(), 90));
+
+const createdIds: string[] = [];
+let jnSeq = 0;
+const jn = () => `VB-RESCH-${Date.now()}-${jnSeq++}`;
+const at = (h: number, m = 0) => {
+  const d = new Date(DAY);
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+const iso = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+function fd(o: Record<string, string>): FormData {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(o)) f.append(k, v);
+  return f;
+}
+
+type V = { id: string; driverId: string };
+let vA: V;
+let vB: V;
+
+async function mkBooking(
+  over: Partial<Prisma.BookingUncheckedCreateInput> & { startAt: Date; endAt: Date },
+) {
+  const b = await prisma.booking.create({
+    data: {
+      jobNumber: jn(),
+      requesterId: REQ_ID,
+      departmentId: DEPT,
+      purpose: MARKER,
+      destination: "Test",
+      province: "กรุงเทพมหานคร",
+      passengerCount: 1,
+      jobType: "NORMAL",
+      timeBucket: "MORNING_08_12",
+      status: "APPROVED",
+      ...over,
+    },
+  });
+  createdIds.push(b.id);
+  return b;
+}
+
+beforeAll(async () => {
+  const admin = await prisma.user.findUnique({ where: { id: "seed-user-admin" } });
+  const req = await prisma.user.findUnique({ where: { id: REQ_ID } });
+  if (!admin || !req) throw new Error("Seed users missing — run `npm run db:seed` first.");
+
+  const vehicles = await prisma.vehicle.findMany({
+    where: { isActive: true, assignedDriverId: { not: null } },
+    orderBy: { registrationNumber: "asc" },
+    select: { id: true, assignedDriverId: true },
+  });
+  if (vehicles.length < 2) throw new Error("Need ≥2 paired active vehicles — run the seed.");
+  vA = { id: vehicles[0].id, driverId: vehicles[0].assignedDriverId! };
+  vB = { id: vehicles[1].id, driverId: vehicles[1].assignedDriverId! };
+});
+
+afterAll(async () => {
+  // Sweep by id + the marker purpose (catches rows from a failed assertion).
+  const extra = await prisma.booking.findMany({ where: { purpose: MARKER }, select: { id: true } });
+  const ids = [...new Set([...createdIds, ...extra.map((r) => r.id)])];
+  if (ids.length) {
+    await prisma.auditLog.deleteMany({ where: { bookingId: { in: ids } } });
+    await prisma.bookingClaim.deleteMany({ where: { bookingId: { in: ids } } });
+    await prisma.booking.deleteMany({ where: { id: { in: ids } } });
+  }
+  await prisma.$disconnect();
+});
+
+describe("reassignVehicleAction — the no-overlap rule", () => {
+  it("BLOCKS an overlapping drop on the same car and names the conflict", async () => {
+    const kept = await mkBooking({
+      startAt: at(9), endAt: at(11), vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+    const mover = await mkBooking({ startAt: at(10), endAt: at(12) }); // overlaps kept
+
+    const res = await reassignVehicleAction(fd({ bookingId: mover.id, vehicleId: vA.id }));
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toBe("vehicleBusy");
+      expect(res.conflicts?.map((c) => c.jobNumber)).toContain(kept.jobNumber);
+    }
+    // mover is untouched — still unassigned.
+    const after = await prisma.booking.findUnique({ where: { id: mover.id } });
+    expect(after?.vehicleId).toBeNull();
+    expect(after?.status).toBe("APPROVED");
+  });
+
+  it("ASSIGNS to a free car (status ASSIGNED + that car's driver)", async () => {
+    const mover = await mkBooking({ startAt: at(13), endAt: at(15) });
+    const res = await reassignVehicleAction(fd({ bookingId: mover.id, vehicleId: vB.id }));
+
+    expect(res.ok).toBe(true);
+    const after = await prisma.booking.findUnique({ where: { id: mover.id } });
+    expect(after?.vehicleId).toBe(vB.id);
+    expect(after?.primaryDriverId).toBe(vB.driverId);
+    expect(after?.status).toBe("ASSIGNED");
+  });
+});
+
+describe("unassignBookingAction", () => {
+  it("clears car + driver and returns the trip to APPROVED / UNCLAIMED", async () => {
+    const b = await mkBooking({
+      startAt: at(16), endAt: at(18), vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+    const res = await unassignBookingAction(fd({ bookingId: b.id }));
+
+    expect(res.ok).toBe(true);
+    const after = await prisma.booking.findUnique({ where: { id: b.id } });
+    expect(after?.vehicleId).toBeNull();
+    expect(after?.primaryDriverId).toBeNull();
+    expect(after?.status).toBe("APPROVED");
+    expect(after?.driverScheduleStatus).toBe("UNCLAIMED");
+  });
+});
+
+describe("resolveScheduleConflictsAction", () => {
+  it("re-homes the loser of an overlap and keeps the higher-priority trip on its car", async () => {
+    // Legacy-style illegal overlap on vA: a TJW (high priority, stays) + a
+    // NORMAL (loser, must move). reassign can't create this, so seed it directly.
+    const keep = await mkBooking({
+      jobType: "TJW", outOfProvince: true, estimatedDistance: 100,
+      startAt: at(9), endAt: at(13), vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+    const loser = await mkBooking({
+      jobType: "NORMAL",
+      startAt: at(10), endAt: at(11), vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+
+    const res = await resolveScheduleConflictsAction(fd({ date: iso(DAY) }));
+
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.resolved).toBeGreaterThanOrEqual(1);
+
+    const keptAfter = await prisma.booking.findUnique({ where: { id: keep.id } });
+    const loserAfter = await prisma.booking.findUnique({ where: { id: loser.id } });
+    expect(keptAfter?.vehicleId).toBe(vA.id); // TJW pinned to its car
+    expect(loserAfter?.vehicleId).toBeTruthy(); // moved to a real car…
+    expect(loserAfter?.vehicleId).not.toBe(vA.id); // …a different one (overlap resolved)
+  });
+});
