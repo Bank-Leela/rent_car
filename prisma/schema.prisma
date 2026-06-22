@@ -394,6 +394,12 @@ model Booking {
 
   @@index([status, createdAt])
   @@index([startAt])
+  // Hot paths: the no-overlap check + board/calendar load filter on a car or a
+  // driver over a time window; the committed/day queries filter status + range.
+  @@index([vehicleId, startAt])
+  @@index([primaryDriverId, startAt])
+  @@index([secondaryDriverId, startAt])
+  @@index([status, startAt, endAt])
 }
 
 // One driver is on-call (รถเวร) per calendar day. The auto-assign algorithm
