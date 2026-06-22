@@ -60,6 +60,19 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   `ESCALATE` (default, unchanged) raises `NEEDS_WERN_RECLAIM_DECISION`;
   `AUTO_RECLAIM` takes the duty driver as the co-driver; `PROTECT_WERN` overflows
   `NO_SECONDARY_DRIVER`. Default stays ESCALATE → no prod behaviour change.
+- **Improvement audit (49 findings) → quick-wins + high-impact shipped.** Quick
+  wins: closed the dev-auth prod backdoor (`lib/dev-auth.ts`, no env escape
+  hatch), Booking overlap/FK indexes, single-sourced the 400km/work-hour
+  constants, WAITLIST explanation card + confirm-before-disable. High-impact: DB
+  integration tests for the no-double-book rule (`schedule-actions.test.ts`),
+  LINE webhook fail-closed + signature timing-safe + dropped the email-bind
+  hijack (`route.ts` + `tests/line-webhook.test.ts`), admin console search +
+  capped the approved query. **Driver decline path**: a driver can decline an
+  ASSIGNED trip (`declineAssignmentAction`) — sends it back to the APPROVED
+  queue, logs `DRIVER_DECLINED` + reason, emails admins; `DeclineForm` on the
+  driver detail page. 247 tests. Deferred (larger): the single batch auto-assign
+  action (scheduling-core refactor) and in-app notifications (new model +
+  migration). Roadmap also flagged a DB-level EXCLUDE no-double-book constraint.
 
 ### Previous session — scheduling correctness + board UX
 

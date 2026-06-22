@@ -8,6 +8,7 @@ import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { StartTripForm, EndTripForm } from "@/components/forms/trip-forms";
+import { DeclineForm } from "@/components/forms/decline-form";
 import { Field as DetailField } from "@/components/detail-field";
 import {
   ClaimButton,
@@ -184,6 +185,18 @@ export default async function DriverBookingDetail({
           </CardHeader>
           <CardContent>
             <StartTripForm bookingId={booking.id} />
+          </CardContent>
+        </Card>
+      )}
+
+      {!tripStarted && booking.status === "ASSIGNED" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("declineTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-muted-foreground">{t("declineHint")}</p>
+            <DeclineForm bookingId={booking.id} />
           </CardContent>
         </Card>
       )}

@@ -35,6 +35,8 @@
     "endBeforeStart": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น",
     "cannotEditInStatus": "ไม่สามารถแก้ไขการจองในสถานะนี้ได้ ({status})",
     "notADriver": "บัญชีของคุณไม่ใช่พนักงานขับรถที่ใช้งานอยู่",
+    "notYourTrip": "งานนี้ไม่ได้มอบหมายให้คุณ",
+    "cannotDeclineInStatus": "ไม่สามารถปฏิเสธงานที่สถานะ {status} ได้",
     "cannotClaimInStatus": "ไม่สามารถรับงานในสถานะนี้ได้ ({status})",
     "claimRoleTaken": "พนักงานขับรถคนอื่นรับตำแหน่งนี้ไปแล้ว",
     "claimAlreadyHeld": "คุณรับอีกตำแหน่งในการจองนี้อยู่แล้ว",
@@ -537,7 +539,15 @@
     "notesOptional": "หมายเหตุ (ไม่บังคับ)",
     "ending": "กำลังจบ…",
     "endTrip": "จบทริป",
-    "startedAt": "เริ่มเวลา {time} · {km} กม."
+    "startedAt": "เริ่มเวลา {time} · {km} กม.",
+    "declineTitle": "ไปงานนี้ไม่ได้?",
+    "declineHint": "แจ้งเหตุผลให้สำนักงานทราบ แล้วงานจะถูกส่งกลับไปจัดรถใหม่ ทำได้เฉพาะก่อนเริ่มงาน",
+    "declineTrip": "ไปงานนี้ไม่ได้",
+    "declineReason": "เหตุผล",
+    "declineReasonPlaceholder": "เช่น ลาพัก รถมีปัญหา งานซ้อน…",
+    "declining": "กำลังส่ง…",
+    "confirmDecline": "ปฏิเสธและแจ้งสำนักงาน",
+    "declineCancel": "ไม่ปฏิเสธ"
   },
   "signatureForm": {
     "imageLabel": "ไฟล์ลายเซ็น (PNG หรือ JPEG, ≤1 MB)",

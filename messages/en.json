@@ -35,6 +35,8 @@
     "endBeforeStart": "End time must be after start time.",
     "cannotEditInStatus": "Cannot edit a booking in this status ({status}).",
     "notADriver": "Your account is not an active driver.",
+    "notYourTrip": "This trip isn't assigned to you.",
+    "cannotDeclineInStatus": "Can't decline a trip that is {status}.",
     "cannotClaimInStatus": "Cannot claim a booking in this status ({status}).",
     "claimRoleTaken": "Another driver already holds that role.",
     "claimAlreadyHeld": "You already hold the other role on this booking.",
@@ -537,7 +539,15 @@
     "notesOptional": "Notes (optional)",
     "ending": "Ending…",
     "endTrip": "End trip",
-    "startedAt": "Started at {time} · {km} km"
+    "startedAt": "Started at {time} · {km} km",
+    "declineTitle": "Can't do this trip?",
+    "declineHint": "Tell the office why and it goes back to them to reassign. Only before you start the trip.",
+    "declineTrip": "Can't do this trip",
+    "declineReason": "Reason",
+    "declineReasonPlaceholder": "e.g. on leave, vehicle issue, double-booked…",
+    "declining": "Sending…",
+    "confirmDecline": "Decline & notify office",
+    "declineCancel": "Keep it"
   },
   "signatureForm": {
     "imageLabel": "Signature image (PNG or JPEG, ≤1 MB)",

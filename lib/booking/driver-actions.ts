@@ -12,7 +12,15 @@ import {
   confirmScheduleSchema,
 } from "@/lib/booking/schema";
 import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
+import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
+import { sendEmail } from "@/lib/email/client";
+import { adminNewBookingEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
+
+const declineSchema = z.object({
+  bookingId: z.string().min(1),
+  reason: z.string().min(3, "Reason is required").max(1000),
+});
 
 const startSchema = z.object({
   bookingId: z.string().min(1),
@@ -364,5 +372,104 @@ export async function confirmScheduleAction(formData: FormData): Promise<ActionR
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
   revalidatePath(`/requester/${bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Driver declines an ASSIGNED trip they can't do. Unlike releaseClaimAction
+ * (the board self-scheduling path, which blocks after CONFIRMED), this is the
+ * "I'm assigned but unavailable" escape: it sends the whole trip back to the
+ * APPROVED queue for the admin to re-dispatch, records the reason on the audit
+ * log, and emails admins. A driver can't silently no-show — admin is made aware.
+ */
+export async function declineAssignmentAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("DRIVER");
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const parsed = declineSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId, reason } = parsed.data;
+
+  if (!(await canDriveBooking(userId, bookingId))) {
+    return { ok: false, error: te("notYourTrip") };
+  }
+
+  const booking = await prisma.booking.findUniqueOrThrow({
+    where: { id: bookingId },
+    select: { status: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
+  });
+  // Only a live assignment can be declined.
+  if (booking.status !== "ASSIGNED") {
+    return { ok: false, error: te("cannotDeclineInStatus", { status: ts(booking.status) }) };
+  }
+
+  const freedDrivers = [booking.primaryDriverId, booking.secondaryDriverId].filter(
+    (id): id is string => !!id,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.bookingClaim.deleteMany({ where: { bookingId } });
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        vehicleId: null,
+        primaryDriverId: null,
+        secondaryDriverId: null,
+        status: "APPROVED",
+        driverScheduleStatus: "UNCLAIMED",
+        decidedAt: null,
+        overflowReason: null,
+        escalatedToKhunTop: false,
+      },
+    });
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "ASSIGNED",
+      toStatus: "APPROVED",
+      action: "DRIVER_DECLINED",
+      metadata: { reason, freedDrivers },
+      tx,
+    });
+  });
+
+  // Freed drivers' category stamps recompute from their remaining trips (this
+  // one is gone now) — same rollback the cancel/unassign paths use.
+  for (const driverId of freedDrivers) {
+    await recomputeRotationStamp(driverId, booking.jobType);
+  }
+
+  // Notify admins the trip is back in the assignment queue (decline reason is on
+  // the audit log). Failure here doesn't block the decline.
+  try {
+    const detailed = await prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: {
+        requester: true,
+        department: true,
+        vehicle: true,
+        primaryDriver: { include: { user: true } },
+        secondaryDriver: { include: { user: true } },
+      },
+    });
+    const admins = await prisma.user.findMany({
+      where: { roles: { some: { role: "ADMIN" } }, isActive: true },
+      select: { email: true },
+    });
+    const to = admins.map((a) => a.email).filter((e): e is string => !!e);
+    if (to.length > 0) await sendEmail({ to, ...adminNewBookingEmail(detailed) });
+  } catch (err) {
+    console.error("[decline] admin notify failed", err);
+  }
+
+  revalidatePath("/driver");
+  revalidatePath("/driver/board");
+  revalidatePath(`/driver/${bookingId}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
   return { ok: true };
 }
