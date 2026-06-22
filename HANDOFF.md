@@ -43,7 +43,7 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
 - **Requester confirmation:** NEW route `/requester/upcoming`
   (`app/(requester)/requester/upcoming/page.tsx`) — the confirmed (driver-assigned)
   trips for today/tomorrow.
-- **Test suite: 233 tests** across 21 files. New pure unit tests:
+- **Test suite: 255 tests** across 25 files. New pure unit tests:
   `triage.test.ts` (12) and `conflict-resolve.test.ts` (16).
 - **A rejected board drop now names the conflict.** `reassignVehicleAction`
   returns the conflicting trip(s) on a `vehicleBusy` block (new `ReassignConflict`
@@ -70,7 +70,7 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   capped the approved query. **Driver decline path**: a driver can decline an
   ASSIGNED trip (`declineAssignmentAction`) — sends it back to the APPROVED
   queue, logs `DRIVER_DECLINED` + reason, emails admins; `DeclineForm` on the
-  driver detail page. 247 tests. Deferred (larger): the single batch auto-assign
+  driver detail page. 255 tests. Deferred (larger): the single batch auto-assign
   action (scheduling-core refactor) and in-app notifications (new model +
   migration). Roadmap also flagged a DB-level EXCLUDE no-double-book constraint.
 
@@ -179,7 +179,7 @@ All 5 phases of `claude_code_implementation_plan.md` shipped.
   email-in-chat onboarding. See `memory/line_scope.md`.
 - **Resend**: optional. `RESEND_API_KEY` empty -> console fallback.
   README §5 has the signup walkthrough.
-- **Test residue**: the suite is **233 tests across 21 files**; most are pure
+- **Test residue**: the suite is **255 tests across 25 files**; most are pure
   unit tests, but a few `lib/booking/*.test.ts` (e.g. `actions.test.ts`) insert +
   delete fixture rows on the real dev DB. `scripts/seed-calendar-cluster.ts` injects 3
   same-day bookings on `today+7d` to demo the density tint and
