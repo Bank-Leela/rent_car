@@ -47,6 +47,16 @@ export interface MatchResult {
 }
 
 export function match(input: MatchInput): { ok: true; result: MatchResult } | { ok: false; error: MatchError } {
+  // A WERN (duty) slot is the day's on-call driver's job — assign them directly,
+  // bypassing the fair pick that reserves the duty driver out of every match.
+  // No duty rostered → NO_PRIMARY_DRIVER; the duty driver has no car → NO_SLOT.
+  if (input.jobType === "WERN") {
+    if (!input.onCallDriverId) return { ok: false, error: "NO_PRIMARY_DRIVER" };
+    const vehicleId = input.driverCar.get(input.onCallDriverId) ?? null;
+    if (!vehicleId) return { ok: false, error: "NO_SLOT" };
+    return { ok: true, result: { vehicleId, primaryDriverId: input.onCallDriverId, secondaryDriverId: null } };
+  }
+
   // car=driver: pick the driver first; the vehicle is whatever car that driver
   // is assigned to. Picking the driver IS picking the car.
   const availableIds = new Set(filterAvailable(input.newTrip, input.driverAvailability));

@@ -304,3 +304,29 @@ describe("match — OT cap exemption flows through the matcher (job-type-aware c
     if (r.ok) expect(r.result.primaryDriverId).toBe("A");
   });
 });
+
+describe("match — WERN routes to the on-call duty driver", () => {
+  const T = (hm: string) => new Date(`2026-06-10T${hm}:00`);
+  const wernInput = (onCallDriverId: string | null) => ({
+    jobType: "WERN" as const,
+    timeBucket: "MORNING_08_12" as const,
+    newTrip: { startAt: T("08:00"), endAt: T("12:00"), jobType: "WERN" as const },
+    estimatedDistance: null,
+    driverCar,
+    driverMatrix: buildDriverMatrix(drivers, []),
+    driverAvailability: availabilityForAll(),
+    driverRankInputs: rankInputs,
+    onCallDriverId,
+  });
+
+  it("assigns a WERN slot to the on-call driver, bypassing the fair pick", () => {
+    expect(match(wernInput("A"))).toEqual({
+      ok: true,
+      result: { vehicleId: "vA", primaryDriverId: "A", secondaryDriverId: null },
+    });
+  });
+
+  it("NO_PRIMARY_DRIVER when no on-call driver is rostered", () => {
+    expect(match(wernInput(null))).toEqual({ ok: false, error: "NO_PRIMARY_DRIVER" });
+  });
+});

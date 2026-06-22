@@ -53,6 +53,24 @@ export type Placement =
 export function recommendPlacement(input: RecoInput): Placement {
   const { booking, needsSecondary, dutyDriverId, drivers } = input;
 
+  // A WERN (duty) slot belongs to the on-call driver — recommend them, not the
+  // fair non-duty pool (which filters the duty driver out). Falls through if the
+  // duty driver can't legally take it or none is rostered.
+  if (booking.jobType === "WERN" && dutyDriverId) {
+    const duty = drivers.find((d) => d.driverId === dutyDriverId && d.vehicleId && canChain(booking, d.trips));
+    if (duty) {
+      return {
+        kind: "fit",
+        driverId: duty.driverId,
+        vehicleId: duty.vehicleId!,
+        driverName: duty.driverName,
+        registrationNumber: duty.registrationNumber,
+        secondaryDriverId: null,
+        secondaryDriverName: null,
+      };
+    }
+  }
+
   const free = drivers
     .filter((d) => d.driverId !== dutyDriverId)
     .filter((d) => d.vehicleId)

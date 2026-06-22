@@ -166,3 +166,16 @@ describe("recommendPlacement — gap boundary, cap shape, reclaim", () => {
     expect(r).toMatchObject({ kind: "fit", driverId: "B", secondaryDriverId: "C" });
   });
 });
+
+describe("recommendPlacement — WERN goes to the duty driver", () => {
+  it("recommends the on-call driver for a WERN slot, not the free non-duty pool", () => {
+    const r = recommendPlacement({
+      booking: { startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T12:00:00"), jobType: "WERN" },
+      needsSecondary: false,
+      dutyDriverId: "A",
+      // Without the fix, A (duty) is filtered out and B is recommended.
+      drivers: [drv("A"), drv("B")],
+    });
+    expect(r).toMatchObject({ kind: "fit", driverId: "A", vehicleId: "vA", secondaryDriverId: null });
+  });
+});

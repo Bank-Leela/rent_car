@@ -525,3 +525,32 @@ describe("solveDay — category rotation + distance boundary", () => {
     expect(solveDay(longTrip(null)).assignments[0]!.secondaryDriverId).toBeNull();
   });
 });
+
+describe("solveDay — WERN goes to the on-call duty driver (docs §1)", () => {
+  const wern = () =>
+    booking({ bookingId: "w1", jobType: "WERN", startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T12:00:00") });
+
+  it("assigns a WERN slot to the rostered duty driver, not a fair pick", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [wern()],
+      // A is the on-call driver; without the fix A is reserved out and B wins.
+      drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
+      dutyDriverId: "A",
+      activeTjwCommitments: [],
+    });
+    expect(out.overflows).toHaveLength(0);
+    expect(out.assignments[0]).toMatchObject({ bookingId: "w1", primaryDriverId: "A" });
+  });
+
+  it("falls back to the duty rotation when no on-call driver is rostered", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [wern()],
+      drivers: [driver({ driverId: "A", lastDutyAt: D("2026-06-01") }), driver({ driverId: "B", lastDutyAt: null })],
+      dutyDriverId: null, // no OnCallShift → pickDutyRotation (null lastDutyAt = oldest → B)
+      activeTjwCommitments: [],
+    });
+    expect(out.assignments[0]?.primaryDriverId).toBe("B");
+  });
+});

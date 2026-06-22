@@ -230,6 +230,26 @@ function placeBooking(
   phaseC: boolean,
   wernReclaimPolicy: Required<SolverConfig>["wernReclaimPolicy"],
 ): PlaceResult {
+  // A WERN (duty) slot belongs to the day's on-call driver (docs §1 + this file's
+  // header §WERN: "OnCallShift if set"). eligibleForPrimary reserves the duty
+  // driver out of every pick, so route WERN to them explicitly; if they can't
+  // take it (away / overlap) or none is rostered, fall through to the duty
+  // rotation below.
+  if (booking.jobType === "WERN" && dutyDriverId) {
+    // ...but only if they're fully available today. A driver still away on a TJW
+    // (awayOnTjw) or one that only returned mid-day (isTjwReturneeOtEligible —
+    // away through the morning) can't run the campus-rounds window, so the WERN
+    // falls through to the duty rotation below.
+    const duty = drivers.find(
+      (d) =>
+        d.driverId === dutyDriverId &&
+        !d.awayOnTjw &&
+        !d.isTjwReturneeOtEligible &&
+        canDriverTakeNew(drivers, dutyDriverId, booking),
+    );
+    if (duty) return { kind: "ok", primaryDriverId: dutyDriverId, secondaryDriverId: null };
+  }
+
   // Primary candidates depend on category.
   const primaryEligible = eligibleForPrimary(drivers, booking, dutyDriverId, phaseC);
   const primaryRanked = rankForCategory(primaryEligible, booking.jobType, drivers);
