@@ -6,8 +6,9 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
-import type { SchedulerBooking } from "@/components/admin/scheduler-board-shared";
+import { type SchedulerBooking, carLabel } from "@/components/admin/scheduler-board-shared";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
+import { DraftReviewPanel, type DraftMove } from "@/components/admin/draft-review-panel";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { findConflictLosers } from "@/lib/booking/conflict-resolve";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
@@ -32,7 +33,7 @@ export default async function SchedulePage({
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
 
-  const [vehicles, dayBookings, onCall, adHocRowsRaw, outsourcedRaw] = await Promise.all([
+  const [vehicles, dayBookings, onCall, adHocRowsRaw, outsourcedRaw, submittedDrafts] = await Promise.all([
     prisma.vehicle.findMany({
       where: { isActive: true },
       // Stable order so the A–F labels stay put day-to-day (duty rotates, not the label).
@@ -95,6 +96,16 @@ export default async function SchedulePage({
         adHocVehicleId: true,
       },
     }),
+    // Submitted driver trade draft (global, not day-scoped) for P'Top's review banner.
+    prisma.bookingDraft.findMany({
+      where: { submitted: true },
+      orderBy: { booking: { startAt: "asc" } },
+      select: {
+        bookingId: true,
+        proposedVehicleId: true,
+        booking: { select: { jobNumber: true, purpose: true, startAt: true, vehicleId: true } },
+      },
+    }),
   ]);
 
   // car=driver: the duty car is the on-call driver's own car — always resolvable.
@@ -112,6 +123,23 @@ export default async function SchedulePage({
     const driverName = du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null;
     return { id: v.id, registrationNumber: v.registrationNumber, driverName };
   });
+
+  // Human label for a car (A–F · driver) or the queue, for the trade-draft banner.
+  const carDesc = (vid: string | null) => {
+    if (!vid) return t("draftQueueLabel");
+    const i = vehicleRows.findIndex((v) => v.id === vid);
+    if (i < 0) return "—";
+    const v = vehicleRows[i]!;
+    return `${carLabel(i)} · ${v.driverName ?? v.registrationNumber}`;
+  };
+  const draftMoves: DraftMove[] = submittedDrafts.map((d) => ({
+    bookingId: d.bookingId,
+    jobNumber: d.booking.jobNumber,
+    purpose: d.booking.purpose,
+    startLabel: format(d.booking.startAt, "EEE d MMM HH:mm", { locale: dfLocale }),
+    from: carDesc(d.booking.vehicleId),
+    to: carDesc(d.proposedVehicleId),
+  }));
 
   // Roster: every schedulable driver + whether they're marked off (sick/leave)
   // for the viewed day. Marking off excludes them from the day's auto-assign.
@@ -285,6 +313,19 @@ export default async function SchedulePage({
           </Link>
         </div>
       </div>
+
+      {draftMoves.length > 0 && (
+        <DraftReviewPanel
+          moves={draftMoves}
+          labels={{
+            title: t("draftReviewTitle"),
+            summary: t("draftReviewSummary", { count: draftMoves.length }),
+            apply: t("draftApply"),
+            dismiss: t("draftDismiss"),
+            skipped: t("draftSkipped"),
+          }}
+        />
+      )}
 
       <DriverRosterControl drivers={roster} date={isoOf(dayStart)} />
 

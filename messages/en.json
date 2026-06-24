@@ -122,7 +122,42 @@
     "profile": "Profile",
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board",
-    "decisions": "My decisions"
+    "decisions": "My decisions",
+    "simulate": "Simulate"
+  },
+  "simulate": {
+    "title": "Placement simulator",
+    "subtitle": "Run one job through the real auto-assign solver against a day's live schedule and see which slot it picks. Nothing is saved.",
+    "date": "Day",
+    "jobType": "Job type",
+    "km": "Distance (km, optional)",
+    "kmPlaceholder": "e.g. 450 for a co-driver",
+    "start": "Start",
+    "end": "End",
+    "run": "Simulate",
+    "running": "Simulating…",
+    "kindFit": "Slot",
+    "kindReclaim": "Duty-car reclaim",
+    "coDriver": "co-driver",
+    "reclaimDetail": "No free non-duty car fit — the algorithm falls back to the duty car.",
+    "noneTitle": "No slot — overflow",
+    "reason_NO_SLOT": "No free car for this job — it would overflow (waitlist / outsource).",
+    "reason_NO_PRIMARY_DRIVER": "No eligible driver free at this time (rotation, 2h gap, or daily cap).",
+    "reason_NO_SECONDARY_DRIVER": "Found a primary driver, but no free co-driver for this >400km trip.",
+    "reason_NEEDS_WERN_RECLAIM_DECISION": "Only the duty car could take it — needs your reclaim-vs-outsource decision.",
+    "dutyContext": "Duty driver that day: {name}.",
+    "dutyNone": "No duty driver rostered that day.",
+    "jt_NORMAL": "normal trip",
+    "jt_OT": "overtime",
+    "jt_TJW": "multi-day work-away",
+    "jt_WERN": "campus duty",
+    "jt_SMUS": "special / event",
+    "error_invalidDate": "Pick a valid day.",
+    "error_invalidTime": "Enter valid start and end times.",
+    "error_invalidJobType": "Pick a job type.",
+    "error_endBeforeStart": "End must be after start.",
+    "error_invalidKm": "Distance must be a positive number.",
+    "error_noDrivers": "No active, car-paired drivers to simulate against."
   },
   "decisions": {
     "title": "My decisions",
@@ -205,7 +240,13 @@
     "resultSummary": "{assigned} assigned, {failed} could not be matched",
     "prevDay": "Previous day",
     "nextDay": "Next day",
-    "assignReco": "Assign"
+    "assignReco": "Assign",
+    "draftQueueLabel": "Unassigned",
+    "draftReviewTitle": "Driver trade proposal",
+    "draftReviewSummary": "The drivers submitted {count} proposed move(s). Apply to commit them, or dismiss.",
+    "draftApply": "Apply",
+    "draftDismiss": "Dismiss",
+    "draftSkipped": "{count} move(s) couldn't be applied (car busy or no driver) — still pending below."
   },
   "fleet": {
     "title": "Cars & drivers",
@@ -894,6 +935,18 @@
     "onCall": "On-call (duty)",
     "onCallNote": "Campus duty rounds 08:00–16:00",
     "scheduleAllHeading": "All upcoming",
-    "scheduleHistoryHeading": "Past trips (last 14 days)"
+    "scheduleHistoryHeading": "Past trips (last 14 days)",
+    "tabOfficial": "Official",
+    "tabDraft": "Trade board",
+    "draftHint": "Drag trips between cars to propose a swap. This is a draft — nothing changes until you Submit and P'Top applies it.",
+    "draftQueue": "Unassigned",
+    "draftQueueEmpty": "No unassigned trips — drag a trip here to take it off a car.",
+    "draftMoved": "moved",
+    "draftSubmit": "Submit to P'Top",
+    "draftSubmitted": "Submitted — waiting for P'Top",
+    "draftReset": "Reset",
+    "draftWithdraw": "Withdraw",
+    "draftLockedHint": "Submitted to P'Top — locked for review. Withdraw to keep editing.",
+    "draftError": "Couldn't save that move — it may already be submitted or no longer schedulable."
   }
 }

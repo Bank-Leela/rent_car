@@ -20,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ];
   if (roles.includes("ADMIN")) {
     nav.push({ href: "/admin/schedule", label: t("schedule") });
+    nav.push({ href: "/admin/simulate", label: t("simulate") });
     nav.push({ href: "/admin/batch", label: t("batch") });
     nav.push({ href: "/admin/users", label: t("users") });
   }
