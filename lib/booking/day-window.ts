@@ -17,6 +17,19 @@ export type DaySpan = {
 
 const localHour = (d: Date) => d.getHours() + d.getMinutes() / 60;
 
+// Airline-style day-offset marker relative to the viewed day: "" for same day,
+// "⁺1"/"⁺2" for later days, "⁻1" for earlier — e.g. an 18:00 arrival on the day
+// after the viewed one renders "18:00⁺1". viewedDayStart is the local midnight.
+const SUP: Record<string, string> = {
+  "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+  "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
+};
+export function daySuperscript(d: Date, viewedDayStart: Date): string {
+  const n = Math.round((startOfDay(d).getTime() - viewedDayStart.getTime()) / 86_400_000);
+  if (n === 0) return "";
+  return (n > 0 ? "⁺" : "⁻") + String(Math.abs(n)).split("").map((c) => SUP[c] ?? c).join("");
+}
+
 export function daySpan(startAt: Date, endAt: Date, dayStart: Date, dayEnd: Date): DaySpan {
   const continuesBefore = startAt < dayStart;
   // Strictly after the day's last instant — a trip ending exactly at midnight

@@ -257,7 +257,13 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
         outsourceCost,
         outsourceReference,
         needsOutsourcing: true,
-        status: "ASSIGNED",
+        // OUTSOURCED is fully off-algorithm — clear the fleet car/drivers so the
+        // trip no longer holds a slot or counts in fairness (unified with the
+        // board's drag-to-external-row flow).
+        status: "OUTSOURCED",
+        vehicleId: null,
+        primaryDriverId: null,
+        secondaryDriverId: null,
         decidedAt: new Date(),
       },
     });
@@ -265,7 +271,7 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
       bookingId,
       actorUserId: adminId,
       fromStatus: "APPROVED",
-      toStatus: "ASSIGNED",
+      toStatus: "OUTSOURCED",
       action: "BOOKING_OUTSOURCED",
       metadata: { outsourceVendor, outsourceCost, outsourceReference },
       tx,

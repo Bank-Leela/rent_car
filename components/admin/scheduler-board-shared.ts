@@ -20,6 +20,11 @@ export type SchedulerBooking = {
   timeLabel: string;
   // End time as "HH:mm", with "↩ <return date>" when it ends on a later day.
   endLabel: string;
+  // Full departure / arrival as "<weekday> <date> <time>" (e.g. "อ. 22 มิ.ย. 06:00").
+  // For a multi-day trip the block shows these pinned to its two ends so the whole
+  // span (which day → which day, depart time, arrive time) is visible on any day.
+  departLabel: string;
+  arriveLabel: string;
   startHour: number;
   endHour: number;
   // True when this trip spills past the viewed day's start/end (multi-day) — the
@@ -38,6 +43,10 @@ export type SchedulerBooking = {
   secondaryDriverName: string | null;
   secondaryDriverId: string | null;
   secondaryVehicleId: string | null;
+  // Long-haul (>400km) trip that's assigned (car + primary) but has NO co-driver
+  // yet — surfaced as a "parked" co-driver card in the queue, draggable onto a
+  // car to fill the slot. Set when a co-driver is dragged off, or never assigned.
+  needsCoDriver: boolean;
 };
 
 // Per-job-type colour, tuned for both light and dark themes. Fills + borders

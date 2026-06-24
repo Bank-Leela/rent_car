@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { newBookingSchema } from "./schema";
 
 const baseInput = {
-  departmentId: "seed-dept-medicine",
+  // departmentId is no longer part of the schema (locked to profile, resolved
+  // server-side). A stray key here is harmless — zod strips unknowns.
   purpose: "Faculty board meeting",
   destination: "Siriraj Hospital",
   province: "กรุงเทพมหานคร",
@@ -11,6 +12,8 @@ const baseInput = {
   ajarnName: "ศ. ดร. สมชาย สุขดี",
   ajarnPhone: "0812345678",
   ajarnEmail: "somchai@chula.ac.th",
+  coordinatorName: "นางสาว ประสาน งานดี",
+  coordinatorPhone: "0898765432",
   jobType: "OT",
   passengerCount: "4",
   passengerNotes: "",
@@ -59,6 +62,37 @@ describe("newBookingSchema ajarn fields", () => {
     if (!result.success) {
       const fieldErrors = result.error.issues.map((i) => i.path.join("."));
       expect(fieldErrors).toContain("ajarnName");
+    }
+  });
+
+  it("rejects a missing coordinator name", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, coordinatorName: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("coordinatorName");
+    }
+  });
+
+  it("rejects a missing coordinator phone", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, coordinatorPhone: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const fieldErrors = result.error.issues.map((i) => i.path.join("."));
+      expect(fieldErrors).toContain("coordinatorPhone");
+    }
+  });
+
+  it("keeps an optional trip direction (tripType) and remark", () => {
+    const result = newBookingSchema.safeParse({
+      ...baseInput,
+      tripType: "ROUND_TRIP",
+      remark: "  call security gate first  ",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.tripType).toBe("ROUND_TRIP");
+      expect(result.data.remark).toBe("call security gate first");
     }
   });
 });

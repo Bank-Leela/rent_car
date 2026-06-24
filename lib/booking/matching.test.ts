@@ -66,6 +66,43 @@ describe("match", () => {
     expect(r).toEqual({ ok: false, error: "NO_SLOT" });
   });
 
+  it("RC5: skips an unpaired top-ranked driver to the next paired one (not NO_SLOT)", () => {
+    const r = match({
+      jobType: "NORMAL",
+      timeBucket: "MORNING_08_12",
+      newTrip: morningTrip,
+      estimatedDistance: null,
+      driverCar: new Map([["B", "vB"], ["C", "vC"]]), // A unpaired (e.g. just added)
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: availabilityForAll(),
+      driverRankInputs: rankInputs, // equal fairness → A ranks first by id tie-break
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.result.primaryDriverId).toBe("B"); // A skipped (no car), B is next paired
+      expect(r.result.vehicleId).toBe("vB");
+    }
+  });
+
+  it("RC5: a long trip's co-driver may be unpaired (rides in the primary's car)", () => {
+    const r = match({
+      jobType: "TJW",
+      timeBucket: "MORNING_08_12",
+      newTrip: morningTrip,
+      estimatedDistance: LONG_TRIP_KM + 1,
+      driverCar: new Map([["B", "vB"], ["C", "vC"]]), // A unpaired
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: availabilityForAll(),
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.result.primaryDriverId).toBe("B"); // fairest PAIRED driver
+      expect(r.result.vehicleId).toBe("vB");
+      expect(r.result.secondaryDriverId).toBe("A"); // next-fairest; car not required
+    }
+  });
+
   it("CR-06: returns NO_PRIMARY_DRIVER when 1/day cap blocks everyone", () => {
     const existingMorning = {
       startAt: new Date("2026-06-10T08:30:00"),

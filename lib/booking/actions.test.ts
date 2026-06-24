@@ -33,6 +33,9 @@ import { BANGKOK_PROVINCE, LEAD_TIME_BANGKOK_DAYS } from "@/lib/booking/rules";
 
 const REQUESTER_ID = "seed-user-requester";
 const createdIds: string[] = [];
+// Department is now locked to the requester's profile and resolved server-side,
+// so the requester must have one set. Captured for assertions.
+let deptId = "";
 
 beforeAll(async () => {
   const u = await prisma.user.findUnique({ where: { id: REQUESTER_ID } });
@@ -41,6 +44,12 @@ beforeAll(async () => {
       "Seed requester missing. Run `npx prisma db seed` against the dev DB first.",
     );
   }
+  const dept =
+    (await prisma.department.findUnique({ where: { id: "seed-dept-medicine" } })) ??
+    (await prisma.department.findFirst());
+  if (!dept) throw new Error("No department seeded. Run `npx prisma db seed`.");
+  deptId = dept.id;
+  await prisma.user.update({ where: { id: REQUESTER_ID }, data: { departmentId: deptId } });
   // Clear pending evaluations that would block submission.
   await prisma.trip.deleteMany({
     where: { booking: { requesterId: REQUESTER_ID, status: "COMPLETED" }, evaluation: null },
@@ -103,6 +112,8 @@ describe("createBookingAction", () => {
           ajarnName: "ศ. ดร. ทดสอบ",
           ajarnPhone: "0812345678",
           ajarnEmail: "ajarn@chula.ac.th",
+          coordinatorName: "นางสาว ประสาน",
+          coordinatorPhone: "0898765432",
           jobType: "OT",
           recurringWeekdays: "",
           recurringUntil: "",
@@ -121,6 +132,10 @@ describe("createBookingAction", () => {
     expect(booking.jobNumber).toMatch(/^VB-\d{6}-\d+$/);
     expect(booking.auditLogs).toHaveLength(1);
     expect(booking.auditLogs[0]!.action).toBe("BOOKING_SUBMITTED");
+    // Department comes from the profile, not the payload; coordinator persisted.
+    expect(booking.departmentId).toBe(deptId);
+    expect(booking.coordinatorName).toBe("นางสาว ประสาน");
+    expect(booking.coordinatorPhone).toBe("0898765432");
     createdIds.push(booking.id);
   });
 
@@ -144,6 +159,8 @@ describe("createBookingAction", () => {
         ajarnName: "ศ. ดร. ทดสอบ",
         ajarnPhone: "0812345678",
         ajarnEmail: "ajarn@chula.ac.th",
+        coordinatorName: "นางสาว ประสาน",
+        coordinatorPhone: "0898765432",
         jobType: "OT",
         recurringWeekdays: "",
         recurringUntil: "",
@@ -172,6 +189,8 @@ describe("createBookingAction", () => {
         ajarnName: "ศ. ดร. ทดสอบ",
         ajarnPhone: "0812345678",
         ajarnEmail: "ajarn@chula.ac.th",
+        coordinatorName: "นางสาว ประสาน",
+        coordinatorPhone: "0898765432",
         jobType: "OT",
         recurringWeekdays: "",
         recurringUntil: "",
@@ -204,6 +223,8 @@ describe("createBookingAction", () => {
           ajarnName: "ศ. ดร. ทดสอบ",
           ajarnPhone: "0812345678",
           ajarnEmail: "ajarn@chula.ac.th",
+          coordinatorName: "นางสาว ประสาน",
+          coordinatorPhone: "0898765432",
           jobType: "OT",
           recurringWeekdays: String(wd),
           recurringUntil: isoLocal(until).slice(0, 10),

@@ -86,8 +86,8 @@ export default async function RequesterBookingDetail({
         </CardContent>
       </Card>
 
-      {(["APPROVED", "ASSIGNED", "COMPLETED"] as const).includes(
-        booking.status as "APPROVED" | "ASSIGNED" | "COMPLETED",
+      {(["APPROVED", "ASSIGNED", "COMPLETED", "OUTSOURCED"] as const).includes(
+        booking.status as "APPROVED" | "ASSIGNED" | "COMPLETED" | "OUTSOURCED",
       ) && booking.ajarnName && (
         <Card>
           <CardHeader>

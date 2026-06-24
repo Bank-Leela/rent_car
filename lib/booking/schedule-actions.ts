@@ -33,14 +33,27 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { assignedDriverId: true },
+    select: {
+      assignedDriverId: true,
+      assignedDriver: { select: { isActive: true, user: { select: { isActive: true } } } },
+    },
   });
-  if (!vehicle?.assignedDriverId) return { ok: false, error: "noAssignedDriver" };
+  // A deactivated driver (or one whose user was deactivated) can't be dispatched,
+  // so treat their car as driverless rather than assigning a "removed" driver.
+  if (
+    !vehicle?.assignedDriverId ||
+    !vehicle.assignedDriver?.isActive ||
+    !vehicle.assignedDriver.user?.isActive
+  ) {
+    return { ok: false, error: "noAssignedDriver" };
+  }
 
   // No overlap, ever — on EVERY car, including the duty car. A manual override
-  // (drag / assign-reco) may relax the 2h chaining gap (not checked here), but it
-  // must never double-book a car. Skip only when re-dropping on the same car (a
-  // booking can't collide with itself; the query already excludes its own id).
+  // (drag / assign-reco) may relax the 2h chaining gap and may put a trip on a
+  // driver marked off (sick/leave) — both are deliberate P'Top overrides, not
+  // blocked here; only AUTO-assign honors those. It must never double-book a car.
+  // Skip only when re-dropping on the same car (a booking can't collide with
+  // itself; the query already excludes its own id).
   if (vehicleId !== booking.vehicleId) {
     const conflicts = await prisma.booking.findMany({
       where: {
@@ -62,6 +75,15 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   // but could have been booked since. Drop it (place primary only) if it now has
   // an overlapping trip — never silently double-book the co-driver.
   let secondary = secondaryDriverIdIn && secondaryDriverIdIn !== driverId ? secondaryDriverIdIn : null;
+  if (secondary) {
+    // The co-driver may have been deactivated between render and assign — never
+    // assign a removed driver as secondary.
+    const secActive = await prisma.driver.findFirst({
+      where: { id: secondary, isActive: true, user: { is: { isActive: true } } },
+      select: { id: true },
+    });
+    if (!secActive) secondary = null;
+  }
   if (secondary) {
     const secBusy = await prisma.booking.findFirst({
       where: {
@@ -91,6 +113,71 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
     if (secondary) await tx.driver.update({ where: { id: secondary }, data: { lastAssignedAt: booking.startAt } });
   });
 
+  revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
+// Move (or remove) a long-haul trip's CO-DRIVER by dragging the violet ghost.
+// Dropping it on another car's row makes THAT car's driver the new co-driver;
+// dropping it off any row (empty vehicleId) removes the co-driver. The co-driver
+// rides in the PRIMARY's car — this only changes who co-drives, never the
+// dispatched vehicle. Same overlap + active-driver guards as a primary reassign.
+export async function reassignSecondaryAction(formData: FormData): Promise<ReassignResult> {
+  await requireRole("ADMIN");
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const vehicleId = String(formData.get("vehicleId") ?? ""); // "" = remove co-driver
+  if (!bookingId) return { ok: false, error: "invalidInput" };
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { id: true, primaryDriverId: true, startAt: true, endAt: true },
+  });
+  if (!booking) return { ok: false, error: "bookingNotFound" };
+
+  // Drop off a row → remove the co-driver.
+  if (!vehicleId) {
+    await prisma.booking.update({ where: { id: bookingId }, data: { secondaryDriverId: null } });
+    revalidatePath("/admin/schedule");
+    return { ok: true };
+  }
+
+  const vehicle = await prisma.vehicle.findUnique({
+    where: { id: vehicleId },
+    select: {
+      assignedDriverId: true,
+      assignedDriver: { select: { isActive: true, user: { select: { isActive: true } } } },
+    },
+  });
+  if (
+    !vehicle?.assignedDriverId ||
+    !vehicle.assignedDriver?.isActive ||
+    !vehicle.assignedDriver.user?.isActive
+  ) {
+    return { ok: false, error: "noAssignedDriver" };
+  }
+  const newSecondary = vehicle.assignedDriverId;
+  // A driver can't co-drive their own (or anyone's) trip as both roles.
+  if (newSecondary === booking.primaryDriverId) return { ok: false, error: "coDriverSamePrimary" };
+
+  // No overlap — the new co-driver must be free across the trip window.
+  const conflicts = await prisma.booking.findMany({
+    where: {
+      id: { not: bookingId },
+      status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
+      OR: [{ primaryDriverId: newSecondary }, { secondaryDriverId: newSecondary }],
+      startAt: { lt: booking.endAt },
+      endAt: { gt: booking.startAt },
+    },
+    orderBy: { startAt: "asc" },
+    take: 3,
+    select: { jobNumber: true, startAt: true, endAt: true },
+  });
+  if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({ where: { id: bookingId }, data: { secondaryDriverId: newSecondary } });
+    await tx.driver.update({ where: { id: newSecondary }, data: { lastAssignedAt: booking.startAt } });
+  });
   revalidatePath("/admin/schedule");
   return { ok: true };
 }

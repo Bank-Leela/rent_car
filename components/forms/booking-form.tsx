@@ -14,9 +14,8 @@ import {
   LEAD_TIME_OUTSIDE_DAYS,
 } from "@/lib/booking/rules";
 import { createBookingAction } from "@/lib/booking/actions";
-import { SearchableSelect } from "@/components/ui/searchable-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { MapPin } from "lucide-react";
+import { Lock, MapPin } from "lucide-react";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -132,37 +131,39 @@ function PassengerStepper({ min = 1, max = 60 }: { min?: number; max?: number })
   );
 }
 
-export type BookingFormDepartment = {
-  id: string;
-  nameEn: string;
-  nameTh: string;
-};
-
 export type BookingFormVehicle = {
   id: string;
   registrationNumber: string;
   capacity: number;
 };
 
+/** The requester's own department, resolved from their profile and locked. */
+export type BookingFormUserDepartment = {
+  id: string;
+  name: string;
+};
+
+const SELECT_CLASS =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 export function BookingForm({
-  departments,
   vehicles,
-  defaultDepartmentId,
-  locale,
+  userDepartment,
 }: {
-  departments: BookingFormDepartment[];
   vehicles: BookingFormVehicle[];
-  defaultDepartmentId: string | null;
-  locale: string;
+  userDepartment: BookingFormUserDepartment | null;
 }) {
   const t = useTranslations("bookingForm");
   const now = new Date();
+  // Province drives both the lead-time rule (Bangkok vs. out-of-province) and
+  // the card heading. The overnight checkbox below only flags TJW.
+  const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
   const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
-  const isThai = locale.toLowerCase().startsWith("th");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const requiredDays = outOfProvince ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
+  const isOutside = province.trim() !== "" && province.trim() !== BANGKOK_PROVINCE;
+  const requiredDays = isOutside ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
   // Earliest is midnight on (today + requiredDays); any time on that day is fine.
   const earliestStart = startOfDay(addDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
@@ -231,18 +232,20 @@ export function BookingForm({
 
   // Required-field names + the translation key for each label, used to
   // pre-validate the submission so the user sees an in-form message rather
-  // than a browser-native tooltip.
+  // than a browser-native tooltip. departmentId is omitted — it is locked to
+  // the profile and resolved server-side.
   const baseRequired: Array<{ name: string; labelKey: string }> = [
-    { name: "departmentId", labelKey: "department" },
-    { name: "ajarnName", labelKey: "ajarnName" },
-    { name: "ajarnPhone", labelKey: "ajarnPhone" },
-    { name: "ajarnEmail", labelKey: "ajarnEmail" },
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
     { name: "province", labelKey: "province" },
     { name: "startAt", labelKey: "startLabel" },
     { name: "endAt", labelKey: "endLabel" },
     { name: "passengerCount", labelKey: "passengerCount" },
+    { name: "ajarnName", labelKey: "ajarnName" },
+    { name: "ajarnPhone", labelKey: "ajarnPhone" },
+    { name: "ajarnEmail", labelKey: "ajarnEmail" },
+    { name: "coordinatorName", labelKey: "coordinatorName" },
+    { name: "coordinatorPhone", labelKey: "coordinatorPhone" },
   ];
 
   const richStrong = { strong: (chunks: React.ReactNode) => <strong>{chunks}</strong> };
@@ -252,7 +255,7 @@ export function BookingForm({
       <CardHeader>
         <CardTitle>{t("title")}</CardTitle>
         <CardDescription>
-          {t.rich(outOfProvince ? "leadTimeOutside" : "leadTimeBangkok", {
+          {t.rich(isOutside ? "leadTimeOutside" : "leadTimeBangkok", {
             ...richStrong,
             days: requiredDays,
           })}{" "}
@@ -268,6 +271,10 @@ export function BookingForm({
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             setError(null);
+            if (!userDepartment) {
+              setError(t("noDepartmentBody"));
+              return;
+            }
             const missing = baseRequired.filter((f) => {
               const v = formData.get(f.name);
               return typeof v !== "string" || v.trim() === "";
@@ -297,105 +304,90 @@ export function BookingForm({
             {t("requiredFieldsHint")}
           </p>
 
-          <div className="grid gap-2">
-            <ReqLabel htmlFor="departmentId">{t("department")}</ReqLabel>
-            <SearchableSelect
-              id="departmentId"
-              name="departmentId"
-              required
-              defaultValue={defaultDepartmentId ?? ""}
-              placeholder={t("departmentPlaceholder")}
-              searchPlaceholder={t("departmentSearchPlaceholder")}
-              emptyText={t("departmentEmpty")}
-              ariaLabel={t("department")}
-              options={departments.map((d) => ({
-                value: d.id,
-                label: isThai ? d.nameTh : d.nameEn,
-              }))}
-            />
-          </div>
-
-          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+          {/* 1. Requester & coordinator */}
+          <fieldset className="space-y-4 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
             <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
-              <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
+
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("requesterBlockTitle")}
+              </p>
               <div className="grid gap-2">
-                <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
-                <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
+                <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
+                <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
               </div>
               <div className="grid gap-2">
-                <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
-                <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
+                <Label htmlFor="departmentDisplay">{t("department")}</Label>
+                {userDepartment ? (
+                  <>
+                    <div
+                      id="departmentDisplay"
+                      className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+                    >
+                      <Lock aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span>{userDepartment.name}</span>
+                    </div>
+                    <a
+                      href="/account"
+                      className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      {t("departmentEditLink")}
+                    </a>
+                  </>
+                ) : (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/40">
+                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                      {t("noDepartmentTitle")}
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
+                      {t("noDepartmentBody")}
+                    </p>
+                    <a
+                      href="/account"
+                      className="mt-2 inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      {t("departmentEditLink")}
+                    </a>
+                  </div>
+                )}
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
+                  <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
+                </div>
+                <div className="grid gap-2">
+                  <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
+                  <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("coordinatorBlockTitle")}
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <ReqLabel htmlFor="coordinatorName">{t("coordinatorName")}</ReqLabel>
+                  <Input id="coordinatorName" name="coordinatorName" required autoComplete="off" />
+                </div>
+                <div className="grid gap-2">
+                  <ReqLabel htmlFor="coordinatorPhone">{t("coordinatorPhone")}</ReqLabel>
+                  <Input
+                    id="coordinatorPhone"
+                    name="coordinatorPhone"
+                    type="tel"
+                    required
+                    autoComplete="off"
+                  />
+                </div>
               </div>
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
-            <legend className="px-1 text-sm font-semibold">{t("tripSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("tripSectionHelper")}</p>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
-              <Input id="purpose" name="purpose" required />
-            </div>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
-              <Input id="destination" name="destination" required />
-              <button
-                type="button"
-                onClick={openDestinationInMaps}
-                className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                <MapPin aria-hidden className="h-3.5 w-3.5" />
-                {t("destinationMapsLink")}
-              </button>
-            </div>
-            {/* Province dropdown removed; province is derived from the
-                out-of-province checkbox for lead-time + records. */}
-            <input
-              type="hidden"
-              name="province"
-              value={outOfProvince ? "ต่างจังหวัด" : BANGKOK_PROVINCE}
-            />
-            <div className="grid gap-2">
-              <Label htmlFor="pickupLocation">{t("pickupLocation")}</Label>
-              <Input
-                id="pickupLocation"
-                name="pickupLocation"
-                placeholder={t("pickupLocationPlaceholder")}
-              />
-            </div>
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                name="outsideChula"
-                value="true"
-                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <span>
-                <span className="font-medium">{t("outsideChulaLabel")}</span>
-                <span className="block text-xs text-muted-foreground">{t("outsideChulaHelper")}</span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                name="outOfProvince"
-                value="true"
-                checked={outOfProvince}
-                onChange={(e) => setOutOfProvince(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <span>
-                <span className="font-medium">{t("outOfProvinceLabel")}</span>
-                <span className="block text-xs text-muted-foreground">{t("outOfProvinceHelper")}</span>
-              </span>
-            </label>
-          </fieldset>
-
+          {/* 2. Date & time (+ recurring) */}
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
             <p className="-mt-1 text-xs text-muted-foreground">{t("scheduleSectionHelper")}</p>
@@ -440,8 +432,108 @@ export function BookingForm({
             >
               {t("useEarliest", { date: earliestDateLabel })}
             </button>
+            <details className="rounded-md border bg-background p-3">
+              <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">{t("recurringDescription")}</p>
+                <RecurrenceWeekdays />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
+                    <DateTimePicker
+                      id="recurringUntil"
+                      name="recurringUntil"
+                      dateOnly
+                      min={startValue || minStart}
+                      max={maxStart}
+                      placeholder={t("repeatUntil")}
+                    />
+                  </div>
+                </div>
+              </div>
+            </details>
           </fieldset>
 
+          {/* 3. Purpose & destination */}
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("tripSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("tripSectionHelper")}</p>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
+              <Input id="purpose" name="purpose" required />
+            </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
+              <Input id="destination" name="destination" required />
+              <button
+                type="button"
+                onClick={openDestinationInMaps}
+                className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <MapPin aria-hidden className="h-3.5 w-3.5" />
+                {t("destinationMapsLink")}
+              </button>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
+                <Input
+                  id="province"
+                  name="province"
+                  required
+                  value={province}
+                  onChange={(e) => setProvince(e.target.value)}
+                  placeholder={t("provincePlaceholder")}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="tripType">{t("tripDirectionLabel")}</Label>
+                <select id="tripType" name="tripType" defaultValue="" className={SELECT_CLASS}>
+                  <option value="">{t("tripDirectionNone")}</option>
+                  <option value="ROUND_TRIP">{t("tripRoundTrip")}</option>
+                  <option value="DROP_OFF">{t("tripDropOff")}</option>
+                  <option value="PICK_UP_DROP_OFF">{t("tripPickupDropOff")}</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="pickupLocation">{t("pickupLocation")}</Label>
+              <Input
+                id="pickupLocation"
+                name="pickupLocation"
+                placeholder={t("pickupLocationPlaceholder")}
+              />
+            </div>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="outsideChula"
+                value="true"
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("outsideChulaLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("outsideChulaHelper")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="outOfProvince"
+                value="true"
+                checked={outOfProvince}
+                onChange={(e) => setOutOfProvince(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span>
+                <span className="font-medium">{t("outOfProvinceLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("outOfProvinceHelper")}</span>
+              </span>
+            </label>
+          </fieldset>
+
+          {/* 4. Passengers & details */}
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("loadSectionTitle")}</legend>
             <p className="-mt-1 text-xs text-muted-foreground">{t("loadSectionHelper")}</p>
@@ -477,7 +569,7 @@ export function BookingForm({
                 id="preferredVehicleId"
                 name="preferredVehicleId"
                 defaultValue=""
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className={SELECT_CLASS}
               >
                 <option value="">{t("preferredVehicleNone")}</option>
                 {vehicles.map((v) => (
@@ -492,6 +584,12 @@ export function BookingForm({
               <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
             </div>
           </fieldset>
+
+          {/* Remark */}
+          <div className="grid gap-2">
+            <Label htmlFor="remark">{t("remarkLabel")}</Label>
+            <Textarea id="remark" name="remark" rows={3} placeholder={t("remarkPlaceholder")} />
+          </div>
 
           <label className="flex items-start gap-2 text-sm cursor-pointer">
             <input
@@ -533,29 +631,6 @@ export function BookingForm({
               </div>
             )}
           </div>
-
-          <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
-            <div className="mt-3 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                {t("recurringDescription")}
-              </p>
-              <RecurrenceWeekdays />
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="recurringUntil">{t("repeatUntil")}</Label>
-                  <DateTimePicker
-                    id="recurringUntil"
-                    name="recurringUntil"
-                    dateOnly
-                    min={startValue || minStart}
-                    max={maxStart}
-                    placeholder={t("repeatUntil")}
-                  />
-                </div>
-              </div>
-            </div>
-          </details>
 
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

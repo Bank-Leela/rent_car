@@ -153,6 +153,26 @@ describe("rankForRotation deadlock check", () => {
     // (3 drivers, 4 days, so one gets a second turn — the first picked).
     expect(new Set(assigned).size).toBe(3);
   });
+
+  // Sick-day self-heal: a driver excluded for a few days keeps their rotation
+  // timestamp old while others advance, so on return they're picked FIRST
+  // (catch-up) — no penalty, no manual fairness adjustment.
+  it("picks the returning sick driver first (rotation self-heals)", () => {
+    let state: DriverRotationState[] = ["A", "B", "C"].map((id) =>
+      driver({ driverId: id, lastOtAt: null }),
+    );
+    // B is out (sick) days 0–2; A and C work and advance their lastOtAt.
+    for (let day = 0; day < 3; day++) {
+      const eligible = state.filter((d) => d.driverId !== "B");
+      const picked = rankForRotation(eligible, (d) => d.lastOtAt)[0]!;
+      expect(picked).not.toBe("B");
+      const stamp = new Date(`2026-06-${10 + day}T08:00:00`);
+      state = state.map((d) => (d.driverId === picked ? { ...d, lastOtAt: stamp } : d));
+    }
+    // Day 3 — B returns. Oldest (null) timestamp ⇒ ranked first.
+    const ranked = rankForRotation(state, (d) => d.lastOtAt);
+    expect(ranked[0]).toBe("B");
+  });
 });
 
 describe("canChain — 2h-gap boundaries + NORMAL cap shapes", () => {

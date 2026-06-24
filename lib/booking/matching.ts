@@ -66,17 +66,22 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
   const ranked = rankCandidates(eligible);
   if (ranked.length === 0) return { ok: false, error: "NO_PRIMARY_DRIVER" };
 
-  const primaryDriverId = ranked[0]!;
-  // The primary's car. An unpaired driver (no car) can't be dispatched → NO_SLOT.
-  const vehicleId = input.driverCar.get(primaryDriverId) ?? null;
-  if (!vehicleId) return { ok: false, error: "NO_SLOT" };
+  // car=driver: the PRIMARY supplies the car, so pick the fairest ranked driver
+  // who actually has one — skipping an unpaired (e.g. just-added) top pick rather
+  // than dead-ending on NO_SLOT while a paired driver below sits idle. Only if
+  // NONE of the eligible drivers have a car is it genuinely NO_SLOT.
+  const primaryDriverId = ranked.find((id) => input.driverCar.has(id)) ?? null;
+  if (!primaryDriverId) return { ok: false, error: "NO_SLOT" };
+  const vehicleId = input.driverCar.get(primaryDriverId)!;
 
   const needSecondary =
     input.estimatedDistance !== null && input.estimatedDistance > LONG_TRIP_KM;
   let secondaryDriverId: string | null = null;
   if (needSecondary) {
-    if (ranked.length < 2) return { ok: false, error: "NO_SECONDARY_DRIVER" };
-    secondaryDriverId = ranked[1]!;
+    // The co-driver rides in the primary's car, so they need not be paired —
+    // just the next-fairest eligible driver after the primary.
+    secondaryDriverId = ranked.find((id) => id !== primaryDriverId) ?? null;
+    if (!secondaryDriverId) return { ok: false, error: "NO_SECONDARY_DRIVER" };
   }
 
   return {

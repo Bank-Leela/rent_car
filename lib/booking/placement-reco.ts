@@ -70,6 +70,10 @@ export function recommendPlacement(input: RecoInput): Placement {
       };
     }
   }
+  // A WERN slot belongs to the duty driver alone. If they can't take it (no car,
+  // busy, or none rostered), there's no valid suggestion — never recommend a
+  // non-duty driver for duty work.
+  if (booking.jobType === "WERN") return { kind: "none" };
 
   const free = drivers
     .filter((d) => d.driverId !== dutyDriverId)

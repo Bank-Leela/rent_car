@@ -1,9 +1,30 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { DriverPool, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import type { ActionResult } from "@/lib/booking/actions";
+
+// Backfill Driver profiles for DRIVER-role users that don't have one yet.
+// Creating a user with the DRIVER role does NOT create the Driver row the
+// scheduler/fleet needs, so a freshly-added driver is otherwise invisible.
+// Running this from the fleet page closes the "add a driver" gap.
+export async function provisionDriverProfilesAction(): Promise<ActionResult & { created?: number }> {
+  await requireRole("ADMIN");
+  const missing = await prisma.user.findMany({
+    where: { isActive: true, roles: { some: { role: Role.DRIVER } }, driverProfile: { is: null } },
+    select: { id: true },
+  });
+  if (missing.length === 0) return { ok: true, created: 0 };
+  await prisma.driver.createMany({
+    data: missing.map((u) => ({ userId: u.id, pool: DriverPool.PUBLIC })),
+    skipDuplicates: true,
+  });
+  revalidatePath("/admin/fleet");
+  revalidatePath("/admin/schedule");
+  return { ok: true, created: missing.length };
+}
 
 // Set (or clear) a car's assigned driver. Enforces 1:1: if the driver is
 // already on another car, that car is cleared first (a driver owns one car).

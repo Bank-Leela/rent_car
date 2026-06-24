@@ -22,7 +22,14 @@ export async function recommendForBookings(
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   const drivers = await prisma.driver.findMany({
-    where: { isActive: true },
+    // A deactivated user must drop out of every pick pool — Driver.isActive is
+    // never toggled, so gate on the owning User's isActive too (remove a driver).
+    // Also skip anyone marked off for the day (sick / leave).
+    where: {
+      isActive: true,
+      user: { is: { isActive: true } },
+      unavailabilities: { none: { date: dayStart } },
+    },
     select: {
       id: true,
       lastAssignedAt: true,
@@ -31,7 +38,10 @@ export async function recommendForBookings(
     },
   });
   const onCall = await prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } });
-  const dutyDriverId = onCall?.driverId ?? null;
+  // An OnCallShift can point at a driver who was since deactivated — that's a
+  // ghost not in the active pool. Drop it so WERN falls back to the duty rotation.
+  const dutyDriverId =
+    onCall?.driverId && drivers.some((d) => d.id === onCall.driverId) ? onCall.driverId : null;
   const earnings = await loadWeightedEarnings(drivers.map((d) => d.id));
 
   // Each driver's committed trips that day (primary or secondary), for overlap.

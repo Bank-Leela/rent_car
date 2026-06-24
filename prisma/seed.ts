@@ -68,6 +68,10 @@ async function main() {
     { id: "seed-user-approver", email: "approver@chula.ac.th", name: "ศาสตราจารย์ ดร. ธนากร ศรีสุวรรณ", role: Role.APPROVER },
     { id: "seed-user-admin", email: "admin@chula.ac.th", name: "ปิยะ วงศ์สวัสดิ์", role: Role.ADMIN },
     { id: "seed-user-driver", email: "driver@chula.ac.th", name: "อนุชา เพชรรัตน์", role: Role.DRIVER },
+    // Shared "driver station" login (one account all drivers use on the shared
+    // device). DRIVER role but NO Driver profile — it's a login, not a car-paired
+    // driver; the schedule board it opens shows ALL cars.
+    { id: "seed-user-driverstation", email: "driverstation@chula.ac.th", name: "สถานีคนขับ (ใช้ร่วมกัน)", role: Role.DRIVER },
   ];
 
   const seedHash = await getSeedPasswordHash();
@@ -194,6 +198,13 @@ async function main() {
     "seed-driver-2", // สมชาย ใจดี
     "seed-driver-3", // วิชัย รักงาน
   ];
+  if (fleet.length !== driverUserIdsByCar.length) {
+    const extra = Math.abs(fleet.length - driverUserIdsByCar.length);
+    const kind = fleet.length > driverUserIdsByCar.length ? "car(s)" : "driver(s)";
+    console.warn(
+      `[seed] fleet (${fleet.length}) and driver list (${driverUserIdsByCar.length}) differ — ${extra} ${kind} left unpaired. Keep the arrays in sync.`,
+    );
+  }
   for (let i = 0; i < fleet.length && i < driverUserIdsByCar.length; i++) {
     const letter = String.fromCharCode(65 + i); // A, B, C…
     const userId = driverUserIdsByCar[i]!;

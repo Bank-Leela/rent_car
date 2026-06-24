@@ -1,200 +1,136 @@
 import Link from "next/link";
-import { format, startOfDay, endOfDay, addDays, subDays, isSameDay } from "date-fns";
-import { Calendar, ChevronRight, MapPin, Coffee, Clock } from "lucide-react";
-import { getTranslations } from "next-intl/server";
-import type { Prisma } from "@prisma/client";
+import { addDays, format, parse, startOfDay } from "date-fns";
+import { th, enUS } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
-import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { daySpan, daySuperscript } from "@/lib/booking/day-window";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { Section } from "@/components/section";
+import { DriverScheduleBoard } from "@/components/driver/driver-schedule-board";
+import type { SchedulerBooking } from "@/components/admin/scheduler-board-shared";
 
-export default async function DriverSchedule() {
-  const session = await requireRole("DRIVER");
-  const t = await getTranslations("driver");
+const hm = (d: Date) => (d.getMinutes() === 0 ? format(d, "HH") : format(d, "HH:mm"));
 
-  const driverProfile = await prisma.driver.findUnique({ where: { userId: session.user.id } });
-  if (!driverProfile) {
-    return (
-      <EmptyState
-        icon={Coffee}
-        title={t("noProfileTitle")}
-        description={t("noProfileDescription")}
-      />
-    );
-  }
-  const driverId = driverProfile.id;
-  const now = new Date();
-  const todayStart = startOfDay(now);
-
-  // Match the driver calendar: a trip the driver is on the hook for via the
-  // denormalized fields OR an active claim — incl. board-claimed (APPROVED) trips.
-  const onHook = {
-    OR: [
-      { primaryDriverId: driverId },
-      { secondaryDriverId: driverId },
-      { claims: { some: { driverId, status: "ACTIVE" as const } } },
-    ],
-  };
-
-  const horizon = endOfDay(addDays(now, 30));
-  const [upcoming, past, dutyShifts] = await Promise.all([
-    prisma.booking.findMany({
-      where: {
-        ...onHook,
-        status: { in: COMMITTED_STATUSES },
-        startAt: { gte: todayStart, lte: horizon },
-      },
-      orderBy: { startAt: "asc" },
-      include: { vehicle: true, requester: true },
-    }),
-    prisma.booking.findMany({
-      where: {
-        OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
-        status: "COMPLETED",
-        startAt: { gte: startOfDay(subDays(now, 14)), lt: todayStart },
-      },
-      orderBy: { startAt: "desc" },
-      take: 30,
-      include: { vehicle: true, requester: true },
-    }),
-    // On-call (duty) days the admin rostered — these aren't bookings, so without
-    // them the duty driver's schedule looks empty. Syncs with the admin roster.
-    prisma.onCallShift.findMany({
-      where: { driverId, date: { gte: todayStart, lte: horizon } },
-      select: { date: true },
-      orderBy: { date: "asc" },
-    }),
-  ]);
-  const dutyDays = new Set(dutyShifts.map((s) => format(s.date, "yyyy-MM-dd")));
-
-  return (
-    <div className="space-y-8">
-      <PageHeader title={t("scheduleTitle")} description={t("scheduleSubtitle")} />
-
-      <Section title={t("scheduleAllHeading")} icon={<Calendar className="h-4 w-4" />}>
-        {upcoming.length === 0 && dutyDays.size === 0 ? (
-          <EmptyState
-            icon={Calendar}
-            title={t("scheduleEmptyTitle")}
-            description={t("scheduleEmptyDescription")}
-          />
-        ) : (
-          <DayGroupedList
-            bookings={upcoming}
-            now={now}
-            dutyDays={dutyDays}
-            onCallLabel={t("onCall")}
-            onCallNote={t("onCallNote")}
-          />
-        )}
-      </Section>
-
-      {past.length > 0 && (
-        <Section title={t("scheduleHistoryHeading")} icon={<Calendar className="h-4 w-4" />}>
-          <DayGroupedList bookings={past} now={now} muted />
-        </Section>
-      )}
-    </div>
-  );
-}
-
-type Row = Prisma.BookingGetPayload<{ include: { vehicle: true; requester: true } }>;
-
-function DayGroupedList({
-  bookings,
-  now,
-  muted,
-  dutyDays,
-  onCallLabel,
-  onCallNote,
+// Driver-side READ-ONLY view of P'Top's official schedule (all cars). The shared
+// "driverstation" login lands here. Editable draft/trade board is separate.
+export default async function DriverSchedule({
+  searchParams,
 }: {
-  bookings: Row[];
-  now: Date;
-  muted?: boolean;
-  dutyDays?: Set<string>;
-  onCallLabel?: string;
-  onCallNote?: string;
+  searchParams: Promise<{ date?: string }>;
 }) {
-  // Group by yyyy-MM-dd
-  const groups = new Map<string, Row[]>();
-  for (const b of bookings) {
-    const key = format(b.startAt, "yyyy-MM-dd");
-    const list = groups.get(key) ?? [];
-    list.push(b);
-    groups.set(key, list);
-  }
-  // Render every day that has a trip OR an on-call duty (a duty-only day still
-  // shows, so the duty driver's schedule isn't empty).
-  const keys = [...new Set([...groups.keys(), ...(dutyDays ?? [])])].sort();
+  await requireRole("DRIVER");
+  const t = await getTranslations("scheduler");
+  const td = await getTranslations("driver");
+  const locale = await getLocale();
+  const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
+  const isThai = locale.toLowerCase().startsWith("th");
+
+  const { date } = await searchParams;
+  const day = date ? parse(date, "yyyy-MM-dd", new Date()) : new Date();
+  const dayStart = startOfDay(day);
+  const dayEnd = addDays(dayStart, 1);
+
+  const [vehicles, dayBookings, onCall] = await Promise.all([
+    prisma.vehicle.findMany({
+      where: { isActive: true },
+      orderBy: { registrationNumber: "asc" },
+      select: {
+        id: true,
+        registrationNumber: true,
+        assignedDriverId: true,
+        assignedDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+      },
+    }),
+    prisma.booking.findMany({
+      where: { status: { in: ["APPROVED", "ASSIGNED"] }, startAt: { lt: dayEnd }, endAt: { gt: dayStart } },
+      orderBy: { startAt: "asc" },
+      select: {
+        id: true, jobNumber: true, purpose: true, destination: true, startAt: true, endAt: true,
+        vehicleId: true, jobType: true, estimatedDistance: true,
+        primaryDriverId: true, secondaryDriverId: true,
+        primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+        secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+      },
+    }),
+    prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
+  ]);
+
+  const dutyDriverId = onCall?.driverId ?? null;
+  const dutyVehicleId = dutyDriverId ? vehicles.find((v) => v.assignedDriverId === dutyDriverId)?.id ?? null : null;
+  const carByDriver = new Map<string, string>();
+  for (const v of vehicles) if (v.assignedDriverId) carByDriver.set(v.assignedDriverId, v.id);
+  const nameOf = (u: { name: string | null; thaiName: string | null } | null | undefined) =>
+    u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
+
+  const vehicleRows = vehicles.map((v) => ({
+    id: v.id,
+    registrationNumber: v.registrationNumber,
+    driverName: nameOf(v.assignedDriver?.user),
+  }));
+
+  const bookings: SchedulerBooking[] = dayBookings.map((b) => {
+    const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
+    return {
+      id: b.id,
+      jobNumber: b.jobNumber,
+      purpose: b.purpose,
+      destination: b.destination,
+      timeLabel: span.continuesBefore ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.startAt),
+      endLabel: span.continuesAfter
+        ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
+        : hm(b.endAt),
+      departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),
+      arriveLabel: hm(b.endAt) + daySuperscript(b.endAt, dayStart),
+      startHour: span.startHour,
+      endHour: span.endHour,
+      continuesBefore: span.continuesBefore,
+      continuesAfter: span.continuesAfter,
+      vehicleId: b.vehicleId,
+      jobType: b.jobType,
+      hasDriver: b.primaryDriverId != null,
+      driverName: nameOf(b.primaryDriver?.user),
+      secondaryDriverName: nameOf(b.secondaryDriver?.user),
+      secondaryDriverId: b.secondaryDriverId,
+      secondaryVehicleId: b.secondaryDriverId ? carByDriver.get(b.secondaryDriverId) ?? null : null,
+      needsCoDriver: false,
+      reco: null,
+    };
+  });
+
+  const isoOf = (d: Date) => format(d, "yyyy-MM-dd");
+  const navBtn =
+    "inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
   return (
-    <div className={`space-y-6 ${muted ? "opacity-80" : ""}`}>
-      {keys.map((key) => {
-        const rows = groups.get(key) ?? [];
-        const day = rows[0]?.startAt ?? new Date(`${key}T00:00:00`);
-        const isToday = isSameDay(day, now);
-        const isDuty = dutyDays?.has(key) ?? false;
-        return (
-          <div key={key} className="space-y-2">
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-sm font-semibold">{format(day, "EEEE d MMM yyyy")}</h3>
-              {isToday && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary-foreground">
-                  ●
-                </span>
-              )}
-            </div>
-            <ul className="space-y-2">
-              {isDuty && (
-                <li>
-                  <div className="flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-400/30 dark:bg-emerald-950/30">
-                    <Clock className="h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden />
-                    <div className="min-w-0">
-                      <div className="font-medium text-emerald-900 dark:text-emerald-200">{onCallLabel}</div>
-                      <div className="text-xs text-emerald-700/80 dark:text-emerald-300/80">{onCallNote}</div>
-                    </div>
-                  </div>
-                </li>
-              )}
-              {rows.map((b) => (
-                <li key={b.id}>
-                  <Link
-                    href={`/driver/${b.id}`}
-                    className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
-                        <BookingStatusBadge status={b.status} />
-                      </div>
-                      <div className="mt-1 flex items-baseline gap-3">
-                        <span className="text-xl font-semibold tabular-nums">
-                          {format(b.startAt, "HH:mm")}
-                        </span>
-                        <span className="text-base font-medium truncate">{b.destination}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {b.vehicle?.registrationNumber ?? "—"}
-                        </span>
-                        <span>{b.passengerCount} pax</span>
-                        <span>
-                          {b.requester.name ?? b.requester.email}
-                          {b.requester.phone ? ` · ${b.requester.phone}` : ""}
-                        </span>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <PageHeader title={td("scheduleTitle")} description={td("scheduleSubtitle")} />
+        <div className="flex items-center gap-2">
+          <Link href={`/driver/schedule?date=${isoOf(addDays(dayStart, -1))}`} className={navBtn} aria-label={t("prevDay")}>
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          <span className="min-w-40 text-center text-sm font-medium">
+            {format(day, "EEE d MMM yyyy", { locale: dfLocale })}
+          </span>
+          <Link href={`/driver/schedule?date=${isoOf(addDays(dayStart, 1))}`} className={navBtn} aria-label={t("nextDay")}>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+
+      <DriverScheduleBoard
+        vehicles={vehicleRows}
+        bookings={bookings}
+        dutyVehicleId={dutyVehicleId}
+        labels={{
+          duty: t("duty"),
+          noDriver: t("noDriver"),
+          coDriver: t("coDriver"),
+          arrives: t("arrives"),
+          empty: t("noVehicles"),
+        }}
+      />
     </div>
   );
 }

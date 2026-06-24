@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
-import { Wand2, GripVertical, AlertTriangle } from "lucide-react";
+import { Wand2, GripVertical, AlertTriangle, Plus } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -21,6 +21,7 @@ import {
 import { matchBookingAction } from "@/lib/booking/matching-actions";
 import {
   reassignVehicleAction,
+  reassignSecondaryAction,
   unassignBookingAction,
   resolveScheduleConflictsAction,
   type ReassignConflict,
@@ -35,7 +36,19 @@ import {
   DEFAULT_START,
   DEFAULT_END,
 } from "@/components/admin/scheduler-board-shared";
-import { QueueCard, CarRow } from "@/components/admin/scheduler-board-blocks";
+import {
+  QueueCard,
+  CoDriverQueueCard,
+  CarRow,
+  AdHocRow,
+  type AdHocRowData,
+} from "@/components/admin/scheduler-board-blocks";
+import {
+  addAdHocRowAction,
+  removeAdHocRowAction,
+  outsourceToRowAction,
+  unoutsourceAction,
+} from "@/lib/booking/adhoc-actions";
 
 // Public types — re-exported so existing importers (the schedule page) keep
 // working after the block/theme extraction.
@@ -52,6 +65,7 @@ export function SchedulerBoard({
   dutyVehicleId,
   conflictCount,
   date,
+  adHocRows,
 }: {
   vehicles: SchedulerVehicle[];
   bookings: SchedulerBooking[];
@@ -60,6 +74,8 @@ export function SchedulerBoard({
   conflictCount: number;
   // ISO yyyy-MM-dd of the viewed day — passed to the conflict-resolve action.
   date: string;
+  // Per-day external/outside-driver rows + the trips outsourced to them.
+  adHocRows: AdHocRowData[];
 }) {
   const t = useTranslations("scheduler");
   const locale = useLocale();
@@ -75,13 +91,16 @@ export function SchedulerBoard({
 
   // The unassigned queue is itself a drop target: drag an assigned block up here
   // to send the trip back to the queue (clears its car + driver).
-  const queueDrop = useDroppable({ id: QUEUE_DROP_ID });
+  const { setNodeRef: queueDropRef, isOver: queueIsOver } = useDroppable({ id: QUEUE_DROP_ID });
 
   // Auto-fit the axis: start no later than 06:00, end no earlier than 20:00,
   // but stretch to swallow an early/late trip. endHour === 24 is the overnight
   // sentinel (runs to the right edge) — excluded from the "latest real end".
-  const realEnds = bookings.filter((b) => b.endHour < 24).map((b) => b.endHour);
-  const dayStart = Math.max(0, Math.floor(Math.min(DEFAULT_START, ...bookings.map((b) => b.startHour))));
+  // Fold the outsourced trips into the axis fit so an odd-hour external trip
+  // still lands in frame.
+  const axisB = [...bookings, ...adHocRows.flatMap((r) => r.bookings)];
+  const realEnds = axisB.filter((b) => b.endHour < 24).map((b) => b.endHour);
+  const dayStart = Math.max(0, Math.floor(Math.min(DEFAULT_START, ...axisB.map((b) => b.startHour))));
   const dayEnd = Math.min(24, Math.ceil(Math.max(DEFAULT_END, ...realEnds)));
   const dayHours = dayEnd - dayStart;
   const hours = Array.from({ length: dayHours + 1 }, (_, i) => dayStart + i);
@@ -90,12 +109,27 @@ export function SchedulerBoard({
   const queue = bookings.filter((b) => !b.vehicleId);
   const needsDriver = bookings.filter((b) => b.vehicleId && !b.hasDriver);
   const work = [...queue, ...needsDriver];
+  // Long-haul trips that have a car + primary but no co-driver — "parked"
+  // co-driver slots, draggable onto a car to fill (this is where a co-driver
+  // lands after being dragged off a row, instead of vanishing).
+  const coDriverNeeded = bookings.filter((b) => b.needsCoDriver);
   const onVehicle = (vehicleId: string) => bookings.filter((b) => b.vehicleId === vehicleId);
   // Long-haul trips whose CO-DRIVER is this car's driver — painted as a ghost on
   // this row (their own car isn't dispatched; they ride in the primary's).
   const coDriverOn = (vehicleId: string) =>
     bookings.filter((b) => !!b.secondaryDriverName && b.secondaryVehicleId === vehicleId);
-  const activeBooking = activeId ? bookings.find((b) => b.id === activeId) ?? null : null;
+  // activeId may be a primary block ("<bookingId>") or a co-driver ghost
+  // ("co:<bookingId>") — strip the prefix to find the underlying booking.
+  const activeIsCoDriver = activeId?.startsWith("co:") ?? false;
+  const activeIsExt = activeId?.startsWith("ext:") ?? false;
+  const activeRawId = activeIsCoDriver
+    ? activeId!.slice(3)
+    : activeIsExt
+      ? activeId!.slice(4)
+      : activeId;
+  const activeBooking = activeRawId
+    ? [...bookings, ...adHocRows.flatMap((r) => r.bookings)].find((b) => b.id === activeRawId) ?? null
+    : null;
 
   // "VB-202606-9 · 18 Jun 09:00–11:00" — names a blocking trip with its DAY, so a
   // multi-day clash on a day that isn't on screen is visible in the reject banner.
@@ -126,6 +160,33 @@ export function SchedulerBoard({
     });
   }
 
+  // Drag the co-driver ghost: onto a car → that car's driver becomes the new
+  // co-driver; off any row (vehicleId null) → remove the co-driver.
+  function reassignSecondary(bookingId: string, vehicleId: string | null) {
+    setDropError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.append("bookingId", bookingId);
+      if (vehicleId) fd.append("vehicleId", vehicleId);
+      const res = await reassignSecondaryAction(fd);
+      if (!res.ok) {
+        if (res.error === "vehicleBusy" && res.conflicts?.length) {
+          setDropError(t("dropConflictDetail", { detail: res.conflicts.map(fmtConflict).join("; ") }));
+          router.refresh();
+          return;
+        }
+        const key =
+          res.error === "noAssignedDriver"
+            ? "noAssignedDriver"
+            : res.error === "coDriverSamePrimary"
+              ? "coDriverSamePrimary"
+              : "dropFailed";
+        setDropError(t(key));
+      }
+      router.refresh();
+    });
+  }
+
   // Drag a block back up to the queue: clear its car + driver(s).
   function unassign(bookingId: string) {
     setDropError(null);
@@ -134,6 +195,47 @@ export function SchedulerBoard({
         (() => { const fd = new FormData(); fd.append("bookingId", bookingId); return fd; })(),
       );
       if (!res.ok) setDropError(t("dropFailed"));
+      router.refresh();
+    });
+  }
+
+  // Drop a booking onto an external row → outsource it (off-algorithm).
+  function outsourceTo(bookingId: string, rowId: string) {
+    setDropError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.append("bookingId", bookingId);
+      fd.append("rowId", rowId);
+      const res = await outsourceToRowAction(fd);
+      if (!res.ok) setDropError(t("dropFailed"));
+      router.refresh();
+    });
+  }
+  // Drag an outsourced trip off its row → back to the queue.
+  function unoutsource(bookingId: string) {
+    setDropError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.append("bookingId", bookingId);
+      const res = await unoutsourceAction(fd);
+      if (!res.ok) setDropError(t("dropFailed"));
+      router.refresh();
+    });
+  }
+  function addRow(formData: FormData) {
+    formData.append("date", date);
+    setDropError(null);
+    startTransition(async () => {
+      await addAdHocRowAction(formData);
+      router.refresh();
+    });
+  }
+  function removeRow(id: string) {
+    setDropError(null);
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.append("id", id);
+      await removeAdHocRowAction(fd);
       router.refresh();
     });
   }
@@ -183,11 +285,38 @@ export function SchedulerBoard({
   function onDragEnd(e: DragEndEvent) {
     setActiveId(null);
     const over = e.over;
-    const bookingId = String(e.active.id);
-    // Dropped squarely on a car row → (re)assign to that car.
-    const onCar = over != null && vehicles.some((v) => v.id === over.id);
+    const rawId = String(e.active.id);
+    const overId = over != null ? String(over.id) : null;
+    // Dropped squarely on a car row → that row's car/driver.
+    const onCar = overId != null && vehicles.some((v) => v.id === overId);
+    // Dropped on a per-day external row ("adhoc:<rowId>").
+    const adHocRowId = overId?.startsWith("adhoc:") ? overId.slice(6) : null;
+
+    // Co-driver ghost drag: id is namespaced "co:<bookingId>". Onto a car →
+    // reassign the co-driver to that car's driver; anywhere else → remove them.
+    if (rawId.startsWith("co:")) {
+      const bookingId = rawId.slice(3);
+      reassignSecondary(bookingId, onCar ? overId! : null);
+      return;
+    }
+
+    // Outsourced block drag ("ext:<bookingId>"): onto another external row →
+    // move it there; anywhere else → un-outsource back to the queue.
+    if (rawId.startsWith("ext:")) {
+      const bookingId = rawId.slice(4);
+      if (adHocRowId) outsourceTo(bookingId, adHocRowId);
+      else unoutsource(bookingId);
+      return;
+    }
+
+    const bookingId = rawId;
+    // A queue card or fleet block dropped on an external row → outsource it.
+    if (adHocRowId) {
+      outsourceTo(bookingId, adHocRowId);
+      return;
+    }
     if (onCar) {
-      reassign(bookingId, String(over!.id));
+      reassign(bookingId, overId!);
       return;
     }
     // Anywhere else — the Unassigned zone, the gap above it, or off all rows —
@@ -264,9 +393,9 @@ export function SchedulerBoard({
         {/* Unassigned queue — drag a card onto a car row to assign it, or drag a
             scheduled block back here to unassign it. Also a drop target. */}
         <div
-          ref={queueDrop.setNodeRef}
+          ref={queueDropRef}
           className={`rounded-xl border bg-muted/30 p-3 transition-colors ${
-            queueDrop.isOver ? "ring-2 ring-inset ring-primary/50 bg-primary/5" : ""
+            queueIsOver ? "ring-2 ring-inset ring-primary/50 bg-primary/5" : ""
           }`}
         >
           <h2 className="mb-2 text-sm font-semibold">
@@ -279,6 +408,18 @@ export function SchedulerBoard({
               {queue.map((b) => (
                 <QueueCard key={b.id} b={b} />
               ))}
+            </div>
+          )}
+          {coDriverNeeded.length > 0 && (
+            <div className="mt-3 border-t pt-3">
+              <h3 className="mb-2 text-xs font-semibold text-violet-700 dark:text-violet-300">
+                {t("coDriverNeeded")} <span className="opacity-70">({coDriverNeeded.length})</span>
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {coDriverNeeded.map((b) => (
+                  <CoDriverQueueCard key={`co-${b.id}`} b={b} label={t("coDriverNeededCard")} />
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -318,6 +459,7 @@ export function SchedulerBoard({
                   dutyLabel={t("duty")}
                   noDriverLabel={t("noDriver")}
                   coDriverLabel={t("coDriver")}
+                  arrivesLabel={t("arrives")}
                   unassignLabel={t("unassign")}
                   onUnassign={unassign}
                   dayStart={dayStart}
@@ -328,18 +470,74 @@ export function SchedulerBoard({
             </div>
           </div>
         )}
+
+        {/* Per-day external / outside-driver rows. Drop a trip here to OUTSOURCE
+            it (off-algorithm); it renders in a neutral zinc tint. Rows are scoped
+            to the viewed day. */}
+        <div className="overflow-x-auto rounded-xl border">
+          <div className="min-w-[64rem]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+              <span className="text-xs font-semibold text-muted-foreground">{t("externalRows")}</span>
+              <form action={addRow} className="flex items-center gap-1.5">
+                <input
+                  name="label"
+                  required
+                  maxLength={60}
+                  placeholder={t("externalNamePlaceholder")}
+                  className="h-7 w-44 rounded-md border bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <input
+                  name="cost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder={t("externalCostPlaceholder")}
+                  className="h-7 w-24 rounded-md border bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden /> {t("addExternalRow")}
+                </button>
+              </form>
+            </div>
+            {adHocRows.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">{t("externalRowsEmpty")}</p>
+            ) : (
+              adHocRows.map((r) => (
+                <AdHocRow
+                  key={r.id}
+                  row={r}
+                  dayStart={dayStart}
+                  dayHours={dayHours}
+                  hours={hours}
+                  removeLabel={t("removeExternalRow")}
+                  onRemove={removeRow}
+                />
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Floating ghost that follows the cursor while dragging. */}
       <DragOverlay dropAnimation={null}>
         {activeBooking ? (
-          <div className="pointer-events-none w-56 cursor-grabbing rounded-md border bg-card p-2 text-xs shadow-lg ring-2 ring-primary/50">
+          <div
+            className={`pointer-events-none w-56 cursor-grabbing rounded-md border bg-card p-2 text-xs shadow-lg ring-2 ${
+              activeIsExt ? "ring-zinc-400" : activeIsCoDriver ? "ring-violet-400/70" : "ring-primary/50"
+            }`}
+          >
             <div className="flex items-center gap-1">
               <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
               <span className="font-mono text-[10px] text-muted-foreground">{activeBooking.jobNumber}</span>
               <span className="font-medium">{activeBooking.timeLabel}–{activeBooking.endLabel}</span>
             </div>
-            <div className="truncate text-muted-foreground">{activeBooking.purpose}</div>
+            <div className="truncate text-muted-foreground">
+              {activeIsCoDriver ? t("coDriver") : activeBooking.purpose}
+            </div>
           </div>
         ) : null}
       </DragOverlay>

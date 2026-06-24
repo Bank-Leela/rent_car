@@ -75,14 +75,24 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   });
   // --- Algorithm 2 inputs ---
   const drivers = await prisma.driver.findMany({
-    where: { isActive: true },
+    // Gate on the owning User's isActive: deactivating a user removes the driver
+    // from scheduling (Driver.isActive is never toggled on its own). Also skip
+    // anyone marked off for the day (sick / leave).
+    where: {
+      isActive: true,
+      user: { is: { isActive: true } },
+      unavailabilities: { none: { date: tripDay } },
+    },
     select: { id: true, createdAt: true, lastAssignedAt: true },
   });
   if (drivers.length === 0) return { ok: false, error: te("noActiveDrivers") };
 
   // Today's on-call driver is pre-seeded as busy on ON_CALL (campus rounds).
+  // Ignore a shift whose driver is no longer in the active pool (a ghost) so a
+  // WERN booking doesn't route to a deactivated driver.
   const onCall = await prisma.onCallShift.findUnique({ where: { date: tripDay } });
-  const onCallDriverId = onCall?.driverId ?? null;
+  const onCallDriverId =
+    onCall?.driverId && drivers.some((d) => d.id === onCall.driverId) ? onCall.driverId : null;
 
   const busyToday: DriverBusyTrip[] = [];
   for (const b of dayBookings) {
@@ -271,9 +281,27 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
   if (Number.isNaN(day.getTime())) return { ok: false, error: te("invalidInput") };
 
   let chosenDriverId = driverId;
-  if (!chosenDriverId) {
+  if (chosenDriverId) {
+    // An explicitly chosen duty driver must be active (a deactivated driver
+    // would become a ghost the solver/matcher can't route WERN to) and not
+    // marked off (sick / leave) for that day.
+    const ok = await prisma.driver.findFirst({
+      where: {
+        id: chosenDriverId,
+        isActive: true,
+        user: { is: { isActive: true } },
+        unavailabilities: { none: { date: day } },
+      },
+      select: { id: true },
+    });
+    if (!ok) return { ok: false, error: te("invalidInput"), field: "driverId" };
+  } else {
     const drivers = await prisma.driver.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        user: { is: { isActive: true } },
+        unavailabilities: { none: { date: day } },
+      },
       select: {
         id: true,
         onCallShifts: { orderBy: { date: "desc" }, take: 1, select: { date: true } },

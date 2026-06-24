@@ -96,7 +96,7 @@ export default async function AdminQueue({
     const rangeEnd = new Date(Math.max(...dayStartMs));
     rangeEnd.setDate(rangeEnd.getDate() + 1);
 
-    const [vehicles, dayBookings, shifts, earnings] = await Promise.all([
+    const [vehicles, dayBookings, shifts, earnings, unavailRows] = await Promise.all([
       prisma.vehicle.findMany({
         where: { isActive: true },
         select: { id: true, registrationNumber: true, assignedDriverId: true },
@@ -107,7 +107,14 @@ export default async function AdminQueue({
       }),
       prisma.onCallShift.findMany({ where: { date: { in: dayStartMs.map((t) => new Date(t)) } } }),
       loadWeightedEarnings(allDrivers.map((d) => d.id)),
+      // Drivers marked off (sick/leave) on any waitlist day — excluded per day below.
+      prisma.driverUnavailability.findMany({
+        where: { date: { gte: rangeStart, lt: rangeEnd } },
+        select: { driverId: true, date: true },
+      }),
     ]);
+    // Keyed by "driverId|yyyy-MM-dd" so the per-day match is TZ-robust.
+    const offByDay = new Set(unavailRows.map((u) => `${u.driverId}|${format(u.date, "yyyy-MM-dd")}`));
 
     const driverName = new Map(allDrivers.map((d) => [d.id, d.user.name ?? d.user.email ?? d.id]));
     const vehicleReg = new Map(vehicles.map((v) => [v.id, v.registrationNumber]));
@@ -130,10 +137,13 @@ export default async function AdminQueue({
           driverTrips.set(id, arr);
         }
       }
+      const dayKey = format(dayStart, "yyyy-MM-dd");
       const reco = recommendOvertimePlacement({
         booking: { startAt: b.startAt, endAt: b.endAt },
         dutyDriverId: dutyByDay.get(dayStart.getTime()) ?? null,
-        drivers: allDrivers.map((d) => ({
+        drivers: allDrivers
+          .filter((d) => !offByDay.has(`${d.id}|${dayKey}`))
+          .map((d) => ({
           driverId: d.id,
           vehicleId: driverCar.get(d.id) ?? null,
           earningsScore: earnings.get(d.id) ?? 0,
@@ -164,7 +174,15 @@ export default async function AdminQueue({
     const requesterIds = [...new Set(pending.map((b) => b.requesterId))];
 
     const [activeVehicles, daySlotBookings, cancellations] = await Promise.all([
-      prisma.vehicle.findMany({ where: { isActive: true }, select: { isDutyVehicle: true } }),
+      // Capacity counts only DISPATCHABLE cars (paired to an active driver),
+      // matching the submit-time gate in createBookingAction.
+      prisma.vehicle.findMany({
+        where: {
+          isActive: true,
+          assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
+        },
+        select: { isDutyVehicle: true },
+      }),
       prisma.booking.findMany({
         where: { status: { in: SLOT_HOLDING_STATUSES }, startAt: { gte: rangeStart, lt: rangeEnd } },
         select: { startAt: true },

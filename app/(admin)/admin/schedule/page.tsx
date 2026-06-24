@@ -6,10 +6,12 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
+import type { SchedulerBooking } from "@/components/admin/scheduler-board-shared";
+import { DriverRosterControl } from "@/components/admin/driver-roster-control";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { findConflictLosers } from "@/lib/booking/conflict-resolve";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
-import { daySpan } from "@/lib/booking/day-window";
+import { daySpan, daySuperscript } from "@/lib/booking/day-window";
 
 // Compact clock for the board's narrow blocks: drop ":00" so a 2h block fits its
 // own start–end ("08:00–12:00" → "08–12"); keep the minutes only when non-zero.
@@ -30,7 +32,7 @@ export default async function SchedulePage({
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
 
-  const [vehicles, dayBookings, onCall] = await Promise.all([
+  const [vehicles, dayBookings, onCall, adHocRowsRaw, outsourcedRaw] = await Promise.all([
     prisma.vehicle.findMany({
       where: { isActive: true },
       // Stable order so the A–F labels stay put day-to-day (duty rotates, not the label).
@@ -70,6 +72,29 @@ export default async function SchedulePage({
       },
     }),
     prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
+    // Per-day external/outside-driver rows + the trips outsourced to them.
+    prisma.adHocVehicle.findMany({
+      where: { date: dayStart },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, label: true, cost: true },
+    }),
+    prisma.booking.findMany({
+      where: {
+        status: "OUTSOURCED",
+        adHocVehicleId: { not: null },
+        startAt: { lt: dayEnd },
+        endAt: { gt: dayStart },
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        id: true, jobNumber: true, purpose: true, destination: true, startAt: true, endAt: true,
+        vehicleId: true, jobType: true, estimatedDistance: true, createdAt: true,
+        primaryDriverId: true, secondaryDriverId: true,
+        primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+        secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+        adHocVehicleId: true,
+      },
+    }),
   ]);
 
   // car=driver: the duty car is the on-call driver's own car — always resolvable.
@@ -87,6 +112,27 @@ export default async function SchedulePage({
     const driverName = du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null;
     return { id: v.id, registrationNumber: v.registrationNumber, driverName };
   });
+
+  // Roster: every schedulable driver + whether they're marked off (sick/leave)
+  // for the viewed day. Marking off excludes them from the day's auto-assign.
+  const rosterDrivers = await prisma.driver.findMany({
+    where: { isActive: true, user: { is: { isActive: true } } },
+    select: {
+      id: true,
+      user: { select: { name: true, thaiName: true } },
+      assignedVehicle: { select: { registrationNumber: true } },
+      unavailabilities: { where: { date: dayStart }, select: { id: true } },
+    },
+  });
+  const roster = rosterDrivers
+    .map((d) => ({
+      driverId: d.id,
+      name: (isThai ? d.user.thaiName ?? d.user.name : d.user.name ?? d.user.thaiName) ?? d.id,
+      carReg: d.assignedVehicle?.registrationNumber ?? null,
+      off: d.unavailabilities.length > 0,
+    }))
+    .sort((a, b) => (a.carReg ?? "~").localeCompare(b.carReg ?? "~") || a.name.localeCompare(b.name));
+
   // Placement recommendation for each unassigned (queue) booking — the same
   // suggestion the batch overflow list shows, surfaced on the board's queue.
   const queueRaw = dayBookings
@@ -131,6 +177,10 @@ export default async function SchedulePage({
       endLabel: span.continuesAfter
         ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
         : hm(b.endAt),
+      // Airline-style depart/arrive for the both-ends multi-day rendering: time +
+      // a day-offset marker relative to the viewed day ("18:00⁺1" = next day).
+      departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),
+      arriveLabel: hm(b.endAt) + daySuperscript(b.endAt, dayStart),
       startHour: span.startHour,
       endHour: span.endHour,
       continuesBefore: span.continuesBefore,
@@ -142,9 +192,52 @@ export default async function SchedulePage({
       secondaryDriverName,
       secondaryDriverId: b.secondaryDriverId,
       secondaryVehicleId: b.secondaryDriverId ? carByDriver.get(b.secondaryDriverId) ?? null : null,
+      // Long-haul, assigned (car + primary), but no co-driver → parked card.
+      needsCoDriver:
+        longTrip && b.primaryDriverId != null && b.vehicleId != null && b.secondaryDriverId == null,
       reco,
     };
   });
+
+  // Outsourced trips → SchedulerBooking (no car/driver/reco), grouped per row.
+  const outsourcedBookings: SchedulerBooking[] = outsourcedRaw.map((b) => {
+    const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
+    return {
+      id: b.id,
+      jobNumber: b.jobNumber,
+      purpose: b.purpose,
+      destination: b.destination,
+      timeLabel: span.continuesBefore ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.startAt),
+      endLabel: span.continuesAfter ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.endAt),
+      departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),
+      arriveLabel: hm(b.endAt) + daySuperscript(b.endAt, dayStart),
+      startHour: span.startHour,
+      endHour: span.endHour,
+      continuesBefore: span.continuesBefore,
+      continuesAfter: span.continuesAfter,
+      vehicleId: null,
+      jobType: b.jobType,
+      hasDriver: false,
+      driverName: null,
+      secondaryDriverName: null,
+      secondaryDriverId: null,
+      secondaryVehicleId: null,
+      needsCoDriver: false,
+      reco: null,
+    };
+  });
+  const outsourcedByRow = new Map<string, SchedulerBooking[]>();
+  outsourcedRaw.forEach((b, i) => {
+    const list = outsourcedByRow.get(b.adHocVehicleId!) ?? [];
+    list.push(outsourcedBookings[i]!);
+    outsourcedByRow.set(b.adHocVehicleId!, list);
+  });
+  const adHocRows = adHocRowsRaw.map((r) => ({
+    id: r.id,
+    label: r.label,
+    cost: r.cost != null ? r.cost.toString() : null,
+    bookings: outsourcedByRow.get(r.id) ?? [],
+  }));
 
   // Overlap conflicts among already-assigned trips (the red ring): the count of
   // "loser" trips the auto-assign button will try to re-match to a free car.
@@ -193,12 +286,15 @@ export default async function SchedulePage({
         </div>
       </div>
 
+      <DriverRosterControl drivers={roster} date={isoOf(dayStart)} />
+
       <SchedulerBoard
         vehicles={vehicleRows}
         bookings={bookings}
         dutyVehicleId={dutyVehicleId}
         conflictCount={conflictCount}
         date={isoOf(dayStart)}
+        adHocRows={adHocRows}
       />
     </div>
   );

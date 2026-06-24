@@ -8,14 +8,15 @@ export default async function NewBookingPage() {
   const t = await getTranslations("newBookingPage");
   const locale = await getLocale();
 
-  const departments = await prisma.department.findMany({
-    orderBy: locale.toLowerCase().startsWith("th") ? { nameTh: "asc" } : { nameEn: "asc" },
-    select: { id: true, nameEn: true, nameTh: true },
-  });
+  const isThai = locale.toLowerCase().startsWith("th");
+  // Department is locked to the requester's own profile (edited on /account).
   const me = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { departmentId: true },
+    select: { department: { select: { id: true, nameEn: true, nameTh: true } } },
   });
+  const userDepartment = me?.department
+    ? { id: me.department.id, name: isThai ? me.department.nameTh : me.department.nameEn }
+    : null;
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
     orderBy: { registrationNumber: "asc" },
@@ -28,12 +29,7 @@ export default async function NewBookingPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground">{t("description")}</p>
       </div>
-      <BookingForm
-        departments={departments}
-        vehicles={vehicles}
-        defaultDepartmentId={me?.departmentId ?? null}
-        locale={locale}
-      />
+      <BookingForm vehicles={vehicles} userDepartment={userDepartment} />
     </div>
   );
 }

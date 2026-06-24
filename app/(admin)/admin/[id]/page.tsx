@@ -44,6 +44,7 @@ export default async function AdminBookingDetail({
       primaryDriver: { include: { user: true } },
       secondaryDriver: { include: { user: true } },
       auditLogs: { orderBy: { createdAt: "asc" }, include: { actor: true } },
+      trip: true,
     },
   });
   if (!booking) notFound();
@@ -122,9 +123,18 @@ export default async function AdminBookingDetail({
     const dayUsed = await prisma.booking.count({
       where: { status: { in: SLOT_HOLDING_STATUSES }, startAt: { gte: start, lt: end } },
     });
+    // Capacity counts only DISPATCHABLE cars (paired to an active driver),
+    // matching the submit-time gate; freeCars/totalCars below stay all-active.
+    const dispatchable = await prisma.vehicle.findMany({
+      where: {
+        isActive: true,
+        assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
+      },
+      select: { isDutyVehicle: true },
+    });
     const cap = dayCapacity(
-      vehicles.filter((v) => !v.isDutyVehicle).length,
-      vehicles.filter((v) => v.isDutyVehicle).length,
+      dispatchable.filter((v) => !v.isDutyVehicle).length,
+      dispatchable.filter((v) => v.isDutyVehicle).length,
     );
     const freeCars = vehicles
       .filter((v) => (conflictsByVehicle.get(v.id) ?? 0) === 0)
@@ -194,8 +204,8 @@ export default async function AdminBookingDetail({
         </CardContent>
       </Card>
 
-      {(["APPROVED", "ASSIGNED", "COMPLETED"] as const).includes(
-        booking.status as "APPROVED" | "ASSIGNED" | "COMPLETED",
+      {(["APPROVED", "ASSIGNED", "COMPLETED", "OUTSOURCED"] as const).includes(
+        booking.status as "APPROVED" | "ASSIGNED" | "COMPLETED" | "OUTSOURCED",
       ) && booking.ajarnName && (
         <Card>
           <CardHeader>
@@ -225,6 +235,51 @@ export default async function AdminBookingDetail({
                 label={t("coDriver")}
                 value={booking.secondaryDriver.user.name ?? booking.secondaryDriver.user.email!}
               />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {booking.trip && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("tripRecordTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
+            <Field label={t("tripStarted")} value={format(booking.trip.startedAt, "EEE d MMM HH:mm")} />
+            <Field
+              label={t("tripEnded")}
+              value={
+                booking.trip.endedAt
+                  ? format(booking.trip.endedAt, "EEE d MMM HH:mm")
+                  : t("tripInProgress")
+              }
+            />
+            <Field
+              label={t("tripStartMileage")}
+              value={`${booking.trip.startMileage.toLocaleString()} km`}
+            />
+            <Field
+              label={t("tripEndMileage")}
+              value={booking.trip.endMileage != null ? `${booking.trip.endMileage.toLocaleString()} km` : "—"}
+            />
+            <Field
+              label={t("tripDistance")}
+              value={booking.trip.distanceKm != null ? `${booking.trip.distanceKm} km` : "—"}
+            />
+            <Field
+              label={t("tripFuel")}
+              value={booking.trip.fuelCost != null ? `฿${booking.trip.fuelCost.toString()}` : "—"}
+            />
+            <Field
+              label={t("tripTollway")}
+              value={booking.trip.tollwayCost != null ? `฿${booking.trip.tollwayCost.toString()}` : "—"}
+            />
+            {booking.trip.usedExpressway && (
+              <Field label={t("tripExpressway")} value={t("tripExpresswayUsed")} />
+            )}
+            {booking.trip.driverNotes && (
+              <Field label={t("tripDriverNotes")} value={booking.trip.driverNotes} colSpan />
             )}
           </CardContent>
         </Card>

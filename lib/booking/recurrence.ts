@@ -1,8 +1,15 @@
-import { addDays, isSameDay } from "date-fns";
+import { addDays, startOfDay } from "date-fns";
 
 /**
  * Phase-5 recurrence: pick weekdays-of-week + a date range, expand to dates.
- * 0 = Sunday, 6 = Saturday — JavaScript convention.
+ * 0 = Sunday, 6 = Saturday — JavaScript LOCAL convention (matches the form's
+ * weekday picker and the local datetime-local inputs).
+ *
+ * Works purely in calendar days: both bounds are normalised to local midnight
+ * so the comparison can't be thrown off by the start's time-of-day or by an
+ * end date that arrived at a different instant (e.g. a date-only value). The
+ * weekday test uses the LOCAL day only — mixing in getUTCDay() used to leak the
+ * next calendar day for early-morning starts in +07.
  */
 export function expandRecurringDates({
   startDate,
@@ -13,17 +20,15 @@ export function expandRecurringDates({
   endDate: Date;
   weekdays: number[];
 }): Date[] {
-  if (startDate > endDate) return [];
+  const end = startOfDay(endDate);
+  let cursor = startOfDay(startDate);
+  if (cursor > end) return [];
   const set = new Set(weekdays);
   const out: Date[] = [];
-  let cursor = startDate;
   // Cap at 366 to avoid runaway loops on bad input.
-  for (let i = 0; i < 366 && cursor <= endDate; i++) {
-    if (set.has(cursor.getUTCDay()) || set.has(cursor.getDay())) {
-      out.push(new Date(cursor));
-    }
+  for (let i = 0; i < 366 && cursor <= end; i++) {
+    if (set.has(cursor.getDay())) out.push(new Date(cursor));
     cursor = addDays(cursor, 1);
-    if (isSameDay(cursor, addDays(startDate, 366))) break;
   }
   return out;
 }

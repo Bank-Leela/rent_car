@@ -57,7 +57,15 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
 
   // --- Driver pool + rotation snapshots. ---
   const drivers = await prisma.driver.findMany({
-    where: { isActive: true },
+    // Gate on the owning User's isActive too: deactivating a user is how a
+    // driver is "removed", and Driver.isActive is never toggled on its own.
+    // Also skip anyone marked off for the day (sick / leave) — fairness +
+    // rotation self-heal on return, so nothing else needs to change.
+    where: {
+      isActive: true,
+      user: { is: { isActive: true } },
+      unavailabilities: { none: { date: dayStart } },
+    },
     select: {
       id: true,
       lastTjwAt: true,
@@ -78,9 +86,10 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     earningsScore: earnings.get(d.id) ?? 0,
   }));
 
-  // --- Duty driver for the day (from OnCallShift). ---
+  // --- Duty driver for the day (from OnCallShift). Validated against the active
+  // + paired pool below (a deactivated/unpaired duty driver is a ghost). ---
   const onCall = await prisma.onCallShift.findUnique({ where: { date: dayStart } });
-  const dutyDriverId = onCall?.driverId ?? null;
+  const onCallDriverId = onCall?.driverId ?? null;
 
   // --- Active TJW commitments (multi-day TJW trips that span today). ---
   const tjwSpanning = await prisma.booking.findMany({
@@ -120,6 +129,19 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   });
   const driverCar = driverVehicleMap(vehicles);
 
+  // car=driver: a driver with no assigned car can't be dispatched, so keep them
+  // out of the pick pool entirely — otherwise the solver may pick an unpaired
+  // (e.g. just-added) driver and overflow the booking NO_SLOT while a paired,
+  // lower-ranked driver sits idle.
+  const pairedDriverStates = driverStates.filter((d) => driverCar.has(d.driverId));
+  if (pairedDriverStates.length === 0) return { ok: false, error: te("noActiveDrivers") };
+  // An OnCallShift pointing at a driver who is no longer active+paired is a ghost
+  // — null it so WERN falls back to the duty rotation (oldest lastDutyAt).
+  const dutyDriverId =
+    onCallDriverId && pairedDriverStates.some((d) => d.driverId === onCallDriverId)
+      ? onCallDriverId
+      : null;
+
   // --- Trips already on a car for this day (any job type). ---
   // Seeds each driver's schedule so the solver can't stack a second trip on an
   // already-booked car (overlap) or blow past the daily cap. Spanning TJW from
@@ -150,7 +172,7 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   const result = solveDay({
     date,
     bookings: solverBookings,
-    drivers: driverStates,
+    drivers: pairedDriverStates,
     dutyDriverId,
     activeTjwCommitments: commitments,
     existingByDriver,

@@ -85,22 +85,32 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     return { ok: false, error: te("pendingEvaluation") };
   }
 
-  // Validate the selected department exists. The requester (a middleman team)
-  // can submit on behalf of any department in the faculty fleet.
-  const department = await prisma.department.findUnique({
-    where: { id: data.departmentId },
-    select: { id: true },
+  // Department is locked to the requester's own profile (edited on /account),
+  // not chosen per booking. Resolve it server-side and block if it's unset so
+  // a tampered or empty payload can't slip a foreign department through.
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { departmentId: true },
   });
-  if (!department) {
-    return { ok: false, error: te("invalidInput"), field: "departmentId" };
+  if (!me?.departmentId) {
+    return { ok: false, error: te("noDepartment"), field: "departmentId" };
   }
+  const departmentId = me.departmentId;
 
   const created = await prisma.$transaction(async (tx) => {
     // #1 capacity gate: a day's slots = morning + afternoon per non-duty
     // vehicle, plus one spare for the เวร/duty car. When full, waitlist.
+    // Only count DISPATCHABLE cars: active, paired to a driver, and that driver
+    // (and their user) active. An unpaired or inactive-driver car can't run a
+    // trip, so counting it would over-state capacity and accept bookings that
+    // then overflow NO_SLOT at solve time.
+    const dispatchable = {
+      isActive: true,
+      assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
+    } as const;
     const [nonDutyVehicles, dutyVehicles] = await Promise.all([
-      tx.vehicle.count({ where: { isActive: true, isDutyVehicle: false } }),
-      tx.vehicle.count({ where: { isActive: true, isDutyVehicle: true } }),
+      tx.vehicle.count({ where: { ...dispatchable, isDutyVehicle: false } }),
+      tx.vehicle.count({ where: { ...dispatchable, isDutyVehicle: true } }),
     ]);
     const capacity = dayCapacity(nonDutyVehicles, dutyVehicles);
     const slotStatusFor = async (when: Date) => {
@@ -117,7 +127,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       data: {
         jobNumber,
         requesterId: userId,
-        departmentId: data.departmentId,
+        departmentId,
         purpose: data.purpose,
         destination: data.destination,
         province: data.province,
@@ -126,6 +136,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         ajarnName: data.ajarnName,
         ajarnPhone: data.ajarnPhone,
         ajarnEmail: data.ajarnEmail,
+        coordinatorName: data.coordinatorName,
+        coordinatorPhone: data.coordinatorPhone,
+        tripType: data.tripType,
+        remark: data.remark,
         jobType:
           data.jobType ??
           classifyJobType({
@@ -188,7 +202,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
           data: {
             jobNumber: childJob,
             requesterId: userId,
-            departmentId: data.departmentId,
+            departmentId,
             purpose: data.purpose,
             destination: data.destination,
             province: data.province,
@@ -197,6 +211,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             ajarnName: data.ajarnName,
             ajarnPhone: data.ajarnPhone,
             ajarnEmail: data.ajarnEmail,
+            coordinatorName: data.coordinatorName,
+            coordinatorPhone: data.coordinatorPhone,
+            tripType: data.tripType,
+            remark: data.remark,
             jobType:
               data.jobType ??
               classifyJobType({

@@ -32,7 +32,9 @@ export async function approvalFunnel(range: DateRange, departmentId?: string) {
     prisma.booking.count({ where: { ...baseWhere, status: "DENIED" } }),
     prisma.booking.count({ where: { ...baseWhere, status: "CANCELLED" } }),
     prisma.booking.count({ where: { ...baseWhere, status: "COMPLETED" } }),
-    prisma.booking.count({ where: { ...baseWhere, needsOutsourcing: true } }),
+    // Count by the OUTSOURCED status (not the legacy needsOutsourcing flag, which
+    // lingers on cancelled trips and conflates the two flows).
+    prisma.booking.count({ where: { ...baseWhere, status: "OUTSOURCED" } }),
   ]);
   return { total, approved, denied, cancelled, completed, outsourced };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, GripVertical, AlertTriangle, Link2, X } from "lucide-react";
+import { Car, GripVertical, AlertTriangle, Link2, X, Truck } from "lucide-react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 import {
@@ -18,6 +18,7 @@ import {
 function TimelineBlock({
   b,
   noDriverLabel,
+  arrivesLabel,
   unassignLabel,
   onUnassign,
   dayStart,
@@ -28,6 +29,8 @@ function TimelineBlock({
 }: {
   b: SchedulerBooking;
   noDriverLabel: string;
+  // Prefix for the pinned arrival on a multi-day block (e.g. "ถึง" / "arr.").
+  arrivesLabel: string;
   unassignLabel: string;
   // Move this trip back to the Unassigned queue (drag-free path).
   onUnassign: (bookingId: string) => void;
@@ -82,9 +85,18 @@ function TimelineBlock({
       </button>
       <div className="flex items-center gap-1 font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
-        {/* Compact start–end (e.g. "08–12") truncates inside the block instead of
-            spilling past its border — full time is in the title tooltip. */}
-        <span className="min-w-0 truncate">{b.timeLabel}–{b.endLabel}</span>
+        {b.continuesBefore || b.continuesAfter ? (
+          // Multi-day: depart pinned to the left, arrive pinned to the right, so the
+          // whole span (which day → which day, depart + arrive time) shows on every
+          // day the trip appears. pr-4 keeps the arrival clear of the hover ✕.
+          <>
+            <span className="min-w-0 truncate">{b.departLabel}</span>
+            <span className="ml-auto shrink-0 truncate pr-4">{arrivesLabel} {b.arriveLabel}</span>
+          </>
+        ) : (
+          // Same-day: compact start–end (e.g. "08–12"); full time in the tooltip.
+          <span className="min-w-0 truncate">{b.timeLabel}–{b.endLabel}</span>
+        )}
       </div>
       <div className="truncate text-muted-foreground">{b.purpose}</div>
       {b.hasDriver ? (
@@ -117,6 +129,7 @@ function CoDriverGhost({
   top,
   height,
   coDriverLabel,
+  arrivesLabel,
 }: {
   b: SchedulerBooking;
   dayStart: number;
@@ -124,20 +137,35 @@ function CoDriverGhost({
   top: number;
   height: number;
   coDriverLabel: string;
+  arrivesLabel: string;
 }) {
+  // Draggable: the ghost id is namespaced `co:<bookingId>` so the board's drag
+  // handler can tell a co-driver move from a primary-block reassign. Dropping it
+  // on another car row reassigns the co-driver; off any row removes them.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `co:${b.id}` });
   const left = pctOf(b.startHour, dayStart, dayHours);
   const width = Math.max(pctOf(b.endHour, dayStart, dayHours) - left, 1.2);
   return (
     <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       title={`${b.jobNumber} · ${b.timeLabel} · ${coDriverLabel}${b.driverName ? " → " + b.driverName : ""} · ${b.purpose}`}
-      className={`absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 hover:z-10 dark:bg-violet-950/30 dark:text-violet-200 ${
+      className={`absolute cursor-grab touch-none overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 hover:z-10 active:cursor-grabbing dark:bg-violet-950/30 dark:text-violet-200 ${
         b.continuesBefore ? "rounded-l-none border-l-4" : ""
       } ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
-      style={{ left: `${left}%`, width: `${width}%`, top, height }}
+      style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
       <div className="flex items-center gap-1 font-medium">
         <Link2 className="h-3 w-3 shrink-0" aria-hidden />
-        <span className="min-w-0 truncate">{b.timeLabel}–{b.endLabel}</span>
+        {b.continuesBefore || b.continuesAfter ? (
+          <>
+            <span className="min-w-0 truncate">{b.departLabel}</span>
+            <span className="ml-auto shrink-0 truncate pl-1">{arrivesLabel} {b.arriveLabel}</span>
+          </>
+        ) : (
+          <span className="min-w-0 truncate">{b.timeLabel}–{b.endLabel}</span>
+        )}
       </div>
       <div className="truncate text-[10px] font-medium">{coDriverLabel}</div>
       {b.driverName && (
@@ -188,6 +216,36 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
   );
 }
 
+// A "parked" co-driver slot: a long-haul trip with a car + primary but no
+// co-driver. Dragged with the `co:` id so dropping it on a car fills the slot
+// (reassignSecondary). This is where a co-driver lands after being dragged off
+// a row — it parks here instead of vanishing.
+export function CoDriverQueueCard({ b, label }: { b: SchedulerBooking; label: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `co:${b.id}` });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      title={`${b.jobNumber} · ${b.timeLabel} · ${label}${b.driverName ? " → " + b.driverName : ""}`}
+      className="w-56 cursor-grab touch-none rounded-md border border-dashed border-violet-400/70 bg-violet-50 p-2 text-left text-xs shadow-sm active:cursor-grabbing dark:bg-violet-950/30 dark:text-violet-200"
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+    >
+      <div className="flex items-center gap-1 font-medium text-violet-800 dark:text-violet-200">
+        <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+        <span className="font-mono text-[10px] opacity-70">{b.jobNumber}</span>
+        <span>
+          {b.timeLabel}–{b.endLabel}
+        </span>
+      </div>
+      <div className="truncate text-violet-700 dark:text-violet-300">{label}</div>
+      {b.driverName && (
+        <div className="truncate text-[10px] text-violet-700/80 dark:text-violet-300/80">→ {b.driverName}</div>
+      )}
+    </div>
+  );
+}
+
 // A car row = a droppable lane. Drop a card here to assign this car + a driver.
 export function CarRow({
   vehicle,
@@ -198,6 +256,7 @@ export function CarRow({
   dutyLabel,
   noDriverLabel,
   coDriverLabel,
+  arrivesLabel,
   unassignLabel,
   onUnassign,
   dayStart,
@@ -213,6 +272,7 @@ export function CarRow({
   dutyLabel: string;
   noDriverLabel: string;
   coDriverLabel: string;
+  arrivesLabel: string;
   unassignLabel: string;
   onUnassign: (bookingId: string) => void;
   dayStart: number;
@@ -310,6 +370,7 @@ export function CarRow({
               key={it.key}
               b={it.b}
               noDriverLabel={noDriverLabel}
+              arrivesLabel={arrivesLabel}
               unassignLabel={unassignLabel}
               onUnassign={onUnassign}
               dayStart={dayStart}
@@ -327,7 +388,134 @@ export function CarRow({
               top={top}
               height={height}
               coDriverLabel={coDriverLabel}
+              arrivesLabel={arrivesLabel}
             />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// A per-day external/outside-driver row. Its trips are OUTSOURCED (off-algorithm)
+// and rendered in a neutral zinc tint so they read as "not our fleet". Drop a
+// queue card / scheduled block here to outsource it; drag a block off to return.
+export type AdHocRowData = {
+  id: string;
+  label: string;
+  cost: string | null;
+  bookings: SchedulerBooking[];
+};
+
+function ExtBlock({
+  b,
+  dayStart,
+  dayHours,
+  top,
+  height,
+}: {
+  b: SchedulerBooking;
+  dayStart: number;
+  dayHours: number;
+  top: number;
+  height: number;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `ext:${b.id}` });
+  const left = pctOf(b.startHour, dayStart, dayHours);
+  const width = Math.max(pctOf(b.endHour, dayStart, dayHours) - left, 1.2);
+  const multiDay = b.continuesBefore || b.continuesAfter;
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
+      className={`absolute cursor-grab touch-none overflow-hidden rounded-md border border-dashed border-zinc-400 bg-zinc-100 px-2 py-1 text-left text-[11px] text-zinc-800 active:cursor-grabbing dark:border-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-200 ${
+        b.continuesBefore ? "rounded-l-none border-l-4" : ""
+      } ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
+      style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
+    >
+      <div className="flex items-center gap-1 font-medium">
+        {multiDay ? (
+          <>
+            <span className="min-w-0 truncate">{b.departLabel}</span>
+            <span className="ml-auto shrink-0 truncate pl-1">{b.arriveLabel}</span>
+          </>
+        ) : (
+          <span className="min-w-0 truncate">
+            {b.timeLabel}–{b.endLabel}
+          </span>
+        )}
+      </div>
+      <div className="truncate text-zinc-600 dark:text-zinc-400">{b.purpose}</div>
+    </div>
+  );
+}
+
+export function AdHocRow({
+  row,
+  dayStart,
+  dayHours,
+  hours,
+  removeLabel,
+  onRemove,
+}: {
+  row: AdHocRowData;
+  dayStart: number;
+  dayHours: number;
+  hours: number[];
+  removeLabel: string;
+  onRemove: (id: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `adhoc:${row.id}` });
+  const sorted = [...row.bookings].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+  const laneEnds: number[] = [];
+  const laneOf = new Map<string, number>();
+  for (const b of sorted) {
+    let lane = laneEnds.findIndex((end) => end <= b.startHour);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(b.endHour);
+    } else laneEnds[lane] = b.endHour;
+    laneOf.set(b.id, lane);
+  }
+  const laneCount = Math.max(1, laneEnds.length);
+
+  return (
+    <div className="flex border-b last:border-b-0">
+      <div className="flex w-44 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium">
+        <Truck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0 truncate" title={row.label}>
+          {row.label}
+        </span>
+        {row.cost && <span className="shrink-0 text-[10px] text-muted-foreground">฿{row.cost}</span>}
+        <button
+          type="button"
+          title={removeLabel}
+          aria-label={removeLabel}
+          onClick={() => onRemove(row.id)}
+          className="ml-auto grid h-5 w-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
+      </div>
+      <div
+        ref={setNodeRef}
+        className={`relative flex-1 transition-colors ${isOver ? "bg-zinc-200/60 ring-1 ring-inset ring-zinc-400 dark:bg-zinc-700/40" : ""}`}
+        style={{ height: laneCount * LANE_PX }}
+      >
+        {hours.map((h) => (
+          <div
+            key={h}
+            aria-hidden
+            className="absolute inset-y-0 w-px bg-border/40"
+            style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
+          />
+        ))}
+        {sorted.map((b) => {
+          const top = (laneOf.get(b.id) ?? 0) * LANE_PX + LANE_PAD;
+          return (
+            <ExtBlock key={b.id} b={b} dayStart={dayStart} dayHours={dayHours} top={top} height={LANE_PX - 2 * LANE_PAD} />
           );
         })}
       </div>

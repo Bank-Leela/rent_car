@@ -178,4 +178,26 @@ describe("recommendPlacement — WERN goes to the duty driver", () => {
     });
     expect(r).toMatchObject({ kind: "fit", driverId: "A", vehicleId: "vA", secondaryDriverId: null });
   });
+
+  it("WERN with a CARLESS duty driver → none, never a non-duty driver", () => {
+    // Duty driver A has no car (e.g. unpaired after a fleet change). A WERN slot
+    // belongs to the duty driver alone — must NOT be handed to free non-duty B.
+    const r = recommendPlacement({
+      booking: { startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T12:00:00"), jobType: "WERN" },
+      needsSecondary: false,
+      dutyDriverId: "A",
+      drivers: [drv("A", { vehicleId: null }), drv("B")],
+    });
+    expect(r).toEqual({ kind: "none" });
+  });
+
+  it("WERN with no duty rostered → none, never a non-duty driver", () => {
+    const r = recommendPlacement({
+      booking: { startAt: D("2026-06-10T08:00:00"), endAt: D("2026-06-10T12:00:00"), jobType: "WERN" },
+      needsSecondary: false,
+      dutyDriverId: null,
+      drivers: [drv("B"), drv("C")],
+    });
+    expect(r).toEqual({ kind: "none" });
+  });
 });
