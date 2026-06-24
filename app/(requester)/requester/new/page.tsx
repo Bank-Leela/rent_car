@@ -12,24 +12,23 @@ export default async function NewBookingPage() {
   const departments = await listDepartments(locale);
   const me = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { departmentId: true },
+    select: { departmentId: true, name: true, phone: true, email: true },
   });
-  const vehicles = await prisma.vehicle.findMany({
-    where: { isActive: true },
-    orderBy: { registrationNumber: "asc" },
-    select: { id: true, registrationNumber: true, capacity: true },
+  const templates = await prisma.tripTemplate.findMany({
+    where: { userId: session.user.id },
+    orderBy: { updatedAt: "desc" },
   });
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground">{t("description")}</p>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
       <BookingForm
         departments={departments}
-        vehicles={vehicles}
         defaultDepartmentId={me?.departmentId ?? null}
+        defaultAjarnName={me?.name ?? ""}
+        defaultAjarnPhone={me?.phone ?? ""}
+        defaultAjarnEmail={me?.email ?? ""}
+        templates={templates}
         locale={locale}
       />
     </div>

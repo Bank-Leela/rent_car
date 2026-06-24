@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { simulate, type DayContext } from "./simulation";
 import { canChain, MAX_JOBS_PER_DAY } from "./rotations";
-import { LONG_TRIP_KM } from "./batch-solver";
 import { WORK_DAY_END_HOUR } from "./classification";
 
 // Property/fuzz test: run many random days through the real solver — now WITH
@@ -40,7 +39,7 @@ function assertDay(
   }
   for (const id of away) returning.delete(id); // a driver both away and returning → away wins
 
-  const dist = new Map(input.bookings.map((b) => [b.bookingId, b.estimatedDistance]));
+  const needsSecondary = new Map(input.bookings.map((b) => [b.bookingId, b.needsSecondaryDriver]));
 
   for (const a of output.assignments) {
     // (1) Away means away: a driver mid multi-day TJW is never assigned today.
@@ -52,9 +51,9 @@ function assertDay(
       returning.has(a.primaryDriverId) || (a.secondaryDriverId !== null && returning.has(a.secondaryDriverId));
     if (touchesReturnee) expect(a.jobType).toBe("OT");
 
-    // (4) Secondary only on > 400 km trips, never == primary.
+    // (4) Secondary only when the booking is flagged needsSecondaryDriver, never == primary.
     if (a.secondaryDriverId !== null) {
-      expect(dist.get(a.bookingId)!).toBeGreaterThan(LONG_TRIP_KM);
+      expect(needsSecondary.get(a.bookingId)).toBe(true);
       expect(a.secondaryDriverId).not.toBe(a.primaryDriverId);
     }
   }

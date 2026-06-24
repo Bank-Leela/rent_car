@@ -83,7 +83,12 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   }
   const data = parsed.data;
 
-  const lead = checkLeadTime({ startAt: data.startAt, province: data.province, now: new Date() });
+  const lead = checkLeadTime({
+    startAt: data.startAt,
+    province: data.province,
+    urgent: data.isEmergency,
+    now: new Date(),
+  });
   if (!lead.ok) {
     return {
       ok: false,
@@ -117,7 +122,21 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     return { ok: false, error: te("invalidInput"), field: "departmentId" };
   }
 
+  // Backfill the requester's own profile from the ajarn fields when it was
+  // missing them — the booking form is often the first place this data gets
+  // typed in. Never overwrites existing profile data.
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, phone: true },
+  });
+  const profileBackfill: { name?: string; phone?: string } = {};
+  if (!me?.name && data.ajarnName) profileBackfill.name = data.ajarnName;
+  if (!me?.phone && data.ajarnPhone) profileBackfill.phone = data.ajarnPhone;
+
   const created = await prisma.$transaction(async (tx) => {
+    if (Object.keys(profileBackfill).length > 0) {
+      await tx.user.update({ where: { id: userId }, data: profileBackfill });
+    }
     // #1 capacity gate: a day's slots = morning + afternoon per non-duty
     // vehicle, plus one spare for the เวร/duty car. When full, waitlist.
     const [nonDutyVehicles, dutyVehicles] = await Promise.all([
@@ -149,18 +168,22 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       coordinatorName: data.coordinatorName,
       coordinatorPhone: data.coordinatorPhone,
       outOfProvince: data.outOfProvince,
-      outsideChula: data.outsideChula,
+      travelWithinChula: data.travelWithinChula,
       outOfHoursReason,
       passengerCount: data.passengerCount,
       passengerNotes: data.passengerNotes,
       estimatedDistance: data.estimatedDistance,
-      needsOutsourcing: data.needsOutsourcing,
+      // Bus is always an outsourced rental — flag it even if the requester
+      // didn't separately tick "may need an outside vehicle".
+      needsOutsourcing: data.needsOutsourcing || data.preferredVehicleType === "BUS_OUTSOURCED",
       isEmergency: data.isEmergency,
       emergencyReason: data.emergencyReason,
       maleCount: data.maleCount,
       femaleCount: data.femaleCount,
       pickupLocation: data.pickupLocation,
-      preferredVehicleId: data.preferredVehicleId,
+      waitAtDestination: data.waitAtDestination,
+      pickupReturnTime: data.pickupReturnTime,
+      preferredVehicleType: data.preferredVehicleType,
     };
 
     const jobNumber = await nextJobNumber(tx);
@@ -172,11 +195,13 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         endAt: data.endAt,
         jobType:
           data.jobType ??
-          classifyJobType({
-            startAt: data.startAt,
-            endAt: data.endAt,
-            outOfProvince: data.outOfProvince,
-          }),
+          (data.travelWithinChula
+            ? "WERN"
+            : classifyJobType({
+                startAt: data.startAt,
+                endAt: data.endAt,
+                outOfProvince: data.outOfProvince,
+              })),
         timeBucket: bucketFromStart(data.startAt),
         status: parentStatus,
       },
@@ -223,11 +248,13 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
             endAt: childEnd,
             jobType:
               data.jobType ??
-              classifyJobType({
-                startAt: childStart,
-                endAt: childEnd,
-                outOfProvince: data.outOfProvince,
-              }),
+              (data.travelWithinChula
+                ? "WERN"
+                : classifyJobType({
+                    startAt: childStart,
+                    endAt: childEnd,
+                    outOfProvince: data.outOfProvince,
+                  })),
             timeBucket: bucketFromStart(childStart),
             status: childStatus,
             recurrenceParentId: parent.id,
@@ -427,7 +454,12 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
     return { ok: false, error: te("cannotEditInStatus", { status: ts(booking.status) }) };
   }
 
-  const lead = checkLeadTime({ startAt, province: booking.province, now: new Date() });
+  const lead = checkLeadTime({
+    startAt,
+    province: booking.province,
+    urgent: booking.isEmergency,
+    now: new Date(),
+  });
   if (!lead.ok) {
     return { ok: false, field: "startAt", error: te("leadTimeTooSoon", { days: lead.minimumDays }) };
   }

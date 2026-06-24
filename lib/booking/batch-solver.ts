@@ -42,14 +42,14 @@ import {
   type ScheduledTrip,
 } from "./rotations";
 
-export const LONG_TRIP_KM = 400;
-
 export interface SolverBookingInput {
   bookingId: string;
   jobType: JobType;
   startAt: Date;
   endAt: Date;
-  estimatedDistance: number | null;
+  /** Admin-set: this trip should get a secondary driver (overnight
+   *  out-of-province trips, decided case-by-case). */
+  needsSecondaryDriver: boolean;
   outOfProvince: boolean;
   /** FCFS key; defaults to createdAt. */
   submittedAt: Date;
@@ -228,8 +228,7 @@ function placeBooking(
     return { kind: "fail", reason: "NO_PRIMARY_DRIVER" };
   }
 
-  const long = booking.estimatedDistance !== null && booking.estimatedDistance > LONG_TRIP_KM;
-  if (!long) {
+  if (!booking.needsSecondaryDriver) {
     return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: null };
   }
 

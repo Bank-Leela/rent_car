@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { match, LONG_TRIP_KM } from "./matching";
+import { match } from "./matching";
 import { buildSlotTable } from "./slot-allocation";
 import { buildDriverMatrix, type DriverInput, type DriverAvailabilityInput } from "./driver-capacity";
 
@@ -36,7 +36,7 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      estimatedDistance: 100,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
@@ -55,7 +55,7 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      estimatedDistance: null,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, [
         { vehicleId: "v1", timeBucket: "MORNING_08_12" },
         { vehicleId: "v2", timeBucket: "MORNING_08_12" },
@@ -76,7 +76,7 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      estimatedDistance: null,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: drivers.map((d) => ({
@@ -99,7 +99,7 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
-      estimatedDistance: 50,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
@@ -129,7 +129,7 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
-      estimatedDistance: 50,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
@@ -143,12 +143,12 @@ describe("match", () => {
     if (r.ok) expect(r.result.primaryDriverId).toBe("A");
   });
 
-  it("assigns a secondary driver when distance exceeds 400 km", () => {
+  it("assigns a secondary driver when needsSecondaryDriver is true", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      estimatedDistance: LONG_TRIP_KM + 1,
+      needsSecondaryDriver: true,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
@@ -161,12 +161,12 @@ describe("match", () => {
     }
   });
 
-  it("returns NO_SECONDARY_DRIVER for >400 km when only one driver is free", () => {
+  it("returns NO_SECONDARY_DRIVER when needsSecondaryDriver is true but only one driver is free", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      estimatedDistance: LONG_TRIP_KM + 100,
+      needsSecondaryDriver: true,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
@@ -197,7 +197,7 @@ describe("match", () => {
       jobType: "OT",
       timeBucket: "MORNING_08_12",
       newTrip: preDawnTrip,
-      estimatedDistance: 50,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
@@ -221,7 +221,7 @@ describe("match", () => {
       jobType: "OT",
       timeBucket: "MORNING_08_12",
       newTrip: preDawnTrip,
-      estimatedDistance: 50,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
@@ -235,12 +235,12 @@ describe("match", () => {
     expect(r).toEqual({ ok: false, error: "NO_PRIMARY_DRIVER" });
   });
 
-  it("does not require a secondary at exactly 400 km", () => {
+  it("does not assign a secondary when needsSecondaryDriver is false", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      estimatedDistance: LONG_TRIP_KM,
+      needsSecondaryDriver: false,
       slotTable: buildSlotTable(vehicles, []),
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),

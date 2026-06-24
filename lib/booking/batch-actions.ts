@@ -50,10 +50,13 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   // --- Pending bookings for the day (APPROVED, no primary yet). ---
+  // Urgent ("จองเร่งด่วน") requests are deliberately left out of auto-assign:
+  // they stay APPROVED so an admin reviews and matches them by hand.
   const pending = await prisma.booking.findMany({
     where: {
       status: "APPROVED",
       primaryDriverId: null,
+      isEmergency: false,
       startAt: { gte: dayStart, lt: dayEnd },
     },
     orderBy: { createdAt: "asc" },
@@ -108,7 +111,7 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     jobType: b.jobType,
     startAt: b.startAt,
     endAt: b.endAt,
-    estimatedDistance: b.estimatedDistance,
+    needsSecondaryDriver: b.needsSecondaryDriver,
     outOfProvince: b.outOfProvince,
     submittedAt: b.createdAt,
   }));
@@ -410,13 +413,15 @@ type DemoSlot = {
   jobType: JobType;
   estimatedDistance: number;
   outOfProvince: boolean;
+  /** Demo of the admin-set secondary-driver flag (overnight out-of-province trips). */
+  needsSecondaryDriver?: boolean;
   ajarn: string;
   ajarnEmail: string;
   pickup: string;
   male: number;
   female: number;
   emergency?: boolean;
-  outsideChula?: boolean;
+  travelWithinChula?: boolean;
   notes?: string;
 };
 
@@ -426,9 +431,9 @@ const DEMO_SLOTS: DemoSlot[] = [
     destination: "Chiang Mai University Hospital",
     province: "เชียงใหม่",
     startHour: 6, endHour: 18, endDayOffset: 1,
-    jobType: "TJW", estimatedDistance: 700, outOfProvince: true,
+    jobType: "TJW", estimatedDistance: 700, outOfProvince: true, needsSecondaryDriver: true,
     ajarn: "ศ.นพ. สมศักดิ์ ใจดี", ajarnEmail: "somsak.j@chula.ac.th",
-    pickup: "อาคาร อปร ชั้น 1", male: 2, female: 1, outsideChula: true,
+    pickup: "อาคาร อปร ชั้น 1", male: 2, female: 1,
     notes: "ต้องการรถตู้สำหรับอุปกรณ์",
   },
   {
@@ -438,7 +443,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 7, endHour: 17, endDayOffset: 1,
     jobType: "TJW", estimatedDistance: 110, outOfProvince: true,
     ajarn: "รศ.พญ. วิภา รักเรียน", ajarnEmail: "wipa.r@chula.ac.th",
-    pickup: "หน้าคณะแพทยศาสตร์", male: 1, female: 3, outsideChula: true,
+    pickup: "หน้าคณะแพทยศาสตร์", male: 1, female: 3,
   },
   {
     purpose: `${BATCH_DEMO_TAG} OT early-bird airport run`,
@@ -448,7 +453,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     jobType: "OT", estimatedDistance: 60, outOfProvince: false,
     ajarn: "อ.ดร. ธนกร พิทักษ์", ajarnEmail: "thanakorn.p@chula.ac.th",
     pickup: "ล็อบบี้ อาคารภูมิสิริ", male: 1, female: 0, emergency: true,
-    outsideChula: true, notes: "เที่ยวบินเช้า ต้องตรงเวลา",
+    notes: "เที่ยวบินเช้า ต้องตรงเวลา",
   },
   {
     purpose: `${BATCH_DEMO_TAG} OT evening seminar pickup`,
@@ -457,14 +462,14 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 17, endHour: 21,
     jobType: "OT", estimatedDistance: 25, outOfProvince: false,
     ajarn: "ผศ.นพ. กิตติ มานะ", ajarnEmail: "kitti.m@chula.ac.th",
-    pickup: "จามจุรีสแควร์ ทางออก 2", male: 2, female: 2, outsideChula: true,
+    pickup: "จามจุรีสแควร์ ทางออก 2", male: 2, female: 2,
   },
   {
     purpose: `${BATCH_DEMO_TAG} WERN duty round — campus shuttle`,
     destination: "Faculty of Medicine campus",
     province: "กรุงเทพมหานคร",
     startHour: 8, endHour: 12,
-    jobType: "WERN", estimatedDistance: 15, outOfProvince: false,
+    jobType: "WERN", estimatedDistance: 15, outOfProvince: false, travelWithinChula: true,
     ajarn: "อ.พญ. ชนิดา ศรีสุข", ajarnEmail: "chanida.s@chula.ac.th",
     pickup: "อาคารแพทยพัฒน์", male: 0, female: 1,
   },
@@ -493,7 +498,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 14, endHour: 16,
     jobType: "NORMAL", estimatedDistance: 35, outOfProvince: true,
     ajarn: "อ.นพ. ภาคิน วงศ์ไทย", ajarnEmail: "pakin.w@chula.ac.th",
-    pickup: "อาคารบริหาร", male: 1, female: 0, outsideChula: true,
+    pickup: "อาคารบริหาร", male: 1, female: 0,
   },
 ];
 
@@ -584,13 +589,14 @@ async function seedBatchDemoForDate(date: Date): Promise<number> {
         ajarnEmail: s.ajarnEmail,
         isEmergency: s.emergency ?? false,
         emergencyReason: s.emergency ? "ผู้ป่วยฉุกเฉิน ต้องเดินทางด่วน" : null,
-        outsideChula: s.outsideChula ?? false,
+        travelWithinChula: s.travelWithinChula ?? false,
         status: "APPROVED",
         decidedAt: new Date(),
         jobType: s.jobType,
         timeBucket: timeBucketFor(s.startHour),
         outOfProvince: s.outOfProvince,
         estimatedDistance: s.estimatedDistance,
+        needsSecondaryDriver: s.needsSecondaryDriver ?? false,
       },
     });
   }

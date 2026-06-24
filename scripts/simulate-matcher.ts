@@ -105,8 +105,8 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
   else startAt.setHours(13 + Math.floor(rand() * 2), 0, 0, 0);
   const durationHours = 1 + Math.floor(rand() * 3);
   const endAt = new Date(startAt.getTime() + durationHours * 60 * 60 * 1000);
-  // 15 % long trips.
-  const distance = rand() < 0.15 ? 500 + Math.floor(rand() * 200) : 50 + Math.floor(rand() * 200);
+  // 15% of trips are admin-flagged to need a secondary driver.
+  const needsSecondaryDriver = rand() < 0.15;
 
   const sameDay = allBookings.filter((b) => b.day === ymd);
   const existing: ExistingTrip[] = sameDay.map((b) => ({
@@ -158,7 +158,7 @@ for (let i = 0; i < TOTAL_BOOKINGS; i++) {
     jobType,
     timeBucket: bucket,
     newTrip: { startAt, endAt },
-    estimatedDistance: distance,
+    needsSecondaryDriver,
     slotTable,
     driverMatrix,
     driverAvailability,

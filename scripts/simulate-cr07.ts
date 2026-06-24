@@ -63,7 +63,7 @@ interface CaseLog {
   bookingId: string;
   jobType: JobType;
   role: "PRIMARY" | "SECONDARY";
-  distance: number | null;
+  secondary: boolean;
   startAt: string;
   endAt: string;
 }
@@ -125,7 +125,7 @@ function makeWern(date: Date): SolverBookingInput {
     jobType: "WERN",
     startAt,
     endAt,
-    estimatedDistance: 30,
+    needsSecondaryDriver: false,
     outOfProvince: false,
     submittedAt,
   };
@@ -146,7 +146,11 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
 
   // Pick category by scenario.
   let jobType: JobType = "NORMAL";
-  let estimatedDistance = randInt(20, 150);
+  // Admin-set flag (replaces the old estimatedDistance > 400km auto-check).
+  // Scenarios that used to roll a "long" distance now roll/force this flag
+  // directly, at roughly the same odds, to keep the secondary-driver paths
+  // exercised.
+  let needsSecondaryDriver = false;
   let outOfProvince = false;
   switch (scenario) {
     case "normal":
@@ -166,16 +170,16 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
     }
     case "tjw": {
       jobType = "TJW";
-      estimatedDistance = randInt(300, 700);
+      needsSecondaryDriver = randInt(300, 700) > 400; // same odds as the old distance roll
       outOfProvince = true;
       startAt.setHours(7, 0, 0, 0);
       endAt = new Date(startAt.getTime() + 2 * 86400000); // 2-day TJW
       break;
     }
     case "reclaim": {
-      // One OT trip per day, long distance, late time → forces secondary.
+      // One OT trip per day, flagged for a secondary, late time → forces secondary.
       jobType = "OT";
-      estimatedDistance = 500;
+      needsSecondaryDriver = true;
       startAt.setHours(17, 0, 0, 0);
       endAt = new Date(startAt.getTime() + 3 * 3_600_000);
       break;
@@ -195,12 +199,12 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
         else { startAt.setHours(17, 0, 0, 0); endAt = new Date(startAt.getTime() + durationH * 3_600_000); }
       } else {
         jobType = "TJW";
-        estimatedDistance = randInt(400, 700);
+        needsSecondaryDriver = true; // randint(400,700) was always >400
         outOfProvince = true;
         startAt.setHours(7, 0, 0, 0);
         endAt = new Date(startAt.getTime() + 2 * 86400000);
       }
-      if (rand() < 0.1) estimatedDistance = 450 + randInt(0, 200); // sporadic >400 km
+      if (rand() < 0.1) needsSecondaryDriver = true; // sporadic forced secondary
       break;
     }
   }
@@ -210,7 +214,7 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
     jobType,
     startAt,
     endAt,
-    estimatedDistance,
+    needsSecondaryDriver,
     outOfProvince,
     submittedAt,
   };
@@ -290,7 +294,7 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
       bookingId: a.bookingId,
       jobType: booking.jobType,
       role: "PRIMARY",
-      distance: booking.estimatedDistance,
+      secondary: booking.needsSecondaryDriver,
       startAt: booking.startAt.toISOString().slice(11, 16),
       endAt: booking.endAt.toISOString().slice(11, 16),
     });
@@ -307,7 +311,7 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
         bookingId: a.bookingId,
         jobType: booking.jobType,
         role: "SECONDARY",
-        distance: booking.estimatedDistance,
+        secondary: booking.needsSecondaryDriver,
         startAt: booking.startAt.toISOString().slice(11, 16),
         endAt: booking.endAt.toISOString().slice(11, 16),
       });
@@ -415,10 +419,10 @@ if (detail) {
     }
     const slice = d.cases.slice(0, first);
     for (const c of slice) {
-      const dist = c.distance === null ? "—" : `${c.distance}km`;
+      const flag = c.secondary ? "2-DRV" : "—";
       const tag = c.role === "SECONDARY" ? "[2nd]" : "[1st]";
       console.log(
-        `   ${c.date}  ${c.startAt}-${c.endAt}  ${c.jobType.padEnd(6)}  ${tag}  ${dist.padStart(6)}  ${c.bookingId}`,
+        `   ${c.date}  ${c.startAt}-${c.endAt}  ${c.jobType.padEnd(6)}  ${tag}  ${flag.padStart(6)}  ${c.bookingId}`,
       );
     }
     if (d.cases.length > first) {

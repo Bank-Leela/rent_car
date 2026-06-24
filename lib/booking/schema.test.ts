@@ -5,6 +5,7 @@ const baseInput = {
   departmentId: "seed-dept-medicine",
   purpose: "Faculty board meeting",
   destination: "Siriraj Hospital",
+  pickupLocation: "Faculty lobby",
   province: "กรุงเทพมหานคร",
   startAt: "2026-06-10T08:00",
   endAt: "2026-06-10T12:00",

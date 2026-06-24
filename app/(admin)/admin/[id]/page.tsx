@@ -10,7 +10,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
-import { MatchingButton } from "@/components/forms/matching-form";
+import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
 import { CompleteTripForm } from "@/components/forms/complete-trip-form";
 import { DetailField as Field } from "@/components/detail-field";
 
@@ -106,6 +106,11 @@ export default async function AdminBookingDetail({
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm text-muted-foreground">{booking.jobNumber}</span>
             <BookingStatusBadge status={booking.status} />
+            {booking.isEmergency && (
+              <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                {(await getTranslations("bookingForm"))("urgentBadge")}
+              </span>
+            )}
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{booking.purpose}</h1>
           <p className="text-sm text-muted-foreground">
@@ -139,6 +144,12 @@ export default async function AdminBookingDetail({
             <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
           {booking.needsOutsourcing && <Field label={t("flag")} value={t("flaggedForOutsourcing")} />}
+          {!booking.waitAtDestination && (
+            <Field label={t("flag")} value={t("notWaitingAtDestination")} />
+          )}
+          {booking.pickupReturnTime && (
+            <Field label={t("pickupReturnTime")} value={booking.pickupReturnTime} />
+          )}
           {booking.outOfHoursReason && (
             <Field
               label={t("outOfHoursReason")}
@@ -250,6 +261,20 @@ export default async function AdminBookingDetail({
               <AssignForm bookingId={booking.id} vehicleOptions={vehicleOptions} />
             </CardContent>
           </Card>
+
+          {booking.outOfProvince && !booking.primaryDriverId && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{tad("secondaryDriverTitle")}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <NeedsSecondaryDriverToggle
+                  bookingId={booking.id}
+                  defaultChecked={booking.needsSecondaryDriver}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {!booking.primaryDriverId && (
             <Card>

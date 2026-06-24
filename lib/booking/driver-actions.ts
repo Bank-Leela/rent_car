@@ -10,7 +10,6 @@ import {
   releaseClaimSchema,
   confirmScheduleSchema,
 } from "@/lib/booking/schema";
-import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const startSchema = z.object({
@@ -335,13 +334,10 @@ export async function confirmScheduleAction(formData: FormData): Promise<ActionR
   if (!primaryClaim || primaryClaim.driverId !== driverId) {
     return { ok: false, error: te("onlyPrimaryCanConfirm") };
   }
-  // CR-02: the two-driver rule for long trips now applies at the driver
-  // side. Trips over the threshold can't confirm without a secondary claim.
-  const needsSecondary =
-    typeof booking.estimatedDistance === "number" &&
-    booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM;
+  // CR-02: the two-driver rule applies at the driver side. A trip the admin
+  // flagged needsSecondaryDriver can't confirm without a secondary claim.
   const hasSecondary = booking.claims.some((c) => c.role === "SECONDARY");
-  if (needsSecondary && !hasSecondary) {
+  if (booking.needsSecondaryDriver && !hasSecondary) {
     return { ok: false, error: te("secondaryRequired") };
   }
 

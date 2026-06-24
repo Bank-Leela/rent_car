@@ -22,7 +22,9 @@ export interface MatchInput {
   jobType: JobType;
   timeBucket: TimeBucket;
   newTrip: TripWindow;
-  estimatedDistance: number | null;
+  /** Admin-set: this trip should get a secondary driver (overnight
+   *  out-of-province trips, decided case-by-case — see Booking.needsSecondaryDriver). */
+  needsSecondaryDriver: boolean;
   slotTable: SlotCell[][];
   /** UI snapshot of current driver loads. Not used as a hard filter; see
    *  driverAvailability for the temporal rule. */
@@ -43,8 +45,6 @@ export interface MatchResult {
   secondaryDriverId: string | null;
 }
 
-export const LONG_TRIP_KM = 400;
-
 export function match(input: MatchInput): { ok: true; result: MatchResult } | { ok: false; error: MatchError } {
   const slot = findSlot(input.timeBucket, input.slotTable);
   if (!slot) return { ok: false, error: "NO_SLOT" };
@@ -57,8 +57,7 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
   if (ranked.length === 0) return { ok: false, error: "NO_PRIMARY_DRIVER" };
 
   const primaryDriverId = ranked[0]!;
-  const needSecondary =
-    input.estimatedDistance !== null && input.estimatedDistance > LONG_TRIP_KM;
+  const needSecondary = input.needsSecondaryDriver;
   let secondaryDriverId: string | null = null;
   if (needSecondary) {
     if (ranked.length < 2) return { ok: false, error: "NO_SECONDARY_DRIVER" };

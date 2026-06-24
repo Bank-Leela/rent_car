@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { solveDay, LONG_TRIP_KM, type SolverInput, type SolverBookingInput } from "./batch-solver";
+import { solveDay, type SolverInput, type SolverBookingInput } from "./batch-solver";
 import type { DriverRotationState } from "./rotations";
 
 const D = (s: string) => new Date(s);
@@ -22,7 +22,7 @@ function booking(overrides: Partial<SolverBookingInput>): SolverBookingInput {
     jobType: "NORMAL",
     startAt: D("2026-06-10T09:00:00"),
     endAt: D("2026-06-10T11:00:00"),
-    estimatedDistance: 50,
+    needsSecondaryDriver: false,
     outOfProvince: false,
     submittedAt: D("2026-06-01T00:00:00"),
     ...overrides,
@@ -42,7 +42,6 @@ describe("solveDay — phase ordering", () => {
           startAt: D("2026-06-10T08:00:00"),
           endAt: D("2026-06-12T18:00:00"),
           outOfProvince: true,
-          estimatedDistance: 200,
         }),
       ],
       drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
@@ -134,8 +133,8 @@ describe("solveDay — 2-hour buffer chain", () => {
   });
 });
 
-describe("solveDay — >400 km requires secondary, all job types", () => {
-  it("OT >400 km gets a co-driver", () => {
+describe("solveDay — needsSecondaryDriver requires secondary, all job types", () => {
+  it("OT with needsSecondaryDriver gets a co-driver", () => {
     const input: SolverInput = {
       date: D("2026-06-10"),
       bookings: [
@@ -144,7 +143,7 @@ describe("solveDay — >400 km requires secondary, all job types", () => {
           jobType: "OT",
           startAt: D("2026-06-10T06:00:00"),
           endAt: D("2026-06-10T15:00:00"),
-          estimatedDistance: LONG_TRIP_KM + 50,
+          needsSecondaryDriver: true,
         }),
       ],
       drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
@@ -155,14 +154,14 @@ describe("solveDay — >400 km requires secondary, all job types", () => {
     expect(out.assignments[0]!.secondaryDriverId).toBe("B");
   });
 
-  it("NORMAL >400 km gets a co-driver", () => {
+  it("NORMAL with needsSecondaryDriver gets a co-driver", () => {
     const input: SolverInput = {
       date: D("2026-06-10"),
       bookings: [
         booking({
           bookingId: "n1",
           jobType: "NORMAL",
-          estimatedDistance: LONG_TRIP_KM + 50,
+          needsSecondaryDriver: true,
         }),
       ],
       drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
@@ -184,7 +183,7 @@ describe("solveDay — NEEDS_WERN_RECLAIM_DECISION", () => {
           jobType: "OT",
           startAt: D("2026-06-10T06:00:00"),
           endAt: D("2026-06-10T15:00:00"),
-          estimatedDistance: LONG_TRIP_KM + 50,
+          needsSecondaryDriver: true,
         }),
       ],
       // A is duty, B is the only fresh; secondary needs another fresh but
@@ -210,7 +209,6 @@ describe("solveDay — Phase C TJW return-day fallback", () => {
           jobType: "OT",
           startAt: D("2026-06-10T17:30:00"),
           endAt: D("2026-06-10T20:00:00"),
-          estimatedDistance: 100,
         }),
       ],
       drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
@@ -235,7 +233,6 @@ describe("solveDay — Phase C TJW return-day fallback", () => {
           jobType: "OT",
           startAt: D("2026-06-10T17:30:00"),
           endAt: D("2026-06-10T20:00:00"),
-          estimatedDistance: 100,
         }),
       ],
       drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],

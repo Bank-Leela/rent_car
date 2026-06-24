@@ -50,13 +50,13 @@ export function generateDay(
   const randint = (lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
   const bookings: SolverBookingInput[] = [];
   let seq = 0;
-  const mk = (jobType: JobType, startAt: Date, endAt: Date, dist: number) => {
+  const mk = (jobType: JobType, startAt: Date, endAt: Date, needsSecondaryDriver: boolean) => {
     bookings.push({
       bookingId: `${date.getTime()}-${seq}`,
       jobType,
       startAt,
       endAt,
-      estimatedDistance: dist,
+      needsSecondaryDriver,
       outOfProvince: jobType === "TJW",
       submittedAt: new Date(date.getTime() + seq),
     });
@@ -79,18 +79,20 @@ export function generateDay(
   for (let i = 0; i < counts.TJW; i++) {
     const nights = rng() < opts.longTjwProb ? randint(2, 3) : 1; // always overnight (≥1 night)
     const endHour = rng() < 0.5 ? 14 : 18; // returns before / after the 16:00 cutoff
-    mk("TJW", at(6), at(endHour, nights), randint(100, 800)); // some >400 km → secondary
+    // Admin-set flag, modeled with the same odds the old >400km check gave
+    // (randint(100,800) > 400 ≈ 57%) so both branches still get fuzz coverage.
+    mk("TJW", at(6), at(endHour, nights), rng() < 0.57);
   }
   for (let i = 0; i < counts.OT; i++) {
     const evening = i % 2 === 1;
-    mk("OT", at(evening ? 18 : 5), at(evening ? 21 : 9), randint(20, 90));
+    mk("OT", at(evening ? 18 : 5), at(evening ? 21 : 9), false);
   }
   for (let i = 0; i < counts.WERN; i++) {
-    mk("WERN", at(8), at(12), 15);
+    mk("WERN", at(8), at(12), false);
   }
   for (let i = 0; i < counts.NORMAL; i++) {
     const am = i % 2 === 0;
-    mk("NORMAL", at(am ? 9 : 13), at(am ? 11 : 15), randint(5, 60));
+    mk("NORMAL", at(am ? 9 : 13), at(am ? 11 : 15), false);
   }
 
   return bookings;

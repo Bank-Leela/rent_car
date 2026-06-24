@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { StartTripForm, EndTripForm } from "@/components/forms/trip-forms";
@@ -59,14 +58,11 @@ export default async function DriverBookingDetail({
   const iAmPrimary = primaryClaim?.driverId === meId;
   const iAmSecondary = secondaryClaim?.driverId === meId;
   const iAmClaimed = iAmPrimary || iAmSecondary;
-  const needsSecondary =
-    typeof booking.estimatedDistance === "number" &&
-    booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM;
   const canConfirm =
     booking.status === "APPROVED" &&
     booking.driverScheduleStatus !== "CONFIRMED" &&
     iAmPrimary &&
-    (!needsSecondary || !!secondaryClaim);
+    (!booking.needsSecondaryDriver || !!secondaryClaim);
   const showClaimCard = booking.status === "APPROVED";
 
   return (
@@ -105,6 +101,13 @@ export default async function DriverBookingDetail({
             <Field label={t("estDistance")} value={`${booking.estimatedDistance} km`} />
           )}
           <Field
+            label={t("waitAtDestination")}
+            value={booking.waitAtDestination ? t("waits") : t("doesNotWait")}
+          />
+          {booking.pickupReturnTime && (
+            <Field label={t("pickupReturnTime")} value={booking.pickupReturnTime} />
+          )}
+          <Field
             label={t("contact")}
             value={`${booking.requester.name ?? booking.requester.email}${booking.requester.phone ? ` · ${booking.requester.phone}` : ""}`}
             colSpan
@@ -141,9 +144,7 @@ export default async function DriverBookingDetail({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {needsSecondary
-                ? t("scheduleHelperLong", { km: TWO_DRIVER_DISTANCE_KM })
-                : t("scheduleHelper")}
+              {booking.needsSecondaryDriver ? t("scheduleHelperLong") : t("scheduleHelper")}
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
               <SlotCard

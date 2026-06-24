@@ -146,7 +146,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     jobType: booking.jobType,
     timeBucket: booking.timeBucket,
     newTrip: { startAt: booking.startAt, endAt: booking.endAt },
-    estimatedDistance: booking.estimatedDistance,
+    needsSecondaryDriver: booking.needsSecondaryDriver,
     slotTable,
     driverMatrix,
     driverAvailability,
