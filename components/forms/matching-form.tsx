@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SelectField } from "@/components/ui/select-field";
 import {
   matchBookingAction,
   setOnCallShiftAction,
@@ -100,19 +101,16 @@ export function OnCallShiftForm({
           <Label htmlFor="onCallDriverId" className="text-xs">
             {t("onCallLabel", { date })}
           </Label>
-          <select
+          <SelectField
             id="onCallDriverId"
             name="driverId"
             defaultValue={defaultDriverId ?? ""}
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-          >
-            <option value="">{t("autoRotate")}</option>
-            {drivers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+            className="h-9 w-52"
+            options={[
+              { value: "", label: t("autoRotate") },
+              ...drivers.map((d) => ({ value: d.id, label: d.name })),
+            ]}
+          />
         </div>
         <Button type="submit" disabled={pending} size="sm">
           {pending ? t("saving") : t("save")}

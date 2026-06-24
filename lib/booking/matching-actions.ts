@@ -17,6 +17,7 @@ import {
   type TripWindow,
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
+import { resolveWernDriver, pickAutoDutyDriver } from "@/lib/booking/duty-assignment";
 import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "@/lib/booking/classification";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
@@ -83,7 +84,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       user: { is: { isActive: true } },
       unavailabilities: { none: { date: tripDay } },
     },
-    select: { id: true, createdAt: true, lastAssignedAt: true },
+    select: { id: true, createdAt: true, lastAssignedAt: true, lastDutyAt: true },
   });
   if (drivers.length === 0) return { ok: false, error: te("noActiveDrivers") };
 
@@ -93,6 +94,27 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const onCall = await prisma.onCallShift.findUnique({ where: { date: tripDay } });
   const onCallDriverId =
     onCall?.driverId && drivers.some((d) => d.id === onCall.driverId) ? onCall.driverId : null;
+
+  // Drivers away on a multi-day TJW spanning today (primary OR co-driver) can't
+  // run campus duty. A WERN booking must skip them — even the on-call driver —
+  // and fall back to a present driver (mirrors the solver's awayOnTjw rule).
+  const awayTjwDriverIds = new Set<string>();
+  for (const b of dayBookings) {
+    if (b.jobType !== "TJW") continue;
+    if (b.primaryDriverId) awayTjwDriverIds.add(b.primaryDriverId);
+    if (b.secondaryDriverId) awayTjwDriverIds.add(b.secondaryDriverId);
+  }
+  // WERN routes to the on-call driver unless they're away — then the duty rotation
+  // falls back. For non-WERN, this is just the (reserved) real on-call driver.
+  const wernDriverId =
+    booking.jobType === "WERN"
+      ? resolveWernDriver({
+          onCallDriverId,
+          awayDriverIds: awayTjwDriverIds,
+          hasCar: (id) => driverCar.has(id),
+          candidates: drivers.map((d) => ({ driverId: d.id, lastDutyAt: d.lastDutyAt })),
+        })
+      : onCallDriverId;
 
   const busyToday: DriverBusyTrip[] = [];
   for (const b of dayBookings) {
@@ -156,7 +178,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     driverMatrix,
     driverAvailability,
     driverRankInputs,
-    onCallDriverId,
+    onCallDriverId: wernDriverId,
   });
   if (!decision.ok) {
     if (decision.error === "NO_SLOT") return { ok: false, error: te("noSlotAvailable") };
@@ -308,12 +330,27 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
       },
     });
     if (drivers.length === 0) return { ok: false, error: te("noActiveDrivers") };
-    const sorted = [...drivers].sort((a, b) => {
-      const at = a.onCallShifts[0]?.date.getTime() ?? -Infinity;
-      const bt = b.onCallShifts[0]?.date.getTime() ?? -Infinity;
-      return at - bt;
+
+    // Don't rotate duty onto a driver away on a multi-day TJW spanning the day —
+    // they can't run campus rounds. Skip them; pickAutoDutyDriver still names
+    // someone (full pool) if every candidate happens to be away.
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const tjwSpanning = await prisma.booking.findMany({
+      where: { jobType: "TJW", status: { in: COMMITTED_STATUSES }, startAt: { lt: dayEnd }, endAt: { gt: day } },
+      select: { primaryDriverId: true, secondaryDriverId: true },
     });
-    chosenDriverId = sorted[0]!.id;
+    const awayIds = new Set<string>();
+    for (const t of tjwSpanning) {
+      if (t.primaryDriverId) awayIds.add(t.primaryDriverId);
+      if (t.secondaryDriverId) awayIds.add(t.secondaryDriverId);
+    }
+    chosenDriverId =
+      pickAutoDutyDriver(
+        drivers.map((d) => ({ driverId: d.id, lastOnCallAt: d.onCallShifts[0]?.date ?? null })),
+        awayIds,
+      ) ?? undefined;
+    if (!chosenDriverId) return { ok: false, error: te("noActiveDrivers") };
   }
 
   await prisma.onCallShift.upsert({

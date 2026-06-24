@@ -109,6 +109,13 @@ Enforced in three places:
 - **Matcher / solver picks** exclude the duty driver entirely
   (`matching.ts:54`, `batch-solver.ts:eligibleForPrimary`), so the duty car never
   receives a normal auto-assignment.
+- **Away-on-TJW never gets WERN** — a driver away on a multi-day TJW (primary OR
+  co-driver) can't run campus duty. The solver excludes them via `awayOnTjw`; the
+  single-booking matcher and the duty-roster auto-rotation enforce the same rule
+  via `duty-assignment.ts` (`resolveWernDriver` falls a WERN back to the fairest
+  present driver; `pickAutoDutyDriver` never rosters an away driver). A co-driver
+  rides in the *primary's* car, so their own car stays free — the no-double-book
+  rule can't catch this; the away-exclusion is the only guard.
 - **Drag-drop / assign-reco** (`schedule-actions.ts:reassignVehicleAction`)
   blocks an overlapping drop on **every** car (the 2h gap is not checked here, so
   it stays overridable). Re-dropping on the same car is the only skip.

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SelectField } from "@/components/ui/select-field";
 import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
@@ -143,8 +144,6 @@ export type BookingFormUserDepartment = {
   name: string;
 };
 
-const SELECT_CLASS =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function BookingForm({
   vehicles,
@@ -489,12 +488,18 @@ export function BookingForm({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="tripType">{t("tripDirectionLabel")}</Label>
-                <select id="tripType" name="tripType" defaultValue="" className={SELECT_CLASS}>
-                  <option value="">{t("tripDirectionNone")}</option>
-                  <option value="ROUND_TRIP">{t("tripRoundTrip")}</option>
-                  <option value="DROP_OFF">{t("tripDropOff")}</option>
-                  <option value="PICK_UP_DROP_OFF">{t("tripPickupDropOff")}</option>
-                </select>
+                <SelectField
+                  id="tripType"
+                  name="tripType"
+                  defaultValue=""
+                  className="h-10"
+                  options={[
+                    { value: "", label: t("tripDirectionNone") },
+                    { value: "ROUND_TRIP", label: t("tripRoundTrip") },
+                    { value: "DROP_OFF", label: t("tripDropOff") },
+                    { value: "PICK_UP_DROP_OFF", label: t("tripPickupDropOff") },
+                  ]}
+                />
               </div>
             </div>
             <div className="grid gap-2">
@@ -565,19 +570,16 @@ export function BookingForm({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="preferredVehicleId">{t("preferredVehicle")}</Label>
-              <select
+              <SelectField
                 id="preferredVehicleId"
                 name="preferredVehicleId"
                 defaultValue=""
-                className={SELECT_CLASS}
-              >
-                <option value="">{t("preferredVehicleNone")}</option>
-                {vehicles.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.registrationNumber} · {v.capacity}
-                  </option>
-                ))}
-              </select>
+                className="h-10"
+                options={[
+                  { value: "", label: t("preferredVehicleNone") },
+                  ...vehicles.map((v) => ({ value: v.id, label: `${v.registrationNumber} · ${v.capacity}` })),
+                ]}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>

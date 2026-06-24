@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SelectField } from "@/components/ui/select-field";
 import { assignBookingAction, denyBookingAction } from "@/lib/booking/actions";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormAction } from "@/components/forms/use-form-action";
@@ -26,21 +27,18 @@ export function AssignForm({
     <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label htmlFor="vehicleId">{t("vehicle")}</Label>
-        <select
+        <SelectField
           id="vehicleId"
           name="vehicleId"
           required
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="">{t("select")}</option>
-          {vehicleOptions.map((v) => (
-            <option key={v.id} value={v.id} disabled={v.disabled}>
-              {v.label}
-              {v.conflict ? t("conflictSuffix") : ""}
-              {v.sublabel ? ` (${v.sublabel})` : ""}
-            </option>
-          ))}
-        </select>
+          placeholder={t("select")}
+          className="h-9"
+          options={vehicleOptions.map((v) => ({
+            value: v.id,
+            disabled: v.disabled,
+            label: `${v.label}${v.conflict ? t("conflictSuffix") : ""}${v.sublabel ? ` (${v.sublabel})` : ""}`,
+          }))}
+        />
       </div>
       <p className="text-xs text-muted-foreground">{t("driversSelfClaim")}</p>
 

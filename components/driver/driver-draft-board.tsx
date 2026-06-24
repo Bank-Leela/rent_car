@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Car, GripVertical, Lock, Send, Undo2, X } from "lucide-react";
+import { Car, GripVertical, Link2, Lock, Send, Undo2, X } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -37,7 +37,7 @@ import {
 const QUEUE_ID = "__draft_queue__";
 
 type Labels = {
-  duty: string; noDriver: string; arrives: string; empty: string;
+  duty: string; noDriver: string; coDriver: string; arrives: string; empty: string;
   queue: string; queueEmpty: string; moved: string;
   submit: string; submitted: string; reset: string; withdraw: string;
   hint: string; lockedHint: string; error: string;
@@ -79,6 +79,10 @@ export function DriverDraftBoard({
   const hours = Array.from({ length: dayHours + 1 }, (_, i) => dayStart + i);
   const { setNodeRef: queueRef, isOver: queueIsOver } = useDroppable({ id: QUEUE_ID, disabled: locked });
   const onVehicle = (vid: string) => bookings.filter((b) => b.vehicleId === vid);
+  // Co-driver ghosts: a trip's secondary driver shown on THEIR own car's row —
+  // read-only, identical to the official board, so the two views match.
+  const coDriverOn = (vid: string) =>
+    all.filter((b) => !!b.secondaryDriverName && b.secondaryVehicleId === vid);
   const activeBooking = activeId ? all.find((b) => b.id === activeId) ?? null : null;
 
   function draftMove(bookingId: string, vehicleId: string | null) {
@@ -225,6 +229,7 @@ export function DriverDraftBoard({
                   vehicle={v}
                   label={carLabel(i)}
                   bookings={onVehicle(v.id)}
+                  coDrivers={coDriverOn(v.id)}
                   moved={moved}
                   locked={locked}
                   dayStart={dayStart}
@@ -273,11 +278,12 @@ function QueueCard({ b, moved, movedLabel, locked }: { b: SchedulerBooking; move
 }
 
 function Row({
-  vehicle, label, bookings, moved, locked, dayStart, dayHours, hours, labels,
+  vehicle, label, bookings, coDrivers, moved, locked, dayStart, dayHours, hours, labels,
 }: {
   vehicle: SchedulerVehicle;
   label: string;
   bookings: SchedulerBooking[];
+  coDrivers: SchedulerBooking[];
   moved: Set<string>;
   locked: boolean;
   dayStart: number;
@@ -286,14 +292,21 @@ function Row({
   labels: Labels;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: vehicle.id, disabled: locked });
-  const sorted = [...bookings].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+  // Primary (draggable) trips + co-driver (read-only) ghosts share the lanes, so
+  // the layout matches the official read-only board exactly.
+  type Item = { key: string; b: SchedulerBooking; kind: "primary" | "co" };
+  const items: Item[] = [
+    ...bookings.map((b) => ({ key: b.id, b, kind: "primary" as const })),
+    ...coDrivers.map((b) => ({ key: `co-${b.id}`, b, kind: "co" as const })),
+  ];
+  const sorted = [...items].sort((a, b) => a.b.startHour - b.b.startHour || a.b.endHour - b.b.endHour);
   const laneEnds: number[] = [];
   const laneOf = new Map<string, number>();
-  for (const b of sorted) {
-    let lane = laneEnds.findIndex((end) => end <= b.startHour);
-    if (lane === -1) { lane = laneEnds.length; laneEnds.push(b.endHour); }
-    else laneEnds[lane] = b.endHour;
-    laneOf.set(b.id, lane);
+  for (const it of sorted) {
+    let lane = laneEnds.findIndex((end) => end <= it.b.startHour);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(it.b.endHour); }
+    else laneEnds[lane] = it.b.endHour;
+    laneOf.set(it.key, lane);
   }
   const laneCount = Math.max(1, laneEnds.length);
   return (
@@ -315,30 +328,78 @@ function Row({
         {hours.map((h) => (
           <div key={h} aria-hidden className="absolute inset-y-0 w-px bg-border/40" style={{ left: `${pctOf(h, dayStart, dayHours)}%` }} />
         ))}
-        {sorted.map((b) => (
-          <DraftBlock
-            key={b.id}
-            b={b}
-            moved={moved.has(b.id)}
-            movedLabel={labels.moved}
-            locked={locked}
-            dayStart={dayStart}
-            dayHours={dayHours}
-            top={(laneOf.get(b.id) ?? 0) * LANE_PX + LANE_PAD}
-            height={LANE_PX - 2 * LANE_PAD}
-          />
-        ))}
+        {sorted.map((it) => {
+          const top = (laneOf.get(it.key) ?? 0) * LANE_PX + LANE_PAD;
+          const height = LANE_PX - 2 * LANE_PAD;
+          return it.kind === "co" ? (
+            <CoGhost key={it.key} b={it.b} label={labels.coDriver} arrives={labels.arrives} dayStart={dayStart} dayHours={dayHours} top={top} height={height} />
+          ) : (
+            <DraftBlock
+              key={it.key}
+              b={it.b}
+              moved={moved.has(it.b.id)}
+              movedLabel={labels.moved}
+              arrives={labels.arrives}
+              locked={locked}
+              dayStart={dayStart}
+              dayHours={dayHours}
+              top={top}
+              height={height}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// Read-only co-driver ghost — the secondary driver shown on their own car's row.
+// Visually identical to the official board's ghost; never draggable (the driver
+// draft only re-homes the PRIMARY car).
+function CoGhost({
+  b, label, arrives, dayStart, dayHours, top, height,
+}: {
+  b: SchedulerBooking;
+  label: string;
+  arrives: string;
+  dayStart: number;
+  dayHours: number;
+  top: number;
+  height: number;
+}) {
+  const left = pctOf(b.startHour, dayStart, dayHours);
+  const width = Math.max(pctOf(b.endHour, dayStart, dayHours) - left, 1.2);
+  const multiDay = b.continuesBefore || b.continuesAfter;
+  return (
+    <div
+      title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose}`}
+      className={`absolute overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 ${b.continuesBefore ? "rounded-l-none border-l-4" : ""} ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
+      style={{ left: `${left}%`, width: `${width}%`, top, height }}
+    >
+      <div className="flex items-center gap-1 font-medium">
+        <Link2 className="h-3 w-3 shrink-0" aria-hidden />
+        {multiDay ? (
+          <>
+            <span className="min-w-0 truncate">{b.departLabel}</span>
+            <span className="ml-auto shrink-0 truncate pl-1">{arrives} {b.arriveLabel}</span>
+          </>
+        ) : (
+          <span className="min-w-0 truncate">{b.timeLabel}–{b.endLabel}</span>
+        )}
+      </div>
+      <div className="truncate text-[10px] font-medium">{label}</div>
+      {b.driverName && <div className="truncate text-[10px] text-violet-700 dark:text-violet-300">→ {b.driverName}</div>}
+    </div>
+  );
+}
+
 function DraftBlock({
-  b, moved, movedLabel, locked, dayStart, dayHours, top, height,
+  b, moved, movedLabel, arrives, locked, dayStart, dayHours, top, height,
 }: {
   b: SchedulerBooking;
   moved: boolean;
   movedLabel: string;
+  arrives: string;
   locked: boolean;
   dayStart: number;
   dayHours: number;
@@ -355,13 +416,16 @@ function DraftBlock({
       {...listeners}
       {...attributes}
       title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose}`}
-      className={`absolute touch-none overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] shadow-sm ${locked ? "cursor-default" : "cursor-grab active:cursor-grabbing"} ${jobStyle(b.jobType).block} ${moved ? "ring-2 ring-amber-400" : ""} ${b.continuesBefore ? "rounded-l-none border-l-4" : ""} ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
+      className={`absolute touch-none overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] shadow-sm ${locked ? "cursor-default" : "cursor-grab active:cursor-grabbing"} ${jobStyle(b.jobType).block} ${b.secondaryDriverName ? "ring-1 ring-violet-400/70" : ""} ${moved ? "ring-2 ring-amber-400" : ""} ${b.continuesBefore ? "rounded-l-none border-l-4" : ""} ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height, opacity: isDragging ? 0.4 : 1 }}
     >
       <div className="flex items-center gap-1 font-medium">
         {!locked && <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />}
         {multiDay ? (
-          <span className="min-w-0 truncate">{b.departLabel}→{b.arriveLabel}</span>
+          <>
+            <span className="min-w-0 truncate">{b.departLabel}</span>
+            <span className="ml-auto shrink-0 truncate pl-1">{arrives} {b.arriveLabel}</span>
+          </>
         ) : (
           <span className="min-w-0 truncate">{b.timeLabel}–{b.endLabel}</span>
         )}

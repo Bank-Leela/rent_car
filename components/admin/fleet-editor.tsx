@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Car } from "lucide-react";
+import { SelectField } from "@/components/ui/select-field";
 import { setVehicleDriverAction } from "@/lib/booking/fleet-actions";
 
 export type FleetCar = { id: string; registrationNumber: string; assignedDriverId: string | null };
@@ -42,20 +43,17 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
               </span>
             </td>
             <td className="py-2">
-              <select
+              <SelectField
                 disabled={pending}
                 value={c.assignedDriverId ?? ""}
-                onChange={(e) => setDriver(c.id, e.target.value)}
+                onValueChange={(v) => setDriver(c.id, v)}
                 aria-label={`${c.registrationNumber} ${t("driver")}`}
-                className="h-9 rounded-md border border-input bg-background px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              >
-                <option value="">{t("unpaired")}</option>
-                {drivers.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+                className="h-9"
+                options={[
+                  { value: "", label: t("unpaired") },
+                  ...drivers.map((d) => ({ value: d.id, label: d.name })),
+                ]}
+              />
             </td>
           </tr>
         ))}

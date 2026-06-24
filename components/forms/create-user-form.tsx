@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SelectField } from "@/components/ui/select-field";
 import { adminCreateUserAction } from "@/lib/auth/credentials-actions";
 
 const ROLES = ["REQUESTER", "APPROVER", "ADMIN", "DRIVER"] as const;
@@ -56,17 +57,16 @@ export function CreateUserForm({
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="departmentId">{t("department")}</Label>
-        <select
+        <SelectField
           id="departmentId"
           name="departmentId"
           defaultValue=""
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="">{t("noDepartment")}</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>{d.nameEn}</option>
-          ))}
-        </select>
+          className="h-10"
+          options={[
+            { value: "", label: t("noDepartment") },
+            ...departments.map((d) => ({ value: d.id, label: d.nameEn })),
+          ]}
+        />
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="initialPassword">{t("initialPassword")}</Label>

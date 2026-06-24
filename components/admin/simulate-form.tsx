@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Car, CircleSlash, FlaskConical, UserRound } from "lucide-react";
+import { SelectField } from "@/components/ui/select-field";
 import { simulatePlacementAction, type SimResult } from "@/lib/booking/simulate-actions";
 
 const JOB_TYPES = ["NORMAL", "OT", "TJW", "WERN", "SMUS"] as const;
@@ -33,11 +34,13 @@ export function SimulateForm({ today }: { today: string }) {
           </div>
           <div>
             <label htmlFor="sim-jobType" className={label}>{t("jobType")}</label>
-            <select id="sim-jobType" name="jobType" defaultValue="NORMAL" className={field}>
-              {JOB_TYPES.map((jt) => (
-                <option key={jt} value={jt}>{jt} — {t(`jt_${jt}`)}</option>
-              ))}
-            </select>
+            <SelectField
+              id="sim-jobType"
+              name="jobType"
+              defaultValue="NORMAL"
+              className="h-10"
+              options={JOB_TYPES.map((jt) => ({ value: jt, label: `${jt} — ${t(`jt_${jt}`)}` }))}
+            />
           </div>
           <div>
             <label htmlFor="sim-km" className={label}>{t("km")}</label>

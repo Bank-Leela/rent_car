@@ -181,6 +181,7 @@ export default async function DriverSchedule({
           labels={{
             duty: t("duty"),
             noDriver: t("noDriver"),
+            coDriver: t("coDriver"),
             arrives: t("arrives"),
             empty: t("noVehicles"),
             queue: td("draftQueue"),

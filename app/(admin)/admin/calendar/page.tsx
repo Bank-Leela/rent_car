@@ -18,6 +18,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { th, enUS, type Locale } from "date-fns/locale";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { SelectField } from "@/components/ui/select-field";
 import { LIVE_STATUSES, conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
 import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
 
@@ -150,17 +151,16 @@ export default async function AdminCalendar({
         <div className="flex items-center gap-2 flex-wrap">
           <form action="/admin/calendar" method="get" className="flex items-center gap-1">
             {qs.month && <input type="hidden" name="month" value={qs.month} />}
-            <select
+            <SelectField
               name="vehicle"
               defaultValue={vehicleFilter ?? "all"}
-              className="h-9 rounded-md border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 w-40"
               aria-label={t("vehicleFilter")}
-            >
-              <option value="all">{t("allVehicles")}</option>
-              {allVehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.registrationNumber}</option>
-              ))}
-            </select>
+              options={[
+                { value: "all", label: t("allVehicles") },
+                ...allVehicles.map((v) => ({ value: v.id, label: v.registrationNumber })),
+              ]}
+            />
             <button
               type="submit"
               className="rounded-md border bg-background h-9 px-3 text-sm hover:bg-muted"
