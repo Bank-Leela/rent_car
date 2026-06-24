@@ -2,6 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingForm } from "@/components/forms/booking-form";
+import { listMyPlaces } from "@/lib/places/actions";
 
 export default async function NewBookingPage() {
   const session = await requireRole("REQUESTER");
@@ -22,6 +23,7 @@ export default async function NewBookingPage() {
     orderBy: { registrationNumber: "asc" },
     select: { id: true, registrationNumber: true, capacity: true },
   });
+  const places = await listMyPlaces();
 
   return (
     <div className="space-y-6">
@@ -29,7 +31,17 @@ export default async function NewBookingPage() {
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground">{t("description")}</p>
       </div>
-      <BookingForm vehicles={vehicles} userDepartment={userDepartment} />
+      <BookingForm
+        vehicles={vehicles}
+        userDepartment={userDepartment}
+        places={places.map((p) => ({
+          id: p.id,
+          label: p.label,
+          destination: p.destination,
+          province: p.province,
+          googleMapsUrl: p.googleMapsUrl,
+        }))}
+      />
     </div>
   );
 }

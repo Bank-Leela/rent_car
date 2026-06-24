@@ -210,6 +210,7 @@ model User {
   headedDepartment    Department?    @relation("DepartmentHead")
   representedDepartment Department?  @relation("DepartmentRepresentative")
   bookings            Booking[]      @relation("BookingRequester")
+  savedPlaces         SavedPlace[]
   approvals           Approval[]
   cancellations       Cancellation[]
   auditLogs           AuditLog[]
@@ -383,6 +384,9 @@ model Booking {
   secondaryDriver   Driver?  @relation("SecondaryDriver", fields: [secondaryDriverId], references: [id])
 
   estimatedDistance Int?
+  // Sub-project A: stored Google-Maps link for the route. Attached by the
+  // requester; never auto-pulled for distance (auto-pull costs money).
+  googleMapsUrl     String?
 
   recurrenceParentId String?
   recurrenceParent   Booking?        @relation("BookingRecurrence", fields: [recurrenceParentId], references: [id])
@@ -446,6 +450,23 @@ model Booking {
   @@index([primaryDriverId, startAt])
   @@index([secondaryDriverId, startAt])
   @@index([status, startAt, endAt])
+}
+
+// Sub-project A: a requester's private, reusable destination. Autofills the
+// booking form. No FK from Booking — a booking copies these values at submit
+// time, so deleting a place never affects past bookings.
+model SavedPlace {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String
+  destination   String
+  province      String
+  googleMapsUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // One driver is on-call (รถเวร) per calendar day. The auto-assign algorithm

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { addDays, addYears, format, startOfDay } from "date-fns";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -9,12 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SelectField } from "@/components/ui/select-field";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
 } from "@/lib/booking/rules";
 import { createBookingAction } from "@/lib/booking/actions";
+import { createPlaceAction } from "@/lib/places/actions";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Lock, MapPin } from "lucide-react";
 
@@ -132,6 +135,85 @@ function PassengerStepper({ min = 1, max = 60 }: { min?: number; max?: number })
   );
 }
 
+/**
+ * Inline "save this destination" control on the booking form. Creates a
+ * SavedPlace from the current destination/province/maps-link after prompting
+ * for a label. Collapsed to a link until the requester opens it.
+ */
+function SaveDestination({
+  destination,
+  province,
+  mapsUrl,
+}: {
+  destination: string;
+  province: string;
+  mapsUrl: string;
+}) {
+  const t = useTranslations("bookingForm");
+  const tc = useTranslations("common");
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [pending, start] = useTransition();
+  const canSave =
+    destination.trim().length >= 2 && province.trim().length >= 2 && label.trim().length >= 1;
+
+  if (!open) {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          {t("savePlaceCta")}
+        </button>
+        {saved && <span className="text-xs text-muted-foreground">{t("savePlaceSaved")}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder={t("savePlaceNamePlaceholder")}
+        className="h-9 max-w-xs"
+      />
+      <Button
+        type="button"
+        size="sm"
+        disabled={!canSave || pending}
+        onClick={() => {
+          const f = new FormData();
+          f.append("label", label.trim());
+          f.append("destination", destination.trim());
+          f.append("province", province.trim());
+          if (mapsUrl.trim()) f.append("googleMapsUrl", mapsUrl.trim());
+          start(async () => {
+            const res = await createPlaceAction(f);
+            if (res.ok) {
+              setSaved(true);
+              setOpen(false);
+              setLabel("");
+              // The autofill combobox options come from a server-fetched prop;
+              // refresh so the just-saved place appears without a manual reload.
+              router.refresh();
+            }
+          });
+        }}
+      >
+        {tc("save")}
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
+        {tc("cancel")}
+      </Button>
+    </div>
+  );
+}
+
 export type BookingFormVehicle = {
   id: string;
   registrationNumber: string;
@@ -144,19 +226,34 @@ export type BookingFormUserDepartment = {
   name: string;
 };
 
+/** A requester's saved place, used to autofill destination/province/maps link. */
+export type BookingFormPlace = {
+  id: string;
+  label: string;
+  destination: string;
+  province: string;
+  googleMapsUrl: string | null;
+};
+
 
 export function BookingForm({
   vehicles,
   userDepartment,
+  places = [],
 }: {
   vehicles: BookingFormVehicle[];
   userDepartment: BookingFormUserDepartment | null;
+  places?: BookingFormPlace[];
 }) {
   const t = useTranslations("bookingForm");
   const now = new Date();
   // Province drives both the lead-time rule (Bangkok vs. out-of-province) and
   // the card heading. The overnight checkbox below only flags TJW.
   const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
+  // Controlled so a saved place can autofill them (and the Maps button can open
+  // the stored link). Both still submit via their `name` in FormData.
+  const [destination, setDestination] = useState<string>("");
+  const [mapsUrl, setMapsUrl] = useState<string>("");
   const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -206,12 +303,15 @@ export function BookingForm({
     setEndTouched(true);
   };
 
-  // Open Google Maps in a new tab, searching for whatever destination the
-  // requester has typed. No API key — just a maps.google.com search URL.
+  // Open the stored Maps link when the requester has one; otherwise fall back to
+  // a name-search of the typed destination. No API key — plain maps.google.com.
   const openDestinationInMaps = () => {
-    const dest = (
-      document.getElementById("destination") as HTMLInputElement | null
-    )?.value.trim();
+    const stored = mapsUrl.trim();
+    if (stored) {
+      window.open(stored, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const dest = destination.trim();
     const url = dest
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`
       : "https://www.google.com/maps";
@@ -236,6 +336,7 @@ export function BookingForm({
   const baseRequired: Array<{ name: string; labelKey: string }> = [
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
+    { name: "googleMapsUrl", labelKey: "mapsLinkLabel" },
     { name: "province", labelKey: "province" },
     { name: "startAt", labelKey: "startLabel" },
     { name: "endAt", labelKey: "endLabel" },
@@ -461,9 +562,40 @@ export function BookingForm({
               <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
               <Input id="purpose" name="purpose" required />
             </div>
+            {places.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="savedPlace">{t("savedPlaceLabel")}</Label>
+                <SearchableSelect
+                  id="savedPlace"
+                  name="savedPlace"
+                  placeholder={t("savedPlacePlaceholder")}
+                  emptyText={t("savedPlaceNone")}
+                  options={places.map((p) => ({ value: p.id, label: p.label }))}
+                  onChange={(id) => {
+                    const p = places.find((x) => x.id === id);
+                    if (!p) return;
+                    setDestination(p.destination);
+                    setProvince(p.province);
+                    setMapsUrl(p.googleMapsUrl ?? "");
+                  }}
+                />
+                <a
+                  href="/requester/places"
+                  className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  {t("managePlacesLink")}
+                </a>
+              </div>
+            )}
             <div className="grid gap-2">
               <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
-              <Input id="destination" name="destination" required />
+              <Input
+                id="destination"
+                name="destination"
+                required
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+              />
               <button
                 type="button"
                 onClick={openDestinationInMaps}
@@ -472,6 +604,21 @@ export function BookingForm({
                 <MapPin aria-hidden className="h-3.5 w-3.5" />
                 {t("destinationMapsLink")}
               </button>
+            </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="googleMapsUrl">{t("mapsLinkLabel")}</ReqLabel>
+              <Input
+                id="googleMapsUrl"
+                name="googleMapsUrl"
+                type="url"
+                inputMode="url"
+                required
+                value={mapsUrl}
+                onChange={(e) => setMapsUrl(e.target.value)}
+                placeholder="https://maps.app.goo.gl/…"
+              />
+              <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>
+              <SaveDestination destination={destination} province={province} mapsUrl={mapsUrl} />
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-2">

@@ -64,7 +64,8 @@
     "pickAtLeastOneRole": "Pick at least one role.",
     "emailOrUsernameTaken": "An account with that email or username already exists.",
     "userNotFound": "User not found.",
-    "resetTokenInvalid": "This reset link is invalid or has expired."
+    "resetTokenInvalid": "This reset link is invalid or has expired.",
+    "placeNotFound": "Saved place not found."
   },
   "common": {
     "back": "Back",
@@ -85,7 +86,9 @@
     "loading": "Loading…",
     "search": "Search",
     "theme": "Theme",
-    "apply": "Apply"
+    "apply": "Apply",
+    "inChula": "In Chula",
+    "outsideChula": "Outside Chula"
   },
   "errorPage": {
     "title": "Something went wrong",
@@ -124,7 +127,8 @@
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board",
     "decisions": "My decisions",
-    "simulate": "Simulate"
+    "simulate": "Simulate",
+    "places": "Saved places"
   },
   "simulate": {
     "title": "Placement simulator",
@@ -455,6 +459,7 @@
   "bookingDetail": {
     "trip": "Trip",
     "destination": "Destination",
+    "mapsLink": "Google Maps",
     "passengers": "Passengers",
     "start": "Start",
     "endBackAtFaculty": "End (back at faculty)",
@@ -503,6 +508,23 @@
     "evaluationSubmittedNote": "Thanks — you've already rated this trip. Your feedback is shared with the fleet office.",
     "cancelTitle": "Cancel",
     "changeTimeTitle": "Change trip time"
+  },
+  "places": {
+    "title": "Saved places",
+    "subtitle": "Destinations you reuse. Private to you; used to autofill the booking form.",
+    "addTitle": "Add a place",
+    "label": "Name",
+    "destination": "Destination",
+    "province": "Province",
+    "mapsLink": "Google Maps link (optional)",
+    "save": "Save place",
+    "saving": "Saving…",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "update": "Update",
+    "empty": "No saved places yet. Add one below.",
+    "deleteConfirm": "Delete this saved place?"
   },
   "adminDetail": {
     "backToQueue": "Back to queue",
@@ -877,6 +899,15 @@
     "purpose": "Purpose",
     "destination": "Destination",
     "destinationMapsLink": "Open in Google Maps",
+    "mapsLinkLabel": "Google Maps link",
+    "mapsLinkHelper": "Paste a Maps link for the destination (any Maps share link works).",
+    "savedPlaceLabel": "Use a saved place",
+    "savedPlacePlaceholder": "Pick a saved place…",
+    "savedPlaceNone": "No saved place",
+    "savePlaceCta": "★ Save this destination",
+    "savePlaceNamePlaceholder": "Name this place, e.g. MOU partner uni",
+    "savePlaceSaved": "Saved",
+    "managePlacesLink": "Manage saved places →",
     "province": "Province",
     "startLabel": "Start (departure)",
     "endLabel": "End (back at faculty)",

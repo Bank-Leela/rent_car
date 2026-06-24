@@ -1,6 +1,7 @@
 "use client";
 
-import { Car, GripVertical, AlertTriangle, Link2, X, Truck } from "lucide-react";
+import { Car, GripVertical, AlertTriangle, Link2, X, Truck, MapPin } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 import {
@@ -43,6 +44,7 @@ function TimelineBlock({
   conflict: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: b.id });
+  const tc = useTranslations("common");
   const left = pctOf(b.startHour, dayStart, dayHours);
   // True size: a short trip stays a small sliver (5 min ≈ 0.6% of the track);
   // 1.2% floor keeps a tiny job hoverable.
@@ -99,6 +101,28 @@ function TimelineBlock({
         )}
       </div>
       <div className="truncate text-muted-foreground">{b.purpose}</div>
+      {(b.outsideChula || b.googleMapsUrl) && (
+        <div className="mt-0.5 flex items-center gap-1">
+          {b.outsideChula && (
+            <span className="rounded bg-amber-100 px-1 text-[9px] font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+              {tc("outsideChula")}
+            </span>
+          )}
+          {b.googleMapsUrl && (
+            <a
+              href={b.googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="text-primary hover:text-primary/80"
+              aria-label="Google Maps"
+            >
+              <MapPin className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </div>
+      )}
       {b.hasDriver ? (
         <div className="truncate text-[10px] font-medium text-primary">{b.driverName}</div>
       ) : (
@@ -178,6 +202,7 @@ function CoDriverGhost({
 // An unassigned-queue card (booking with no vehicle yet).
 export function QueueCard({ b }: { b: SchedulerBooking }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: b.id });
+  const tc = useTranslations("common");
   return (
     <div
       ref={setNodeRef}
@@ -196,6 +221,28 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
       <div className="truncate text-muted-foreground">
         {b.purpose} → {b.destination}
       </div>
+      {(b.outsideChula || b.googleMapsUrl) && (
+        <div className="mt-0.5 flex items-center gap-1">
+          {b.outsideChula && (
+            <span className="rounded bg-amber-100 px-1 text-[9px] font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+              {tc("outsideChula")}
+            </span>
+          )}
+          {b.googleMapsUrl && (
+            <a
+              href={b.googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="text-primary hover:text-primary/80"
+              aria-label="Google Maps"
+            >
+              <MapPin className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </div>
+      )}
       {b.reco && (
         // Recommended placement + one-click assign. Stop pointer propagation so
         // tapping the button doesn't start a drag.

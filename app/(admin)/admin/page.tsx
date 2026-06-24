@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { InChulaChip } from "@/components/in-chula-chip";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { OnCallShiftForm } from "@/components/forms/matching-form";
@@ -302,6 +303,7 @@ export default async function AdminQueue({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                         <BookingStatusBadge status={b.status} />
+                        <InChulaChip outsideChula={b.outsideChula} />
                       </div>
                       <div className="mt-1 font-medium truncate">{b.purpose}</div>
                       <div className="mt-0.5 text-sm text-muted-foreground">

@@ -10,6 +10,7 @@ import { CancelForm } from "@/components/forms/cancel-form";
 import { EvaluationForm } from "@/components/forms/evaluation-form";
 import { TimeChangeForm } from "@/components/forms/time-change-form";
 import { Field } from "@/components/detail-field";
+import { InChulaChip } from "@/components/in-chula-chip";
 
 export default async function RequesterBookingDetail({
   params,
@@ -49,6 +50,7 @@ export default async function RequesterBookingDetail({
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm text-muted-foreground">{booking.jobNumber}</span>
             <BookingStatusBadge status={booking.status} />
+            <InChulaChip outsideChula={booking.outsideChula} />
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{booking.purpose}</h1>
         </div>
@@ -66,6 +68,21 @@ export default async function RequesterBookingDetail({
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
           <Field label={t("destination")} value={`${booking.destination}, ${booking.province}`} />
+          {booking.googleMapsUrl && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("mapsLink")}</div>
+              <div className="mt-0.5">
+                <a
+                  href={booking.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {t("mapsLink")}
+                </a>
+              </div>
+            </div>
+          )}
           <Field label={t("department")} value={booking.department.nameEn} />
           <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
           <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />

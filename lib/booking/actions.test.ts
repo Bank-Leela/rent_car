@@ -104,6 +104,7 @@ describe("createBookingAction", () => {
           purpose: "Integration smoke trip",
           destination: "Lab",
           province: BANGKOK_PROVINCE,
+          googleMapsUrl: "https://maps.app.goo.gl/smoke",
           startAt: isoLocal(start),
           endAt: isoLocal(end),
           passengerCount: "3",
@@ -136,6 +137,7 @@ describe("createBookingAction", () => {
     expect(booking.departmentId).toBe(deptId);
     expect(booking.coordinatorName).toBe("นางสาว ประสาน");
     expect(booking.coordinatorPhone).toBe("0898765432");
+    expect(booking.googleMapsUrl).toBe("https://maps.app.goo.gl/smoke");
     createdIds.push(booking.id);
   });
 
@@ -151,6 +153,7 @@ describe("createBookingAction", () => {
         purpose: "Should be rejected",
         destination: "Lab",
         province: BANGKOK_PROVINCE,
+        googleMapsUrl: "https://maps.app.goo.gl/smoke",
         startAt: isoLocal(tooSoon),
         endAt: isoLocal(end),
         passengerCount: "1",
@@ -181,6 +184,7 @@ describe("createBookingAction", () => {
         purpose: "End before start",
         destination: "Lab",
         province: BANGKOK_PROVINCE,
+        googleMapsUrl: "https://maps.app.goo.gl/smoke",
         startAt: isoLocal(start),
         endAt: isoLocal(end),
         passengerCount: "1",
@@ -215,6 +219,7 @@ describe("createBookingAction", () => {
           purpose: "Recurring smoke",
           destination: "Campus",
           province: BANGKOK_PROVINCE,
+          googleMapsUrl: "https://maps.app.goo.gl/smoke",
           startAt: isoLocal(start),
           endAt: isoLocal(end),
           passengerCount: "2",

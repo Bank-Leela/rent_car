@@ -7,6 +7,7 @@ const baseInput = {
   purpose: "Faculty board meeting",
   destination: "Siriraj Hospital",
   province: "กรุงเทพมหานคร",
+  googleMapsUrl: "https://maps.app.goo.gl/abc123",
   startAt: "2026-06-10T08:00",
   endAt: "2026-06-10T12:00",
   ajarnName: "ศ. ดร. สมชาย สุขดี",
@@ -93,6 +94,40 @@ describe("newBookingSchema ajarn fields", () => {
     if (result.success) {
       expect(result.data.tripType).toBe("ROUND_TRIP");
       expect(result.data.remark).toBe("call security gate first");
+    }
+  });
+});
+
+describe("newBookingSchema googleMapsUrl", () => {
+  it("accepts a shortened (non-google.com) Maps URL", () => {
+    const result = newBookingSchema.safeParse({
+      ...baseInput,
+      googleMapsUrl: "https://maps.app.goo.gl/xyz",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty Maps URL", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, googleMapsUrl: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((i) => i.path.join("."))).toContain("googleMapsUrl");
+    }
+  });
+
+  it("rejects a non-URL Maps value", () => {
+    const result = newBookingSchema.safeParse({ ...baseInput, googleMapsUrl: "not a url" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-http(s) scheme (javascript:) — it is rendered as an href", () => {
+    const result = newBookingSchema.safeParse({
+      ...baseInput,
+      googleMapsUrl: "javascript:alert(1)",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((i) => i.path.join("."))).toContain("googleMapsUrl");
     }
   });
 });

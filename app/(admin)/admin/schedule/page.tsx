@@ -60,6 +60,8 @@ export default async function SchedulePage({
         jobNumber: true,
         purpose: true,
         destination: true,
+        outsideChula: true,
+        googleMapsUrl: true,
         startAt: true,
         endAt: true,
         vehicleId: true,
@@ -89,6 +91,7 @@ export default async function SchedulePage({
       orderBy: { startAt: "asc" },
       select: {
         id: true, jobNumber: true, purpose: true, destination: true, startAt: true, endAt: true,
+        outsideChula: true, googleMapsUrl: true,
         vehicleId: true, jobType: true, estimatedDistance: true, createdAt: true,
         primaryDriverId: true, secondaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
@@ -195,6 +198,8 @@ export default async function SchedulePage({
       jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
+      outsideChula: b.outsideChula,
+      googleMapsUrl: b.googleMapsUrl,
       // On its departure day a trip shows its start time; on a later (return or
       // middle) day it shows "↪ <departure date>" so it's clear it's continuing.
       timeLabel: span.continuesBefore
@@ -235,6 +240,8 @@ export default async function SchedulePage({
       jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
+      outsideChula: b.outsideChula,
+      googleMapsUrl: b.googleMapsUrl,
       timeLabel: span.continuesBefore ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.startAt),
       endLabel: span.continuesAfter ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.endAt),
       departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),

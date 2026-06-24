@@ -13,6 +13,15 @@ export const newBookingSchema = z
     purpose: z.string().min(3, "Describe the trip purpose"),
     destination: z.string().min(2, "Required"),
     province: z.string().min(2, "Required"),
+    // Sub-project A: stored Maps link. Required on the requester flow; any host
+    // (so maps.app.goo.gl / goo.gl/maps shortened links work). No distance pull.
+    // http(s) only — the value is rendered as a clickable href elsewhere, so a
+    // javascript:/data: scheme (which z.url() would accept) must be rejected.
+    googleMapsUrl: z
+      .string()
+      .trim()
+      .url("Add a valid Google Maps link")
+      .refine((v) => /^https?:\/\//i.test(v), "Add a valid Google Maps link"),
     startAt: datetimeLocal,
     endAt: datetimeLocal,
     // "ผู้ขอใช้รถ" — the requester/secretary who submits on the ajarn's behalf.

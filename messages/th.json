@@ -64,7 +64,8 @@
     "pickAtLeastOneRole": "เลือกบทบาทอย่างน้อย 1 รายการ",
     "emailOrUsernameTaken": "อีเมลหรือชื่อผู้ใช้นี้มีบัญชีอยู่แล้ว",
     "userNotFound": "ไม่พบผู้ใช้",
-    "resetTokenInvalid": "ลิงก์รีเซ็ตนี้ใช้ไม่ได้หรือหมดอายุแล้ว"
+    "resetTokenInvalid": "ลิงก์รีเซ็ตนี้ใช้ไม่ได้หรือหมดอายุแล้ว",
+    "placeNotFound": "ไม่พบสถานที่ที่บันทึกไว้"
   },
   "common": {
     "back": "ย้อนกลับ",
@@ -85,7 +86,9 @@
     "loading": "กำลังโหลด…",
     "search": "ค้นหา",
     "theme": "ธีม",
-    "apply": "ใช้"
+    "apply": "ใช้",
+    "inChula": "ในจุฬาฯ",
+    "outsideChula": "นอกจุฬาฯ"
   },
   "errorPage": {
     "title": "เกิดข้อผิดพลาด",
@@ -124,7 +127,8 @@
     "schedule": "ตารางงาน",
     "scheduleBoard": "กระดานรับงาน",
     "decisions": "การตัดสินใจของฉัน",
-    "simulate": "จำลอง"
+    "simulate": "จำลอง",
+    "places": "สถานที่ที่บันทึก"
   },
   "simulate": {
     "title": "จำลองการจัดรถ",
@@ -455,6 +459,7 @@
   "bookingDetail": {
     "trip": "การเดินทาง",
     "destination": "ปลายทาง",
+    "mapsLink": "Google Maps",
     "passengers": "ผู้โดยสาร",
     "start": "เริ่ม",
     "endBackAtFaculty": "สิ้นสุด (กลับถึงคณะ)",
@@ -503,6 +508,23 @@
     "evaluationSubmittedNote": "ขอบคุณ — คุณได้ประเมินทริปนี้แล้ว ฟีดแบ็กถูกส่งให้ฝ่ายยานยนต์เรียบร้อย",
     "cancelTitle": "ยกเลิก",
     "changeTimeTitle": "แก้ไขเวลาเดินทาง"
+  },
+  "places": {
+    "title": "สถานที่ที่บันทึกไว้",
+    "subtitle": "ปลายทางที่คุณใช้บ่อย เป็นข้อมูลส่วนตัวของคุณ ใช้กรอกฟอร์มจองอัตโนมัติ",
+    "addTitle": "เพิ่มสถานที่",
+    "label": "ชื่อ",
+    "destination": "ปลายทาง",
+    "province": "จังหวัด",
+    "mapsLink": "ลิงก์ Google Maps (ไม่บังคับ)",
+    "save": "บันทึกสถานที่",
+    "saving": "กำลังบันทึก…",
+    "edit": "แก้ไข",
+    "delete": "ลบ",
+    "cancel": "ยกเลิก",
+    "update": "อัปเดต",
+    "empty": "ยังไม่มีสถานที่ที่บันทึก เพิ่มด้านล่าง",
+    "deleteConfirm": "ลบสถานที่ที่บันทึกนี้หรือไม่?"
   },
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
@@ -877,6 +899,15 @@
     "purpose": "วัตถุประสงค์",
     "destination": "ปลายทาง",
     "destinationMapsLink": "เปิดใน Google Maps",
+    "mapsLinkLabel": "ลิงก์ Google Maps",
+    "mapsLinkHelper": "วางลิงก์ Maps ของปลายทาง (ใช้ลิงก์แชร์ Maps แบบใดก็ได้)",
+    "savedPlaceLabel": "ใช้สถานที่ที่บันทึกไว้",
+    "savedPlacePlaceholder": "เลือกสถานที่ที่บันทึกไว้…",
+    "savedPlaceNone": "ไม่ใช้สถานที่ที่บันทึก",
+    "savePlaceCta": "★ บันทึกปลายทางนี้",
+    "savePlaceNamePlaceholder": "ตั้งชื่อสถานที่ เช่น มหาวิทยาลัยคู่ MOU",
+    "savePlaceSaved": "บันทึกแล้ว",
+    "managePlacesLink": "จัดการสถานที่ที่บันทึกไว้ →",
     "province": "จังหวัด",
     "startLabel": "เริ่ม (ออกเดินทาง)",
     "endLabel": "สิ้นสุด (กลับถึงคณะ)",

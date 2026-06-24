@@ -16,6 +16,10 @@ export type SchedulerBooking = {
   jobNumber: string;
   purpose: string;
   destination: string;
+  // Sub-project A (presentation only): campus/off-campus bit + stored Maps link.
+  // Optional so non-admin board construction sites needn't set them.
+  outsideChula?: boolean;
+  googleMapsUrl?: string | null;
   // Start as "HH:mm", or "↪ <date>" when the trip began on an earlier day.
   timeLabel: string;
   // End time as "HH:mm", with "↩ <return date>" when it ends on a later day.
