@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
 import { logTransition } from "@/lib/booking/audit";
 import {
   claimBookingSchema,
@@ -63,8 +64,32 @@ async function canDriveBooking(userId: string, bookingId: string): Promise<boole
     }),
   ]);
   const driverId = user?.driverProfile?.id;
-  if (!driverId || !booking) return false;
+  if (!driverId || !booking || !user?.isActive) return false;
   return booking.primaryDriverId === driverId || booking.secondaryDriverId === driverId;
+}
+
+// True ONLY for the designated shared "station" kiosk (an allowlisted DRIVER
+// account — see lib/auth/station.ts). Identified by a positive email allowlist,
+// NOT by "no driver profile": an un-provisioned new driver or a multi-role
+// ADMIN/APPROVER+DRIVER account is also profile-less and must NOT gain kiosk
+// powers over other drivers' trips.
+async function isSharedStation(session: { user: { id: string; roles: string[] } }): Promise<boolean> {
+  if (!session.user.roles.includes("DRIVER")) return false;
+  const u = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, isActive: true },
+  });
+  return !!u?.isActive && isStationEmail(u.email);
+}
+
+// Trip start/end is allowed for the assigned driver OR the shared station kiosk.
+// (Decline stays restricted to the actual assigned driver — see canDriveBooking.)
+async function canRecordTrip(
+  session: { user: { id: string; roles: string[] } },
+  bookingId: string,
+): Promise<boolean> {
+  if (await canDriveBooking(session.user.id, bookingId)) return true;
+  return isSharedStation(session);
 }
 
 export async function startTripAction(formData: FormData): Promise<ActionResult> {
@@ -78,7 +103,7 @@ export async function startTripAction(formData: FormData): Promise<ActionResult>
   }
   const { bookingId, startMileage } = parsed.data;
 
-  if (!(await canDriveBooking(userId, bookingId))) {
+  if (!(await canRecordTrip(session, bookingId))) {
     return { ok: false, error: te("notAssignedToTrip") };
   }
 
@@ -117,14 +142,23 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
   const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
   const parsed = endSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, endMileage, fuelCost, tollwayCost, usedExpressway, driverNotes } = parsed.data;
 
-  if (!(await canDriveBooking(userId, bookingId))) {
+  if (!(await canRecordTrip(session, bookingId))) {
     return { ok: false, error: te("notAssignedToTrip") };
+  }
+
+  // Re-assert the trip is still live before completing — a booking cancelled
+  // after the trip started must not be resurrected to COMPLETED.
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { status: true } });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.status !== "ASSIGNED") {
+    return { ok: false, error: te("cannotEndInStatus", { status: ts(booking.status) }) };
   }
 
   const trip = await prisma.trip.findUnique({ where: { bookingId } });

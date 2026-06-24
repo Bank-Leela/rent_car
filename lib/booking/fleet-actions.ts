@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { DriverPool, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
 import type { ActionResult } from "@/lib/booking/actions";
 
 // Backfill Driver profiles for DRIVER-role users that don't have one yet.
@@ -14,16 +15,19 @@ export async function provisionDriverProfilesAction(): Promise<ActionResult & { 
   await requireRole("ADMIN");
   const missing = await prisma.user.findMany({
     where: { isActive: true, roles: { some: { role: Role.DRIVER } }, driverProfile: { is: null } },
-    select: { id: true },
+    select: { id: true, email: true },
   });
-  if (missing.length === 0) return { ok: true, created: 0 };
+  // The shared station kiosk is a DRIVER account but must NEVER become a
+  // dispatchable pool driver — exclude it from profile provisioning.
+  const provisionable = missing.filter((u) => !isStationEmail(u.email));
+  if (provisionable.length === 0) return { ok: true, created: 0 };
   await prisma.driver.createMany({
-    data: missing.map((u) => ({ userId: u.id, pool: DriverPool.PUBLIC })),
+    data: provisionable.map((u) => ({ userId: u.id, pool: DriverPool.PUBLIC })),
     skipDuplicates: true,
   });
   revalidatePath("/admin/fleet");
   revalidatePath("/admin/schedule");
-  return { ok: true, created: missing.length };
+  return { ok: true, created: provisionable.length };
 }
 
 // Set (or clear) a car's assigned driver. Enforces 1:1: if the driver is

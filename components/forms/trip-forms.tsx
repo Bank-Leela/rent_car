@@ -9,9 +9,9 @@ import { startTripAction, endTripAction } from "@/lib/booking/driver-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
 import { FormError } from "@/components/forms/form-error";
 
-export function StartTripForm({ bookingId }: { bookingId: string }) {
+export function StartTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
   const t = useTranslations("tripForms");
-  const { error, pending, run } = useFormAction(startTripAction, { bookingId });
+  const { error, pending, run } = useFormAction(startTripAction, { bookingId, onSuccess });
   return (
     <form action={run} className="space-y-4">
       <div className="grid gap-2">
@@ -34,9 +34,9 @@ export function StartTripForm({ bookingId }: { bookingId: string }) {
   );
 }
 
-export function EndTripForm({ bookingId }: { bookingId: string }) {
+export function EndTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
   const t = useTranslations("tripForms");
-  const { error, pending, run } = useFormAction(endTripAction, { bookingId });
+  const { error, pending, run } = useFormAction(endTripAction, { bookingId, onSuccess });
   return (
     <form action={run} className="space-y-4">
       <div className="grid gap-2">

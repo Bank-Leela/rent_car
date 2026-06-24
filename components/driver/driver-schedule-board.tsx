@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Car, Link2 } from "lucide-react";
 import {
   type SchedulerVehicle,
@@ -14,6 +15,7 @@ import {
   LANE_PX,
   LANE_PAD,
 } from "@/components/admin/scheduler-board-shared";
+import { TripDetailDrawer } from "@/components/driver/trip-detail-drawer";
 
 // Read-only timeline of P'Top's official schedule for the driver side: cars as
 // rows, time on the X-axis. No drag — drivers view here; the editable draft
@@ -30,6 +32,7 @@ export function DriverScheduleBoard({
   dutyVehicleId: string | null;
   labels: { duty: string; noDriver: string; coDriver: string; arrives: string; empty: string };
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   const realEnds = bookings.filter((b) => b.endHour < 24).map((b) => b.endHour);
   const dayStart = Math.max(0, Math.floor(Math.min(DEFAULT_START, ...bookings.map((b) => b.startHour))));
   const dayEnd = Math.min(24, Math.ceil(Math.max(DEFAULT_END, ...realEnds)));
@@ -83,11 +86,14 @@ export function DriverScheduleBoard({
                 dayHours={dayHours}
                 hours={hours}
                 labels={labels}
+                onOpen={setOpenId}
               />
             ))}
           </div>
         </div>
       )}
+
+      <TripDetailDrawer bookingId={openId} onClose={() => setOpenId(null)} />
     </div>
   );
 }
@@ -102,6 +108,7 @@ function Row({
   dayHours,
   hours,
   labels,
+  onOpen,
 }: {
   vehicle: SchedulerVehicle;
   label: string;
@@ -112,6 +119,7 @@ function Row({
   dayHours: number;
   hours: number[];
   labels: { duty: string; noDriver: string; coDriver: string; arrives: string; empty: string };
+  onOpen: (bookingId: string) => void;
 }) {
   type Item = { key: string; b: SchedulerBooking; kind: "primary" | "co"; startHour: number; endHour: number };
   const items: Item[] = [
@@ -163,10 +171,12 @@ function Row({
           const width = Math.max(pctOf(it.b.endHour, dayStart, dayHours) - left, 1.2);
           const multiDay = it.b.continuesBefore || it.b.continuesAfter;
           return (
-            <div
+            <button
               key={it.key}
+              type="button"
+              onClick={() => onOpen(it.b.id)}
               title={`${it.b.jobNumber} · ${it.b.timeLabel} · ${it.b.purpose} → ${it.b.destination}`}
-              className={`absolute overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] ${
+              className={`absolute block cursor-pointer overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:brightness-110 ${
                 it.kind === "co"
                   ? "border-dashed border-violet-400/70 bg-violet-50 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200"
                   : `${jobStyle(it.b.jobType).block} ${it.b.secondaryDriverName ? "ring-1 ring-violet-400/70" : ""}`
@@ -201,7 +211,7 @@ function Row({
               {it.kind === "co" && it.b.driverName && (
                 <div className="truncate text-[10px] text-violet-700 dark:text-violet-300">→ {it.b.driverName}</div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
