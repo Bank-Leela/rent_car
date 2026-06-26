@@ -363,7 +363,9 @@
     "clearDemo": "Clear demo data",
     "simulateHelper": "Simulate seeds a mixed set of TJW / OT / WERN / NORMAL bookings (tagged BatchDemo:) into the chosen date and runs the batch in one shot. Real bookings are untouched.",
     "simulateSeeded": "Seeded {count} demo bookings for this date.",
-    "clearedNote": "Cleared {count} demo bookings."
+    "clearedNote": "Cleared {count} demo bookings.",
+    "assignTjw": "Assign TJW (request order)",
+    "assignTjwDone": "Assigned {count} TJW by request order."
   },
   "adminUsers": {
     "title": "User accounts",
