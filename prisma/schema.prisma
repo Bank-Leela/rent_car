@@ -388,6 +388,9 @@ model Booking {
   // If the vehicle doesn't wait, what time it comes back to collect
   // passengers ("HH:mm", same calendar day as the trip).
   pickupReturnTime  String?
+  // No-wait split: end of leg 1 (driver free after the drop-off run). Null ⇒
+  // single-interval trip. Only meaningful when waitAtDestination = false.
+  dropOffDone       DateTime?
   // Requester's preferred vehicle category. Required; informational only —
   // does not drive assignment.
   preferredVehicleType PreferredVehicleType @default(VAN)
@@ -517,6 +520,7 @@ model TripTemplate {
   pickupLocation     String?
   waitAtDestination  Boolean @default(true)
   pickupReturnTime   String?
+  dropOffDone        DateTime?
   passengerCount     Int     @default(1)
   maleCount          Int?
   femaleCount        Int?
