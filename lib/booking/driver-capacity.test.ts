@@ -176,4 +176,50 @@ describe("rankCandidates", () => {
     ]);
     expect(r).toEqual(["C", "B", "A"]);
   });
+
+  it("breaks a full fairness tie by driverId (so DB row order can't decide which car wins)", () => {
+    const tie = [
+      { driverId: "Z", earningsScore: 0, tripsThisMonth: 0, lastAssignedAt: null },
+      { driverId: "A", earningsScore: 0, tripsThisMonth: 0, lastAssignedAt: null },
+      { driverId: "M", earningsScore: 0, tripsThisMonth: 0, lastAssignedAt: null },
+    ];
+    expect(rankCandidates(tie)).toEqual(["A", "M", "Z"]);
+    expect(rankCandidates([...tie].reverse())).toEqual(["A", "M", "Z"]); // order-independent
+  });
+
+  it("tripsThisMonth breaks an earnings tie before lastAssignedAt", () => {
+    expect(
+      rankCandidates([
+        { driverId: "A", earningsScore: 5, tripsThisMonth: 3, lastAssignedAt: null },
+        { driverId: "B", earningsScore: 5, tripsThisMonth: 1, lastAssignedAt: null },
+      ]),
+    ).toEqual(["B", "A"]);
+  });
+
+  it("does not mutate its input array", () => {
+    const rows = [
+      { driverId: "B", earningsScore: 5, tripsThisMonth: 0, lastAssignedAt: null },
+      { driverId: "A", earningsScore: 1, tripsThisMonth: 0, lastAssignedAt: null },
+    ];
+    const before = rows.map((r) => r.driverId);
+    rankCandidates(rows);
+    expect(rows.map((r) => r.driverId)).toEqual(before);
+  });
+});
+
+describe("pickFreeDriver — duty + empty pool", () => {
+  const trip = { startAt: new Date("2026-06-10T14:00:00"), endAt: new Date("2026-06-10T16:00:00") };
+
+  it("returns null when the only otherwise-free driver is the excluded duty driver", () => {
+    const busy = { startAt: new Date("2026-06-10T13:00:00"), endAt: new Date("2026-06-10T17:00:00") };
+    expect(pickFreeDriver(trip, [fd("A"), fd("B", { trips: [busy] })], "A")).toBeNull();
+  });
+
+  it("returns null for an empty pool", () => {
+    expect(pickFreeDriver(trip, [], null)).toBeNull();
+  });
+
+  it("breaks a full fairness tie by driverId", () => {
+    expect(pickFreeDriver(trip, [fd("Z"), fd("A")], null)).toBe("A");
+  });
 });

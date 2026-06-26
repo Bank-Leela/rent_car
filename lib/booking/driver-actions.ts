@@ -5,12 +5,23 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
+import { logTransition } from "@/lib/booking/audit";
 import {
   claimBookingSchema,
   releaseClaimSchema,
   confirmScheduleSchema,
 } from "@/lib/booking/schema";
+import { TWO_DRIVER_DISTANCE_KM } from "@/lib/booking/rules";
+import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
+import { sendEmail } from "@/lib/email/client";
+import { adminNewBookingEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
+
+const declineSchema = z.object({
+  bookingId: z.string().min(1),
+  reason: z.string().min(3, "Reason is required").max(1000),
+});
 
 const startSchema = z.object({
   bookingId: z.string().min(1),
@@ -53,8 +64,32 @@ async function canDriveBooking(userId: string, bookingId: string): Promise<boole
     }),
   ]);
   const driverId = user?.driverProfile?.id;
-  if (!driverId || !booking) return false;
+  if (!driverId || !booking || !user?.isActive) return false;
   return booking.primaryDriverId === driverId || booking.secondaryDriverId === driverId;
+}
+
+// True ONLY for the designated shared "station" kiosk (an allowlisted DRIVER
+// account — see lib/auth/station.ts). Identified by a positive email allowlist,
+// NOT by "no driver profile": an un-provisioned new driver or a multi-role
+// ADMIN/APPROVER+DRIVER account is also profile-less and must NOT gain kiosk
+// powers over other drivers' trips.
+async function isSharedStation(session: { user: { id: string; roles: string[] } }): Promise<boolean> {
+  if (!session.user.roles.includes("DRIVER")) return false;
+  const u = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, isActive: true },
+  });
+  return !!u?.isActive && isStationEmail(u.email);
+}
+
+// Trip start/end is allowed for the assigned driver OR the shared station kiosk.
+// (Decline stays restricted to the actual assigned driver — see canDriveBooking.)
+async function canRecordTrip(
+  session: { user: { id: string; roles: string[] } },
+  bookingId: string,
+): Promise<boolean> {
+  if (await canDriveBooking(session.user.id, bookingId)) return true;
+  return isSharedStation(session);
 }
 
 export async function startTripAction(formData: FormData): Promise<ActionResult> {
@@ -68,7 +103,7 @@ export async function startTripAction(formData: FormData): Promise<ActionResult>
   }
   const { bookingId, startMileage } = parsed.data;
 
-  if (!(await canDriveBooking(userId, bookingId))) {
+  if (!(await canRecordTrip(session, bookingId))) {
     return { ok: false, error: te("notAssignedToTrip") };
   }
 
@@ -87,15 +122,14 @@ export async function startTripAction(formData: FormData): Promise<ActionResult>
     await tx.trip.create({
       data: { bookingId, startMileage, startedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "ASSIGNED",
-        toStatus: "ASSIGNED",
-        action: "TRIP_STARTED",
-        metadata: { startMileage },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "ASSIGNED",
+      toStatus: "ASSIGNED",
+      action: "TRIP_STARTED",
+      metadata: { startMileage },
+      tx,
     });
   });
 
@@ -108,14 +142,23 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
   const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
   const parsed = endSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
   const { bookingId, endMileage, fuelCost, tollwayCost, usedExpressway, driverNotes } = parsed.data;
 
-  if (!(await canDriveBooking(userId, bookingId))) {
+  if (!(await canRecordTrip(session, bookingId))) {
     return { ok: false, error: te("notAssignedToTrip") };
+  }
+
+  // Re-assert the trip is still live before completing — a booking cancelled
+  // after the trip started must not be resurrected to COMPLETED.
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { status: true } });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.status !== "ASSIGNED") {
+    return { ok: false, error: te("cannotEndInStatus", { status: ts(booking.status) }) };
   }
 
   const trip = await prisma.trip.findUnique({ where: { bookingId } });
@@ -142,15 +185,14 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
       where: { id: bookingId },
       data: { status: "COMPLETED", completedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "ASSIGNED",
-        toStatus: "COMPLETED",
-        action: "TRIP_COMPLETED",
-        metadata: { endMileage, distanceKm: endMileage - trip.startMileage },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "ASSIGNED",
+      toStatus: "COMPLETED",
+      action: "TRIP_COMPLETED",
+      metadata: { endMileage, distanceKm: endMileage - trip.startMileage },
+      tx,
     });
   });
 
@@ -221,15 +263,14 @@ export async function claimBookingAction(formData: FormData): Promise<ActionResu
     else data.secondaryDriverId = driverId;
     if (booking.driverScheduleStatus === "UNCLAIMED") data.driverScheduleStatus = "CLAIMED";
     await tx.booking.update({ where: { id: bookingId }, data });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "DRIVER_CLAIMED",
-        metadata: { driverId, role },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "DRIVER_CLAIMED",
+      metadata: { driverId, role },
+      tx,
     });
   });
 
@@ -284,15 +325,14 @@ export async function releaseClaimAction(formData: FormData): Promise<ActionResu
     else data.secondaryDriverId = null;
     data.driverScheduleStatus = remaining.length === 0 ? "UNCLAIMED" : "CLAIMED";
     await tx.booking.update({ where: { id: bookingId }, data });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "DRIVER_RELEASED",
-        metadata: { driverId, role: claim.role },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "DRIVER_RELEASED",
+      metadata: { driverId, role: claim.role },
+      tx,
     });
   });
 
@@ -334,10 +374,13 @@ export async function confirmScheduleAction(formData: FormData): Promise<ActionR
   if (!primaryClaim || primaryClaim.driverId !== driverId) {
     return { ok: false, error: te("onlyPrimaryCanConfirm") };
   }
-  // CR-02: the two-driver rule applies at the driver side. A trip the admin
-  // flagged needsSecondaryDriver can't confirm without a secondary claim.
+  // CR-02: the two-driver rule for long trips now applies at the driver
+  // side. Trips over the threshold can't confirm without a secondary claim.
+  const needsSecondary =
+    typeof booking.estimatedDistance === "number" &&
+    booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM;
   const hasSecondary = booking.claims.some((c) => c.role === "SECONDARY");
-  if (booking.needsSecondaryDriver && !hasSecondary) {
+  if (needsSecondary && !hasSecondary) {
     return { ok: false, error: te("secondaryRequired") };
   }
 
@@ -346,15 +389,14 @@ export async function confirmScheduleAction(formData: FormData): Promise<ActionR
       where: { id: bookingId },
       data: { driverScheduleStatus: "CONFIRMED", status: "ASSIGNED" },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: "APPROVED",
-        toStatus: "ASSIGNED",
-        action: "SCHEDULE_CONFIRMED",
-        metadata: { primaryDriverId: driverId },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "APPROVED",
+      toStatus: "ASSIGNED",
+      action: "SCHEDULE_CONFIRMED",
+      metadata: { primaryDriverId: driverId },
+      tx,
     });
   });
 
@@ -364,5 +406,104 @@ export async function confirmScheduleAction(formData: FormData): Promise<ActionR
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
   revalidatePath(`/requester/${bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Driver declines an ASSIGNED trip they can't do. Unlike releaseClaimAction
+ * (the board self-scheduling path, which blocks after CONFIRMED), this is the
+ * "I'm assigned but unavailable" escape: it sends the whole trip back to the
+ * APPROVED queue for the admin to re-dispatch, records the reason on the audit
+ * log, and emails admins. A driver can't silently no-show — admin is made aware.
+ */
+export async function declineAssignmentAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("DRIVER");
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const parsed = declineSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId, reason } = parsed.data;
+
+  if (!(await canDriveBooking(userId, bookingId))) {
+    return { ok: false, error: te("notYourTrip") };
+  }
+
+  const booking = await prisma.booking.findUniqueOrThrow({
+    where: { id: bookingId },
+    select: { status: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
+  });
+  // Only a live assignment can be declined.
+  if (booking.status !== "ASSIGNED") {
+    return { ok: false, error: te("cannotDeclineInStatus", { status: ts(booking.status) }) };
+  }
+
+  const freedDrivers = [booking.primaryDriverId, booking.secondaryDriverId].filter(
+    (id): id is string => !!id,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.bookingClaim.deleteMany({ where: { bookingId } });
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: {
+        vehicleId: null,
+        primaryDriverId: null,
+        secondaryDriverId: null,
+        status: "APPROVED",
+        driverScheduleStatus: "UNCLAIMED",
+        decidedAt: null,
+        overflowReason: null,
+        escalatedToKhunTop: false,
+      },
+    });
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "ASSIGNED",
+      toStatus: "APPROVED",
+      action: "DRIVER_DECLINED",
+      metadata: { reason, freedDrivers },
+      tx,
+    });
+  });
+
+  // Freed drivers' category stamps recompute from their remaining trips (this
+  // one is gone now) — same rollback the cancel/unassign paths use.
+  for (const driverId of freedDrivers) {
+    await recomputeRotationStamp(driverId, booking.jobType);
+  }
+
+  // Notify admins the trip is back in the assignment queue (decline reason is on
+  // the audit log). Failure here doesn't block the decline.
+  try {
+    const detailed = await prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: {
+        requester: true,
+        department: true,
+        vehicle: true,
+        primaryDriver: { include: { user: true } },
+        secondaryDriver: { include: { user: true } },
+      },
+    });
+    const admins = await prisma.user.findMany({
+      where: { roles: { some: { role: "ADMIN" } }, isActive: true },
+      select: { email: true },
+    });
+    const to = admins.map((a) => a.email).filter((e): e is string => !!e);
+    if (to.length > 0) await sendEmail({ to, ...adminNewBookingEmail(detailed) });
+  } catch (err) {
+    console.error("[decline] admin notify failed", err);
+  }
+
+  revalidatePath("/driver");
+  revalidatePath("/driver/board");
+  revalidatePath(`/driver/${bookingId}`);
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
   return { ok: true };
 }

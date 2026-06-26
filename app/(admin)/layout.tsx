@@ -20,21 +20,25 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ];
   if (roles.includes("ADMIN")) {
     nav.push({ href: "/admin/schedule", label: t("schedule") });
+    nav.push({ href: "/admin/simulate", label: t("simulate") });
     nav.push({ href: "/admin/batch", label: t("batch") });
     nav.push({ href: "/admin/users", label: t("users") });
   }
   if (roles.includes("APPROVER")) {
+    nav.push({ href: "/admin/decisions", label: t("decisions") });
     nav.push({ href: "/admin/profile", label: t("profile") });
   }
 
-  // Notification bell: count of cases awaiting an admin decision (new pending
-  // requests + over-capacity waitlist). Links to the queue.
-  const actionableCount = isAdmin
+  // Notification bell: count of cases awaiting a decision (new pending
+  // requests + over-capacity waitlist). Shown to admins AND approvers — an
+  // approver's whole job is this queue, so they need the live count too.
+  const showBell = isAdmin || roles.includes("APPROVER");
+  const actionableCount = showBell
     ? await prisma.booking.count({
         where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] } },
       })
     : 0;
-  const bell = isAdmin ? (
+  const bell = showBell ? (
     <Link
       href="/admin"
       aria-label={tn("bell", { count: actionableCount })}

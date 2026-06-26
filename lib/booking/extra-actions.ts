@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
 import type { ActionResult } from "@/lib/booking/actions";
 import { rollbackRotationStampsForBooking } from "@/lib/booking/batch-actions";
@@ -48,15 +49,14 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
       where: { id: bookingId },
       data: { status: "CANCELLED", decidedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: userId,
-        fromStatus: booking.status,
-        toStatus: "CANCELLED",
-        action: "BOOKING_CANCELLED",
-        metadata: { reason },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: booking.status,
+      toStatus: "CANCELLED",
+      action: "BOOKING_CANCELLED",
+      metadata: { reason },
+      tx,
     });
   });
 
@@ -198,15 +198,14 @@ export async function completeTripAction(formData: FormData): Promise<ActionResu
       where: { id: bookingId },
       data: { status: "COMPLETED", completedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: adminId,
-        fromStatus: "ASSIGNED",
-        toStatus: "COMPLETED",
-        action: "BOOKING_COMPLETED",
-        metadata: { startMileage, endMileage, distanceKm: inferredDistance },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: adminId,
+      fromStatus: "ASSIGNED",
+      toStatus: "COMPLETED",
+      action: "BOOKING_COMPLETED",
+      metadata: { startMileage, endMileage, distanceKm: inferredDistance },
+      tx,
     });
   });
 
@@ -258,19 +257,24 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
         outsourceCost,
         outsourceReference,
         needsOutsourcing: true,
-        status: "ASSIGNED",
+        // OUTSOURCED is fully off-algorithm — clear the fleet car/drivers so the
+        // trip no longer holds a slot or counts in fairness (unified with the
+        // board's drag-to-external-row flow).
+        status: "OUTSOURCED",
+        vehicleId: null,
+        primaryDriverId: null,
+        secondaryDriverId: null,
         decidedAt: new Date(),
       },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: adminId,
-        fromStatus: "APPROVED",
-        toStatus: "ASSIGNED",
-        action: "BOOKING_OUTSOURCED",
-        metadata: { outsourceVendor, outsourceCost, outsourceReference },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: adminId,
+      fromStatus: "APPROVED",
+      toStatus: "OUTSOURCED",
+      action: "BOOKING_OUTSOURCED",
+      metadata: { outsourceVendor, outsourceCost, outsourceReference },
+      tx,
     });
   });
 

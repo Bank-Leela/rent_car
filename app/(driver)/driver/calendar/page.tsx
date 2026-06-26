@@ -6,6 +6,7 @@ import {
   endOfWeek,
   eachDayOfInterval,
   format,
+  addDays,
   addMonths,
   subMonths,
   isSameMonth,
@@ -18,7 +19,15 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
-import { isThaiLocale } from "@/i18n/config";
+import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
+
+// Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
+// day, else the real start time.
+function cellTime(startAt: Date, endAt: Date, span: DaySpan): string {
+  if (span.continuesBefore && span.continuesAfter) return "↪↩";
+  if (span.continuesBefore) return `↩${format(endAt, "HH:mm")}`;
+  return format(startAt, "HH:mm");
+}
 
 const STATUS_TINT: Record<string, string> = {
   APPROVED:
@@ -49,7 +58,7 @@ export default async function DriverCalendar({
   const tc = await getTranslations("common");
   const tcal = await getTranslations("calendar");
   const localeCode = await getLocale();
-  const loc: Locale = isThaiLocale(localeCode) ? th : enUS;
+  const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
 
   const driver = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!driver) {
@@ -71,7 +80,9 @@ export default async function DriverCalendar({
   // denormalized fields, plus active claims while still APPROVED.
   const bookings = await prisma.booking.findMany({
     where: {
-      startAt: { gte: gridStart, lte: gridEnd },
+      // Overlap the visible grid so a multi-day trip lands in every cell it spans.
+      startAt: { lte: gridEnd },
+      endAt: { gte: gridStart },
       OR: [
         { primaryDriverId: driverId },
         { secondaryDriverId: driverId },
@@ -83,13 +94,27 @@ export default async function DriverCalendar({
     include: { vehicle: { select: { registrationNumber: true } } },
   });
 
-  const byDay = new Map<string, typeof bookings>();
+  type DayItem = { b: (typeof bookings)[number]; span: DaySpan };
+  const byDay = new Map<string, DayItem[]>();
   for (const b of bookings) {
-    const key = format(b.startAt, "yyyy-MM-dd");
-    const list = byDay.get(key) ?? [];
-    list.push(b);
-    byDay.set(key, list);
+    for (const d of daysSpanned(b.startAt, b.endAt, gridStart, gridEnd)) {
+      const key = format(d, "yyyy-MM-dd");
+      const span = daySpan(b.startAt, b.endAt, d, addDays(d, 1));
+      const list = byDay.get(key) ?? [];
+      list.push({ b, span });
+      byDay.set(key, list);
+    }
   }
+
+  // Duty (on-call / WERN) days from the OnCallShift roster the admin sets. These
+  // aren't bookings, so without this the driver couldn't see when they're on call
+  // — that's the calendar↔admin-schedule sync gap (the duty driver is excluded
+  // from auto-assignment, so their calendar would otherwise look empty).
+  const dutyShifts = await prisma.onCallShift.findMany({
+    where: { driverId, date: { gte: gridStart, lte: gridEnd } },
+    select: { date: true },
+  });
+  const dutyDays = new Set(dutyShifts.map((s) => format(s.date, "yyyy-MM-dd")));
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
   const prevMonth = format(subMonths(monthAnchor, 1), "yyyy-MM");
@@ -131,6 +156,9 @@ export default async function DriverCalendar({
             {tcal(`legend.${key}`)}
           </span>
         ))}
+        <span className="rounded border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {t("onCallLegend")}
+        </span>
       </div>
 
       <div className="rounded-lg border overflow-hidden">
@@ -145,15 +173,18 @@ export default async function DriverCalendar({
             const items = byDay.get(key) ?? [];
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
+            const isDuty = dutyDays.has(key);
             const surface = inMonth
               ? "bg-card"
               : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
             return (
               <div
                 key={key}
-                className={`relative min-h-20 border-t border-l p-1 ${surface}`}
+                className={`relative min-h-20 border-t border-l p-1 ${surface} ${
+                  isDuty ? "border-l-2 border-l-emerald-400 dark:border-l-emerald-600" : ""
+                }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   <span
                     className={
                       isToday
@@ -163,24 +194,31 @@ export default async function DriverCalendar({
                   >
                     {format(day, "d")}
                   </span>
-                  {items.length > 0 && (
-                    <span className="rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
-                      {items.length}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {isDuty && (
+                      <span className="rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
+                        {t("onCall")}
+                      </span>
+                    )}
+                    {items.length > 0 && (
+                      <span className="rounded bg-muted px-1 text-[10px] tabular-nums text-muted-foreground">
+                        {items.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-1 space-y-1">
-                  {items.slice(0, 3).map((b) => (
+                  {items.slice(0, 3).map(({ b, span }) => (
                     <Link
                       key={b.id}
                       href={`/driver/${b.id}`}
                       className={`block rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${b.destination}`}
+                      title={`${b.jobNumber} · ${format(b.startAt, "EEE HH:mm")}–${format(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
                       <div className="font-medium truncate">
-                        {format(b.startAt, "HH:mm")} {b.vehicle?.registrationNumber ?? "—"}
+                        {cellTime(b.startAt, b.endAt, span)} {b.vehicle?.registrationNumber ?? "—"}
                       </div>
                       <div className="truncate opacity-80">{b.destination}</div>
                     </Link>

@@ -16,22 +16,24 @@
 //     inside each category. NORMAL fills the remaining slots after the
 //     other three are placed. When the flag is true (override), all
 //     bookings are processed in a single FCFS pass.
-//   wernReclaimPolicy = ESCALATE        → when a >400 km trip can only
-//     be staffed by reassigning today's duty driver, surface the choice
-//     to Khun Top rather than auto-deciding.
+//   wernReclaimPolicy                   → when a >400 km trip can only be
+//     staffed by reclaiming today's duty driver as the co-driver:
+//       ESCALATE (default) → surface NEEDS_WERN_RECLAIM_DECISION to Khun Top.
+//       AUTO_RECLAIM       → take the duty driver automatically.
+//       PROTECT_WERN       → never reclaim; overflow NO_SECONDARY_DRIVER.
 //
 // Phases:
-//   - Per-booking primary pick using its category's rotation:
-//       TJW    → pickTjwRotation       (Driver.lastTjwAt)
-//       WERN   → OnCallShift if set, else pickDutyRotation
-//       OT     → pickOtRotation        (Driver.lastOtAt)
+//   - Per-booking primary pick using its category's rotation (rankForRotation):
+//       TJW    → oldest Driver.lastTjwAt
+//       WERN   → OnCallShift if set, else pickDutyRotation (oldest lastDutyAt)
+//       OT     → oldest Driver.lastOtAt
 //       NORMAL → pickGeneralRank with coverage rule (everyone ≥1 before 2)
 //   - >400 km secondary pick from the remaining pool, same rotation.
 //   - Phase C sweep: OT trips that overflowed are retried against drivers
 //     returning from TJW today before the 16:00 cutoff.
 
 import type { JobType, OverflowReason } from "@prisma/client";
-import { tripEffort, WORK_DAY_END_HOUR } from "./classification";
+import { tripEffort, WORK_DAY_END_HOUR, LONG_TRIP_KM } from "./classification";
 import {
   canTake,
   MAX_JOBS_PER_DAY,
@@ -42,14 +44,14 @@ import {
   type ScheduledTrip,
 } from "./rotations";
 
+export { LONG_TRIP_KM };
+
 export interface SolverBookingInput {
   bookingId: string;
   jobType: JobType;
   startAt: Date;
   endAt: Date;
-  /** Admin-set: this trip should get a secondary driver (overnight
-   *  out-of-province trips, decided case-by-case). */
-  needsSecondaryDriver: boolean;
+  estimatedDistance: number | null;
   outOfProvince: boolean;
   /** FCFS key; defaults to createdAt. */
   submittedAt: Date;
@@ -67,6 +69,11 @@ export interface SolverInput {
   drivers: DriverRotationState[];
   dutyDriverId: string | null;
   activeTjwCommitments: TjwCommitment[];
+  /** Trips already assigned to each driver for this day (any job type),
+   *  keyed by driverId. Seeds each driver's `scheduledToday` so the overlap /
+   *  daily-cap rules see prior commitments — without this the solver would
+   *  stack a second trip on an already-booked car. */
+  existingByDriver?: Map<string, ScheduledTrip[]>;
   config?: SolverConfig;
 }
 
@@ -133,9 +140,11 @@ export function solveDay(input: SolverInput): SolverOutput {
     const commitment = input.activeTjwCommitments.find((c) => c.driverId === d.driverId);
     const returneeToday = !!commitment && returnsBeforeCutoffToday(commitment, input.date);
     const stillAway = !!commitment && spansDay(commitment, input.date) && !returneeToday;
+    // Copy so the solver's own pushes never mutate the caller's array.
+    const existing = input.existingByDriver?.get(d.driverId);
     return {
       ...d,
-      scheduledToday: [],
+      scheduledToday: existing ? [...existing] : [],
       awayOnTjw: stillAway,
       isTjwReturneeOtEligible: returneeToday,
     };
@@ -166,7 +175,7 @@ export function solveDay(input: SolverInput): SolverOutput {
   const otOverflows: SolverBookingInput[] = [];
 
   for (const booking of order) {
-    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ false);
+    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ false, config.wernReclaimPolicy);
     if (result.kind === "ok") {
       commitAssignment(drivers, booking, result.primaryDriverId, result.secondaryDriverId);
       assignments.push({
@@ -188,7 +197,7 @@ export function solveDay(input: SolverInput): SolverOutput {
 
   // Phase C: retry OT overflows against TJW returnees.
   for (const booking of otOverflows) {
-    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ true);
+    const result = placeBooking(drivers, booking, input.dutyDriverId, /* phaseC */ true, config.wernReclaimPolicy);
     if (result.kind === "ok") {
       commitAssignment(drivers, booking, result.primaryDriverId, result.secondaryDriverId);
       assignments.push({
@@ -219,7 +228,28 @@ function placeBooking(
   booking: SolverBookingInput,
   dutyDriverId: string | null,
   phaseC: boolean,
+  wernReclaimPolicy: Required<SolverConfig>["wernReclaimPolicy"],
 ): PlaceResult {
+  // A WERN (duty) slot belongs to the day's on-call driver (docs §1 + this file's
+  // header §WERN: "OnCallShift if set"). eligibleForPrimary reserves the duty
+  // driver out of every pick, so route WERN to them explicitly; if they can't
+  // take it (away / overlap) or none is rostered, fall through to the duty
+  // rotation below.
+  if (booking.jobType === "WERN" && dutyDriverId) {
+    // ...but only if they're fully available today. A driver still away on a TJW
+    // (awayOnTjw) or one that only returned mid-day (isTjwReturneeOtEligible —
+    // away through the morning) can't run the campus-rounds window, so the WERN
+    // falls through to the duty rotation below.
+    const duty = drivers.find(
+      (d) =>
+        d.driverId === dutyDriverId &&
+        !d.awayOnTjw &&
+        !d.isTjwReturneeOtEligible &&
+        canDriverTakeNew(drivers, dutyDriverId, booking),
+    );
+    if (duty) return { kind: "ok", primaryDriverId: dutyDriverId, secondaryDriverId: null };
+  }
+
   // Primary candidates depend on category.
   const primaryEligible = eligibleForPrimary(drivers, booking, dutyDriverId, phaseC);
   const primaryRanked = rankForCategory(primaryEligible, booking.jobType, drivers);
@@ -228,7 +258,8 @@ function placeBooking(
     return { kind: "fail", reason: "NO_PRIMARY_DRIVER" };
   }
 
-  if (!booking.needsSecondaryDriver) {
+  const long = booking.estimatedDistance !== null && booking.estimatedDistance > LONG_TRIP_KM;
+  if (!long) {
     return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: null };
   }
 
@@ -242,18 +273,29 @@ function placeBooking(
     return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: secondaryId };
   }
 
-  // No fresh secondary. If the duty driver could fit, that's the WERN reclaim
-  // escalation. Otherwise plain NO_SECONDARY_DRIVER.
+  // No fresh secondary. If the duty driver can't even fit, it's a plain
+  // NO_SECONDARY_DRIVER regardless of policy.
   const duty = drivers.find(
     (d) => d.driverId === dutyDriverId &&
       !d.awayOnTjw &&
-      d.scheduledToday.length < MAX_JOBS_PER_DAY &&
-      canTake({ startAt: booking.startAt, endAt: booking.endAt }, d.scheduledToday),
+      canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday),
   );
-  if (duty) {
-    return { kind: "fail", reason: "NEEDS_WERN_RECLAIM_DECISION" };
+  if (!duty) return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
+
+  // The duty driver could be reclaimed as the co-driver. What happens is the
+  // wernReclaimPolicy (docs §6b):
+  //   ESCALATE (default) → raise the decision for P'Top (RECLAIM_WERN / OUTSOURCE).
+  //   AUTO_RECLAIM       → take the duty driver now (commitAssignment locks them
+  //                        away for a TJW span, abandoning duty rounds — the point).
+  //   PROTECT_WERN       → never reclaim; overflow NO_SECONDARY_DRIVER instead.
+  switch (wernReclaimPolicy) {
+    case "AUTO_RECLAIM":
+      return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: duty.driverId };
+    case "PROTECT_WERN":
+      return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
+    default:
+      return { kind: "fail", reason: "NEEDS_WERN_RECLAIM_DECISION" };
   }
-  return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
 }
 
 function eligibleForPrimary(
@@ -265,7 +307,11 @@ function eligibleForPrimary(
   return drivers.filter((d) => {
     if (d.awayOnTjw) return false;
     if (d.driverId === dutyDriverId) return false;
-    if (d.scheduledToday.length >= MAX_JOBS_PER_DAY) return false;
+    // Cap is on NORMAL day-jobs only; OT is extra hours, never pre-excluded here
+    // (canChain still gates the exact gap/cap when the trip is placed).
+    if (booking.jobType === "NORMAL" && d.scheduledToday.filter((t) => t.jobType === "NORMAL").length >= MAX_JOBS_PER_DAY) {
+      return false;
+    }
     if (phaseC) {
       // Phase C only sees TJW returnees.
       if (!d.isTjwReturneeOtEligible) return false;
@@ -285,10 +331,14 @@ function rankForCategory(
   if (jobType === "TJW") return rankForRotation(pool, (d) => d.lastTjwAt);
   if (jobType === "OT") return rankForRotation(pool, (d) => d.lastOtAt);
   if (jobType === "WERN") return pickDutyRotation(pool) ? rankForRotation(pool, (d) => d.lastDutyAt) : [];
-  // NORMAL / SMUS: coverage rule (everyone ≥1 before any gets 2).
+  // NORMAL / SMUS: coverage rule (everyone ≥1 before any gets 2). Count NORMAL
+  // day-jobs only — OT is extra hours on top and must not push a driver out of
+  // the NORMAL pick (matches the NORMAL-only cap pre-filter in eligibleForPrimary).
+  const normalCount = (id: string) =>
+    allDrivers.find((x) => x.driverId === id)!.scheduledToday.filter((t) => t.jobType === "NORMAL").length;
   const ranked = pickGeneralRank(pool);
-  const tier0 = ranked.filter((id) => allDrivers.find((x) => x.driverId === id)!.scheduledToday.length === 0);
-  const tier1 = ranked.filter((id) => allDrivers.find((x) => x.driverId === id)!.scheduledToday.length === 1);
+  const tier0 = ranked.filter((id) => normalCount(id) === 0);
+  const tier1 = ranked.filter((id) => normalCount(id) === 1);
   return [...tier0, ...tier1];
 }
 
@@ -298,7 +348,7 @@ function canDriverTakeNew(
   booking: SolverBookingInput,
 ): boolean {
   const d = drivers.find((x) => x.driverId === driverId)!;
-  return canTake({ startAt: booking.startAt, endAt: booking.endAt }, d.scheduledToday);
+  return canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday);
 }
 
 function commitAssignment(

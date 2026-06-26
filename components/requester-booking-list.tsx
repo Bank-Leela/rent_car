@@ -11,6 +11,8 @@ export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   BookingStatus.WAITLIST,
   BookingStatus.APPROVED,
   BookingStatus.ASSIGNED,
+  // Handed to an outside driver — still an in-flight trip the requester tracks.
+  BookingStatus.OUTSOURCED,
 ];
 
 // Terminal requests shown on the history page.

@@ -239,7 +239,8 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
   .stagger-children > *,
-  .mesh-bg::before {
+  .mesh-bg::before,
+  .animate-pulse {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

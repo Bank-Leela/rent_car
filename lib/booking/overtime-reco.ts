@@ -4,20 +4,19 @@
 // slots and is time-blind, so it waitlists an OT that runs OUTSIDE that window
 // (early / evening) even though it is overtime on top of the normal day — a
 // driver booked 08:00–16:00 is free again at 20:00. For such a waitlisted
-// booking this finds a genuinely-free non-duty driver + a free car at the
-// booking's real time and recommends them. Advisory only — pure, no I/O.
+// booking this finds a genuinely-free non-duty car-driver unit at the booking's
+// real time and recommends it. Advisory only — pure, no I/O.
+//
+// car=driver: a car is busy iff its driver is busy, so "a free car" collapses
+// into "a free driver who has a car". No separate slot grid.
 
-import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "./classification";
-import {
-  allocateVehicles,
-  bucketsForTrip,
-  buildSlotTable,
-  vehicleOccupancyForDay,
-  type SlotInput,
-} from "./slot-allocation";
+import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR, isOvernight } from "./classification";
+import { canChain } from "./rotations";
 
 export interface OvertimeRecoDriver {
   driverId: string;
+  /** The driver's assigned car (car=driver). null = unpaired → not recommendable. */
+  vehicleId: string | null;
   /** Duration-weighted fairness ledger — lower picked first. */
   earningsScore: number;
   lastAssignedAt: Date | null;
@@ -30,10 +29,6 @@ export interface OvertimeRecoInput {
   /** Excluded from candidates — they have done their duty day. */
   dutyDriverId: string | null;
   drivers: OvertimeRecoDriver[];
-  vehicles: SlotInput[];
-  /** Same-day vehicle occupancy (overlapping the day). */
-  vehicleTrips: Array<{ vehicleId: string | null; startAt: Date; endAt: Date }>;
-  day: Date;
 }
 
 export type OvertimeReco =
@@ -43,26 +38,28 @@ export type OvertimeReco =
 
 /** True if the trip runs outside the normal 08:00–16:00 window (= overtime). */
 function isOvertimeWindow(startAt: Date, endAt: Date): boolean {
+  // A cross-midnight trip is overnight = OT (classifyJobType §2); the hour checks
+  // below are blind to the calendar date, so test this first — otherwise a
+  // 22:00→02:00 OT reads as "ends at 02:00 ≤ 16:00" and is wrongly skipped.
+  if (isOvernight(startAt, endAt)) return true;
   if (startAt.getHours() < WORK_DAY_START_HOUR) return true;
   if (endAt.getHours() > WORK_DAY_END_HOUR) return true;
   return endAt.getHours() === WORK_DAY_END_HOUR && endAt.getMinutes() > 0;
 }
 
-const overlaps = (
-  a: { startAt: Date; endAt: Date },
-  b: { startAt: Date; endAt: Date },
-): boolean => a.startAt < b.endAt && b.startAt < a.endAt;
-
 export function recommendOvertimePlacement(input: OvertimeRecoInput): OvertimeReco {
-  const { booking, dutyDriverId, drivers, vehicles, vehicleTrips, day } = input;
+  const { booking, dutyDriverId, drivers } = input;
 
   if (!isOvertimeWindow(booking.startAt, booking.endAt)) return { kind: "not-applicable" };
 
-  // Fairest non-duty driver with no trip overlapping the booking. The 2-job/day
-  // cap is intentionally NOT applied — overtime is extra hours on top.
+  // Fairest non-duty car-driver unit that can legally take this OT: has a car,
+  // and clears the chaining rule for an OT (no overlap + ≥2h gap to every other
+  // trip). canChain with jobType OT skips the 2-NORMAL cap — overtime is extra
+  // hours on top — but still enforces the 2h gap.
   const driver = drivers
     .filter((d) => d.driverId !== dutyDriverId)
-    .filter((d) => !d.trips.some((t) => overlaps(t, booking)))
+    .filter((d) => d.vehicleId)
+    .filter((d) => canChain({ startAt: booking.startAt, endAt: booking.endAt, jobType: "OT" }, d.trips))
     .sort(
       (a, b) =>
         a.earningsScore - b.earningsScore ||
@@ -71,15 +68,5 @@ export function recommendOvertimePlacement(input: OvertimeRecoInput): OvertimeRe
     )[0];
   if (!driver) return { kind: "no-fit" };
 
-  // A car free in every bucket the booking overlaps (reuses the slot grid).
-  const table = buildSlotTable(vehicles, vehicleOccupancyForDay(vehicleTrips, day));
-  const { withVehicle } = allocateVehicles(
-    [{ bookingId: "reco" }],
-    () => bucketsForTrip(booking.startAt, booking.endAt, day),
-    table,
-  );
-  const vehicleId = withVehicle[0]?.vehicleId;
-  if (!vehicleId) return { kind: "no-fit" };
-
-  return { kind: "overtime-fit", driverId: driver.driverId, vehicleId };
+  return { kind: "overtime-fit", driverId: driver.driverId, vehicleId: driver.vehicleId! };
 }

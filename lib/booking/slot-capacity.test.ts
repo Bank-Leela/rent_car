@@ -5,6 +5,7 @@ import {
   isFull,
   submitStatus,
   dayWindow,
+  SLOT_HOLDING_STATUSES,
 } from "./slot-capacity";
 
 describe("bookingHalf", () => {
@@ -49,5 +50,35 @@ describe("dayWindow", () => {
     const { start, end } = dayWindow(new Date("2026-06-12T14:30:00"));
     expect(start.getHours()).toBe(0);
     expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it("zeroes the time fields and does not mutate the input", () => {
+    const input = new Date("2026-06-12T14:30:45.500");
+    const t0 = input.getTime();
+    const { start } = dayWindow(input);
+    expect([start.getHours(), start.getMinutes(), start.getSeconds(), start.getMilliseconds()]).toEqual([0, 0, 0, 0]);
+    expect(input.getTime()).toBe(t0);
+  });
+});
+
+describe("dayCapacity / submitStatus — edges", () => {
+  it("a duty-only fleet still has capacity (one spare per duty car)", () => {
+    expect(dayCapacity(0, 2)).toBe(2);
+    expect(dayCapacity(0, 1)).toBe(1);
+  });
+
+  it("capacity 0 never waitlists (no vehicles configured → always guaranteed)", () => {
+    expect(submitStatus(99, 0)).toBe("PENDING_APPROVAL");
+    expect(isFull(99, 0)).toBe(false);
+  });
+
+  it("waitlists at or over capacity", () => {
+    expect(submitStatus(12, 11)).toBe("WAITLIST");
+  });
+});
+
+describe("SLOT_HOLDING_STATUSES", () => {
+  it("is exactly the committed-ish statuses (waitlist/draft/cancelled/denied hold no slot)", () => {
+    expect(SLOT_HOLDING_STATUSES).toEqual(["PENDING_APPROVAL", "APPROVED", "ASSIGNED", "COMPLETED"]);
   });
 });

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SelectField } from "@/components/ui/select-field";
 import { assignBookingAction, denyBookingAction } from "@/lib/booking/actions";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormAction } from "@/components/forms/use-form-action";
+import { FormError } from "@/components/forms/form-error";
 
 type Option = { id: string; label: string; sublabel?: string; disabled?: boolean; conflict?: boolean };
 
@@ -19,46 +21,28 @@ export function AssignForm({
   vehicleOptions: Option[];
 }) {
   const t = useTranslations("assignForm");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(assignBookingAction, { bookingId });
 
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await assignBookingAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-4"
-    >
+    <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label htmlFor="vehicleId">{t("vehicle")}</Label>
-        <select
+        <SelectField
           id="vehicleId"
           name="vehicleId"
           required
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="">{t("select")}</option>
-          {vehicleOptions.map((v) => (
-            <option key={v.id} value={v.id} disabled={v.disabled}>
-              {v.label}
-              {v.conflict ? t("conflictSuffix") : ""}
-              {v.sublabel ? ` (${v.sublabel})` : ""}
-            </option>
-          ))}
-        </select>
+          placeholder={t("select")}
+          className="h-9"
+          options={vehicleOptions.map((v) => ({
+            value: v.id,
+            disabled: v.disabled,
+            label: `${v.label}${v.conflict ? t("conflictSuffix") : ""}${v.sublabel ? ` (${v.sublabel})` : ""}`,
+          }))}
+        />
       </div>
       <p className="text-xs text-muted-foreground">{t("driversSelfClaim")}</p>
 
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
       <Button type="submit" disabled={pending}>
         {pending ? t("assigning") : t("assign")}
       </Button>
@@ -68,29 +52,14 @@ export function AssignForm({
 
 export function DenyForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("assignForm");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(denyBookingAction, { bookingId });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await denyBookingAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-3"
-    >
+    <form action={run} className="space-y-3">
       <div className="grid gap-2">
         <Label htmlFor="reason">{t("reason")}</Label>
         <Textarea id="reason" name="reason" rows={2} required />
       </div>
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
       <Button type="submit" variant="destructive" disabled={pending}>
         {pending ? t("denying") : t("denyBooking")}
       </Button>

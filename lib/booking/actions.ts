@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { Prisma, type BookingStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import {
   newBookingSchema,
   assignBookingSchema,
@@ -46,28 +46,6 @@ const bookingDetailInclude = {
 export type ActionResult =
   | { ok: true }
   | { ok: false; error: string; field?: string };
-
-async function logTransition(args: {
-  bookingId: string;
-  actorUserId: string;
-  fromStatus: BookingStatus | null;
-  toStatus: BookingStatus | null;
-  action: string;
-  metadata?: Prisma.InputJsonValue;
-  tx?: Prisma.TransactionClient;
-}) {
-  const client = args.tx ?? prisma;
-  await client.auditLog.create({
-    data: {
-      bookingId: args.bookingId,
-      actorUserId: args.actorUserId,
-      fromStatus: args.fromStatus,
-      toStatus: args.toStatus,
-      action: args.action,
-      metadata: args.metadata,
-    },
-  });
-}
 
 // ---- Create booking ----
 
@@ -116,26 +94,25 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     return { ok: false, error: te("pendingEvaluation") };
   }
 
-  // Validate the selected department exists. The requester (a middleman team)
-  // can submit on behalf of any department in the faculty fleet.
-  const department = await prisma.department.findUnique({
-    where: { id: data.departmentId },
-    select: { id: true },
+  // Department is locked to the requester's own profile (edited on /account),
+  // not chosen per booking. Resolve it server-side and block if it's unset so
+  // a tampered or empty payload can't slip a foreign department through. Also
+  // pull name/phone to backfill the profile from the ajarn fields below.
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { departmentId: true, name: true, phone: true },
   });
-  if (!department) {
-    return { ok: false, error: te("invalidInput"), field: "departmentId" };
+  if (!me?.departmentId) {
+    return { ok: false, error: te("noDepartment"), field: "departmentId" };
   }
+  const departmentId = me.departmentId;
 
   // Backfill the requester's own profile from the ajarn fields when it was
   // missing them — the booking form is often the first place this data gets
   // typed in. Never overwrites existing profile data.
-  const me = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true, phone: true },
-  });
   const profileBackfill: { name?: string; phone?: string } = {};
-  if (!me?.name && data.ajarnName) profileBackfill.name = data.ajarnName;
-  if (!me?.phone && data.ajarnPhone) profileBackfill.phone = data.ajarnPhone;
+  if (!me.name && data.ajarnName) profileBackfill.name = data.ajarnName;
+  if (!me.phone && data.ajarnPhone) profileBackfill.phone = data.ajarnPhone;
 
   const created = await prisma.$transaction(async (tx) => {
     if (Object.keys(profileBackfill).length > 0) {
@@ -143,9 +120,17 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     }
     // #1 capacity gate: a day's slots = morning + afternoon per non-duty
     // vehicle, plus one spare for the เวร/duty car. When full, waitlist.
+    // Only count DISPATCHABLE cars: active, paired to a driver, and that driver
+    // (and their user) active. An unpaired or inactive-driver car can't run a
+    // trip, so counting it would over-state capacity and accept bookings that
+    // then overflow NO_SLOT at solve time.
+    const dispatchable = {
+      isActive: true,
+      assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
+    } as const;
     const [nonDutyVehicles, dutyVehicles] = await Promise.all([
-      tx.vehicle.count({ where: { isActive: true, isDutyVehicle: false } }),
-      tx.vehicle.count({ where: { isActive: true, isDutyVehicle: true } }),
+      tx.vehicle.count({ where: { ...dispatchable, isDutyVehicle: false } }),
+      tx.vehicle.count({ where: { ...dispatchable, isDutyVehicle: true } }),
     ]);
     const capacity = dayCapacity(nonDutyVehicles, dutyVehicles);
     const slotStatusFor = async (when: Date) => {
@@ -162,15 +147,18 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     // spread in at each create.
     const sharedData = {
       requesterId: userId,
-      departmentId: data.departmentId,
+      departmentId,
       purpose: data.purpose,
       destination: data.destination,
       province: data.province,
+      googleMapsUrl: data.googleMapsUrl,
       ajarnName: data.ajarnName,
       ajarnPhone: data.ajarnPhone,
       ajarnEmail: data.ajarnEmail,
       coordinatorName: data.coordinatorName,
       coordinatorPhone: data.coordinatorPhone,
+      tripType: data.tripType,
+      remark: data.remark,
       outOfProvince: data.outOfProvince,
       travelWithinChula: data.travelWithinChula,
       outOfHoursReason,

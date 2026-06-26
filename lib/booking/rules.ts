@@ -1,4 +1,5 @@
 import { addBusinessDays, addDays, differenceInMinutes, startOfDay } from "date-fns";
+import { LONG_TRIP_KM } from "./classification";
 
 // Province name for Bangkok in Thai. Used for the lead-time short list.
 export const BANGKOK_PROVINCE = "กรุงเทพมหานคร";
@@ -14,7 +15,10 @@ export const LEAD_TIME_SMUS_DAYS = 30;
 // hand (lib/booking/batch-actions.ts).
 export const LEAD_TIME_URGENT_DAYS = 1;
 
-export const TWO_DRIVER_DISTANCE_KM = 400;
+// The >400 km "needs a co-driver" threshold has one source of truth:
+// classification.ts's LONG_TRIP_KM. Re-exported under the rules-domain name so
+// the assign side and the validation/display side can never drift apart.
+export const TWO_DRIVER_DISTANCE_KM = LONG_TRIP_KM;
 
 // Minimum gap (minutes) between two confirmed bookings on the same vehicle.
 export const VEHICLE_BUFFER_MINUTES = 60;

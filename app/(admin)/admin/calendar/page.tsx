@@ -6,6 +6,7 @@ import {
   endOfWeek,
   eachDayOfInterval,
   format,
+  addDays,
   addMonths,
   subMonths,
   isSameMonth,
@@ -17,46 +18,24 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { th, enUS, type Locale } from "date-fns/locale";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
-import { isThaiLocale } from "@/i18n/config";
+import { SelectField } from "@/components/ui/select-field";
+import { LIVE_STATUSES, conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
+import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
 
-const LIVE_STATUSES = new Set(["PENDING_APPROVAL", "APPROVED", "ASSIGNED"]);
+// Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
+// day, else the real start time — so a spanned cell never shows a misleading
+// prior-day start.
+function cellTime(startAt: Date, endAt: Date, span: DaySpan): string {
+  if (span.continuesBefore && span.continuesAfter) return "↪↩";
+  if (span.continuesBefore) return `↩${format(endAt, "HH:mm")}`;
+  return format(startAt, "HH:mm");
+}
 
 function densityTint(count: number): string {
   if (count === 0) return "";
   if (count <= 3) return "bg-primary/5 dark:bg-primary/10";
   if (count <= 6) return "bg-primary/10 dark:bg-primary/15";
   return "bg-primary/20 dark:bg-primary/25";
-}
-
-type DayBooking = {
-  id: string;
-  vehicleId: string | null;
-  startAt: Date;
-  endAt: Date;
-  status: string;
-};
-
-function hasVehicleConflict(items: DayBooking[]): boolean {
-  const byVehicle = new Map<string, DayBooking[]>();
-  for (const b of items) {
-    if (!b.vehicleId) continue;
-    if (!LIVE_STATUSES.has(b.status)) continue;
-    const list = byVehicle.get(b.vehicleId) ?? [];
-    list.push(b);
-    byVehicle.set(b.vehicleId, list);
-  }
-  for (const list of byVehicle.values()) {
-    if (list.length < 2) continue;
-    list.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-    for (let i = 1; i < list.length; i++) {
-      const prev = list[i - 1]!;
-      const curr = list[i]!;
-      const gapMin = (curr.startAt.getTime() - prev.endAt.getTime()) / 60000;
-      if (gapMin < VEHICLE_BUFFER_MINUTES) return true;
-    }
-  }
-  return false;
 }
 
 const STATUS_TINT: Record<string, string> = {
@@ -101,7 +80,7 @@ export default async function AdminCalendar({
   const t = await getTranslations("calendar");
   const tc = await getTranslations("common");
   const localeCode = await getLocale();
-  const loc: Locale = isThaiLocale(localeCode) ? th : enUS;
+  const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
   const vehicleFilter = qs.vehicle && qs.vehicle !== "all" ? qs.vehicle : null;
@@ -112,7 +91,10 @@ export default async function AdminCalendar({
   const [bookings, allVehicles] = await Promise.all([
     prisma.booking.findMany({
       where: {
-        startAt: { gte: gridStart, lte: gridEnd },
+        // Overlap the visible grid (not start-in-day) so a multi-day trip lands
+        // in every cell it spans, including ones that began before the grid.
+        startAt: { lte: gridEnd },
+        endAt: { gte: gridStart },
         status: { not: "DRAFT" },
         ...(vehicleFilter ? { vehicleId: vehicleFilter } : {}),
       },
@@ -140,12 +122,18 @@ export default async function AdminCalendar({
     return s ? `?${s}` : "";
   };
 
-  const byDay = new Map<string, typeof bookings>();
+  // Bucket each booking into EVERY grid day it spans (not just its start day),
+  // carrying the per-day projection so a cell can show ↩/↪ continuation markers.
+  type DayItem = { b: (typeof bookings)[number]; span: DaySpan };
+  const byDay = new Map<string, DayItem[]>();
   for (const b of bookings) {
-    const key = format(b.startAt, "yyyy-MM-dd");
-    const list = byDay.get(key) ?? [];
-    list.push(b);
-    byDay.set(key, list);
+    for (const d of daysSpanned(b.startAt, b.endAt, gridStart, gridEnd)) {
+      const key = format(d, "yyyy-MM-dd");
+      const span = daySpan(b.startAt, b.endAt, d, addDays(d, 1));
+      const list = byDay.get(key) ?? [];
+      list.push({ b, span });
+      byDay.set(key, list);
+    }
   }
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -163,17 +151,16 @@ export default async function AdminCalendar({
         <div className="flex items-center gap-2 flex-wrap">
           <form action="/admin/calendar" method="get" className="flex items-center gap-1">
             {qs.month && <input type="hidden" name="month" value={qs.month} />}
-            <select
+            <SelectField
               name="vehicle"
               defaultValue={vehicleFilter ?? "all"}
-              className="h-9 rounded-md border bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 w-40"
               aria-label={t("vehicleFilter")}
-            >
-              <option value="all">{t("allVehicles")}</option>
-              {allVehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.registrationNumber}</option>
-              ))}
-            </select>
+              options={[
+                { value: "all", label: t("allVehicles") },
+                ...allVehicles.map((v) => ({ value: v.id, label: v.registrationNumber })),
+              ]}
+            />
             <button
               type="submit"
               className="rounded-md border bg-background h-9 px-3 text-sm hover:bg-muted"
@@ -225,8 +212,8 @@ export default async function AdminCalendar({
             const items = byDay.get(key) ?? [];
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
-            const liveCount = items.filter((b) => LIVE_STATUSES.has(b.status)).length;
-            const conflict = hasVehicleConflict(items);
+            const liveCount = items.filter((it) => LIVE_STATUSES.has(it.b.status)).length;
+            const conflict = conflictingBookingIds(items.map((it) => it.b)).size > 0;
             const surface = inMonth
               ? `bg-card ${densityTint(liveCount)}`
               : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
@@ -260,17 +247,17 @@ export default async function AdminCalendar({
                   </div>
                 </div>
                 <div className="mt-1 space-y-0.5">
-                  {items.slice(0, 5).map((b) => (
+                  {items.slice(0, 5).map(({ b, span }) => (
                     <Link
                       key={b.id}
                       href={`/admin/${b.id}`}
                       className={`flex items-baseline gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${format(b.startAt, "HH:mm")} · ${b.destination}`}
+                      title={`${b.jobNumber} · ${format(b.startAt, "EEE HH:mm")}–${format(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
                       <span className="font-medium tabular-nums shrink-0">
-                        {format(b.startAt, "HH:mm")}
+                        {cellTime(b.startAt, b.endAt, span)}
                       </span>
                       <span className="truncate opacity-90">{b.destination}</span>
                     </Link>

@@ -54,6 +54,9 @@ enum BookingStatus {
   // Submit-time overflow: the day's morning/afternoon slots (active non-duty
   // vehicles) were full, so this request is queued rather than guaranteed.
   WAITLIST
+  // Handed to an external driver/vendor on a per-day ad-hoc board row. In NO
+  // algorithm query (matcher/solver/capacity/fairness) — fully off-algorithm.
+  OUTSOURCED
 }
 
 enum ApprovalStatus {
@@ -102,6 +105,14 @@ enum JobType {
   WERN
   NORMAL
   SMUS
+}
+
+// Direction of travel as captured on the paper request form: round trip
+// (ไป-กลับ), drop-off only (ไปส่ง), or pick-up + drop-off (ไปรับ-ส่ง).
+enum TripType {
+  ROUND_TRIP
+  DROP_OFF
+  PICK_UP_DROP_OFF
 }
 
 // CR-07: reason a booking didn't land in the daily batch and was
@@ -211,6 +222,7 @@ model User {
   headedDepartment    Department?    @relation("DepartmentHead")
   representedDepartment Department?  @relation("DepartmentRepresentative")
   bookings            Booking[]      @relation("BookingRequester")
+  savedPlaces         SavedPlace[]
   approvals           Approval[]
   cancellations       Cancellation[]
   auditLogs           AuditLog[]
@@ -260,11 +272,16 @@ model Vehicle {
   registrationNumber String      @unique
   type               VehicleType
   capacity           Int
-  // CR-05: marks the reserve fleet (คันเวร). These vehicles appear as a
-  // dedicated row in the slot grid and are reserved for on-call work.
+  // DEPRECATED: retired from logic by the car=driver model (the duty car is
+  // the on-call driver's own car). Column kept to avoid a destructive migration.
   isDutyVehicle      Boolean     @default(false)
   notes              String?
   isActive           Boolean     @default(true)
+
+  // car=driver (1:1): each car has one assigned driver. @unique enforces that a
+  // driver owns at most one car. Nullable: an unpaired car is a valid state.
+  assignedDriverId   String?     @unique
+  assignedDriver     Driver?     @relation("VehicleDriver", fields: [assignedDriverId], references: [id])
 
   bookings Booking[]
 
@@ -294,9 +311,31 @@ model Driver {
   secondaryBookings Booking[] @relation("SecondaryDriver")
   claims            BookingClaim[]
   onCallShifts      OnCallShift[]
+  unavailabilities  DriverUnavailability[]
+  // car=driver (1:1) back-relation.
+  assignedVehicle   Vehicle?  @relation("VehicleDriver")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A driver marked off for a specific day (sick / leave). The day's driver-pool
+// loaders exclude them, so the solver / matcher / reco skip them. Fairness +
+// rotation self-heal: a missed day adds 0 to the rolling earnings score and
+// leaves the rotation timestamps untouched, so the driver is prioritised on
+// return — no penalty, no manual adjustment. One row per driver + day.
+model DriverUnavailability {
+  id        String   @id @default(cuid())
+  driverId  String
+  driver    Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  // Date-only (like OnCallShift) so the calendar-day match is TZ-robust and the
+  // unique key is one row per driver per day.
+  date      DateTime @db.Date
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([driverId, date])
+  @@index([date])
 }
 
 model Booking {
@@ -320,13 +359,20 @@ model Booking {
   passengerNotes   String?
   // The ajarn (professor) being transported. Captured at submission time so
   // the work owner and driver can coordinate without phoning the requester.
+  // The person who submits the request on behalf of the ajarn (a secretary /
+  // department representative — "ผู้ขอใช้รถ"). ajarn* are kept names for the
+  // existing columns; the form now labels them as the requester's details.
   ajarnName        String   @default("")
   ajarnPhone       String   @default("")
   ajarnEmail       String   @default("")
-  // Coordinator (ผู้ประสานงาน): the contact person arranging the trip,
-  // distinct from the requester whose name rides on the booking.
+  // Separate coordination contact ("ผู้ประสานงาน") from the paper form —
+  // who the driver/dispatcher actually phones about the trip.
   coordinatorName  String   @default("")
   coordinatorPhone String   @default("")
+  // Direction of travel (ไป-กลับ / ไปส่ง / ไปรับ-ส่ง) and a free-text remark,
+  // both mirrored from the official request form.
+  tripType         TripType?
+  remark           String?
   // Required justification when start/end falls outside driver work hours
   // (07:00–18:00) or spans midnight. Set on submission or time edit.
   outOfHoursReason String?
@@ -371,6 +417,9 @@ model Booking {
   secondaryDriver   Driver?  @relation("SecondaryDriver", fields: [secondaryDriverId], references: [id])
 
   estimatedDistance Int?
+  // Sub-project A: stored Google-Maps link for the route. Attached by the
+  // requester; never auto-pulled for distance (auto-pull costs money).
+  googleMapsUrl     String?
 
   recurrenceParentId String?
   recurrenceParent   Booking?        @relation("BookingRecurrence", fields: [recurrenceParentId], references: [id])
@@ -403,6 +452,10 @@ model Booking {
   // Inverted from the old `outsideChula` (replaces the province dropdown's
   // campus/off-campus signal).
   travelWithinChula Boolean         @default(false)
+  // Sub-project A: separate campus/off-campus hint, kept alongside
+  // travelWithinChula per the "keep both" merge decision. Surfaced as a chip;
+  // does not drive classification. DB column predates this (migration 20260609).
+  outsideChula      Boolean         @default(false)
   // CR-07: why the booking didn't land in the daily batch (if at all).
   // Cleared once a successful match is recorded; NEEDS_WERN_RECLAIM_DECISION
   // requires Khun Top to choose between reclaiming duty or outsourcing.
@@ -424,9 +477,36 @@ model Booking {
   cancellations Cancellation[]
   auditLogs     AuditLog[]
   claims        BookingClaim[]
+  draft         BookingDraft?
+  // When OUTSOURCED to a per-day external row.
+  adHocVehicleId String?
+  adHocVehicle   AdHocVehicle? @relation(fields: [adHocVehicleId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
   @@index([startAt])
+  // Hot paths: the no-overlap check + board/calendar load filter on a car or a
+  // driver over a time window; the committed/day queries filter status + range.
+  @@index([vehicleId, startAt])
+  @@index([primaryDriverId, startAt])
+  @@index([secondaryDriverId, startAt])
+  @@index([status, startAt, endAt])
+}
+
+// Sub-project A: a requester's private, reusable destination. Autofills the
+// booking form. No FK from Booking — a booking copies these values at submit
+// time, so deleting a place never affects past bookings.
+model SavedPlace {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String
+  destination   String
+  province      String
+  googleMapsUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // A requester's saved trip preset. Stores everything a booking needs EXCEPT
@@ -499,6 +579,38 @@ model BookingClaim {
 
   @@index([bookingId, status])
   @@index([driverId, status])
+}
+
+// Drivers' proposed schedule changes ("trade jobs"), kept OFF P'Top's official
+// assignment until P'Top applies them. One row per booking the drivers moved on
+// their draft board. proposedVehicleId = the car they'd put it on (car=driver);
+// null = propose back to the queue. submitted flips when drivers send it to
+// P'Top for review.
+model BookingDraft {
+  id                        String    @id @default(cuid())
+  bookingId                 String    @unique
+  booking                   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  proposedVehicleId         String?
+  proposedSecondaryDriverId String?
+  submitted                 Boolean   @default(false)
+  submittedAt               DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+}
+
+// A per-day extra board row for an OUTSIDE driver / rented vehicle. Not a real
+// Vehicle, never seen by the algorithm — purely a place on the schedule board to
+// drop trips that an external vendor will run that day. Scoped to one date.
+model AdHocVehicle {
+  id        String    @id @default(cuid())
+  date      DateTime  @db.Date
+  label     String
+  cost      Decimal?  @db.Decimal(10, 2)
+  note      String?
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+
+  @@index([date])
 }
 
 model RecurrenceRule {

@@ -183,6 +183,16 @@ export type BookingFormDepartment = {
   nameTh: string;
 };
 
+// A requester's saved destination (origin/main "saved places" feature). Picking
+// one fills in the destination + Google Maps link.
+export type BookingFormPlace = {
+  id: string;
+  label: string;
+  destination: string;
+  province: string;
+  googleMapsUrl: string | null;
+};
+
 export function BookingForm({
   departments,
   defaultDepartmentId,
@@ -190,6 +200,7 @@ export function BookingForm({
   defaultAjarnPhone,
   defaultAjarnEmail,
   templates,
+  places = [],
   locale,
 }: {
   departments: BookingFormDepartment[];
@@ -200,6 +211,7 @@ export function BookingForm({
   defaultAjarnPhone: string;
   defaultAjarnEmail: string;
   templates: TripTemplate[];
+  places?: BookingFormPlace[];
   locale: string;
 }) {
   const t = useTranslations("bookingForm");
@@ -444,6 +456,7 @@ export function BookingForm({
     { name: "endAt", labelKey: "endLabel" },
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
+    { name: "googleMapsUrl", labelKey: "mapsLinkLabel" },
     { name: "waitingLocation", labelKey: "waitingLocation" },
     { name: "pickupLocation", labelKey: "pickupLocation" },
     { name: "province", labelKey: "province" },
@@ -804,6 +817,54 @@ export function BookingForm({
                 {t("destinationMapsLink")}
               </button>
             </div>
+            {/* Google Maps link is required server-side (origin/main): the
+                dispatcher relies on a precise pin, not just a typed place name. */}
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="googleMapsUrl">{t("mapsLinkLabel")}</ReqLabel>
+              <Input
+                id="googleMapsUrl"
+                name="googleMapsUrl"
+                type="url"
+                inputMode="url"
+                required
+                placeholder="https://maps.app.goo.gl/…"
+              />
+              <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>
+            </div>
+            {/* Saved places (origin/main): pick one to fill destination + map link. */}
+            {places.length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="savedPlace">{t("savedPlaceLabel")}</Label>
+                <select
+                  id="savedPlace"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const p = places.find((x) => x.id === e.target.value);
+                    if (!p) return;
+                    const setVal = (eid: string, v: string) => {
+                      const el = document.getElementById(eid) as HTMLInputElement | null;
+                      if (el) el.value = v;
+                    };
+                    setVal("destination", p.destination);
+                    setVal("googleMapsUrl", p.googleMapsUrl ?? "");
+                  }}
+                >
+                  <option value="">{t("savedPlacePlaceholder")}</option>
+                  {places.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+                <a
+                  href="/requester/places"
+                  className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  {t("managePlacesLink")}
+                </a>
+              </div>
+            )}
             <div className="grid gap-2">
               <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
               <Input

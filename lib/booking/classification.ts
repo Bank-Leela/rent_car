@@ -14,6 +14,9 @@ import type { JobType } from "@prisma/client";
 
 export const WORK_DAY_START_HOUR = 8;   // anything starting before this is OT
 export const WORK_DAY_END_HOUR = 16;    // anything ending after this is OT
+// A trip beyond this distance (km) needs a relief co-driver (the 2-driver rule).
+// Re-exported from matching.ts and batch-solver.ts for their existing importers.
+export const LONG_TRIP_KM = 400;
 
 export interface ClassifyInput {
   startAt: Date;
@@ -52,7 +55,16 @@ export function classifyJobType(input: ClassifyInput): JobType {
   if (overnight) return "OT";
   if (input.startAt.getHours() < WORK_DAY_START_HOUR) return "OT";
   if (input.endAt.getHours() > WORK_DAY_END_HOUR) return "OT";
-  if (input.endAt.getHours() === WORK_DAY_END_HOUR && input.endAt.getMinutes() > 0) return "OT";
+  // Strictly after 16:00 is OT — incl. sub-minute (16:00:30), which has
+  // getMinutes()===0 but is still past the window.
+  if (
+    input.endAt.getHours() === WORK_DAY_END_HOUR &&
+    (input.endAt.getMinutes() > 0 ||
+      input.endAt.getSeconds() > 0 ||
+      input.endAt.getMilliseconds() > 0)
+  ) {
+    return "OT";
+  }
   return "NORMAL";
 }
 

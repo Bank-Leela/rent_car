@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { match } from "./matching";
-import { buildSlotTable } from "./slot-allocation";
+import type { JobType } from "@prisma/client";
+import { match, LONG_TRIP_KM } from "./matching";
 import { buildDriverMatrix, type DriverInput, type DriverAvailabilityInput } from "./driver-capacity";
-
-const vehicles = [
-  { vehicleId: "v1", registrationNumber: "B-1", isDutyVehicle: false },
-  { vehicleId: "v2", registrationNumber: "B-2", isDutyVehicle: false },
-];
 
 const drivers: DriverInput[] = [
   { driverId: "A", joinedAt: new Date("2026-01-01"), lastAssignedAt: null },
   { driverId: "B", joinedAt: new Date("2026-01-01"), lastAssignedAt: null },
   { driverId: "C", joinedAt: new Date("2026-01-01"), lastAssignedAt: null },
 ];
+
+// car=driver: each driver drives a fixed car.
+const driverCar = new Map<string, string>([
+  ["A", "vA"],
+  ["B", "vB"],
+  ["C", "vC"],
+]);
 
 const rankInputs = drivers.map((d) => ({
   driverId: d.driverId,
@@ -31,40 +33,74 @@ const morningTrip = {
 };
 
 describe("match", () => {
-  it("assigns a primary driver and a vehicle for a short trip", () => {
+  it("assigns the primary driver and that driver's car for a short trip", () => {
     const r = match({
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: 100,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.result.vehicleId).toBe("v1");
       expect(r.result.primaryDriverId).toBe("A");
+      expect(r.result.vehicleId).toBe("vA"); // A's car
       expect(r.result.secondaryDriverId).toBeNull();
     }
   });
 
-  it("returns NO_SLOT when every vehicle is busy in that bucket", () => {
+  it("returns NO_SLOT when the picked driver has no assigned car", () => {
     const r = match({
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, [
-        { vehicleId: "v1", timeBucket: "MORNING_08_12" },
-        { vehicleId: "v2", timeBucket: "MORNING_08_12" },
-      ]),
+      estimatedDistance: null,
+      driverCar: new Map(), // nobody paired
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
     });
     expect(r).toEqual({ ok: false, error: "NO_SLOT" });
+  });
+
+  it("RC5: skips an unpaired top-ranked driver to the next paired one (not NO_SLOT)", () => {
+    const r = match({
+      jobType: "NORMAL",
+      timeBucket: "MORNING_08_12",
+      newTrip: morningTrip,
+      estimatedDistance: null,
+      driverCar: new Map([["B", "vB"], ["C", "vC"]]), // A unpaired (e.g. just added)
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: availabilityForAll(),
+      driverRankInputs: rankInputs, // equal fairness → A ranks first by id tie-break
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.result.primaryDriverId).toBe("B"); // A skipped (no car), B is next paired
+      expect(r.result.vehicleId).toBe("vB");
+    }
+  });
+
+  it("RC5: a long trip's co-driver may be unpaired (rides in the primary's car)", () => {
+    const r = match({
+      jobType: "TJW",
+      timeBucket: "MORNING_08_12",
+      newTrip: morningTrip,
+      estimatedDistance: LONG_TRIP_KM + 1,
+      driverCar: new Map([["B", "vB"], ["C", "vC"]]), // A unpaired
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: availabilityForAll(),
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.result.primaryDriverId).toBe("B"); // fairest PAIRED driver
+      expect(r.result.vehicleId).toBe("vB");
+      expect(r.result.secondaryDriverId).toBe("A"); // next-fairest; car not required
+    }
   });
 
   it("CR-06: returns NO_PRIMARY_DRIVER when 1/day cap blocks everyone", () => {
@@ -76,8 +112,8 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: null,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: drivers.map((d) => ({
         driverId: d.driverId,
@@ -99,8 +135,8 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: 50,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
         { driverId: "A", existing: [morningTrip] },
@@ -116,6 +152,7 @@ describe("match", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.result.primaryDriverId).toBe("C");
+      expect(r.result.vehicleId).toBe("vC");
     }
   });
 
@@ -129,8 +166,8 @@ describe("match", () => {
       jobType: "NORMAL",
       timeBucket: "AFTERNOON_12_16",
       newTrip: afternoonTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: 50,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
         { driverId: "A", existing: [morningTrip] },
@@ -143,13 +180,13 @@ describe("match", () => {
     if (r.ok) expect(r.result.primaryDriverId).toBe("A");
   });
 
-  it("assigns a secondary driver when needsSecondaryDriver is true", () => {
+  it("assigns a secondary (co-)driver when distance exceeds 400 km", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      needsSecondaryDriver: true,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: LONG_TRIP_KM + 1,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
@@ -157,17 +194,18 @@ describe("match", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.result.primaryDriverId).toBe("A");
+      expect(r.result.vehicleId).toBe("vA"); // one car; the co-driver rides along
       expect(r.result.secondaryDriverId).toBe("B");
     }
   });
 
-  it("returns NO_SECONDARY_DRIVER when needsSecondaryDriver is true but only one driver is free", () => {
+  it("returns NO_SECONDARY_DRIVER for >400 km when only one driver is free", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      needsSecondaryDriver: true,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: LONG_TRIP_KM + 100,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
         { driverId: "A", existing: [] },
@@ -180,9 +218,7 @@ describe("match", () => {
   });
 
   // The on-call (WERN duty) driver is reserved for the whole day, exactly like
-  // the batch solver's dutyDriverId. The 08:00–16:00 WERN pseudo-trip alone
-  // leaks pre-dawn trips ending ≥2h before 08:00 (they satisfy the morning-
-  // chain rule), so match() must hard-exclude the on-call driver.
+  // the batch solver's dutyDriverId.
   const wernWindow = {
     startAt: new Date("2026-06-10T08:00:00"),
     endAt: new Date("2026-06-10T16:00:00"),
@@ -197,15 +233,15 @@ describe("match", () => {
       jobType: "OT",
       timeBucket: "MORNING_08_12",
       newTrip: preDawnTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: 50,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
-        { driverId: "A", existing: [wernWindow] }, // on-call; pre-dawn clears the WERN window
+        { driverId: "A", existing: [wernWindow] },
         { driverId: "B", existing: [] },
         { driverId: "C", existing: [] },
       ],
-      driverRankInputs: rankInputs, // all tie → input order A,B,C; A would win without the reserve
+      driverRankInputs: rankInputs,
       onCallDriverId: "A",
     });
     expect(r.ok).toBe(true);
@@ -221,13 +257,13 @@ describe("match", () => {
       jobType: "OT",
       timeBucket: "MORNING_08_12",
       newTrip: preDawnTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: 50,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: [
-        { driverId: "A", existing: [wernWindow] }, // on-call; pre-dawn would slip through
-        { driverId: "B", existing: [blockAllDay] }, // blocked
-        { driverId: "C", existing: [blockAllDay] }, // blocked
+        { driverId: "A", existing: [wernWindow] },
+        { driverId: "B", existing: [blockAllDay] },
+        { driverId: "C", existing: [blockAllDay] },
       ],
       driverRankInputs: rankInputs,
       onCallDriverId: "A",
@@ -235,18 +271,99 @@ describe("match", () => {
     expect(r).toEqual({ ok: false, error: "NO_PRIMARY_DRIVER" });
   });
 
-  it("does not assign a secondary when needsSecondaryDriver is false", () => {
+  it("does not require a secondary at exactly 400 km", () => {
     const r = match({
       jobType: "TJW",
       timeBucket: "MORNING_08_12",
       newTrip: morningTrip,
-      needsSecondaryDriver: false,
-      slotTable: buildSlotTable(vehicles, []),
+      estimatedDistance: LONG_TRIP_KM,
+      driverCar,
       driverMatrix: buildDriverMatrix(drivers, []),
       driverAvailability: availabilityForAll(),
       driverRankInputs: rankInputs,
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.result.secondaryDriverId).toBeNull();
+  });
+});
+
+describe("match — OT cap exemption flows through the matcher (job-type-aware chaining)", () => {
+  const T = (hm: string) => new Date(`2026-06-10T${hm}:00`);
+  const fullNormalDay = [
+    { startAt: T("08:00"), endAt: T("11:00"), jobType: "NORMAL" as JobType },
+    { startAt: T("13:00"), endAt: T("16:00"), jobType: "NORMAL" as JobType },
+  ];
+
+  it("an OT is assignable to a driver who already has a full 2-NORMAL day (cap-exempt)", () => {
+    const eveningOverlap = [{ startAt: T("18:00"), endAt: T("20:00") }];
+    const r = match({
+      jobType: "OT",
+      timeBucket: "AFTER_16",
+      newTrip: { startAt: T("18:00"), endAt: T("20:00"), jobType: "OT" },
+      estimatedDistance: 50,
+      driverCar,
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: [
+        { driverId: "A", existing: fullNormalDay }, // full day, but OT is exempt
+        { driverId: "B", existing: eveningOverlap }, // busy at the OT time
+        { driverId: "C", existing: eveningOverlap },
+      ],
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).toBe("A");
+  });
+
+  it("an existing OT does not count toward the NORMAL cap (a new afternoon NORMAL is allowed)", () => {
+    const afternoonOverlap = [{ startAt: T("13:00"), endAt: T("15:00") }];
+    const r = match({
+      jobType: "NORMAL",
+      timeBucket: "AFTERNOON_12_16",
+      newTrip: { startAt: T("13:00"), endAt: T("15:00"), jobType: "NORMAL" },
+      estimatedDistance: null,
+      driverCar,
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: [
+        // A: an early OT + one morning NORMAL → still room for an afternoon NORMAL
+        {
+          driverId: "A",
+          existing: [
+            { startAt: T("05:00"), endAt: T("07:00"), jobType: "OT" },
+            { startAt: T("08:00"), endAt: T("11:00"), jobType: "NORMAL" },
+          ],
+        },
+        { driverId: "B", existing: afternoonOverlap },
+        { driverId: "C", existing: afternoonOverlap },
+      ],
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).toBe("A");
+  });
+});
+
+describe("match — WERN routes to the on-call duty driver", () => {
+  const T = (hm: string) => new Date(`2026-06-10T${hm}:00`);
+  const wernInput = (onCallDriverId: string | null) => ({
+    jobType: "WERN" as const,
+    timeBucket: "MORNING_08_12" as const,
+    newTrip: { startAt: T("08:00"), endAt: T("12:00"), jobType: "WERN" as const },
+    estimatedDistance: null,
+    driverCar,
+    driverMatrix: buildDriverMatrix(drivers, []),
+    driverAvailability: availabilityForAll(),
+    driverRankInputs: rankInputs,
+    onCallDriverId,
+  });
+
+  it("assigns a WERN slot to the on-call driver, bypassing the fair pick", () => {
+    expect(match(wernInput("A"))).toEqual({
+      ok: true,
+      result: { vehicleId: "vA", primaryDriverId: "A", secondaryDriverId: null },
+    });
+  });
+
+  it("NO_PRIMARY_DRIVER when no on-call driver is rostered", () => {
+    expect(match(wernInput(null))).toEqual({ ok: false, error: "NO_PRIMARY_DRIVER" });
   });
 });

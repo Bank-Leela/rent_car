@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { simulate, type DayContext } from "./simulation";
 import { canChain, MAX_JOBS_PER_DAY } from "./rotations";
+import { LONG_TRIP_KM } from "./batch-solver";
 import { WORK_DAY_END_HOUR } from "./classification";
 
 // Property/fuzz test: run many random days through the real solver — now WITH
@@ -39,7 +40,7 @@ function assertDay(
   }
   for (const id of away) returning.delete(id); // a driver both away and returning → away wins
 
-  const needsSecondary = new Map(input.bookings.map((b) => [b.bookingId, b.needsSecondaryDriver]));
+  const dist = new Map(input.bookings.map((b) => [b.bookingId, b.estimatedDistance]));
 
   for (const a of output.assignments) {
     // (1) Away means away: a driver mid multi-day TJW is never assigned today.
@@ -51,9 +52,9 @@ function assertDay(
       returning.has(a.primaryDriverId) || (a.secondaryDriverId !== null && returning.has(a.secondaryDriverId));
     if (touchesReturnee) expect(a.jobType).toBe("OT");
 
-    // (4) Secondary only when the booking is flagged needsSecondaryDriver, never == primary.
+    // (4) Secondary only on > 400 km trips, never == primary.
     if (a.secondaryDriverId !== null) {
-      expect(needsSecondary.get(a.bookingId)).toBe(true);
+      expect(dist.get(a.bookingId)!).toBeGreaterThan(LONG_TRIP_KM);
       expect(a.secondaryDriverId).not.toBe(a.primaryDriverId);
     }
   }
@@ -61,15 +62,18 @@ function assertDay(
   // (5) Completeness: every booking assigned or overflowed exactly once.
   expect(output.assignments.length + output.overflows.length).toBe(input.bookings.length);
 
-  // (3) Per-driver day legality: <= 2 trips, no overlap, legal chain pair.
+  // (3) Per-driver day legality under the job-type-aware rule: at most 2 NORMAL
+  // day-jobs (OT is extra hours on top, uncapped), no overlap, and every trip
+  // legally chains with the rest (≥2h gap + the morning/afternoon NORMAL pairing).
   for (const [, dayTrips] of output.driverDay) {
-    expect(dayTrips.length).toBeLessThanOrEqual(MAX_JOBS_PER_DAY);
+    expect(dayTrips.filter((t) => t.jobType === "NORMAL").length).toBeLessThanOrEqual(MAX_JOBS_PER_DAY);
     for (let i = 0; i < dayTrips.length; i++) {
       for (let j = i + 1; j < dayTrips.length; j++) {
         expect(overlaps(dayTrips[i]!, dayTrips[j]!)).toBe(false);
       }
+      const rest = dayTrips.filter((_, k) => k !== i);
+      expect(canChain(dayTrips[i]!, rest)).toBe(true);
     }
-    if (dayTrips.length === 2) expect(canChain(dayTrips[1]!, [dayTrips[0]!])).toBe(true);
   }
 
   // Accumulate availability-adjusted fairness inputs (§6.3).
@@ -103,14 +107,16 @@ describe("solver invariants (fuzz, multi-day TJW)", () => {
 
       // (6.3) Fairness as a SOFT, availability-adjusted assertion: trips per
       // available-day stay close across drivers. Raw trip counts are NOT
-      // asserted because (a) away-on-TJW drivers legitimately do fewer trips and
-      // (b) the duration-weighted ledger (tripEffort) balances fewer-but-longer
-      // trips by hours, not count. Observed spread/avg across seeds is ~0.02–0.07;
-      // the 0.10 bound holds for all while still catching a real blowout.
+      // asserted tightly because (a) away-on-TJW drivers legitimately do fewer
+      // trips, (b) the duration-weighted ledger (tripEffort) balances
+      // fewer-but-longer trips by hours, not count, and (c) under the
+      // job-type-aware rule OT is ADDITIVE — a driver may take OT on top of a
+      // full NORMAL day — which legitimately widens the raw-count spread. The
+      // 0.15 bound still catches a real blowout while allowing this.
       const rates = [...trips.keys()].map((id) => trips.get(id)! / Math.max(1, availableDays.get(id) ?? 0));
       const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
       const spread = Math.max(...rates) - Math.min(...rates);
-      expect(spread, `seed ${seed} availability-adjusted fairness`).toBeLessThanOrEqual(avg * 0.1);
+      expect(spread, `seed ${seed} availability-adjusted fairness`).toBeLessThanOrEqual(avg * 0.15);
     }
   }, 30000);
 });

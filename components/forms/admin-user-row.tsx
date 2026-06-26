@@ -24,8 +24,20 @@ interface AdminUserRowData {
 export function UserRow({ user }: { user: AdminUserRowData }) {
   const t = useTranslations("adminUsers");
   const [resetVisible, setResetVisible] = useState(false);
+  const [confirmDisable, setConfirmDisable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function toggleActive(onDone?: () => void) {
+    setError(null);
+    const fd = new FormData();
+    fd.set("userId", user.id);
+    startTransition(async () => {
+      const res = await adminToggleActiveAction(fd);
+      if (res && !res.ok) setError(res.error);
+      else onDone?.();
+    });
+  }
 
   return (
     <li className="py-3 space-y-2">
@@ -69,20 +81,32 @@ export function UserRow({ user }: { user: AdminUserRowData }) {
           >
             {resetVisible ? t("cancel") : t("resetPassword")}
           </Button>
-          <form
-            action={(formData) => {
-              setError(null);
-              formData.set("userId", user.id);
-              startTransition(async () => {
-                const res = await adminToggleActiveAction(formData);
-                if (res && !res.ok) setError(res.error);
-              });
-            }}
-          >
-            <Button type="submit" variant="outline" size="sm" disabled={pending}>
-              {user.isActive ? t("disable") : t("enable")}
+          {/* Enabling is harmless → one click. Disabling locks an account out,
+              so it expands to a confirm step (matches CancelForm / deny). */}
+          {!user.isActive ? (
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => toggleActive()}>
+              {t("enable")}
             </Button>
-          </form>
+          ) : confirmDisable ? (
+            <span className="inline-flex items-center gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={pending}
+                onClick={() => toggleActive(() => setConfirmDisable(false))}
+              >
+                {pending ? "…" : t("confirmDisable")}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setConfirmDisable(false)}>
+                {t("cancel")}
+              </Button>
+            </span>
+          ) : (
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => setConfirmDisable(true)}>
+              {t("disable")}
+            </Button>
+          )}
         </div>
       </div>
 

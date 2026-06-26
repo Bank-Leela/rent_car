@@ -38,7 +38,7 @@ Apply the schema (uses committed migrations — does NOT need an interactive pro
 npx prisma migrate deploy
 ```
 
-Load demo data (drivers, vehicles, sample bookings, history):
+Load demo data (departments, role users, 6 drivers + 6 vehicles paired car=driver):
 
 ```bash
 npx prisma db seed
@@ -56,7 +56,20 @@ Open http://localhost:3000.
 
 ## Demo logins
 
-Check `prisma/seed.ts` for seeded accounts (REQUESTER / APPROVER / ADMIN "P'Top" / DRIVER). Passwords are set there.
+Sign in at `/login` with **username or email + password** (the field is labeled
+"Email or username"). **All seeded accounts share the password `changeme`**
+(`SEED_PASSWORD` in `prisma/seed.ts`) and are flagged `mustChangePassword` — you
+set a new one on first sign-in.
+
+| Role | Username | Email |
+|------|----------|-------|
+| REQUESTER | `requester` | requester@chula.ac.th |
+| APPROVER | `approver` | approver@chula.ac.th |
+| ADMIN ("P'Top") | `admin` | admin@chula.ac.th |
+| DRIVERS (×6, car=driver) | `driverA` … `driverF` | driver@ and driver2@–driver6@chula.ac.th |
+
+> The six driver logins are renamed to `driverA`–`driverF` by the seed (one per
+> vehicle A–F); in dev, the `/login` "Preview as" buttons skip the password.
 
 ## Useful commands
 

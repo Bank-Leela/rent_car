@@ -1,27 +1,23 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { resolveReclaimAction } from "@/lib/booking/batch-actions";
+import { useFormAction } from "@/components/forms/use-form-action";
 
 export function ReclaimDecisionForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("adminBatch");
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(resolveReclaimAction, {
+    bookingId,
+    onSuccess: () => router.refresh(),
+  });
 
   function submit(decision: "RECLAIM_WERN" | "OUTSOURCE") {
-    setError(null);
     const fd = new FormData();
-    fd.set("bookingId", bookingId);
     fd.set("decision", decision);
-    startTransition(async () => {
-      const res = await resolveReclaimAction(fd);
-      if (res && !res.ok) setError(res.error);
-      else router.refresh();
-    });
+    run(fd);
   }
 
   return (

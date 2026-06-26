@@ -19,17 +19,41 @@ const datetimeLocal = z
 
 export const newBookingSchema = z
   .object({
-    departmentId: z.string().min(1, "Pick a department"),
+    // departmentId is no longer submitted by the form: it is locked to the
+    // requester's own profile department and resolved server-side.
     purpose: z.string().min(3, "Describe the trip purpose"),
     destination: z.string().min(2, "Required"),
     province: z.string().min(2, "Required"),
+    // Sub-project A: stored Maps link. Required on the requester flow; any host
+    // (so maps.app.goo.gl / goo.gl/maps shortened links work). No distance pull.
+    // http(s) only — the value is rendered as a clickable href elsewhere, so a
+    // javascript:/data: scheme (which z.url() would accept) must be rejected.
+    googleMapsUrl: z
+      .string()
+      .trim()
+      .url("Add a valid Google Maps link")
+      .refine((v) => /^https?:\/\//i.test(v), "Add a valid Google Maps link"),
     startAt: datetimeLocal,
     endAt: datetimeLocal,
-    ajarnName: z.string().trim().min(2, "Ajarn name is required"),
-    ajarnPhone: z.string().trim().min(6, "Ajarn phone is required"),
+    // "ผู้ขอใช้รถ" — the requester/secretary who submits on the ajarn's behalf.
+    // Column names kept as ajarn* for back-compat; labels relabel them.
+    ajarnName: z.string().trim().min(2, "Requester name is required"),
+    ajarnPhone: z.string().trim().min(6, "Requester phone is required"),
     ajarnEmail: z.string().trim().email("Invalid email address"),
+    // "ผู้ประสานงาน" — the coordination contact for the trip.
     coordinatorName: z.string().trim().min(2, "Coordinator name is required"),
     coordinatorPhone: z.string().trim().min(6, "Coordinator phone is required"),
+    tripType: z
+      .enum(["ROUND_TRIP", "DROP_OFF", "PICK_UP_DROP_OFF"])
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
+    remark: z
+      .string()
+      .max(2000)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v.trim() : undefined)),
     // CR-07: jobType is no longer picked by the requester. The classifier
     // (lib/booking/classification.ts) derives it from startAt/endAt +
     // outOfProvince. Field is optional here for back-compat with older
@@ -125,7 +149,14 @@ export const newBookingSchema = z
       .string()
       .optional()
       .or(z.literal(""))
-      .transform((v) => (v ? new Date(v) : undefined)),
+      .transform((v) => {
+        if (!v) return undefined;
+        // A date-only value ("yyyy-MM-dd") would parse as UTC midnight; coerce
+        // it to LOCAL midnight so it lines up with the local startAt when the
+        // recurrence is expanded.
+        const s = /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00` : v;
+        return new Date(s);
+      }),
   })
   .refine((data) => data.endAt.getTime() > data.startAt.getTime(), {
     path: ["endAt"],

@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { format, startOfDay, addDays } from "date-fns";
-import { getTranslations } from "next-intl/server";
+import { th, enUS } from "date-fns/locale";
+import { getTranslations, getLocale } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { BatchRunForm } from "@/components/forms/batch-run-form";
 import { ReclaimDecisionForm } from "@/components/forms/reclaim-decision-form";
+import { AssignRecoButton } from "@/components/forms/assign-reco-button";
+import { recommendForBookings } from "@/lib/booking/placement-reco-data";
+import { LONG_TRIP_KM } from "@/lib/booking/classification";
 
 const OVERFLOW_TONE: Record<string, string> = {
   NO_PRIMARY_DRIVER:
@@ -125,7 +129,12 @@ export default async function AdminBatchPage({
     prisma.booking.findMany({
       where: {
         status: "ASSIGNED",
-        startAt: { gte: dayStart, lt: dayEnd },
+        // Overlap, not start-in-day: a multi-day trip is still a commitment on
+        // its return/middle days, so it belongs in this day's roster too. (The
+        // pending + overflow lists stay start-in-day — those are this day's new
+        // work to place, not standing commitments.)
+        startAt: { lt: dayEnd },
+        endAt: { gt: dayStart },
       },
       orderBy: { startAt: "asc" },
       include: {
@@ -147,6 +156,18 @@ export default async function AdminBatchPage({
       include: { driver: { include: { user: true } } },
     }),
   ]);
+
+  // Recommendation for each leftover the solver couldn't place (P'Top override).
+  const isThai = (await getLocale()).toLowerCase().startsWith("th");
+  const dfLocale = isThai ? th : enUS;
+  const recos = await recommendForBookings(dayStart, overflows, isThai);
+
+  // End-time label: an overnight/multi-day trip shows the return day so it's
+  // clear when the driver gets back (e.g. "17:00 ↩ Tue 17 Jun").
+  const endLabel = (start: Date, end: Date) =>
+    end.toDateString() === start.toDateString()
+      ? format(end, "HH:mm")
+      : `${format(end, "HH:mm")} ↩ ${format(end, "EEE d MMM", { locale: dfLocale })}`;
 
   return (
     <div className="space-y-6">
@@ -184,7 +205,7 @@ export default async function AdminBatchPage({
                   </Link>
                   <span className="mx-2 text-muted-foreground">{b.purpose}</span>
                   <span className="text-xs text-muted-foreground">
-                    {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} · {b.jobType}
+                    {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
                     {b.outOfProvince ? " · ตจว" : ""}
                   </span>
                   <BookingInputs b={b} labels={L} />
@@ -223,10 +244,36 @@ export default async function AdminBatchPage({
                       </span>
                     </div>
                     <div className="text-xs opacity-80">
-                      {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} ·{" "}
+                      {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} ·{" "}
                       {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                     </div>
                     <BookingInputs b={b} labels={L} />
+                    {(() => {
+                      const r = recos.get(b.id);
+                      if (!r || r.kind === "none") {
+                        return <div className="text-xs text-muted-foreground">💡 {t("recoNone")}</div>;
+                      }
+                      const car = r.registrationNumber ?? "";
+                      const name = r.driverName ?? "";
+                      const msg = r.kind === "reclaim" ? t("recoReclaim", { car, name }) : t("recoFit", { car, name });
+                      const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
+                      const sec = r.secondaryDriverName
+                        ? " " + t("recoCoDriver", { name: r.secondaryDriverName })
+                        : longTrip
+                          ? " " + t("recoCoDriverNone")
+                          : "";
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span>💡 {msg}{sec}</span>
+                          <AssignRecoButton
+                            bookingId={b.id}
+                            vehicleId={r.vehicleId}
+                            secondaryDriverId={r.secondaryDriverId}
+                            label={t("assignReco")}
+                          />
+                        </div>
+                      );
+                    })()}
                     {reason === "NEEDS_WERN_RECLAIM_DECISION" && (
                       <ReclaimDecisionForm bookingId={b.id} />
                     )}
@@ -255,7 +302,7 @@ export default async function AdminBatchPage({
                     </Link>
                     <span className="ml-2">{b.purpose}</span>
                     <div className="text-xs text-muted-foreground">
-                      {format(b.startAt, "HH:mm")} → {format(b.endAt, "HH:mm")} · {b.jobType}
+                      {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
                     </div>
                     <BookingInputs b={b} labels={L} />
                   </div>

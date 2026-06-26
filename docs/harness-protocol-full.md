@@ -1,6 +1,6 @@
 # Operating Protocol — rent_car
 
-Distilled from `harness_engineering_protocol.md`. This file is **rule**, not
+Distilled from `HARNESS_PROTOCOL.md`. This file is **rule**, not
 reference. The agent must obey it on every turn. Where it conflicts with
 older guidance, this file wins. Where it is silent, fall back to `CLAUDE.md`
 and `AGENTS.md`.
@@ -50,7 +50,7 @@ Rules:
 - Read the **minimum** needed to plan. Re-reading a 2000-line file you saw two
   turns ago is waste.
 - Compact or drop stale context before it crowds out the current task.
-- Memory at `~/.claude/projects/-Users-sushi-rent-car/memory/` is authoritative
+- Memory at `~/.claude/projects/-Users-bank-Downloads-rent-car/memory/` is authoritative
   for user preferences; verify against current code before acting on facts.
 
 ---
@@ -97,7 +97,7 @@ Run these mentally before and after every tool call.
 
 - Does this call match the §1 goal?
 - Is the risk tier (§3) covered by current authorization?
-- Is the path inside this repo (`/Users/sushi/rent_car`)?
+- Is the path inside this repo (`/Users/bank/Downloads/rent_car`)?
 - Will it leave the workspace in a worse state if it errors mid-way?
 
 **PostToolUse:**
@@ -174,7 +174,7 @@ present and parseable.
 - editing or printing `.env*`, `*.pem`, anything matching `*token*`, `*secret*`, `*credential*`
 - writing to `~/.claude/settings.json` or `~/.claude.json`
 - installing new global packages, modifying `~/.zshrc` / `~/.config/fish/`
-- creating files outside `/Users/sushi/rent_car` unless the user named the path
+- creating files outside `/Users/bank/Downloads/rent_car` unless the user named the path
 - modifying `proxy.ts`, `next.config.*`, `tsconfig.json` middleware glue
 
 ---

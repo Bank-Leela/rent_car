@@ -68,6 +68,10 @@ async function main() {
     { id: "seed-user-approver", email: "approver@chula.ac.th", name: "ศาสตราจารย์ ดร. ธนากร ศรีสุวรรณ", role: Role.APPROVER },
     { id: "seed-user-admin", email: "admin@chula.ac.th", name: "ปิยะ วงศ์สวัสดิ์", role: Role.ADMIN },
     { id: "seed-user-driver", email: "driver@chula.ac.th", name: "อนุชา เพชรรัตน์", role: Role.DRIVER },
+    // Shared "driver station" login (one account all drivers use on the shared
+    // device). DRIVER role but NO Driver profile — it's a login, not a car-paired
+    // driver; the schedule board it opens shows ALL cars.
+    { id: "seed-user-driverstation", email: "driverstation@chula.ac.th", name: "สถานีคนขับ (ใช้ร่วมกัน)", role: Role.DRIVER },
   ];
 
   const seedHash = await getSeedPasswordHash();
@@ -157,11 +161,15 @@ async function main() {
     });
   }
 
-  // A couple of vehicles
+  // Six vehicles — one per driver (car = driver). Matches the fleet the admin
+  // board shows (A–F by registration order).
   const vehicles = [
     { registrationNumber: "1กข-1001", type: VehicleType.SEDAN, capacity: 4 },
     { registrationNumber: "1กข-1002", type: VehicleType.VAN, capacity: 12 },
     { registrationNumber: "1กข-1003", type: VehicleType.PICKUP, capacity: 5 },
+    { registrationNumber: "รถเวร-904", type: VehicleType.SEDAN, capacity: 4 },
+    { registrationNumber: "รถเวร-905", type: VehicleType.VAN, capacity: 12 },
+    { registrationNumber: "รถเวร-906", type: VehicleType.PICKUP, capacity: 5 },
   ];
 
   for (const v of vehicles) {
@@ -170,6 +178,41 @@ async function main() {
       create: v,
       update: {},
     });
+  }
+
+  // car = driver: pair each car (board order = registrationNumber asc, the same
+  // ordering the admin board labels A, B, C…) to one driver, and give that driver
+  // the matching login driverA..driverF. So `db seed` alone reproduces the A–F
+  // fleet + per-car driver logins (no need to also run ensure-fleet / pair-cars).
+  const fleet = await prisma.vehicle.findMany({
+    where: { isActive: true },
+    orderBy: { registrationNumber: "asc" },
+    select: { id: true },
+  });
+  // Driver user ids, in the order they pair to cars A, B, C, D, E, F.
+  const driverUserIdsByCar = [
+    "seed-driver-4", // ประยุทธ ขับดี
+    "seed-driver-5", // สุชาติ มั่นคง
+    "seed-driver-6", // ธีระ สมบูรณ์
+    "seed-user-driver", // อนุชา เพชรรัตน์
+    "seed-driver-2", // สมชาย ใจดี
+    "seed-driver-3", // วิชัย รักงาน
+  ];
+  if (fleet.length !== driverUserIdsByCar.length) {
+    const extra = Math.abs(fleet.length - driverUserIdsByCar.length);
+    const kind = fleet.length > driverUserIdsByCar.length ? "car(s)" : "driver(s)";
+    console.warn(
+      `[seed] fleet (${fleet.length}) and driver list (${driverUserIdsByCar.length}) differ — ${extra} ${kind} left unpaired. Keep the arrays in sync.`,
+    );
+  }
+  for (let i = 0; i < fleet.length && i < driverUserIdsByCar.length; i++) {
+    const letter = String.fromCharCode(65 + i); // A, B, C…
+    const userId = driverUserIdsByCar[i]!;
+    const drv = await prisma.driver.findUnique({ where: { userId }, select: { id: true } });
+    if (!drv) continue;
+    await prisma.vehicle.update({ where: { id: fleet[i]!.id }, data: { assignedDriverId: drv.id } });
+    // driverA..driverF — the per-car driver login (password = the seed default).
+    await prisma.user.update({ where: { id: userId }, data: { username: `driver${letter}` } });
   }
 
   console.log("Seed complete:", {

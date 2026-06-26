@@ -63,7 +63,7 @@ interface CaseLog {
   bookingId: string;
   jobType: JobType;
   role: "PRIMARY" | "SECONDARY";
-  secondary: boolean;
+  distance: number | null;
   startAt: string;
   endAt: string;
 }
@@ -125,7 +125,7 @@ function makeWern(date: Date): SolverBookingInput {
     jobType: "WERN",
     startAt,
     endAt,
-    needsSecondaryDriver: false,
+    estimatedDistance: 30,
     outOfProvince: false,
     submittedAt,
   };
@@ -146,11 +146,7 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
 
   // Pick category by scenario.
   let jobType: JobType = "NORMAL";
-  // Admin-set flag (replaces the old estimatedDistance > 400km auto-check).
-  // Scenarios that used to roll a "long" distance now roll/force this flag
-  // directly, at roughly the same odds, to keep the secondary-driver paths
-  // exercised.
-  let needsSecondaryDriver = false;
+  let estimatedDistance = randInt(20, 150);
   let outOfProvince = false;
   switch (scenario) {
     case "normal":
@@ -170,16 +166,16 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
     }
     case "tjw": {
       jobType = "TJW";
-      needsSecondaryDriver = randInt(300, 700) > 400; // same odds as the old distance roll
+      estimatedDistance = randInt(300, 700);
       outOfProvince = true;
       startAt.setHours(7, 0, 0, 0);
       endAt = new Date(startAt.getTime() + 2 * 86400000); // 2-day TJW
       break;
     }
     case "reclaim": {
-      // One OT trip per day, flagged for a secondary, late time → forces secondary.
+      // One OT trip per day, long distance, late time → forces secondary.
       jobType = "OT";
-      needsSecondaryDriver = true;
+      estimatedDistance = 500;
       startAt.setHours(17, 0, 0, 0);
       endAt = new Date(startAt.getTime() + 3 * 3_600_000);
       break;
@@ -199,12 +195,12 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
         else { startAt.setHours(17, 0, 0, 0); endAt = new Date(startAt.getTime() + durationH * 3_600_000); }
       } else {
         jobType = "TJW";
-        needsSecondaryDriver = true; // randint(400,700) was always >400
+        estimatedDistance = randInt(400, 700);
         outOfProvince = true;
         startAt.setHours(7, 0, 0, 0);
         endAt = new Date(startAt.getTime() + 2 * 86400000);
       }
-      if (rand() < 0.1) needsSecondaryDriver = true; // sporadic forced secondary
+      if (rand() < 0.1) estimatedDistance = 450 + randInt(0, 200); // sporadic >400 km
       break;
     }
   }
@@ -214,7 +210,7 @@ function makeBooking(date: Date, scenario: Scenario, idx: number, submittedOffse
     jobType,
     startAt,
     endAt,
-    needsSecondaryDriver,
+    estimatedDistance,
     outOfProvince,
     submittedAt,
   };
@@ -294,7 +290,7 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
       bookingId: a.bookingId,
       jobType: booking.jobType,
       role: "PRIMARY",
-      secondary: booking.needsSecondaryDriver,
+      distance: booking.estimatedDistance,
       startAt: booking.startAt.toISOString().slice(11, 16),
       endAt: booking.endAt.toISOString().slice(11, 16),
     });
@@ -311,7 +307,7 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
         bookingId: a.bookingId,
         jobType: booking.jobType,
         role: "SECONDARY",
-        secondary: booking.needsSecondaryDriver,
+        distance: booking.estimatedDistance,
         startAt: booking.startAt.toISOString().slice(11, 16),
         endAt: booking.endAt.toISOString().slice(11, 16),
       });
@@ -340,13 +336,21 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
     outcomes.overflow[o.reason] += 1;
   }
 
-  // Rule violation checks.
+  // Rule violation checks (job-type-aware: NORMAL capped at 2, OT is extra hours
+  // on top; the 2h gap is universal across every pair).
   for (const trips of result.driverDay.values()) {
-    if (trips.length > 2) outcomes.capViolations += 1;
-    if (trips.length === 2) {
-      const [a, b] = trips.sort((x, y) => x.startAt.getTime() - y.startAt.getTime()) as [typeof trips[0], typeof trips[0]];
-      const gapMs = b.startAt.getTime() - a.endAt.getTime();
-      if (gapMs < 2 * 3_600_000) outcomes.bufferViolations += 1;
+    if (trips.filter((t) => t.jobType === "NORMAL").length > 2) outcomes.capViolations += 1;
+    const sorted = [...trips].sort((x, y) => x.startAt.getTime() - y.startAt.getTime());
+    for (let i = 0; i < sorted.length; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        const a = sorted[i]!;
+        const b = sorted[j]!;
+        const overlap = a.startAt < b.endAt && b.startAt < a.endAt;
+        const gapOk =
+          a.endAt.getTime() + 2 * 3_600_000 <= b.startAt.getTime() ||
+          b.endAt.getTime() + 2 * 3_600_000 <= a.startAt.getTime();
+        if (overlap || !gapOk) outcomes.bufferViolations += 1;
+      }
     }
   }
   // Duty driver should never appear in a non-WERN trip's driver lineup.
@@ -419,10 +423,10 @@ if (detail) {
     }
     const slice = d.cases.slice(0, first);
     for (const c of slice) {
-      const flag = c.secondary ? "2-DRV" : "—";
+      const dist = c.distance === null ? "—" : `${c.distance}km`;
       const tag = c.role === "SECONDARY" ? "[2nd]" : "[1st]";
       console.log(
-        `   ${c.date}  ${c.startAt}-${c.endAt}  ${c.jobType.padEnd(6)}  ${tag}  ${flag.padStart(6)}  ${c.bookingId}`,
+        `   ${c.date}  ${c.startAt}-${c.endAt}  ${c.jobType.padEnd(6)}  ${tag}  ${dist.padStart(6)}  ${c.bookingId}`,
       );
     }
     if (d.cases.length > first) {

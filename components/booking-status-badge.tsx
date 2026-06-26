@@ -16,6 +16,8 @@ const STYLES: Record<BookingStatus, string> = {
     "bg-violet-100 text-violet-900 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-200 dark:ring-violet-900/40",
   WAITLIST:
     "bg-orange-100 text-orange-900 ring-orange-200 dark:bg-orange-950/40 dark:text-orange-200 dark:ring-orange-900/40",
+  OUTSOURCED:
+    "bg-zinc-200 text-zinc-800 ring-zinc-300 dark:bg-zinc-800/70 dark:text-zinc-200 dark:ring-zinc-700",
 };
 
 export function BookingStatusBadge({ status }: { status: BookingStatus }) {

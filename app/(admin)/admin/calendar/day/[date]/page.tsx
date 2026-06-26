@@ -1,49 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format, parse, startOfDay, endOfDay } from "date-fns";
+import { format, parse, startOfDay, addDays } from "date-fns";
 import { AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
-import { VEHICLE_BUFFER_MINUTES } from "@/lib/booking/rules";
+import { conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
+import { daySpan, type DaySpan } from "@/lib/booking/day-window";
 import type { Prisma } from "@prisma/client";
-
-const LIVE_STATUSES = new Set(["PENDING_APPROVAL", "APPROVED", "ASSIGNED"]);
-
-type DayBooking = {
-  id: string;
-  vehicleId: string | null;
-  startAt: Date;
-  endAt: Date;
-  status: string;
-};
-
-/** Ids of bookings that share a vehicle with another within the buffer window. */
-function conflictIds(items: DayBooking[]): Set<string> {
-  const ids = new Set<string>();
-  const byVehicle = new Map<string, DayBooking[]>();
-  for (const b of items) {
-    if (!b.vehicleId || !LIVE_STATUSES.has(b.status)) continue;
-    const list = byVehicle.get(b.vehicleId) ?? [];
-    list.push(b);
-    byVehicle.set(b.vehicleId, list);
-  }
-  for (const list of byVehicle.values()) {
-    if (list.length < 2) continue;
-    list.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
-    for (let i = 1; i < list.length; i++) {
-      const prev = list[i - 1]!;
-      const curr = list[i]!;
-      const gapMin = (curr.startAt.getTime() - prev.endAt.getTime()) / 60000;
-      if (gapMin < VEHICLE_BUFFER_MINUTES) {
-        ids.add(prev.id);
-        ids.add(curr.id);
-      }
-    }
-  }
-  return ids;
-}
 
 const BAR_COLOR: Record<string, string> = {
   PENDING_APPROVAL: "bg-amber-200 border-amber-400 text-amber-950 dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-400/40",
@@ -71,10 +36,15 @@ export default async function CalendarDay({
 
   const day = parse(date, "yyyy-MM-dd", new Date());
   if (Number.isNaN(day.getTime())) notFound();
+  const dayStart = startOfDay(day);
+  const dayEnd = startOfDay(addDays(day, 1));
 
   const bookings = await prisma.booking.findMany({
     where: {
-      startAt: { gte: startOfDay(day), lte: endOfDay(day) },
+      // Overlap, not start-in-day: a multi-day trip must appear on every day it
+      // spans (return/middle days too), not only its departure day.
+      startAt: { lt: dayEnd },
+      endAt: { gt: dayStart },
       status: { not: "DRAFT" },
     },
     orderBy: { startAt: "asc" },
@@ -86,7 +56,7 @@ export default async function CalendarDay({
     },
   });
 
-  const conflicts = conflictIds(bookings);
+  const conflicts = conflictingBookingIds(bookings);
   const monthHref = `/admin/calendar?month=${format(day, "yyyy-MM")}`;
   const toggle = (v: View) =>
     `/admin/calendar/day/${date}${v === "timeline" ? "?view=timeline" : ""}`;
@@ -136,9 +106,9 @@ export default async function CalendarDay({
           {t("nothingScheduled")}
         </p>
       ) : view === "timeline" ? (
-        <TimelineView day={day} bookings={bookings} conflicts={conflicts} t={t} />
+        <TimelineView day={day} dayStart={dayStart} dayEnd={dayEnd} bookings={bookings} conflicts={conflicts} t={t} />
       ) : (
-        <AgendaView bookings={bookings} conflicts={conflicts} t={t} />
+        <AgendaView dayStart={dayStart} dayEnd={dayEnd} bookings={bookings} conflicts={conflicts} t={t} />
       )}
     </div>
   );
@@ -155,14 +125,26 @@ type Booking = Prisma.BookingGetPayload<{
 
 type Translator = Awaited<ReturnType<typeof getTranslations<"calendarDay">>>;
 
+// Agenda time column: a normal trip shows its range; a trip continuing across
+// the viewed day shows ↩ <return> (return day), <start> ↪ (departure day), or
+// ↪↩ (away the whole day) — never a misleading raw prior/next-day time.
+function agendaTime(b: Booking, span: DaySpan): string {
+  if (span.continuesBefore && span.continuesAfter) return "↪↩";
+  if (span.continuesBefore) return `↩ ${format(b.endAt, "HH:mm")}`;
+  if (span.continuesAfter) return `${format(b.startAt, "HH:mm")} ↪`;
+  return `${format(b.startAt, "HH:mm")}–${format(b.endAt, "HH:mm")}`;
+}
+
 /* ----------------------------- Agenda view ----------------------------- */
 
 function AgendaRow({
   b,
+  span,
   conflict,
   t,
 }: {
   b: Booking;
+  span: DaySpan;
   conflict: boolean;
   t: Translator;
 }) {
@@ -172,7 +154,7 @@ function AgendaRow({
       className="flex min-h-11 items-center gap-3 rounded-lg border bg-card px-3 py-2 hover:bg-muted/40"
     >
       <time className="w-[5.5rem] shrink-0 text-sm font-medium tabular-nums">
-        {format(b.startAt, "HH:mm")}–{format(b.endAt, "HH:mm")}
+        {agendaTime(b, span)}
       </time>
       <BookingStatusBadge status={b.status} />
       <span className="font-mono text-xs text-muted-foreground shrink-0 hidden sm:inline">
@@ -196,16 +178,23 @@ function AgendaRow({
 }
 
 function AgendaView({
+  dayStart,
+  dayEnd,
   bookings,
   conflicts,
   t,
 }: {
+  dayStart: Date;
+  dayEnd: Date;
   bookings: Booking[];
   conflicts: Set<string>;
   t: Translator;
 }) {
-  const morning = bookings.filter((b) => b.startAt.getHours() < 12);
-  const afternoon = bookings.filter((b) => b.startAt.getHours() >= 12);
+  // Bucket by the trip's start clamped to this day: a trip continuing from a
+  // prior day sorts into the morning (it's already underway at 00:00).
+  const withSpan = bookings.map((b) => ({ b, span: daySpan(b.startAt, b.endAt, dayStart, dayEnd) }));
+  const morning = withSpan.filter(({ span }) => span.startHour < 12);
+  const afternoon = withSpan.filter(({ span }) => span.startHour >= 12);
 
   return (
     <div className="space-y-5">
@@ -220,8 +209,8 @@ function AgendaView({
               {g.label}
             </h2>
             <div className="space-y-1.5">
-              {g.items.map((b) => (
-                <AgendaRow key={b.id} b={b} conflict={conflicts.has(b.id)} t={t} />
+              {g.items.map(({ b, span }) => (
+                <AgendaRow key={b.id} b={b} span={span} conflict={conflicts.has(b.id)} t={t} />
               ))}
             </div>
           </section>
@@ -234,11 +223,15 @@ function AgendaView({
 
 function TimelineView({
   day,
+  dayStart,
+  dayEnd,
   bookings,
   conflicts,
   t,
 }: {
   day: Date;
+  dayStart: Date;
+  dayEnd: Date;
   bookings: Booking[];
   conflicts: Set<string>;
   t: Translator;
@@ -332,17 +325,23 @@ function TimelineView({
                 ))}
                 {placed.map(({ b, s, e, lane }) => {
                   const conflict = conflicts.has(b.id);
+                  const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
+                  // Bar label: ↪ when it began earlier (real time is off this day);
+                  // otherwise the start time. A flush left edge already signals it.
+                  const barTime = span.continuesBefore ? "↪" : format(b.startAt, "HH:mm");
                   return (
                     <Link
                       key={b.id}
                       href={`/admin/${b.id}`}
-                      title={`${b.jobNumber} · ${format(b.startAt, "HH:mm")}–${format(
+                      title={`${b.jobNumber} · ${format(b.startAt, "EEE HH:mm")}–${format(
                         b.endAt,
-                        "HH:mm",
+                        "EEE HH:mm",
                       )} · ${b.purpose} · ${b.destination}`}
                       className={`absolute flex items-center gap-1 overflow-hidden rounded border px-1.5 text-[11px] leading-none hover:opacity-90 ${
                         BAR_COLOR[b.status] ?? "bg-muted border-border"
-                      } ${conflict ? "ring-2 ring-rose-500" : ""}`}
+                      } ${conflict ? "ring-2 ring-rose-500" : ""} ${
+                        span.continuesBefore ? "rounded-l-none border-l-2 border-l-foreground/50" : ""
+                      } ${span.continuesAfter ? "rounded-r-none border-r-2 border-r-foreground/50" : ""}`}
                       style={{
                         left: `${pct(s)}%`,
                         width: `max(2.5rem, ${pct(e) - pct(s)}%)`,
@@ -352,7 +351,7 @@ function TimelineView({
                     >
                       {conflict && <AlertTriangle className="h-3 w-3 shrink-0" aria-label={t("conflict")} />}
                       <span className="truncate tabular-nums">
-                        {format(b.startAt, "HH:mm")} {b.purpose}
+                        {barTime} {b.purpose}
                       </span>
                     </Link>
                   );

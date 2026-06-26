@@ -1,29 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { startTripAction, endTripAction } from "@/lib/booking/driver-actions";
+import { useFormAction } from "@/components/forms/use-form-action";
+import { FormError } from "@/components/forms/form-error";
 
-export function StartTripForm({ bookingId }: { bookingId: string }) {
+export function StartTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
   const t = useTranslations("tripForms");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(startTripAction, { bookingId, onSuccess });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await startTripAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-4"
-    >
+    <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label htmlFor="startMileage" className="text-base">{t("startingKm")}</Label>
         <Input
@@ -36,11 +26,7 @@ export function StartTripForm({ bookingId }: { bookingId: string }) {
           placeholder={t("startingPlaceholder")}
         />
       </div>
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-base text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} size="base" />
       <Button type="submit" disabled={pending} className="w-full h-14 text-lg">
         {pending ? t("starting") : t("startTrip")}
       </Button>
@@ -48,22 +34,11 @@ export function StartTripForm({ bookingId }: { bookingId: string }) {
   );
 }
 
-export function EndTripForm({ bookingId }: { bookingId: string }) {
+export function EndTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
   const t = useTranslations("tripForms");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const { error, pending, run } = useFormAction(endTripAction, { bookingId, onSuccess });
   return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("bookingId", bookingId);
-        startTransition(async () => {
-          const res = await endTripAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-4"
-    >
+    <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label htmlFor="endMileage" className="text-base">{t("endingKm")}</Label>
         <Input
@@ -93,11 +68,7 @@ export function EndTripForm({ bookingId }: { bookingId: string }) {
         <Label htmlFor="driverNotes" className="text-base">{t("notesOptional")}</Label>
         <Textarea id="driverNotes" name="driverNotes" rows={2} />
       </div>
-      {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-base text-destructive">
-          {error}
-        </div>
-      )}
+      <FormError message={error} size="base" />
       <Button type="submit" disabled={pending} className="w-full h-14 text-lg">
         {pending ? t("ending") : t("endTrip")}
       </Button>

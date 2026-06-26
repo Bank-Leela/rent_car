@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
-import { startOfDay, subDays } from "date-fns";
+import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
+import { logTransition } from "@/lib/booking/audit";
 import { matchBookingSchema } from "@/lib/booking/schema";
-import { buildSlotTable, type SlotInput, type ExistingTrip } from "@/lib/booking/slot-allocation";
+import { driverVehicleMap } from "@/lib/booking/fleet";
 import {
   buildDriverMatrix,
   type DriverAvailabilityInput,
@@ -16,10 +17,11 @@ import {
   type TripWindow,
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
-import { tripEffort } from "@/lib/booking/classification";
+import { resolveWernDriver, pickAutoDutyDriver } from "@/lib/booking/duty-assignment";
+import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "@/lib/booking/classification";
+import { loadWeightedEarnings } from "@/lib/booking/earnings";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import type { ActionResult } from "@/lib/booking/actions";
-
-const FAIRNESS_WINDOW_DAYS = 30;
 
 export async function matchBookingAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
@@ -50,15 +52,20 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const dayEnd = new Date(tripDay);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  // --- Algorithm 1 inputs: vehicles + today's vehicle occupancy. ---
+  // car=driver: vehicle = chosen driver's car. Load the pairing, no slot search.
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
-    select: { id: true, registrationNumber: true, isDutyVehicle: true },
+    select: { id: true, assignedDriverId: true },
   });
+  const driverCar = driverVehicleMap(vehicles);
   const dayBookings = await prisma.booking.findMany({
     where: {
-      startAt: { gte: tripDay, lt: dayEnd },
-      status: { in: ["APPROVED", "ASSIGNED"] },
+      // Overlap, not start-in-day: a multi-day trip that began earlier still
+      // occupies the driver today. With a start-in-day window the matcher misses
+      // a driver who's still away on a multi-day TJW and assigns them anyway.
+      startAt: { lt: dayEnd },
+      endAt: { gt: tripDay },
+      status: { in: COMMITTED_STATUSES },
       id: { not: bookingId },
     },
     select: {
@@ -71,27 +78,47 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       endAt: true,
     },
   });
-  const vehicleInputs: SlotInput[] = vehicles.map((v) => ({
-    vehicleId: v.id,
-    registrationNumber: v.registrationNumber,
-    isDutyVehicle: v.isDutyVehicle,
-  }));
-  const existingTrips: ExistingTrip[] = dayBookings.map((b) => ({
-    vehicleId: b.vehicleId,
-    timeBucket: b.timeBucket,
-  }));
-  const slotTable = buildSlotTable(vehicleInputs, existingTrips);
-
   // --- Algorithm 2 inputs ---
   const drivers = await prisma.driver.findMany({
-    where: { isActive: true },
-    select: { id: true, createdAt: true, lastAssignedAt: true },
+    // Gate on the owning User's isActive: deactivating a user removes the driver
+    // from scheduling (Driver.isActive is never toggled on its own). Also skip
+    // anyone marked off for the day (sick / leave).
+    where: {
+      isActive: true,
+      user: { is: { isActive: true } },
+      unavailabilities: { none: { date: tripDay } },
+    },
+    select: { id: true, createdAt: true, lastAssignedAt: true, lastDutyAt: true },
   });
   if (drivers.length === 0) return { ok: false, error: te("noActiveDrivers") };
 
   // Today's on-call driver is pre-seeded as busy on ON_CALL (campus rounds).
+  // Ignore a shift whose driver is no longer in the active pool (a ghost) so a
+  // WERN booking doesn't route to a deactivated driver.
   const onCall = await prisma.onCallShift.findUnique({ where: { date: tripDay } });
-  const onCallDriverId = onCall?.driverId ?? null;
+  const onCallDriverId =
+    onCall?.driverId && drivers.some((d) => d.id === onCall.driverId) ? onCall.driverId : null;
+
+  // Drivers away on a multi-day TJW spanning today (primary OR co-driver) can't
+  // run campus duty. A WERN booking must skip them — even the on-call driver —
+  // and fall back to a present driver (mirrors the solver's awayOnTjw rule).
+  const awayTjwDriverIds = new Set<string>();
+  for (const b of dayBookings) {
+    if (b.jobType !== "TJW") continue;
+    if (b.primaryDriverId) awayTjwDriverIds.add(b.primaryDriverId);
+    if (b.secondaryDriverId) awayTjwDriverIds.add(b.secondaryDriverId);
+  }
+  // WERN routes to the on-call driver unless they're away — then the duty rotation
+  // falls back. For non-WERN, this is just the (reserved) real on-call driver.
+  const wernDriverId =
+    booking.jobType === "WERN"
+      ? resolveWernDriver({
+          onCallDriverId,
+          awayDriverIds: awayTjwDriverIds,
+          hasCar: (id) => driverCar.has(id),
+          candidates: drivers.map((d) => ({ driverId: d.id, lastDutyAt: d.lastDutyAt })),
+        })
+      : onCallDriverId;
 
   const busyToday: DriverBusyTrip[] = [];
   for (const b of dayBookings) {
@@ -115,18 +142,18 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   for (const d of drivers) tripsByDriver.set(d.id, []);
   for (const b of dayBookings) {
     if (b.primaryDriverId && tripsByDriver.has(b.primaryDriverId)) {
-      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt });
+      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType });
     }
     if (b.secondaryDriverId && tripsByDriver.has(b.secondaryDriverId)) {
-      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt });
+      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType });
     }
   }
   if (onCallDriverId && tripsByDriver.has(onCallDriverId)) {
     const dutyStart = new Date(tripDay);
-    dutyStart.setHours(8, 0, 0, 0);
+    dutyStart.setHours(WORK_DAY_START_HOUR, 0, 0, 0);
     const dutyEnd = new Date(tripDay);
-    dutyEnd.setHours(16, 0, 0, 0);
-    tripsByDriver.get(onCallDriverId)!.push({ startAt: dutyStart, endAt: dutyEnd });
+    dutyEnd.setHours(WORK_DAY_END_HOUR, 0, 0, 0);
+    tripsByDriver.get(onCallDriverId)!.push({ startAt: dutyStart, endAt: dutyEnd, jobType: "WERN" });
   }
   const driverAvailability: DriverAvailabilityInput[] = drivers.map((d) => ({
     driverId: d.id,
@@ -135,7 +162,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
 
   const driverIds = drivers.map((d) => d.id);
   const [earnings, monthCounts] = await Promise.all([
-    loadEarningsScores(driverIds),
+    loadWeightedEarnings(driverIds),
     loadTripsThisMonth(driverIds),
   ]);
   const driverRankInputs: RankInput[] = drivers.map((d) => ({
@@ -149,13 +176,13 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const decision = match({
     jobType: booking.jobType,
     timeBucket: booking.timeBucket,
-    newTrip: { startAt: booking.startAt, endAt: booking.endAt },
-    needsSecondaryDriver: booking.needsSecondaryDriver,
-    slotTable,
+    newTrip: { startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType },
+    estimatedDistance: booking.estimatedDistance,
+    driverCar,
     driverMatrix,
     driverAvailability,
     driverRankInputs,
-    onCallDriverId,
+    onCallDriverId: wernDriverId,
   });
   if (!decision.ok) {
     if (decision.error === "NO_SLOT") return { ok: false, error: te("noSlotAvailable") };
@@ -187,15 +214,14 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     if (secondaryDriverId) {
       await tx.driver.update({ where: { id: secondaryDriverId }, data: { lastAssignedAt: stamp } });
     }
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: adminId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "MATCHED",
-        metadata: { vehicleId, primaryDriverId, secondaryDriverId },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: adminId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "MATCHED",
+      metadata: { vehicleId, primaryDriverId, secondaryDriverId },
+      tx,
     });
   });
 
@@ -226,50 +252,20 @@ export async function escalateToKhunTopAction(formData: FormData): Promise<Actio
       where: { id: bookingId },
       data: { escalatedToKhunTop: true },
     });
-    await tx.auditLog.create({
-      data: {
-        bookingId,
-        actorUserId: adminId,
-        fromStatus: booking.status,
-        toStatus: booking.status,
-        action: "ESCALATED_TO_KHUN_TOP",
-        metadata: { reason: "matcher_no_fit" },
-      },
+    await logTransition({
+      bookingId,
+      actorUserId: adminId,
+      fromStatus: booking.status,
+      toStatus: booking.status,
+      action: "ESCALATED_TO_KHUN_TOP",
+      metadata: { reason: "matcher_no_fit" },
+      tx,
     });
   });
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
   return { ok: true };
-}
-
-async function loadEarningsScores(driverIds: string[]): Promise<Map<string, number>> {
-  if (driverIds.length === 0) return new Map();
-  const since = subDays(new Date(), FAIRNESS_WINDOW_DAYS);
-  const rows = await prisma.booking.findMany({
-    where: {
-      startAt: { gte: since },
-      status: { in: ["ASSIGNED", "COMPLETED"] },
-      OR: [
-        { primaryDriverId: { in: driverIds } },
-        { secondaryDriverId: { in: driverIds } },
-      ],
-    },
-    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, startAt: true, endAt: true },
-  });
-  const scores = new Map<string, number>(driverIds.map((id) => [id, 0]));
-  for (const b of rows) {
-    // Duration-weighted effort (committed hours; multi-day TJW = spanDays x 12),
-    // the same ledger the batch solver uses — so both paths rank fairness identically.
-    const w = tripEffort(b.jobType, b.startAt, b.endAt);
-    if (b.primaryDriverId && scores.has(b.primaryDriverId)) {
-      scores.set(b.primaryDriverId, scores.get(b.primaryDriverId)! + w);
-    }
-    if (b.secondaryDriverId && scores.has(b.secondaryDriverId)) {
-      scores.set(b.secondaryDriverId, scores.get(b.secondaryDriverId)! + w);
-    }
-  }
-  return scores;
 }
 
 async function loadTripsThisMonth(driverIds: string[]): Promise<Map<string, number>> {
@@ -280,7 +276,8 @@ async function loadTripsThisMonth(driverIds: string[]): Promise<Map<string, numb
   const rows = await prisma.booking.findMany({
     where: {
       startAt: { gte: firstOfMonth },
-      status: { in: ["ASSIGNED", "COMPLETED"] },
+      // Count claimed (APPROVED) trips too, consistent with the fairness ledger.
+      status: { in: COMMITTED_STATUSES },
       OR: [
         { primaryDriverId: { in: driverIds } },
         { secondaryDriverId: { in: driverIds } },
@@ -310,21 +307,54 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
   if (Number.isNaN(day.getTime())) return { ok: false, error: te("invalidInput") };
 
   let chosenDriverId = driverId;
-  if (!chosenDriverId) {
+  if (chosenDriverId) {
+    // An explicitly chosen duty driver must be active (a deactivated driver
+    // would become a ghost the solver/matcher can't route WERN to) and not
+    // marked off (sick / leave) for that day.
+    const ok = await prisma.driver.findFirst({
+      where: {
+        id: chosenDriverId,
+        isActive: true,
+        user: { is: { isActive: true } },
+        unavailabilities: { none: { date: day } },
+      },
+      select: { id: true },
+    });
+    if (!ok) return { ok: false, error: te("invalidInput"), field: "driverId" };
+  } else {
     const drivers = await prisma.driver.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        user: { is: { isActive: true } },
+        unavailabilities: { none: { date: day } },
+      },
       select: {
         id: true,
         onCallShifts: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
       },
     });
     if (drivers.length === 0) return { ok: false, error: te("noActiveDrivers") };
-    const sorted = [...drivers].sort((a, b) => {
-      const at = a.onCallShifts[0]?.date.getTime() ?? -Infinity;
-      const bt = b.onCallShifts[0]?.date.getTime() ?? -Infinity;
-      return at - bt;
+
+    // Don't rotate duty onto a driver away on a multi-day TJW spanning the day —
+    // they can't run campus rounds. Skip them; pickAutoDutyDriver still names
+    // someone (full pool) if every candidate happens to be away.
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const tjwSpanning = await prisma.booking.findMany({
+      where: { jobType: "TJW", status: { in: COMMITTED_STATUSES }, startAt: { lt: dayEnd }, endAt: { gt: day } },
+      select: { primaryDriverId: true, secondaryDriverId: true },
     });
-    chosenDriverId = sorted[0]!.id;
+    const awayIds = new Set<string>();
+    for (const t of tjwSpanning) {
+      if (t.primaryDriverId) awayIds.add(t.primaryDriverId);
+      if (t.secondaryDriverId) awayIds.add(t.secondaryDriverId);
+    }
+    chosenDriverId =
+      pickAutoDutyDriver(
+        drivers.map((d) => ({ driverId: d.id, lastOnCallAt: d.onCallShifts[0]?.date ?? null })),
+        awayIds,
+      ) ?? undefined;
+    if (!chosenDriverId) return { ok: false, error: te("noActiveDrivers") };
   }
 
   await prisma.onCallShift.upsert({
