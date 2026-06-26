@@ -87,13 +87,17 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     startAt: data.startAt,
     province: data.province,
     urgent: data.isEmergency,
+    jobType: data.jobType,
     now: new Date(),
   });
   if (!lead.ok) {
     return {
       ok: false,
       field: "startAt",
-      error: te("leadTimeTooSoon", { days: lead.minimumDays }),
+      error:
+        data.jobType === "SMUS"
+          ? te("leadTimeTooSoonCalendar", { days: lead.minimumDays })
+          : te("leadTimeTooSoon", { days: lead.minimumDays }),
     };
   }
 
@@ -185,6 +189,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       pickupReturnTime: data.pickupReturnTime,
       waitingLocation: data.waitingLocation,
       preferredVehicleType: data.preferredVehicleType,
+      // External charter (SMUS) only — null otherwise.
+      externalBusCount: data.jobType === "SMUS" ? data.externalBusCount ?? 0 : null,
+      externalVanCount: data.jobType === "SMUS" ? data.externalVanCount ?? 0 : null,
     };
 
     const jobNumber = await nextJobNumber(tx);
@@ -459,10 +466,18 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
     startAt,
     province: booking.province,
     urgent: booking.isEmergency,
+    jobType: booking.jobType,
     now: new Date(),
   });
   if (!lead.ok) {
-    return { ok: false, field: "startAt", error: te("leadTimeTooSoon", { days: lead.minimumDays }) };
+    return {
+      ok: false,
+      field: "startAt",
+      error:
+        booking.jobType === "SMUS"
+          ? te("leadTimeTooSoonCalendar", { days: lead.minimumDays })
+          : te("leadTimeTooSoon", { days: lead.minimumDays }),
+    };
   }
 
   const inHours = isWithinWorkHours({ startAt, endAt });

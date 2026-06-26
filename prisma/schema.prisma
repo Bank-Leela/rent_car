@@ -348,6 +348,12 @@ model Booking {
   // Requester's preferred vehicle category. Required; informational only —
   // does not drive assignment.
   preferredVehicleType PreferredVehicleType @default(VAN)
+  // External charter (jobType SMUS — "หลักสูตรนิสิตแพทย์"): the requester books
+  // outside buses/vans directly, so the trip bypasses internal vehicle + driver
+  // allocation and the slot system. These hold how many of each are needed;
+  // null for every non-SMUS booking.
+  externalBusCount Int?
+  externalVanCount Int?
   // Admin-set flag: this trip should get a secondary driver. Replaces the
   // old estimatedDistance > 400km auto-check now that distance is no longer
   // collected from the requester; the use case is overnight out-of-province

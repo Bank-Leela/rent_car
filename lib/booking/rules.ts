@@ -1,10 +1,14 @@
-import { addBusinessDays, differenceInMinutes, startOfDay } from "date-fns";
+import { addBusinessDays, addDays, differenceInMinutes, startOfDay } from "date-fns";
 
 // Province name for Bangkok in Thai. Used for the lead-time short list.
 export const BANGKOK_PROVINCE = "กรุงเทพมหานคร";
 
 export const LEAD_TIME_BANGKOK_DAYS = 3;
 export const LEAD_TIME_OUTSIDE_DAYS = 7;
+// External charter (SMUS — "หลักสูตรนิสิตแพทย์"): booked from outside vendors,
+// so it needs a much longer lead time. Counted in calendar days (weekends
+// included), unlike the other two tiers which skip Sat/Sun.
+export const LEAD_TIME_SMUS_DAYS = 30;
 // Urgent ("จองเร่งด่วน") requests waive the normal lead time down to this
 // floor. They are also excluded from auto-assign so an admin handles them by
 // hand (lib/booking/batch-actions.ts).
@@ -39,6 +43,8 @@ export type LeadTimeInput = {
   province: string;
   /** Urgent requests collapse the lead time to LEAD_TIME_URGENT_DAYS. */
   urgent?: boolean;
+  /** External charter (SMUS) gets its own 30-calendar-day floor. */
+  jobType?: string | null;
   /** "now" injected so it's testable. */
   now: Date;
 };
@@ -49,11 +55,20 @@ export type LeadTimeResult =
 
 /**
  * Lead time check (plan §5.2). Bangkok/within-Chula = ≥3 business days,
- * upcountry = ≥7 business days, urgent = ≥1 (waives the above). The lead-time
- * count skips Saturdays and Sundays. The earliest allowed start is midnight on
- * that business day; any time on it is fine.
+ * upcountry = ≥7 business days, urgent = ≥1 (waives the above), external
+ * charter (SMUS) = ≥30 calendar days (weekends included — outside vendors
+ * need the longer, uninterrupted runway). The business-day tiers skip
+ * Saturdays and Sundays; the SMUS tier counts every day. The earliest allowed
+ * start is midnight on that day; any time on it is fine.
  */
-export function checkLeadTime({ startAt, province, urgent, now }: LeadTimeInput): LeadTimeResult {
+export function checkLeadTime({ startAt, province, urgent, jobType, now }: LeadTimeInput): LeadTimeResult {
+  if (!urgent && jobType === "SMUS") {
+    const minimumStartAt = startOfDay(addDays(now, LEAD_TIME_SMUS_DAYS));
+    if (startAt.getTime() < minimumStartAt.getTime()) {
+      return { ok: false, reason: "TOO_SOON", minimumDays: LEAD_TIME_SMUS_DAYS, minimumStartAt };
+    }
+    return { ok: true };
+  }
   const minDays = urgent
     ? LEAD_TIME_URGENT_DAYS
     : province === BANGKOK_PROVINCE

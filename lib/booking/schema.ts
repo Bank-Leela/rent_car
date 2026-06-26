@@ -92,6 +92,24 @@ export const newBookingSchema = z
     // Where the vehicle parks/waits near the destination — required.
     waitingLocation: z.string().trim().min(1, "Waiting location is required").max(500),
     preferredVehicleType,
+    // External charter (SMUS) vehicle counts — outside buses/vans. Optional in
+    // general; the SMUS refinement below requires a non-zero total.
+    externalBusCount: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(99)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    externalVanCount: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(99)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     recurringWeekdays: z
       .string()
       .optional()
@@ -112,7 +130,16 @@ export const newBookingSchema = z
   .refine((data) => data.endAt.getTime() > data.startAt.getTime(), {
     path: ["endAt"],
     message: "End time must be after start time",
-  });
+  })
+  .refine(
+    (data) =>
+      data.jobType !== "SMUS" ||
+      (data.externalBusCount ?? 0) + (data.externalVanCount ?? 0) >= 1,
+    {
+      path: ["externalBusCount"],
+      message: "Specify at least one bus or van",
+    },
+  );
 
 export type NewBookingInput = z.infer<typeof newBookingSchema>;
 

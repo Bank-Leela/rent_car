@@ -44,6 +44,9 @@ export default async function SchedulePage({
         endAt: true,
         vehicleId: true,
         primaryDriverId: true,
+        jobType: true,
+        externalBusCount: true,
+        externalVanCount: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
     }),
@@ -65,6 +68,10 @@ export default async function SchedulePage({
       vehicleId: b.vehicleId,
       hasDriver: b.primaryDriverId != null,
       driverName,
+      // External charter (SMUS): rendered in a dedicated row, never assigned a car.
+      isExternal: b.jobType === "SMUS",
+      externalBusCount: b.externalBusCount,
+      externalVanCount: b.externalVanCount,
     };
   });
 

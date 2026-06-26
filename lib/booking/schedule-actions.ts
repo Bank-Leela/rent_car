@@ -20,6 +20,8 @@ export async function reassignVehicleAction(formData: FormData): Promise<ActionR
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: "bookingNotFound" };
+  // External charter (SMUS) — outside buses/vans, not placed on an internal car.
+  if (booking.jobType === "SMUS") return { ok: false, error: "externalCharterNoMatch" };
 
   const dayStart = startOfDay(booking.startAt);
   const dayEnd = new Date(dayStart);

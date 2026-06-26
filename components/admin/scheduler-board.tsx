@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Car, Wand2, GripVertical, AlertTriangle } from "lucide-react";
+import { Car, Wand2, GripVertical, AlertTriangle, Bus } from "lucide-react";
 import { matchBookingAction } from "@/lib/booking/matching-actions";
 import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 
@@ -24,6 +24,9 @@ export type SchedulerBooking = {
   vehicleId: string | null;
   hasDriver: boolean;
   driverName: string | null;
+  isExternal: boolean;
+  externalBusCount: number | null;
+  externalVanCount: number | null;
 };
 
 const DAY_START = 6;
@@ -46,11 +49,15 @@ export function SchedulerBoard({
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
 
+  // External charters (SMUS) are arranged outside the fleet — they get their own
+  // row and never enter the assign queue or auto-assign.
+  const external = bookings.filter((b) => b.isExternal);
+  const internal = bookings.filter((b) => !b.isExternal);
   // Not fully assigned: missing a vehicle (queue) OR has a vehicle but no driver.
-  const queue = bookings.filter((b) => !b.vehicleId);
-  const needsDriver = bookings.filter((b) => b.vehicleId && !b.hasDriver);
+  const queue = internal.filter((b) => !b.vehicleId);
+  const needsDriver = internal.filter((b) => b.vehicleId && !b.hasDriver);
   const work = [...queue, ...needsDriver];
-  const onVehicle = (vehicleId: string) => bookings.filter((b) => b.vehicleId === vehicleId);
+  const onVehicle = (vehicleId: string) => internal.filter((b) => b.vehicleId === vehicleId);
 
   function reassign(bookingId: string, vehicleId: string) {
     setDropError(null);
@@ -119,6 +126,33 @@ export function SchedulerBoard({
           <div className="flex items-center gap-1 truncate text-[10px] font-medium text-destructive">
             <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />
             {t("noDriver")}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const externalBlock = (b: SchedulerBooking) => {
+    const left = pct(b.startHour);
+    const width = Math.max(pct(b.endHour) - left, 4);
+    const counts = [
+      b.externalBusCount ? t("busCount", { count: b.externalBusCount }) : null,
+      b.externalVanCount ? t("vanCount", { count: b.externalVanCount }) : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return (
+      <div
+        key={b.id}
+        title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}${counts ? ` · ${counts}` : ""}`}
+        className="absolute inset-y-1 overflow-hidden rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-[11px] shadow-sm dark:border-amber-400/40 dark:bg-amber-500/20"
+        style={{ left: `${left}%`, width: `${width}%` }}
+      >
+        <div className="font-medium text-amber-950 dark:text-amber-100">{b.timeLabel}</div>
+        <div className="truncate text-amber-900/80 dark:text-amber-100/80">{b.purpose}</div>
+        {counts && (
+          <div className="truncate text-[10px] font-medium text-amber-900 dark:text-amber-200">
+            {counts}
           </div>
         )}
       </div>
@@ -247,6 +281,28 @@ export function SchedulerBoard({
                 </div>
               </div>
             ))}
+
+            {/* External charter row (SMUS) — outside buses/vans, arranged off
+                the internal fleet. Not a drop target; blocks aren't draggable. */}
+            {external.length > 0 && (
+              <div className="flex border-t-2 border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/10">
+                <div className="flex w-40 shrink-0 items-center gap-2 px-2 py-2 text-sm font-medium">
+                  <Bus className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                  <span className="truncate">{t("externalRow")}</span>
+                </div>
+                <div className="relative h-16 flex-1">
+                  {HOURS.slice(1).map((h) => (
+                    <div
+                      key={h}
+                      aria-hidden
+                      className="absolute inset-y-0 w-px bg-border/60"
+                      style={{ left: `${pct(h)}%` }}
+                    />
+                  ))}
+                  {external.map(externalBlock)}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

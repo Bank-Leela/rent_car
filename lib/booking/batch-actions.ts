@@ -57,6 +57,9 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
       status: "APPROVED",
       primaryDriverId: null,
       isEmergency: false,
+      // SMUS = external charter (outside buses/vans); never auto-assigned an
+      // internal vehicle/driver or a slot.
+      jobType: { not: "SMUS" },
       startAt: { gte: dayStart, lt: dayEnd },
     },
     orderBy: { createdAt: "asc" },

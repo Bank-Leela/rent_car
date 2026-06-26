@@ -35,6 +35,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
+  // External charter (SMUS) — no internal vehicle/driver to match.
+  if (booking.jobType === "SMUS") {
+    return { ok: false, error: te("externalCharterNoMatch") };
+  }
   if (booking.status !== "APPROVED") {
     return { ok: false, error: te("cannotMatchInStatus", { status: ts(booking.status) }) };
   }

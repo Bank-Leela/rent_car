@@ -92,6 +92,7 @@ export default async function AdminBatchPage({
   await requireRole("ADMIN");
   const t = await getTranslations("adminBatch");
   const tf = await getTranslations("bookingForm");
+  const td = await getTranslations("bookingDetail");
   const L = {
     ajarn: tf("ajarnName"),
     phone: tf("ajarnPhone"),
@@ -99,7 +100,7 @@ export default async function AdminBatchPage({
     destination: tf("destination"),
     passengers: tf("passengerCount"),
     pickup: tf("pickupLocation"),
-    distance: tf("estimatedDistance"),
+    distance: td("estimatedDistance"),
     notes: tf("passengerNotes"),
     emergency: tf("urgentBadge"),
     travelWithinChula: tf("travelWithinChulaLabel"),
