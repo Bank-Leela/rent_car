@@ -15,7 +15,7 @@ import {
   subMonths,
 } from "date-fns";
 import { th, enUS, type Locale } from "date-fns/locale";
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Clock, Undo2 } from "lucide-react";
 import { useLocale } from "next-intl";
 import { cn } from "@/lib/utils";
 import { isThaiLocale } from "@/i18n/config";
@@ -33,6 +33,10 @@ interface DateTimePickerProps {
   // instead of `yyyy-MM-ddTHH:mm`. Used for fields like the recurrence
   // "repeat until" date where time is meaningless.
   dateOnly?: boolean;
+  // Overrides the default "เวลา / Time" label on the time-of-day control.
+  // Used by the End picker to read "เวลาที่ถึงคณะ" so it isn't confused with
+  // pickupReturn.pickupTimeLabel (the driver's separate return time).
+  timeLabel?: string;
   // Optional "out-of-province overnight" Yes/No toggle rendered inside the
   // popover. When `value` is true and the currently selected day falls before
   // `min` (the longer lead-time window), the Done button is disabled and
@@ -103,6 +107,7 @@ export function DateTimePicker({
   placeholder,
   onChange,
   dateOnly,
+  timeLabel,
   overnight,
   urgent,
   pickupReturn,
@@ -221,6 +226,21 @@ export function DateTimePicker({
   // calendar alone.
   const hasExtras = !dateOnly || !!overnight || !!urgent || !!pickupReturn;
 
+  // Parse the pickup-return time ("HH:mm") into editable hour/minute parts so
+  // it can reuse the same two-box number inputs as the arrival time instead of
+  // a native <input type="time">. Stays empty until the requester types.
+  const prMatch = pickupReturn
+    ? /^(\d{1,2}):(\d{1,2})$/.exec(pickupReturn.pickupTime || "")
+    : null;
+  const prHour = prMatch ? Number(prMatch[1]) : null;
+  const prMinute = prMatch ? Number(prMatch[2]) : null;
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const commitPickup = (h: number | null, m: number | null) => {
+    const hh = Math.max(0, Math.min(23, Number.isFinite(h) ? (h as number) : 0));
+    const mm = Math.max(0, Math.min(59, Number.isFinite(m) ? (m as number) : 0));
+    pickupReturn?.onPickupTimeChange(`${pad2(hh)}:${pad2(mm)}`);
+  };
+
   return (
     <div ref={rootRef} className="relative">
       <input type="hidden" name={name} value={hiddenValue} required={required} />
@@ -256,11 +276,16 @@ export function DateTimePicker({
                 `order-2`/`order-1` below, so the calendar reads first. */}
             {hasExtras && (
               <div className="order-2 flex w-56 shrink-0 flex-col gap-3">
-                {!dateOnly && (
+                {/* On the End picker (pickupReturn present), the time control
+                    represents the arrival time at the faculty, not the
+                    driver's return time — render it below the wait toggle so
+                    it reads as "after deciding whether the car waits". On the
+                    Start picker it stays in its original top position. */}
+                {!dateOnly && !pickupReturn && (
                   <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
                     <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <Clock className="h-3.5 w-3.5" aria-hidden />
-                      <span>เวลา / Time</span>
+                      <span>{timeLabel ?? "เวลา / Time"}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <input
@@ -406,22 +431,76 @@ export function DateTimePicker({
                     </div>
                     <p className="text-[11px] leading-snug text-muted-foreground">{pickupReturn.helper}</p>
                     {!pickupReturn.wait && (
-                      <div className="pt-1">
-                        <label
-                          htmlFor="pickup-return-time-input"
-                          className="mb-1 block text-[11px] font-medium text-muted-foreground"
-                        >
-                          {pickupReturn.pickupTimeLabel}
-                        </label>
-                        <input
-                          id="pickup-return-time-input"
-                          type="time"
-                          value={pickupReturn.pickupTime}
-                          onChange={(e) => pickupReturn.onPickupTimeChange(e.target.value)}
-                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+                        <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                          <span>{pickupReturn.pickupTimeLabel}</span>
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            placeholder="00"
+                            value={prHour == null ? "" : pad2(prHour)}
+                            onChange={(e) =>
+                              commitPickup(
+                                e.target.value === "" ? 0 : Number(e.target.value),
+                                prMinute,
+                              )
+                            }
+                            className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                            aria-label="Pickup return hour"
+                          />
+                          <span className="text-base font-bold text-muted-foreground">:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={59}
+                            placeholder="00"
+                            value={prMinute == null ? "" : pad2(prMinute)}
+                            onChange={(e) =>
+                              commitPickup(
+                                prHour,
+                                e.target.value === "" ? 0 : Number(e.target.value),
+                              )
+                            }
+                            className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                            aria-label="Pickup return minute"
+                          />
+                        </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {!dateOnly && pickupReturn && (
+                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" aria-hidden />
+                      <span>{timeLabel ?? "เวลา / Time"}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={23}
+                        value={String(hour).padStart(2, "0")}
+                        onChange={(e) => changeHour(Number(e.target.value))}
+                        className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Hour"
+                      />
+                      <span className="text-base font-bold text-muted-foreground">:</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        value={String(minute).padStart(2, "0")}
+                        onChange={(e) => changeMinute(Number(e.target.value))}
+                        className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Minute"
+                      />
+                    </div>
                   </div>
                 )}
               </div>

@@ -183,6 +183,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       pickupLocation: data.pickupLocation,
       waitAtDestination: data.waitAtDestination,
       pickupReturnTime: data.pickupReturnTime,
+      waitingLocation: data.waitingLocation,
       preferredVehicleType: data.preferredVehicleType,
     };
 

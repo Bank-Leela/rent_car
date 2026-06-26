@@ -342,6 +342,9 @@ model Booking {
   // If the vehicle doesn't wait, what time it comes back to collect
   // passengers ("HH:mm", same calendar day as the trip).
   pickupReturnTime  String?
+  // Where the vehicle parks/waits near the destination while waiting
+  // (distinct from `destination` itself — e.g. a specific parking spot).
+  waitingLocation   String?
   // Requester's preferred vehicle category. Required; informational only —
   // does not drive assignment.
   preferredVehicleType PreferredVehicleType @default(VAN)
@@ -437,6 +440,7 @@ model TripTemplate {
   pickupLocation     String?
   waitAtDestination  Boolean @default(true)
   pickupReturnTime   String?
+  waitingLocation    String?
   passengerCount     Int     @default(1)
   maleCount          Int?
   femaleCount        Int?

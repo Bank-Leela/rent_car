@@ -150,6 +150,9 @@ export default async function AdminBookingDetail({
           {booking.pickupReturnTime && (
             <Field label={t("pickupReturnTime")} value={booking.pickupReturnTime} />
           )}
+          {booking.waitingLocation && (
+            <Field label={t("waitingLocation")} value={booking.waitingLocation} />
+          )}
           {booking.outOfHoursReason && (
             <Field
               label={t("outOfHoursReason")}

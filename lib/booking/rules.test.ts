@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addHours, addMinutes, startOfDay } from "date-fns";
+import { addBusinessDays, addHours, addMinutes, startOfDay } from "date-fns";
 import {
   BANGKOK_PROVINCE,
   canSubmitForDepartment,
@@ -23,16 +23,16 @@ const NOW = new Date("2026-06-01T09:00:00Z");
 
 describe("checkLeadTime", () => {
   it("Bangkok bookings need LEAD_TIME_BANGKOK_DAYS lead time", () => {
-    const justBeforeMin = addDays(NOW, LEAD_TIME_BANGKOK_DAYS - 1);
-    const exactlyAtMin = addDays(NOW, LEAD_TIME_BANGKOK_DAYS);
+    const justBeforeMin = addBusinessDays(NOW, LEAD_TIME_BANGKOK_DAYS - 1);
+    const exactlyAtMin = addBusinessDays(NOW, LEAD_TIME_BANGKOK_DAYS);
 
     expect(checkLeadTime({ startAt: justBeforeMin, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(false);
     expect(checkLeadTime({ startAt: exactlyAtMin, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(true);
   });
 
   it("out-of-province bookings need LEAD_TIME_OUTSIDE_DAYS lead time", () => {
-    const justBeforeMin = addDays(NOW, LEAD_TIME_OUTSIDE_DAYS - 1);
-    const exactlyAtMin = addDays(NOW, LEAD_TIME_OUTSIDE_DAYS);
+    const justBeforeMin = addBusinessDays(NOW, LEAD_TIME_OUTSIDE_DAYS - 1);
+    const exactlyAtMin = addBusinessDays(NOW, LEAD_TIME_OUTSIDE_DAYS);
 
     expect(checkLeadTime({ startAt: justBeforeMin, province: "เชียงใหม่", now: NOW }).ok).toBe(false);
     expect(checkLeadTime({ startAt: exactlyAtMin, province: "เชียงใหม่", now: NOW }).ok).toBe(true);
@@ -40,13 +40,13 @@ describe("checkLeadTime", () => {
 
   it("urgent requests collapse the lead time to LEAD_TIME_URGENT_DAYS, overriding province", () => {
     // A date that is far too soon for an out-of-province trip...
-    const soon = addDays(NOW, LEAD_TIME_URGENT_DAYS);
+    const soon = addBusinessDays(NOW, LEAD_TIME_URGENT_DAYS);
     expect(checkLeadTime({ startAt: soon, province: "เชียงใหม่", now: NOW }).ok).toBe(false);
     // ...is allowed once the request is marked urgent.
     expect(checkLeadTime({ startAt: soon, province: "เชียงใหม่", urgent: true, now: NOW }).ok).toBe(true);
 
     // Still enforces the 1-day floor — same-day urgent is rejected.
-    const tooSoon = addDays(NOW, LEAD_TIME_URGENT_DAYS - 1);
+    const tooSoon = addBusinessDays(NOW, LEAD_TIME_URGENT_DAYS - 1);
     const res = checkLeadTime({ startAt: tooSoon, province: BANGKOK_PROVINCE, urgent: true, now: NOW });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.minimumDays).toBe(LEAD_TIME_URGENT_DAYS);
@@ -58,13 +58,13 @@ describe("checkLeadTime", () => {
     if (!result.ok) {
       expect(result.minimumDays).toBe(LEAD_TIME_BANGKOK_DAYS);
       expect(result.minimumStartAt.getTime()).toBe(
-        startOfDay(addDays(NOW, LEAD_TIME_BANGKOK_DAYS)).getTime(),
+        startOfDay(addBusinessDays(NOW, LEAD_TIME_BANGKOK_DAYS)).getTime(),
       );
     }
   });
 
   it("allows any time on the lead-time boundary day", () => {
-    const earlyOnBoundaryDay = startOfDay(addDays(NOW, LEAD_TIME_BANGKOK_DAYS));
+    const earlyOnBoundaryDay = startOfDay(addBusinessDays(NOW, LEAD_TIME_BANGKOK_DAYS));
     const lateOnBoundaryDay = addHours(earlyOnBoundaryDay, 23);
     expect(checkLeadTime({ startAt: earlyOnBoundaryDay, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(true);
     expect(checkLeadTime({ startAt: lateOnBoundaryDay, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(true);

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { addDays, addYears, format, isSameDay, startOfDay } from "date-fns";
+import { addBusinessDays, addDays, addYears, format, isSameDay, startOfDay } from "date-fns";
 import { useTranslations } from "next-intl";
 import type { TripTemplate } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
@@ -22,10 +22,36 @@ import {
   deleteTripTemplateAction,
 } from "@/lib/booking/template-actions";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { MapPin, Pencil, Trash2, BookmarkPlus, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  MapPin,
+  Pencil,
+  Trash2,
+  BookmarkPlus,
+  ChevronDown,
+  Repeat,
+  Check,
+  MoreVertical,
+  Bookmark,
+} from "lucide-react";
 import { isThaiLocale } from "@/i18n/config";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
+
+// Where the trip goes. Drives lead time (within Chula / Bangkok metro = 3
+// business days, upcountry = 7), รถเวร routing (within Chula), and whether the
+// overnight option is offered (upcountry only).
+type TripArea = "WITHIN_CHULA" | "BANGKOK_METRO" | "UPCOUNTRY";
+const TRIP_AREAS: ReadonlyArray<{ value: TripArea; key: string; helperKey: string }> = [
+  { value: "WITHIN_CHULA", key: "tripAreaWithinChula", helperKey: "tripAreaWithinChulaHelper" },
+  { value: "BANGKOK_METRO", key: "tripAreaBangkokMetro", helperKey: "tripAreaBangkokMetroHelper" },
+  { value: "UPCOUNTRY", key: "tripAreaUpcountry", helperKey: "tripAreaUpcountryHelper" },
+];
 
 function ReqLabel({
   htmlFor,
@@ -177,7 +203,19 @@ export function BookingForm({
   const t = useTranslations("bookingForm");
   const now = new Date();
   const formRef = useRef<HTMLFormElement>(null);
-  const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
+  // Trip area drives lead time + รถเวร routing. Overnight is a separate choice
+  // offered only for upcountry trips (it just shifts the end date forward).
+  const [tripArea, setTripArea] = useState<TripArea>("BANGKOK_METRO");
+  const [overnight, setOvernight] = useState(false);
+  const isUpcountry = tripArea === "UPCOUNTRY";
+  const isWithinChula = tripArea === "WITHIN_CHULA";
+  const isOvernight = isUpcountry && overnight;
+  const selectTripArea = (next: TripArea) => {
+    setTripArea(next);
+    // Overnight only applies upcountry; leaving it must clear the choice so the
+    // end date snaps back to the same day.
+    if (next !== "UPCOUNTRY") setOvernight(false);
+  };
   // Urgent ("จองเร่งด่วน"): waives the lead-time floor (down to 1 day) and
   // routes the trip to manual admin assignment. Lifted here because it drives
   // the date picker's min + the lead-time notice, and is toggled from inside
@@ -205,6 +243,9 @@ export function BookingForm({
   // ---- Trip templates (saved presets) ----
   const [templateName, setTemplateName] = useState("");
   const [templateMsg, setTemplateMsg] = useState<string | null>(null);
+  // The template most recently applied to the form — highlighted so the
+  // requester can see which of several saved presets they last loaded.
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [templateBusy, startTemplateTransition] = useTransition();
 
   // Fill the form from a saved template — everything except the dates, which
@@ -223,6 +264,7 @@ export function BookingForm({
     set("destination", tpl.destination);
     set("pickupLocation", tpl.pickupLocation);
     setPickupReturnTime(tpl.pickupReturnTime ?? "");
+    set("waitingLocation", tpl.waitingLocation);
     set("ajarnName", tpl.ajarnName);
     set("ajarnPhone", tpl.ajarnPhone);
     set("ajarnEmail", tpl.ajarnEmail);
@@ -232,16 +274,16 @@ export function BookingForm({
     set("femaleCount", tpl.femaleCount);
     set("passengerNotes", tpl.passengerNotes);
     setPassengerCount(String(tpl.passengerCount ?? 1));
-    setOutOfProvince(tpl.outOfProvince);
+    // Trip area folds the old within-Chula / out-of-province booleans into one
+    // three-way choice. Overnight is date-related, so it resets on apply.
+    selectTripArea(
+      tpl.travelWithinChula ? "WITHIN_CHULA" : tpl.outOfProvince ? "UPCOUNTRY" : "BANGKOK_METRO",
+    );
     setIsEmergency(tpl.isEmergency);
     setWaitAtDestination(tpl.waitAtDestination);
     setPreferredVehicleType(tpl.preferredVehicleType);
     setNeedsOutsourcing(tpl.needsOutsourcing);
-    const setChk = (name: string, checked: boolean) => {
-      const el = document.querySelector(`input[name="${name}"]`) as HTMLInputElement | null;
-      if (el) el.checked = checked;
-    };
-    setChk("travelWithinChula", tpl.travelWithinChula);
+    setActiveTemplateId(tpl.id);
     setTemplateMsg(t("templateApplied", { name: tpl.name }));
   };
 
@@ -287,55 +329,66 @@ export function BookingForm({
     fd.set("id", tpl.id);
     startTemplateTransition(async () => {
       const res = await deleteTripTemplateAction(fd);
+      if (res.ok && activeTemplateId === tpl.id) setActiveTemplateId(null);
       setTemplateMsg(res.ok ? null : res.error);
     });
   };
 
-  const requiredDays = isEmergency
-    ? LEAD_TIME_URGENT_DAYS
-    : outOfProvince
-      ? LEAD_TIME_OUTSIDE_DAYS
-      : LEAD_TIME_BANGKOK_DAYS;
-  // Earliest is midnight on (today + requiredDays); any time on that day is fine.
-  const earliestStart = startOfDay(addDays(now, requiredDays));
+  // The trip area's base lead time (ignoring the urgent waiver) — shown in the
+  // area helper text so requesters see "3 / 7 business days" up front.
+  const areaLeadDays = isUpcountry ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
+  const requiredDays = isEmergency ? LEAD_TIME_URGENT_DAYS : areaLeadDays;
+  // Earliest start = midnight on (today + N business days); the lead-time count
+  // skips Saturdays and Sundays. Any time on that day is fine.
+  const earliestStart = startOfDay(addBusinessDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
   // Cap typed year so the browser can't accept "20251" or longer.
   const maxStart = datetimeLocalValue(addYears(now, 5));
-  const earliestDateLabel = format(earliestStart, "EEE d MMM yyyy");
 
   const [startValue, setStartValue] = useState<string>("");
   const [endValue, setEndValue] = useState<string>("");
 
-  // The end DATE is never freely chosen — it's derived from the start date
-  // plus the overnight toggle: same calendar day when not overnight, the day
-  // after when overnight. Whenever start or overnight changes, we correct
-  // end's date to match. We never invent a TIME on the requester's behalf —
-  // if they haven't picked an end time yet, it stays blank; if they have, we
-  // shift its date and keep the time-of-day they chose.
+  // Earliest allowed end DAY: the start day for a same-day trip, the day AFTER
+  // for an overnight (upcountry) trip. Same-day trips are single-day, so the
+  // end is pinned to the start day (only the time is chosen). Overnight trips
+  // may end on the next day OR any later day — the requester picks it.
   const startDateObj = startValue ? new Date(startValue) : null;
   const startIsValid = !!startDateObj && !Number.isNaN(startDateObj.getTime());
-  const requiredEndDay = startIsValid
-    ? outOfProvince
+  const minEndDay = startIsValid
+    ? isOvernight
       ? addDays(startOfDay(startDateObj!), 1)
       : startOfDay(startDateObj!)
     : null;
-  const endDayValue = requiredEndDay ? datetimeLocalValue(requiredEndDay) : undefined;
+  const endMinValue = minEndDay ? datetimeLocalValue(minEndDay) : startValue || minStart;
+  // Overnight: open-ended from the next day on. Same-day: cap the max to the
+  // start day so the calendar offers only that day (time-only choice).
+  const endMaxValue = isOvernight
+    ? maxStart
+    : minEndDay
+      ? datetimeLocalValue(minEndDay)
+      : maxStart;
 
   useEffect(() => {
-    if (!requiredEndDay) return;
-    const day = requiredEndDay;
+    if (!minEndDay) return;
+    const floor = minEndDay;
     setEndValue((prev) => {
       if (!prev) return prev; // no end time chosen yet — nothing to correct
       const prevDate = new Date(prev);
       if (Number.isNaN(prevDate.getTime())) return prev;
-      if (isSameDay(prevDate, day)) return prev; // already compliant
+      if (isOvernight) {
+        // Overnight: only bump the date up to the floor when it's earlier;
+        // the requester may freely keep any later day they picked.
+        if (startOfDay(prevDate).getTime() >= floor.getTime()) return prev;
+      } else if (isSameDay(prevDate, floor)) {
+        return prev; // same-day and already on the start day — compliant
+      }
       // Shift the date only; keep whatever time the requester already chose.
-      const next = new Date(day);
+      const next = new Date(floor);
       next.setHours(prevDate.getHours(), prevDate.getMinutes(), 0, 0);
       return datetimeLocalValue(next);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `requiredEndDay` is a new Date each render; depend on its primitive instead to avoid an infinite loop.
-  }, [requiredEndDay?.getTime()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `minEndDay` is a new Date each render; depend on its primitive instead to avoid an infinite loop.
+  }, [minEndDay?.getTime(), isOvernight]);
 
   const handleStartChange = (v: string) => {
     setStartValue(v);
@@ -376,6 +429,7 @@ export function BookingForm({
     { name: "endAt", labelKey: "endLabel" },
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
+    { name: "waitingLocation", labelKey: "waitingLocation" },
     { name: "pickupLocation", labelKey: "pickupLocation" },
     { name: "province", labelKey: "province" },
     { name: "passengerCount", labelKey: "passengerCount" },
@@ -387,22 +441,9 @@ export function BookingForm({
     { name: "coordinatorPhone", labelKey: "coordinatorPhone" },
   ];
 
-  const richStrong = { strong: (chunks: React.ReactNode) => <strong>{chunks}</strong> };
-
   return (
     <Card>
-      <CardHeader>
-        {!isEmergency && (
-          <CardDescription>
-            {t.rich(outOfProvince ? "leadTimeOutside" : "leadTimeBangkok", {
-              ...richStrong,
-              days: requiredDays,
-            })}{" "}
-            {t.rich("earliestSentence", { ...richStrong, date: earliestDateLabel })}
-          </CardDescription>
-        )}
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <form
           ref={formRef}
           onSubmit={(e) => {
@@ -436,73 +477,152 @@ export function BookingForm({
           }}
           className="space-y-4"
         >
-          <div className="space-y-3 rounded-md border border-dashed bg-muted/20 p-4">
+          <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-2">
-              <BookmarkPlus aria-hidden className="h-4 w-4 text-muted-foreground" />
+              <Bookmark aria-hidden className="h-4 w-4 text-primary" />
               <span className="text-sm font-semibold">{t("templatesTitle")}</span>
+              {templates.length > 0 && (
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">
+                  {templates.length}
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">{t("templatesHelper")}</p>
 
-            {templates.length > 0 && (
-              <ul className="flex flex-wrap gap-2">
-                {templates.map((tpl) => (
-                  <li
-                    key={tpl.id}
-                    className="inline-flex items-center gap-1 rounded-md border bg-background py-1 pl-1 pr-1.5 text-sm"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => applyTemplate(tpl)}
-                      className="rounded px-2 py-0.5 font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            {templates.length > 0 ? (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {templates.map((tpl) => {
+                  const active = activeTemplateId === tpl.id;
+                  return (
+                    <li
+                      key={tpl.id}
+                      data-active={active}
+                      className="group flex items-stretch overflow-hidden rounded-lg border bg-background transition-colors data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:ring-1 data-[active=true]:ring-primary"
                     >
-                      {tpl.name}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => renameTemplate(tpl)}
-                      aria-label={t("templateRename", { name: tpl.name })}
-                      className="grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteTemplate(tpl)}
-                      aria-label={t("templateDelete", { name: tpl.name })}
-                      className="grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </li>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => applyTemplate(tpl)}
+                        aria-pressed={active}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      >
+                        <span
+                          aria-hidden
+                          className={
+                            active
+                              ? "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
+                              : "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+                          }
+                        >
+                          {active ? <Check className="h-3 w-3" /> : <Bookmark className="h-3 w-3" />}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{tpl.name}</span>
+                        {active && (
+                          <span className="shrink-0 text-[11px] font-medium text-primary">
+                            {t("templateActiveBadge")}
+                          </span>
+                        )}
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          aria-label={t("templateActions", { name: tpl.name })}
+                          className="grid w-9 shrink-0 place-items-center border-l text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => renameTemplate(tpl)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t("templateRenameAction")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => deleteTemplate(tpl)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t("templateDeleteAction")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </li>
+                  );
+                })}
               </ul>
+            ) : (
+              <p className="rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
+                {t("templatesEmpty")}
+              </p>
             )}
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder={t("templateNamePlaceholder")}
-                aria-label={t("templateNamePlaceholder")}
-                className="h-9 w-full sm:w-64"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={saveTemplate}
-                disabled={templateBusy}
-                className="h-9"
-              >
-                {t("saveTemplate")}
-              </Button>
+            <div className="space-y-2 border-t pt-3">
+              <Label htmlFor="templateName" className="text-xs text-muted-foreground">
+                {t("templateSaveHeading")}
+              </Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  id="templateName"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder={t("templateNamePlaceholder")}
+                  aria-label={t("templateNamePlaceholder")}
+                  className="h-9 min-w-0 flex-1 sm:flex-none sm:w-72"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={saveTemplate}
+                  disabled={templateBusy}
+                  className="h-9"
+                >
+                  <BookmarkPlus aria-hidden className="h-4 w-4" />
+                  {t("saveTemplate")}
+                </Button>
+              </div>
+              {templateMsg && (
+                <p className="text-xs font-medium text-muted-foreground">{templateMsg}</p>
+              )}
             </div>
-            {templateMsg && (
-              <p className="text-xs font-medium text-muted-foreground">{templateMsg}</p>
-            )}
           </div>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
+            {/* Trip area — picked first because it sets the lead time (and so the
+                earliest selectable start date) and decides whether overnight is
+                offered. รถเวร routing follows the within-Chula choice. */}
+            <div className="grid gap-2">
+              <Label>{t("tripAreaLabel")}</Label>
+              <div
+                role="radiogroup"
+                aria-label={t("tripAreaLabel")}
+                className="grid gap-2 sm:grid-cols-3"
+              >
+                {TRIP_AREAS.map(({ value, key }) => {
+                  const selected = tripArea === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => selectTripArea(value)}
+                      className={
+                        "rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+                        (selected
+                          ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                          : "border-input bg-background text-foreground hover:bg-muted/60")
+                      }
+                    >
+                      {t(key)}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  TRIP_AREAS.find((a) => a.value === tripArea)?.helperKey ?? "tripAreaBangkokMetroHelper",
+                  { days: areaLeadDays },
+                )}
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2 min-w-0">
                 <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
@@ -515,15 +635,21 @@ export function BookingForm({
                   defaultValue={startValue}
                   placeholder={t("startLabel")}
                   onChange={handleStartChange}
-                  overnight={{
-                    value: outOfProvince,
-                    onChange: setOutOfProvince,
-                    label: t("outOfProvinceLabel"),
-                    helper: t("outOfProvinceHelper"),
-                    warning: t("outOfProvinceLeadWarning", { days: LEAD_TIME_OUTSIDE_DAYS }),
-                    yesLabel: t("overnightYes"),
-                    noLabel: t("overnightNo"),
-                  }}
+                  overnight={
+                    isUpcountry
+                      ? {
+                          value: overnight,
+                          onChange: setOvernight,
+                          label: t("overnightLabel"),
+                          helper: t("overnightHelper"),
+                          warning: t("outOfProvinceLeadWarning", {
+                            days: LEAD_TIME_OUTSIDE_DAYS,
+                          }),
+                          yesLabel: t("overnightYes"),
+                          noLabel: t("overnightNo"),
+                        }
+                      : undefined
+                  }
                   urgent={{
                     value: isEmergency,
                     onChange: setIsEmergency,
@@ -540,11 +666,12 @@ export function BookingForm({
                   id="endAt"
                   name="endAt"
                   required
-                  min={endDayValue ?? (startValue || minStart)}
-                  max={endDayValue ?? maxStart}
+                  min={endMinValue}
+                  max={endMaxValue}
                   defaultValue={endValue}
                   placeholder={t("endLabel")}
                   onChange={handleEndChange}
+                  timeLabel={t("endTimeLabel")}
                   pickupReturn={{
                     wait: waitAtDestination,
                     onWaitChange: setWaitAtDestination,
@@ -558,21 +685,12 @@ export function BookingForm({
                   }}
                 />
               </div>
-              {/* Empty cell keeps the helper text under End only, while the
-                  pickers above stay aligned regardless of how many lines the
-                  helper text wraps to. */}
-              <div />
-              <p className="text-xs text-muted-foreground">
-                {t.rich("endHelper", richStrong)}
-              </p>
             </div>
             {endBeforeStart && (
               <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
             )}
-            {startIsValid && (
-              <p className="text-xs text-muted-foreground">
-                {outOfProvince ? t("endDateAutoNextDay") : t("endDateAutoSameDay")}
-              </p>
+            {startIsValid && !isOvernight && (
+              <p className="text-xs text-muted-foreground">{t("endDateAutoSameDay")}</p>
             )}
 
             {/* คอย/ไม่คอย is toggled from inside the End date picker (it's
@@ -593,17 +711,20 @@ export function BookingForm({
               value={waitAtDestination ? "" : pickupReturnTime}
             />
 
-            {/* Low-key disclosure matching the urgent toggle's style — a
-                routine option, but not so prominent it gets clicked by habit. */}
-            <details className="group">
-              <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+            {/* Prominent disclosure: a bordered card with a primary-tinted
+                icon so recurring bookings are easy to find and act on. */}
+            <details className="group rounded-md border border-border bg-card shadow-sm">
+              <summary className="flex cursor-pointer select-none items-center gap-2.5 p-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Repeat aria-hidden className="h-4 w-4" />
+                </span>
                 <span>{t("recurringSummary")}</span>
                 <ChevronDown
                   aria-hidden
-                  className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+                  className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180"
                 />
               </summary>
-              <div className="mt-2 space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
+              <div className="space-y-3 border-t border-border/60 p-3">
                 <p className="text-xs text-muted-foreground">
                   {t("recurringDescription")}
                 </p>
@@ -653,30 +774,27 @@ export function BookingForm({
                 {t("destinationMapsLink")}
               </button>
             </div>
-            {/* Province + outOfProvince are derived from the overnight Yes/No
-                toggle that now lives inside the start date picker (it drives
-                lead time, so it belongs next to the date). Both ride along as
-                hidden fields. outOfProvince must emit "true"/"" — never
-                "false" — because z.coerce.boolean treats any non-empty string
-                as true. */}
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
+              <Input
+                id="waitingLocation"
+                name="waitingLocation"
+                required
+                placeholder={t("waitingLocationPlaceholder")}
+              />
+            </div>
+            {/* province / outOfProvince / travelWithinChula are all derived from
+                the single Trip-area choice at the top of the schedule section
+                and ride along as hidden fields. The booleans must emit "true"/""
+                — never "false" — because z.coerce.boolean treats any non-empty
+                string as true. */}
             <input
               type="hidden"
               name="province"
-              value={outOfProvince ? "ต่างจังหวัด" : BANGKOK_PROVINCE}
+              value={isUpcountry ? "ต่างจังหวัด" : BANGKOK_PROVINCE}
             />
-            <input type="hidden" name="outOfProvince" value={outOfProvince ? "true" : ""} />
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                name="travelWithinChula"
-                value="true"
-                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <span>
-                <span className="font-medium">{t("travelWithinChulaLabel")}</span>
-                <span className="block text-xs text-muted-foreground">{t("travelWithinChulaHelper")}</span>
-              </span>
-            </label>
+            <input type="hidden" name="outOfProvince" value={isUpcountry ? "true" : ""} />
+            <input type="hidden" name="travelWithinChula" value={isWithinChula ? "true" : ""} />
           </fieldset>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">

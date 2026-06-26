@@ -1,4 +1,4 @@
-import { addDays, differenceInMinutes, startOfDay } from "date-fns";
+import { addBusinessDays, differenceInMinutes, startOfDay } from "date-fns";
 
 // Province name for Bangkok in Thai. Used for the lead-time short list.
 export const BANGKOK_PROVINCE = "กรุงเทพมหานคร";
@@ -48,9 +48,10 @@ export type LeadTimeResult =
   | { ok: false; reason: "TOO_SOON"; minimumDays: number; minimumStartAt: Date };
 
 /**
- * Lead time check (plan §5.2). Bangkok = ≥3d, out-of-province overnight = ≥7d,
- * urgent = ≥1d (waives the above). Calendar-day rule: the earliest allowed
- * start is midnight on (today + minDays); any time on that day is fine.
+ * Lead time check (plan §5.2). Bangkok/within-Chula = ≥3 business days,
+ * upcountry = ≥7 business days, urgent = ≥1 (waives the above). The lead-time
+ * count skips Saturdays and Sundays. The earliest allowed start is midnight on
+ * that business day; any time on it is fine.
  */
 export function checkLeadTime({ startAt, province, urgent, now }: LeadTimeInput): LeadTimeResult {
   const minDays = urgent
@@ -58,7 +59,7 @@ export function checkLeadTime({ startAt, province, urgent, now }: LeadTimeInput)
     : province === BANGKOK_PROVINCE
       ? LEAD_TIME_BANGKOK_DAYS
       : LEAD_TIME_OUTSIDE_DAYS;
-  const minimumStartAt = startOfDay(addDays(now, minDays));
+  const minimumStartAt = startOfDay(addBusinessDays(now, minDays));
   if (startAt.getTime() < minimumStartAt.getTime()) {
     return { ok: false, reason: "TOO_SOON", minimumDays: minDays, minimumStartAt };
   }

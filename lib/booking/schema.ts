@@ -89,6 +89,8 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
+    // Where the vehicle parks/waits near the destination — required.
+    waitingLocation: z.string().trim().min(1, "Waiting location is required").max(500),
     preferredVehicleType,
     recurringWeekdays: z
       .string()
@@ -138,6 +140,7 @@ export const tripTemplateSchema = z.object({
   destination: z.string().max(500).optional().default(""),
   province: z.string().max(120).optional().default(""),
   pickupLocation: optStr(500),
+  waitingLocation: optStr(500),
   passengerCount: z.coerce.number().int().min(1).max(60).optional().default(1),
   maleCount: optInt,
   femaleCount: optInt,

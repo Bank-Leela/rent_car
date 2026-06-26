@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { addDays, startOfDay } from "date-fns";
+import { addBusinessDays, addDays, startOfDay } from "date-fns";
 
 // Mock Next runtime + i18n + email so the action runs outside a request.
 vi.mock("next/navigation", () => ({
@@ -83,7 +83,7 @@ function isoLocal(d: Date) {
 
 describe("createBookingAction", () => {
   it("creates a PENDING_APPROVAL booking and redirects to detail", async () => {
-    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    const start = new Date(startOfDay(addBusinessDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
     start.setHours(9, 0, 0, 0);
     const end = new Date(start);
     end.setHours(start.getHours() + 4);
@@ -95,6 +95,7 @@ describe("createBookingAction", () => {
           purpose: "Integration smoke trip",
           destination: "Lab",
           pickupLocation: "Test lobby",
+          waitingLocation: "Test parking",
           province: BANGKOK_PROVINCE,
           startAt: isoLocal(start),
           endAt: isoLocal(end),
@@ -139,6 +140,7 @@ describe("createBookingAction", () => {
         purpose: "Should be rejected",
         destination: "Lab",
         pickupLocation: "Test lobby",
+        waitingLocation: "Test parking",
         province: BANGKOK_PROVINCE,
         startAt: isoLocal(tooSoon),
         endAt: isoLocal(end),
@@ -159,7 +161,7 @@ describe("createBookingAction", () => {
   });
 
   it("rejects when endAt is before startAt", async () => {
-    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    const start = new Date(startOfDay(addBusinessDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
     start.setHours(10, 0, 0, 0);
     const end = new Date(start);
     end.setHours(start.getHours() - 1);
@@ -170,6 +172,7 @@ describe("createBookingAction", () => {
         purpose: "End before start",
         destination: "Lab",
         pickupLocation: "Test lobby",
+        waitingLocation: "Test parking",
         province: BANGKOK_PROVINCE,
         startAt: isoLocal(start),
         endAt: isoLocal(end),
@@ -191,7 +194,7 @@ describe("createBookingAction", () => {
   });
 
   it("expands recurrence into children when weekdays + until are set", async () => {
-    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    const start = new Date(startOfDay(addBusinessDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
     start.setHours(8, 0, 0, 0);
     const end = new Date(start);
     end.setHours(start.getHours() + 3);
@@ -205,6 +208,7 @@ describe("createBookingAction", () => {
           purpose: "Recurring smoke",
           destination: "Campus",
           pickupLocation: "Test lobby",
+          waitingLocation: "Test parking",
           province: BANGKOK_PROVINCE,
           startAt: isoLocal(start),
           endAt: isoLocal(end),

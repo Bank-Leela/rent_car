@@ -107,6 +107,9 @@ export default async function DriverBookingDetail({
           {booking.pickupReturnTime && (
             <Field label={t("pickupReturnTime")} value={booking.pickupReturnTime} />
           )}
+          {booking.waitingLocation && (
+            <Field label={t("waitingLocation")} value={booking.waitingLocation} />
+          )}
           <Field
             label={t("contact")}
             value={`${booking.requester.name ?? booking.requester.email}${booking.requester.phone ? ` · ${booking.requester.phone}` : ""}`}
