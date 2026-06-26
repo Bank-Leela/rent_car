@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -16,9 +15,10 @@ import {
   subMonths,
 } from "date-fns";
 import { th, enUS, type Locale } from "date-fns/locale";
-import { Calendar, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useLocale } from "next-intl";
 import { cn } from "@/lib/utils";
+import { isThaiLocale } from "@/i18n/config";
 
 interface DateTimePickerProps {
   name: string;
@@ -33,16 +33,51 @@ interface DateTimePickerProps {
   // instead of `yyyy-MM-ddTHH:mm`. Used for fields like the recurrence
   // "repeat until" date where time is meaningless.
   dateOnly?: boolean;
+  // Optional "out-of-province overnight" Yes/No toggle rendered inside the
+  // popover. When `value` is true and the currently selected day falls before
+  // `min` (the longer lead-time window), the Done button is disabled and
+  // `warning` is shown — the trip must be booked further ahead. The toggle
+  // state itself is owned by the parent form (it also drives lead time,
+  // the province field, and the lead-time notice).
+  overnight?: {
+    value: boolean;
+    onChange: (next: boolean) => void;
+    label: string;
+    helper: string;
+    warning: string;
+    yesLabel: string;
+    noLabel: string;
+  };
+  // Optional "urgent booking" Yes/No toggle, also rendered inside the popover.
+  // Turning it on waives the lead-time floor (the parent shortens `min`), so
+  // there is no warning/block here — it only relaxes the rules.
+  urgent?: {
+    value: boolean;
+    onChange: (next: boolean) => void;
+    label: string;
+    helper: string;
+    yesLabel: string;
+    noLabel: string;
+  };
+  // Optional คอย/ไม่คอย (wait-at-destination) toggle, rendered inside the
+  // popover — belongs on the End picker since it's about what happens before
+  // the return trip. When `wait` is false, a plain time input for the
+  // driver's pickup-return time appears underneath.
+  pickupReturn?: {
+    wait: boolean;
+    onWaitChange: (next: boolean) => void;
+    pickupTime: string; // "HH:mm" or ""
+    onPickupTimeChange: (next: string) => void;
+    label: string;
+    helper: string;
+    waitYesLabel: string;
+    waitNoLabel: string;
+    pickupTimeLabel: string;
+  };
 }
 
 const WEEKDAYS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const WEEKDAYS_TH = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"] as const;
-
-// Portal popover footprint: used to decide whether to flip above the trigger
-// and to clamp into the viewport. Height is a heuristic (date+time variant); a
-// few px off only nudges the flip threshold.
-const POPOVER_W = 352; // matches the original w-88 design width
-const POPOVER_H = 380;
 
 function toLocalISO(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -68,21 +103,26 @@ export function DateTimePicker({
   placeholder,
   onChange,
   dateOnly,
+  overnight,
+  urgent,
+  pickupReturn,
 }: DateTimePickerProps) {
   const locale = useLocale();
-  const dfLocale: Locale = locale.toLowerCase().startsWith("th") ? th : enUS;
+  const dfLocale: Locale = isThaiLocale(locale) ? th : enUS;
   const initial = parseValue(defaultValue);
   const [value, setValue] = useState<Date | null>(initial);
   const [viewMonth, setViewMonth] = useState<Date>(initial ?? new Date());
   const [open, setOpen] = useState(false);
-  // The popover renders in a portal on document.body with fixed positioning, so
-  // an `overflow-hidden` ancestor (e.g. a Card) can never clip it. These are its
-  // viewport coords, recomputed on open / scroll / resize.
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  // Flip the popover above the trigger when there isn't room below (e.g. the
+  // recurrence field near the bottom of the form) so it never opens off-screen.
+  const [dropUp, setDropUp] = useState(false);
+  // Right-align the popover to the trigger when the (now wider, two-column)
+  // panel would overflow the right edge of the viewport — e.g. the End picker
+  // sitting in the form's right column.
+  const [dropLeft, setDropLeft] = useState(false);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
 
   // Sync from controlled defaultValue when the parent mutates it (e.g.
   // a "fill earliest" button setting a date externally). Without this the
@@ -109,39 +149,11 @@ export function DateTimePicker({
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      const target = e.target as Node;
-      // The popover lives in a portal outside rootRef, so check it too —
-      // otherwise clicking a day registers as an outside click and closes.
-      if (rootRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
-      setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
-
-  const reposition = useCallback(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const below = window.innerHeight - rect.bottom;
-    // Flip above only when there isn't room below AND there's more room above.
-    const up = below < POPOVER_H && rect.top > below;
-    const top = up ? Math.max(8, rect.top - POPOVER_H - 8) : rect.bottom + 8;
-    const left = Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_W - 8));
-    setCoords({ top, left });
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    reposition();
-    // Capture-phase scroll catches scrolling in any ancestor, not just window.
-    window.addEventListener("scroll", reposition, true);
-    window.addEventListener("resize", reposition);
-    return () => {
-      window.removeEventListener("scroll", reposition, true);
-      window.removeEventListener("resize", reposition);
-    };
-  }, [open, reposition]);
 
   function commit(day: Date, h: number, m: number) {
     const next = new Date(day);
@@ -167,7 +179,18 @@ export function DateTimePicker({
   }
 
   function toggleOpen() {
-    if (!open) reposition(); // place before paint so it never flashes at (0,0)
+    if (!open && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom;
+      // ~380px ≈ popover height; flip up only when below is tight and there's
+      // more room above.
+      setDropUp(below < 380 && rect.top > below);
+      // Two-column panel (extras + calendar) ≈ 540px; the calendar-only
+      // (dateOnly) panel ≈ 300px. If a left-aligned panel would run past the
+      // right edge, anchor it to the trigger's right edge instead.
+      const panelWidth = hasExtras ? 540 : 300;
+      setDropLeft(window.innerWidth - rect.left < panelWidth);
+    }
     setOpen((v) => !v);
   }
 
@@ -181,6 +204,22 @@ export function DateTimePicker({
     if (maxDate && day > new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate())) return true;
     return false;
   }
+
+  // Block "Done" when an overnight out-of-province trip is selected but the
+  // chosen day sits before the (longer) lead-time floor. This checks `min`
+  // ONLY — not `isDisabled`, which also folds in the `max` bound (the end
+  // date), and would wrongly fire on a same-day max once the value carries a
+  // time of day.
+  const beforeMinDay =
+    value != null &&
+    minDate != null &&
+    value < new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+  const overnightBlocked = !!overnight?.value && beforeMinDay;
+
+  // The left column (time + overnight + urgent) only exists when there's
+  // something to put in it. dateOnly pickers with no toggles render the
+  // calendar alone.
+  const hasExtras = !dateOnly || !!overnight || !!urgent || !!pickupReturn;
 
   return (
     <div ref={rootRef} className="relative">
@@ -202,98 +241,251 @@ export function DateTimePicker({
         <Calendar className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
       </button>
 
-      {open && coords && createPortal(
+      {open && (
         <div
-          ref={popoverRef}
           role="dialog"
-          style={{ position: "fixed", top: coords.top, left: coords.left, width: POPOVER_W }}
-          className="z-50 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl"
-        >
-          <div className="flex items-center justify-between pb-3">
-            <button
-              type="button"
-              onClick={() => setViewMonth((m) => subMonths(m, 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <div className="text-sm font-semibold">
-              {format(viewMonth, "MMMM yyyy", { locale: dfLocale })}
-            </div>
-            <button
-              type="button"
-              onClick={() => setViewMonth((m) => addMonths(m, 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            {(locale.toLowerCase().startsWith("th") ? WEEKDAYS_TH : WEEKDAYS_EN).map((w, i) => (
-              <div key={i} className="py-1">{w}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((d) => {
-              const inMonth = isSameMonth(d, viewMonth);
-              const selected = value && isSameDay(d, value);
-              const today = isSameDay(d, new Date());
-              const disabled = isDisabled(d);
-              return (
-                <button
-                  key={d.toISOString()}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => pickDay(d)}
-                  aria-pressed={!!selected}
-                  className={cn(
-                    "relative h-9 rounded-md text-sm tabular-nums transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    inMonth ? "text-foreground" : "text-muted-foreground/40",
-                    disabled && "cursor-not-allowed opacity-30",
-                    selected && "bg-primary text-primary-foreground font-semibold shadow-sm",
-                    !selected && !disabled && "hover:bg-accent hover:text-accent-foreground",
-                    today && !selected && "ring-1 ring-primary/40",
-                  )}
-                >
-                  {format(d, "d")}
-                </button>
-              );
-            })}
-          </div>
-
-          {!dateOnly && (
-            <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" aria-hidden />
-                <span>เวลา / Time</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={String(hour).padStart(2, "0")}
-                  onChange={(e) => changeHour(Number(e.target.value))}
-                  className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                  aria-label="Hour"
-                />
-                <span className="text-base font-bold text-muted-foreground">:</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={String(minute).padStart(2, "0")}
-                  onChange={(e) => changeMinute(Number(e.target.value))}
-                  className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                  aria-label="Minute"
-                />
-              </div>
-            </div>
+          className={cn(
+            "absolute z-50 w-auto max-w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            dropUp ? "bottom-full mb-2" : "mt-2",
+            dropLeft ? "right-0" : "left-0",
           )}
+        >
+          <div className="flex gap-4">
+            {/* Time + overnight + urgent (only when present). Rendered after
+                the calendar in markup but visually placed on the LEFT via
+                `order-2`/`order-1` below, so the calendar reads first. */}
+            {hasExtras && (
+              <div className="order-2 flex w-56 shrink-0 flex-col gap-3">
+                {!dateOnly && (
+                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" aria-hidden />
+                      <span>เวลา / Time</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={23}
+                        value={String(hour).padStart(2, "0")}
+                        onChange={(e) => changeHour(Number(e.target.value))}
+                        className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Hour"
+                      />
+                      <span className="text-base font-bold text-muted-foreground">:</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={59}
+                        value={String(minute).padStart(2, "0")}
+                        onChange={(e) => changeMinute(Number(e.target.value))}
+                        className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                        aria-label="Minute"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {overnight && (
+                  <div className="space-y-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                    <span className="block text-xs font-medium">{overnight.label}</span>
+                    <div className="inline-flex rounded-md border border-input p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => overnight.onChange(false)}
+                        aria-pressed={!overnight.value}
+                        className={cn(
+                          "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          !overnight.value
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {overnight.noLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => overnight.onChange(true)}
+                        aria-pressed={overnight.value}
+                        className={cn(
+                          "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          overnight.value
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {overnight.yesLabel}
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-snug text-muted-foreground">{overnight.helper}</p>
+                    {overnightBlocked && (
+                      <p className="text-[11px] font-medium leading-snug text-destructive">
+                        {overnight.warning}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Urgent is an exception, not a routine choice — kept
+                    deliberately low-key (collapsed, muted colors) so it isn't
+                    mistaken for a normal option and clicked out of habit. A
+                    plain chevron marks it as expandable. */}
+                {urgent && (
+                  <details className="group">
+                    <summary className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+                      <span>{urgent.label}</span>
+                      <ChevronDown
+                        aria-hidden
+                        className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+                      />
+                    </summary>
+                    <div className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                      <p className="text-[11px] leading-snug text-muted-foreground">{urgent.helper}</p>
+                      <div className="inline-flex rounded-md border border-input p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => urgent.onChange(false)}
+                          aria-pressed={!urgent.value}
+                          className={cn(
+                            "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            !urgent.value
+                              ? "bg-background text-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {urgent.noLabel}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => urgent.onChange(true)}
+                          aria-pressed={urgent.value}
+                          className={cn(
+                            "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            urgent.value
+                              ? "bg-muted-foreground/70 text-background shadow-sm"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {urgent.yesLabel}
+                        </button>
+                      </div>
+                    </div>
+                  </details>
+                )}
+
+                {pickupReturn && (
+                  <div className="space-y-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                    <span className="block text-xs font-medium">{pickupReturn.label}</span>
+                    <div className="inline-flex rounded-md border border-input p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => pickupReturn.onWaitChange(false)}
+                        aria-pressed={!pickupReturn.wait}
+                        className={cn(
+                          "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          !pickupReturn.wait
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {pickupReturn.waitNoLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => pickupReturn.onWaitChange(true)}
+                        aria-pressed={pickupReturn.wait}
+                        className={cn(
+                          "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          pickupReturn.wait
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {pickupReturn.waitYesLabel}
+                      </button>
+                    </div>
+                    <p className="text-[11px] leading-snug text-muted-foreground">{pickupReturn.helper}</p>
+                    {!pickupReturn.wait && (
+                      <div className="pt-1">
+                        <label
+                          htmlFor="pickup-return-time-input"
+                          className="mb-1 block text-[11px] font-medium text-muted-foreground"
+                        >
+                          {pickupReturn.pickupTimeLabel}
+                        </label>
+                        <input
+                          id="pickup-return-time-input"
+                          type="time"
+                          value={pickupReturn.pickupTime}
+                          onChange={(e) => pickupReturn.onPickupTimeChange(e.target.value)}
+                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* The calendar — visually LEFT (order-1). */}
+            <div className="order-1 w-64 shrink-0">
+              <div className="flex items-center justify-between pb-3">
+                <button
+                  type="button"
+                  onClick={() => setViewMonth((m) => subMonths(m, 1))}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <div className="text-sm font-semibold">
+                  {format(viewMonth, "MMMM yyyy", { locale: dfLocale })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewMonth((m) => addMonths(m, 1))}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-1 pb-1 text-center text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {(isThaiLocale(locale) ? WEEKDAYS_TH : WEEKDAYS_EN).map((w, i) => (
+                  <div key={i} className="py-1">{w}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {days.map((d) => {
+                  const inMonth = isSameMonth(d, viewMonth);
+                  const selected = value && isSameDay(d, value);
+                  const today = isSameDay(d, new Date());
+                  const disabled = isDisabled(d);
+                  return (
+                    <button
+                      key={d.toISOString()}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => pickDay(d)}
+                      aria-pressed={!!selected}
+                      className={cn(
+                        "relative h-9 rounded-md text-sm tabular-nums transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        inMonth ? "text-foreground" : "text-muted-foreground/40",
+                        disabled && "cursor-not-allowed opacity-30",
+                        selected && "bg-primary text-primary-foreground font-semibold shadow-sm",
+                        !selected && !disabled && "hover:bg-accent hover:text-accent-foreground",
+                        today && !selected && "ring-1 ring-primary/40",
+                      )}
+                    >
+                      {format(d, "d")}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
           <div className="mt-4 flex items-center justify-between">
             <button
@@ -308,14 +500,14 @@ export function DateTimePicker({
             </button>
             <button
               type="button"
+              disabled={overnightBlocked}
               onClick={() => setOpen(false)}
-              className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40"
             >
               ตกลง / Done
             </button>
           </div>
-        </div>,
-        document.body,
+        </div>
       )}
     </div>
   );

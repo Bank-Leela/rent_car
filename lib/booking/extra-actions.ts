@@ -306,3 +306,33 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
   revalidatePath(`/requester/${bookingId}`);
   return { ok: true };
 }
+
+// ---- Secondary driver flag (replaces the old estimatedDistance > 400km
+// auto-check) — admin decides case-by-case, typically for overnight
+// out-of-province trips. Read by both the auto-matcher/batch solver and the
+// driver-side schedule confirmation gate. ----
+
+const needsSecondaryDriverSchema = z.object({
+  bookingId: z.string().min(1),
+  needsSecondaryDriver: z.coerce.boolean().optional().default(false),
+});
+
+export async function setNeedsSecondaryDriverAction(formData: FormData): Promise<ActionResult> {
+  await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+
+  const parsed = needsSecondaryDriverSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  }
+  const { bookingId, needsSecondaryDriver } = parsed.data;
+
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true } });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+
+  await prisma.booking.update({ where: { id: bookingId }, data: { needsSecondaryDriver } });
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/${bookingId}`);
+  return { ok: true };
+}

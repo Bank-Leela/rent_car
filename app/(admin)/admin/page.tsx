@@ -29,6 +29,7 @@ export default async function AdminQueue({
   const tAuto = await getTranslations("matching");
   const now = new Date();
   const today = startOfDay(now);
+  const urgentLabel = (await getTranslations("bookingForm"))("urgentBadge");
 
   // Free-text filter across the three lists (job number / purpose / destination
   // / requester / department) — the daily "find that one booking" need.
@@ -304,6 +305,11 @@ export default async function AdminQueue({
                         <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                         <BookingStatusBadge status={b.status} />
                         <InChulaChip outsideChula={b.outsideChula} />
+                        {b.isEmergency && (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                            {urgentLabel}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-1 font-medium truncate">{b.purpose}</div>
                       <div className="mt-0.5 text-sm text-muted-foreground">
@@ -364,6 +370,11 @@ export default async function AdminQueue({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                       <BookingStatusBadge status={b.status} />
+                      {b.isEmergency && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                          {urgentLabel}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 font-medium truncate">{b.purpose}</div>
                     <div className="mt-0.5 text-sm text-muted-foreground">
@@ -401,6 +412,11 @@ export default async function AdminQueue({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                       <BookingStatusBadge status={b.status} />
+                      {b.isEmergency && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                          {urgentLabel}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 font-medium truncate">{b.purpose}</div>
                     <div className="mt-0.5 text-sm text-muted-foreground">

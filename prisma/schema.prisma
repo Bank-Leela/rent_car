@@ -26,6 +26,18 @@ enum VehicleType {
   OTHER
 }
 
+// Requester's preferred vehicle CATEGORY at booking time — distinct from
+// VehicleType (the owned fleet's physical classification). Informational
+// only; does not drive assignment. Bus is always outsourced (not in the
+// owned fleet); the dean's sedan is a specific, named vehicle.
+enum PreferredVehicleType {
+  VAN
+  TRUCK_6_WHEEL
+  PICKUP
+  SEDAN_DEAN
+  BUS_OUTSOURCED
+}
+
 enum DriverPool {
   PUBLIC
   PRIVATE
@@ -215,6 +227,7 @@ model User {
   cancellations       Cancellation[]
   auditLogs           AuditLog[]
   passwordResetTokens PasswordResetToken[]
+  tripTemplates       TripTemplate[]
 }
 
 // CR-07: hook table for future self-service password reset email flow.
@@ -369,9 +382,20 @@ model Booking {
   emergencyReason  String?
   // Where passengers board ("place to get on the car").
   pickupLocation   String?
-  // Requester's preferred vehicle (Vehicle id; soft reference, no FK — does
-  // not drive assignment yet).
-  preferredVehicleId String?
+  // Whether the vehicle/driver waits at the destination for the whole visit.
+  // Independent of pickupReturnTime — neither field gates the other.
+  waitAtDestination Boolean @default(true)
+  // If the vehicle doesn't wait, what time it comes back to collect
+  // passengers ("HH:mm", same calendar day as the trip).
+  pickupReturnTime  String?
+  // Requester's preferred vehicle category. Required; informational only —
+  // does not drive assignment.
+  preferredVehicleType PreferredVehicleType @default(VAN)
+  // Admin-set flag: this trip should get a secondary driver. Replaces the
+  // old estimatedDistance > 400km auto-check now that distance is no longer
+  // collected from the requester; the use case is overnight out-of-province
+  // trips, decided case-by-case by the staff member assigning the vehicle.
+  needsSecondaryDriver Boolean @default(false)
 
   status       BookingStatus @default(DRAFT)
   denialReason String?
@@ -413,8 +437,15 @@ model Booking {
   // distinguish TJW (out-of-province + overnight) from local overnight =
   // OT. Backfilled from province != Bangkok for legacy rows.
   outOfProvince     Boolean         @default(false)
-  // Trip leaves the university campus (outside Chula). Replaces the old
-  // province dropdown's campus/off-campus signal; informational for ops.
+  // Trip stays entirely within the Chula campus. When true, the requester
+  // is asking for the duty (รถเวร) vehicle rather than a normal dispatch —
+  // createBookingAction forces jobType=WERN, bypassing classifyJobType.
+  // Inverted from the old `outsideChula` (replaces the province dropdown's
+  // campus/off-campus signal).
+  travelWithinChula Boolean         @default(false)
+  // Sub-project A: separate campus/off-campus hint, kept alongside
+  // travelWithinChula per the "keep both" merge decision. Surfaced as a chip;
+  // does not drive classification. DB column predates this (migration 20260609).
   outsideChula      Boolean         @default(false)
   // CR-07: why the booking didn't land in the daily batch (if at all).
   // Cleared once a successful match is recorded; NEEDS_WERN_RECLAIM_DECISION
@@ -465,6 +496,44 @@ model SavedPlace {
   googleMapsUrl String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// A requester's saved trip preset. Stores everything a booking needs EXCEPT
+// the dates (startAt/endAt) and recurrence, so a recurring trip can be
+// re-filled in one click and only the date has to change. Owned by the user;
+// deleted with them (onDelete: Cascade).
+model TripTemplate {
+  id     String @id @default(cuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Snapshot of the booking form (mirrors Booking, minus dates/recurrence).
+  purpose            String
+  destination        String
+  province           String
+  pickupLocation     String?
+  waitAtDestination  Boolean @default(true)
+  pickupReturnTime   String?
+  passengerCount     Int     @default(1)
+  maleCount          Int?
+  femaleCount        Int?
+  passengerNotes     String?
+  ajarnName          String  @default("")
+  ajarnPhone         String  @default("")
+  ajarnEmail         String  @default("")
+  coordinatorName    String  @default("")
+  coordinatorPhone   String  @default("")
+  preferredVehicleType PreferredVehicleType @default(VAN)
+  outOfProvince      Boolean @default(false)
+  travelWithinChula  Boolean @default(false)
+  needsOutsourcing   Boolean @default(false)
+  isEmergency        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
 }

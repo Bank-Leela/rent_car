@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { ChangeUsernameForm } from "@/components/forms/change-username-form";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { ChangeDepartmentForm } from "@/components/forms/change-department-form";
+import { listDepartments } from "@/lib/departments";
 
 export default async function AccountPage({
   searchParams,
@@ -28,10 +29,7 @@ export default async function AccountPage({
       departmentId: true,
     },
   });
-  const departments = await prisma.department.findMany({
-    orderBy: locale.toLowerCase().startsWith("th") ? { nameTh: "asc" } : { nameEn: "asc" },
-    select: { id: true, nameEn: true, nameTh: true },
-  });
+  const departments = await listDepartments(locale);
 
   // proxy.ts redirects mustChangePassword users here with ?forceChange=1.
   // Surface the stronger banner so they know they can't navigate away.
@@ -70,15 +68,6 @@ export default async function AccountPage({
         </CardContent>
       </Card>
 
-      <Card className={forced ? "border-primary/40 ring-1 ring-primary/30" : ""}>
-        <CardHeader>
-          <CardTitle>{t("passwordTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChangePasswordForm autoFocus={forced} />
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>{t("departmentTitle")}</CardTitle>
@@ -89,6 +78,15 @@ export default async function AccountPage({
             currentDepartmentId={user.departmentId}
             locale={locale}
           />
+        </CardContent>
+      </Card>
+
+      <Card className={forced ? "border-primary/40 ring-1 ring-primary/30" : ""}>
+        <CardHeader>
+          <CardTitle>{t("passwordTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChangePasswordForm autoFocus={forced} />
         </CardContent>
       </Card>
     </div>

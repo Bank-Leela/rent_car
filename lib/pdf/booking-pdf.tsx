@@ -69,6 +69,12 @@ export function BookingRequestPdf({
           <Field label="Name" value={booking.requester.name ?? booking.requester.email ?? "—"} />
           <Field label="Department" value={booking.department.nameEn} />
           {booking.requester.phone && <Field label="Phone" value={booking.requester.phone} />}
+          {booking.coordinatorName && (
+            <Field
+              label="Coordinator"
+              value={`${booking.coordinatorName}${booking.coordinatorPhone ? ` (${booking.coordinatorPhone})` : ""}`}
+            />
+          )}
         </View>
 
         <View style={styles.section}>

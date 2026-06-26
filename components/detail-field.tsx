@@ -1,20 +1,18 @@
-// Labelled value cell used on the booking detail pages (requester / admin /
-// driver). `size` controls the label scale — driver detail uses "sm", the rest
-// default to "xs".
-export function Field({
+// Label-over-value cell used in the booking detail pages' two-column cards.
+export function DetailField({
   label,
   value,
   colSpan,
-  size = "xs",
+  labelClassName = "text-xs",
 }: {
   label: string;
   value: string;
   colSpan?: boolean;
-  size?: "xs" | "sm";
+  labelClassName?: string;
 }) {
   return (
     <div className={colSpan ? "sm:col-span-2" : ""}>
-      <div className={`${size === "sm" ? "text-sm" : "text-xs"} uppercase tracking-wide text-muted-foreground`}>
+      <div className={`${labelClassName} uppercase tracking-wide text-muted-foreground`}>
         {label}
       </div>
       <div className="mt-0.5">{value}</div>

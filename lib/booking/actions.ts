@@ -61,7 +61,12 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   }
   const data = parsed.data;
 
-  const lead = checkLeadTime({ startAt: data.startAt, province: data.province, now: new Date() });
+  const lead = checkLeadTime({
+    startAt: data.startAt,
+    province: data.province,
+    urgent: data.isEmergency,
+    now: new Date(),
+  });
   if (!lead.ok) {
     return {
       ok: false,
@@ -87,17 +92,28 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
 
   // Department is locked to the requester's own profile (edited on /account),
   // not chosen per booking. Resolve it server-side and block if it's unset so
-  // a tampered or empty payload can't slip a foreign department through.
+  // a tampered or empty payload can't slip a foreign department through. Also
+  // pull name/phone to backfill the profile from the ajarn fields below.
   const me = await prisma.user.findUnique({
     where: { id: userId },
-    select: { departmentId: true },
+    select: { departmentId: true, name: true, phone: true },
   });
   if (!me?.departmentId) {
     return { ok: false, error: te("noDepartment"), field: "departmentId" };
   }
   const departmentId = me.departmentId;
 
+  // Backfill the requester's own profile from the ajarn fields when it was
+  // missing them — the booking form is often the first place this data gets
+  // typed in. Never overwrites existing profile data.
+  const profileBackfill: { name?: string; phone?: string } = {};
+  if (!me.name && data.ajarnName) profileBackfill.name = data.ajarnName;
+  if (!me.phone && data.ajarnPhone) profileBackfill.phone = data.ajarnPhone;
+
   const created = await prisma.$transaction(async (tx) => {
+    if (Object.keys(profileBackfill).length > 0) {
+      await tx.user.update({ where: { id: userId }, data: profileBackfill });
+    }
     // #1 capacity gate: a day's slots = morning + afternoon per non-duty
     // vehicle, plus one spare for the เวร/duty car. When full, waitlist.
     // Only count DISPATCHABLE cars: active, paired to a driver, and that driver
@@ -122,46 +138,59 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     };
     const parentStatus = await slotStatusFor(data.startAt);
 
+    // Everything the parent and its recurrence children share. Per-occurrence
+    // values (jobNumber, startAt/endAt, jobType, timeBucket, status) are
+    // spread in at each create.
+    const sharedData = {
+      requesterId: userId,
+      departmentId,
+      purpose: data.purpose,
+      destination: data.destination,
+      province: data.province,
+      googleMapsUrl: data.googleMapsUrl,
+      ajarnName: data.ajarnName,
+      ajarnPhone: data.ajarnPhone,
+      ajarnEmail: data.ajarnEmail,
+      coordinatorName: data.coordinatorName,
+      coordinatorPhone: data.coordinatorPhone,
+      tripType: data.tripType,
+      remark: data.remark,
+      outOfProvince: data.outOfProvince,
+      travelWithinChula: data.travelWithinChula,
+      outOfHoursReason,
+      passengerCount: data.passengerCount,
+      passengerNotes: data.passengerNotes,
+      estimatedDistance: data.estimatedDistance,
+      // Bus is always an outsourced rental — flag it even if the requester
+      // didn't separately tick "may need an outside vehicle".
+      needsOutsourcing: data.needsOutsourcing || data.preferredVehicleType === "BUS_OUTSOURCED",
+      isEmergency: data.isEmergency,
+      emergencyReason: data.emergencyReason,
+      maleCount: data.maleCount,
+      femaleCount: data.femaleCount,
+      pickupLocation: data.pickupLocation,
+      waitAtDestination: data.waitAtDestination,
+      pickupReturnTime: data.pickupReturnTime,
+      preferredVehicleType: data.preferredVehicleType,
+    };
+
     const jobNumber = await nextJobNumber(tx);
     const parent = await tx.booking.create({
       data: {
+        ...sharedData,
         jobNumber,
-        requesterId: userId,
-        departmentId,
-        purpose: data.purpose,
-        destination: data.destination,
-        province: data.province,
-        googleMapsUrl: data.googleMapsUrl,
         startAt: data.startAt,
         endAt: data.endAt,
-        ajarnName: data.ajarnName,
-        ajarnPhone: data.ajarnPhone,
-        ajarnEmail: data.ajarnEmail,
-        coordinatorName: data.coordinatorName,
-        coordinatorPhone: data.coordinatorPhone,
-        tripType: data.tripType,
-        remark: data.remark,
         jobType:
           data.jobType ??
-          classifyJobType({
-            startAt: data.startAt,
-            endAt: data.endAt,
-            outOfProvince: data.outOfProvince,
-          }),
-        outOfProvince: data.outOfProvince,
-        outsideChula: data.outsideChula,
+          (data.travelWithinChula
+            ? "WERN"
+            : classifyJobType({
+                startAt: data.startAt,
+                endAt: data.endAt,
+                outOfProvince: data.outOfProvince,
+              })),
         timeBucket: bucketFromStart(data.startAt),
-        outOfHoursReason,
-        passengerCount: data.passengerCount,
-        passengerNotes: data.passengerNotes,
-        estimatedDistance: data.estimatedDistance,
-        needsOutsourcing: data.needsOutsourcing,
-        isEmergency: data.isEmergency,
-        emergencyReason: data.emergencyReason,
-        maleCount: data.maleCount,
-        femaleCount: data.femaleCount,
-        pickupLocation: data.pickupLocation,
-        preferredVehicleId: data.preferredVehicleId,
         status: parentStatus,
       },
     });
@@ -201,43 +230,20 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         const childStatus = await slotStatusFor(childStart);
         const child = await tx.booking.create({
           data: {
+            ...sharedData,
             jobNumber: childJob,
-            requesterId: userId,
-            departmentId,
-            purpose: data.purpose,
-            destination: data.destination,
-            province: data.province,
-            googleMapsUrl: data.googleMapsUrl,
             startAt: childStart,
             endAt: childEnd,
-            ajarnName: data.ajarnName,
-            ajarnPhone: data.ajarnPhone,
-            ajarnEmail: data.ajarnEmail,
-            coordinatorName: data.coordinatorName,
-            coordinatorPhone: data.coordinatorPhone,
-            tripType: data.tripType,
-            remark: data.remark,
             jobType:
               data.jobType ??
-              classifyJobType({
-                startAt: childStart,
-                endAt: childEnd,
-                outOfProvince: data.outOfProvince,
-              }),
-            outOfProvince: data.outOfProvince,
-            outsideChula: data.outsideChula,
+              (data.travelWithinChula
+                ? "WERN"
+                : classifyJobType({
+                    startAt: childStart,
+                    endAt: childEnd,
+                    outOfProvince: data.outOfProvince,
+                  })),
             timeBucket: bucketFromStart(childStart),
-            outOfHoursReason,
-            passengerCount: data.passengerCount,
-            passengerNotes: data.passengerNotes,
-            estimatedDistance: data.estimatedDistance,
-            needsOutsourcing: data.needsOutsourcing,
-            isEmergency: data.isEmergency,
-            emergencyReason: data.emergencyReason,
-            maleCount: data.maleCount,
-            femaleCount: data.femaleCount,
-            pickupLocation: data.pickupLocation,
-            preferredVehicleId: data.preferredVehicleId,
             status: childStatus,
             recurrenceParentId: parent.id,
           },
@@ -436,7 +442,12 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
     return { ok: false, error: te("cannotEditInStatus", { status: ts(booking.status) }) };
   }
 
-  const lead = checkLeadTime({ startAt, province: booking.province, now: new Date() });
+  const lead = checkLeadTime({
+    startAt,
+    province: booking.province,
+    urgent: booking.isEmergency,
+    now: new Date(),
+  });
   if (!lead.ok) {
     return { ok: false, field: "startAt", error: te("leadTimeTooSoon", { days: lead.minimumDays }) };
   }

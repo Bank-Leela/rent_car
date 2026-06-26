@@ -3,37 +3,34 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingForm } from "@/components/forms/booking-form";
 import { listMyPlaces } from "@/lib/places/actions";
+import { listDepartments } from "@/lib/departments";
 
 export default async function NewBookingPage() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("newBookingPage");
   const locale = await getLocale();
 
-  const isThai = locale.toLowerCase().startsWith("th");
-  // Department is locked to the requester's own profile (edited on /account).
+  const departments = await listDepartments(locale);
   const me = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { department: { select: { id: true, nameEn: true, nameTh: true } } },
+    select: { departmentId: true, name: true, phone: true, email: true },
   });
-  const userDepartment = me?.department
-    ? { id: me.department.id, name: isThai ? me.department.nameTh : me.department.nameEn }
-    : null;
-  const vehicles = await prisma.vehicle.findMany({
-    where: { isActive: true },
-    orderBy: { registrationNumber: "asc" },
-    select: { id: true, registrationNumber: true, capacity: true },
+  const templates = await prisma.tripTemplate.findMany({
+    where: { userId: session.user.id },
+    orderBy: { updatedAt: "desc" },
   });
   const places = await listMyPlaces();
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground">{t("description")}</p>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
       <BookingForm
-        vehicles={vehicles}
-        userDepartment={userDepartment}
+        departments={departments}
+        defaultDepartmentId={me?.departmentId ?? null}
+        defaultAjarnName={me?.name ?? ""}
+        defaultAjarnPhone={me?.phone ?? ""}
+        defaultAjarnEmail={me?.email ?? ""}
+        templates={templates}
         places={places.map((p) => ({
           id: p.id,
           label: p.label,
@@ -41,6 +38,7 @@ export default async function NewBookingPage() {
           province: p.province,
           googleMapsUrl: p.googleMapsUrl,
         }))}
+        locale={locale}
       />
     </div>
   );

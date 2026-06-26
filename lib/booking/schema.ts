@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+// Mirrors prisma's PreferredVehicleType enum. Requester's preferred vehicle
+// CATEGORY — informational only, does not drive assignment.
+export const PREFERRED_VEHICLE_TYPES = [
+  "VAN",
+  "TRUCK_6_WHEEL",
+  "PICKUP",
+  "SEDAN_DEAN",
+  "BUS_OUTSOURCED",
+] as const;
+const preferredVehicleType = z.enum(PREFERRED_VEHICLE_TYPES).default("VAN");
+
 const datetimeLocal = z
   .string()
   .min(1, "Required")
@@ -53,7 +64,9 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
     outOfProvince: z.coerce.boolean().optional().default(false),
-    outsideChula: z.coerce.boolean().optional().default(false),
+    // When true: trip stays on the Chula campus, asking for the duty (รถเวร)
+    // vehicle. createBookingAction forces jobType=WERN for these.
+    travelWithinChula: z.coerce.boolean().optional().default(false),
     outOfHoursReason: z
       .string()
       .max(1000)
@@ -91,17 +104,16 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
-    pickupLocation: z
+    pickupLocation: z.string().trim().min(1, "Pickup point is required").max(500),
+    // Independent of pickupReturnTime — neither field gates the other.
+    waitAtDestination: z.coerce.boolean().optional().default(true),
+    pickupReturnTime: z
       .string()
-      .max(500)
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v ? v.trim() : undefined)),
-    preferredVehicleId: z
-      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Invalid time")
       .optional()
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
+    preferredVehicleType,
     recurringWeekdays: z
       .string()
       .optional()
@@ -132,6 +144,55 @@ export const newBookingSchema = z
   });
 
 export type NewBookingInput = z.infer<typeof newBookingSchema>;
+
+// A saved trip template: a named snapshot of the booking form minus the
+// dates/recurrence. Fields are lenient (a template may be partially filled);
+// the booking form re-validates on actual submit.
+const optInt = z.coerce
+  .number()
+  .int()
+  .nonnegative()
+  .optional()
+  .or(z.literal(""))
+  .transform((v) => (v === "" || v === undefined ? null : Number(v)));
+const optStr = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v.trim() : null));
+
+export const tripTemplateSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+  purpose: z.string().max(500).optional().default(""),
+  destination: z.string().max(500).optional().default(""),
+  province: z.string().max(120).optional().default(""),
+  pickupLocation: optStr(500),
+  passengerCount: z.coerce.number().int().min(1).max(60).optional().default(1),
+  maleCount: optInt,
+  femaleCount: optInt,
+  passengerNotes: optStr(2000),
+  ajarnName: z.string().max(200).optional().default(""),
+  ajarnPhone: z.string().max(50).optional().default(""),
+  ajarnEmail: z.string().max(200).optional().default(""),
+  coordinatorName: z.string().max(200).optional().default(""),
+  coordinatorPhone: z.string().max(50).optional().default(""),
+  preferredVehicleType,
+  outOfProvince: z.coerce.boolean().optional().default(false),
+  travelWithinChula: z.coerce.boolean().optional().default(false),
+  needsOutsourcing: z.coerce.boolean().optional().default(false),
+  isEmergency: z.coerce.boolean().optional().default(false),
+});
+
+export type TripTemplateInput = z.infer<typeof tripTemplateSchema>;
+
+export const renameTripTemplateSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1, "Name is required").max(120),
+});
+
+export const deleteTripTemplateSchema = z.object({ id: z.string().min(1) });
 
 // CR-02: admin now only allocates the vehicle. Drivers self-claim their
 // roles on the driver schedule board.

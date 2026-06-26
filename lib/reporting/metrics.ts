@@ -1,9 +1,10 @@
 import { startOfMonth, endOfMonth, format } from "date-fns";
 import { th, enUS, type Locale } from "date-fns/locale";
 import { prisma } from "@/lib/db";
+import { isThaiLocale } from "@/i18n/config";
 
 function dateFnsLocale(locale?: string): Locale {
-  return locale?.toLowerCase().startsWith("th") ? th : enUS;
+  return locale != null && isThaiLocale(locale) ? th : enUS;
 }
 
 export type DateRange = { from: Date; to: Date };

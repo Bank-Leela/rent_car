@@ -6,6 +6,7 @@ const baseInput = {
   // server-side). A stray key here is harmless — zod strips unknowns.
   purpose: "Faculty board meeting",
   destination: "Siriraj Hospital",
+  pickupLocation: "Faculty lobby",
   province: "กรุงเทพมหานคร",
   googleMapsUrl: "https://maps.app.goo.gl/abc123",
   startAt: "2026-06-10T08:00",

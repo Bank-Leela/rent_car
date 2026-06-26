@@ -11,6 +11,7 @@ import {
   isWithinWorkHours,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
+  LEAD_TIME_URGENT_DAYS,
   shouldWarnAboutCancellations,
   TWO_DRIVER_DISTANCE_KM,
   VEHICLE_BUFFER_MINUTES,
@@ -21,7 +22,7 @@ import {
 const NOW = new Date("2026-06-01T09:00:00Z");
 
 describe("checkLeadTime", () => {
-  it("Bangkok bookings need 7 days", () => {
+  it("Bangkok bookings need LEAD_TIME_BANGKOK_DAYS lead time", () => {
     const justBeforeMin = addDays(NOW, LEAD_TIME_BANGKOK_DAYS - 1);
     const exactlyAtMin = addDays(NOW, LEAD_TIME_BANGKOK_DAYS);
 
@@ -29,12 +30,26 @@ describe("checkLeadTime", () => {
     expect(checkLeadTime({ startAt: exactlyAtMin, province: BANGKOK_PROVINCE, now: NOW }).ok).toBe(true);
   });
 
-  it("out-of-province bookings need 15 days", () => {
+  it("out-of-province bookings need LEAD_TIME_OUTSIDE_DAYS lead time", () => {
     const justBeforeMin = addDays(NOW, LEAD_TIME_OUTSIDE_DAYS - 1);
     const exactlyAtMin = addDays(NOW, LEAD_TIME_OUTSIDE_DAYS);
 
     expect(checkLeadTime({ startAt: justBeforeMin, province: "เชียงใหม่", now: NOW }).ok).toBe(false);
     expect(checkLeadTime({ startAt: exactlyAtMin, province: "เชียงใหม่", now: NOW }).ok).toBe(true);
+  });
+
+  it("urgent requests collapse the lead time to LEAD_TIME_URGENT_DAYS, overriding province", () => {
+    // A date that is far too soon for an out-of-province trip...
+    const soon = addDays(NOW, LEAD_TIME_URGENT_DAYS);
+    expect(checkLeadTime({ startAt: soon, province: "เชียงใหม่", now: NOW }).ok).toBe(false);
+    // ...is allowed once the request is marked urgent.
+    expect(checkLeadTime({ startAt: soon, province: "เชียงใหม่", urgent: true, now: NOW }).ok).toBe(true);
+
+    // Still enforces the 1-day floor — same-day urgent is rejected.
+    const tooSoon = addDays(NOW, LEAD_TIME_URGENT_DAYS - 1);
+    const res = checkLeadTime({ startAt: tooSoon, province: BANGKOK_PROVINCE, urgent: true, now: NOW });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.minimumDays).toBe(LEAD_TIME_URGENT_DAYS);
   });
 
   it("returns the minimum allowed start when too soon (midnight on the lead-time day)", () => {

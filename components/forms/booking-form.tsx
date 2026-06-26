@@ -1,25 +1,32 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addDays, addYears, format, startOfDay } from "date-fns";
+import { addDays, addYears, format, isSameDay, startOfDay } from "date-fns";
 import { useTranslations } from "next-intl";
+import type { TripTemplate } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { SelectField } from "@/components/ui/select-field";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
+  LEAD_TIME_URGENT_DAYS,
 } from "@/lib/booking/rules";
 import { createBookingAction } from "@/lib/booking/actions";
 import { createPlaceAction } from "@/lib/places/actions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  saveTripTemplateAction,
+  renameTripTemplateAction,
+  deleteTripTemplateAction,
+} from "@/lib/booking/template-actions";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { Lock, MapPin } from "lucide-react";
+import { MapPin, Pencil, Trash2, BookmarkPlus, ChevronDown } from "lucide-react";
+import { isThaiLocale } from "@/i18n/config";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -86,17 +93,27 @@ function RecurrenceWeekdays() {
 }
 
 /**
- * Passenger count: typeable number field flanked by −/+ buttons. Default 1.
- * Keeps `name="passengerCount"` so the form action reads it from FormData.
- * Native spinners are suppressed; the −/+ buttons are the 44px touch targets.
+ * Passenger count: typeable number field flanked by −/+ buttons. Controlled by
+ * the parent so applying a template can set it. Keeps `name="passengerCount"`
+ * so the form action reads it from FormData. Native spinners are suppressed;
+ * the −/+ buttons are the 44px touch targets.
  */
-function PassengerStepper({ min = 1, max = 60 }: { min?: number; max?: number }) {
+function PassengerStepper({
+  value,
+  onChange,
+  min = 1,
+  max = 60,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  min?: number;
+  max?: number;
+}) {
   const t = useTranslations("bookingForm");
-  const [value, setValue] = useState<string>(String(min));
   const num = parseInt(value, 10);
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
   const nudge = (delta: number) =>
-    setValue(String(clamp((Number.isNaN(num) ? min : num) + delta)));
+    onChange(String(clamp((Number.isNaN(num) ? min : num) + delta)));
 
   return (
     <div className="flex items-stretch gap-2">
@@ -118,8 +135,8 @@ function PassengerStepper({ min = 1, max = 60 }: { min?: number; max?: number })
         max={max}
         required
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => setValue(String(Number.isNaN(num) ? min : clamp(num)))}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => onChange(String(Number.isNaN(num) ? min : clamp(num)))}
         className="h-11 text-center text-base tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <button
@@ -135,20 +152,26 @@ function PassengerStepper({ min = 1, max = 60 }: { min?: number; max?: number })
   );
 }
 
-/**
- * Inline "save this destination" control on the booking form. Creates a
- * SavedPlace from the current destination/province/maps-link after prompting
- * for a label. Collapsed to a link until the requester opens it.
- */
-function SaveDestination({
-  destination,
-  province,
-  mapsUrl,
-}: {
+export type BookingFormDepartment = {
+  id: string;
+  nameEn: string;
+  nameTh: string;
+};
+
+export type BookingFormPlace = {
+  id: string;
+  label: string;
   destination: string;
   province: string;
-  mapsUrl: string;
-}) {
+  googleMapsUrl: string | null;
+};
+
+/**
+ * Inline "save this destination" — creates a SavedPlace from the current
+ * destination/province/maps-link (read from the DOM, matching this form's
+ * uncontrolled-input style) after prompting for a label.
+ */
+function SaveDestination() {
   const t = useTranslations("bookingForm");
   const tc = useTranslations("common");
   const router = useRouter();
@@ -156,8 +179,8 @@ function SaveDestination({
   const [label, setLabel] = useState("");
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
-  const canSave =
-    destination.trim().length >= 2 && province.trim().length >= 2 && label.trim().length >= 1;
+  const readDom = (id: string) =>
+    (document.getElementById(id) as HTMLInputElement | null)?.value.trim() ?? "";
 
   if (!open) {
     return (
@@ -173,7 +196,6 @@ function SaveDestination({
       </div>
     );
   }
-
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Input
@@ -185,21 +207,23 @@ function SaveDestination({
       <Button
         type="button"
         size="sm"
-        disabled={!canSave || pending}
+        disabled={pending || label.trim().length < 1}
         onClick={() => {
+          const destination = readDom("destination");
+          const province = readDom("province");
+          const mapsUrl = readDom("googleMapsUrl");
+          if (destination.length < 2) return;
           const f = new FormData();
           f.append("label", label.trim());
-          f.append("destination", destination.trim());
-          f.append("province", province.trim());
-          if (mapsUrl.trim()) f.append("googleMapsUrl", mapsUrl.trim());
+          f.append("destination", destination);
+          f.append("province", province);
+          if (mapsUrl) f.append("googleMapsUrl", mapsUrl);
           start(async () => {
             const res = await createPlaceAction(f);
             if (res.ok) {
               setSaved(true);
               setOpen(false);
               setLabel("");
-              // The autofill combobox options come from a server-fetched prop;
-              // refresh so the just-saved place appears without a manual reload.
               router.refresh();
             }
           });
@@ -214,52 +238,149 @@ function SaveDestination({
   );
 }
 
-export type BookingFormVehicle = {
-  id: string;
-  registrationNumber: string;
-  capacity: number;
-};
-
-/** The requester's own department, resolved from their profile and locked. */
-export type BookingFormUserDepartment = {
-  id: string;
-  name: string;
-};
-
-/** A requester's saved place, used to autofill destination/province/maps link. */
-export type BookingFormPlace = {
-  id: string;
-  label: string;
-  destination: string;
-  province: string;
-  googleMapsUrl: string | null;
-};
-
-
 export function BookingForm({
-  vehicles,
-  userDepartment,
+  departments,
+  defaultDepartmentId,
+  defaultAjarnName,
+  defaultAjarnPhone,
+  defaultAjarnEmail,
+  templates,
   places = [],
+  locale,
 }: {
-  vehicles: BookingFormVehicle[];
-  userDepartment: BookingFormUserDepartment | null;
+  departments: BookingFormDepartment[];
+  defaultDepartmentId: string | null;
+  // Pre-fill from the requester's own User profile — editing these in the
+  // form backfills the profile if it was missing (see createBookingAction).
+  defaultAjarnName: string;
+  defaultAjarnPhone: string;
+  defaultAjarnEmail: string;
+  templates: TripTemplate[];
   places?: BookingFormPlace[];
+  locale: string;
 }) {
   const t = useTranslations("bookingForm");
   const now = new Date();
-  // Province drives both the lead-time rule (Bangkok vs. out-of-province) and
-  // the card heading. The overnight checkbox below only flags TJW.
-  const [province, setProvince] = useState<string>(BANGKOK_PROVINCE);
-  // Controlled so a saved place can autofill them (and the Maps button can open
-  // the stored link). Both still submit via their `name` in FormData.
-  const [destination, setDestination] = useState<string>("");
-  const [mapsUrl, setMapsUrl] = useState<string>("");
+  const formRef = useRef<HTMLFormElement>(null);
   const [outOfProvince, setOutOfProvince] = useState<boolean>(false);
+  // Urgent ("จองเร่งด่วน"): waives the lead-time floor (down to 1 day) and
+  // routes the trip to manual admin assignment. Lifted here because it drives
+  // the date picker's min + the lead-time notice, and is toggled from inside
+  // the start picker.
+  const [isEmergency, setIsEmergency] = useState(false);
+  // Controlled (default true) so an unchecked box reliably sends "false" —
+  // an unchecked native checkbox sends nothing at all, which would fall back
+  // to the schema default (true) and silently ignore the uncheck.
+  const [waitAtDestination, setWaitAtDestination] = useState(true);
+  // Only meaningful when waitAtDestination is false; cleared on submit
+  // otherwise so a stale typed time never lingers once "คอย" is re-selected.
+  const [pickupReturnTime, setPickupReturnTime] = useState("");
+  // Controlled so applying a template can set it (PassengerStepper reads it).
+  const [passengerCount, setPassengerCount] = useState<string>("1");
+  // Controlled so the outsourcing checkbox can react to it: a bus is always
+  // an outsourced rental, regardless of what the requester ticks.
+  const [preferredVehicleType, setPreferredVehicleType] = useState("VAN");
+  const isBus = preferredVehicleType === "BUS_OUTSOURCED";
+  const [needsOutsourcing, setNeedsOutsourcing] = useState(false);
+  const isThai = isThaiLocale(locale);
+  const defaultDepartment = departments.find((d) => d.id === defaultDepartmentId) ?? null;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const isOutside = province.trim() !== "" && province.trim() !== BANGKOK_PROVINCE;
-  const requiredDays = isOutside ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
+  // ---- Trip templates (saved presets) ----
+  const [templateName, setTemplateName] = useState("");
+  const [templateMsg, setTemplateMsg] = useState<string | null>(null);
+  const [templateBusy, startTemplateTransition] = useTransition();
+
+  // Fill the form from a saved template — everything except the dates, which
+  // the requester still picks. Uncontrolled inputs are set on the DOM; the few
+  // controlled fields go through their setters.
+  const applyTemplate = (tpl: TripTemplate) => {
+    const set = (id: string, v: string | number | null) => {
+      const el = document.getElementById(id) as
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | HTMLSelectElement
+        | null;
+      if (el) el.value = v == null ? "" : String(v);
+    };
+    set("purpose", tpl.purpose);
+    set("destination", tpl.destination);
+    set("pickupLocation", tpl.pickupLocation);
+    setPickupReturnTime(tpl.pickupReturnTime ?? "");
+    set("ajarnName", tpl.ajarnName);
+    set("ajarnPhone", tpl.ajarnPhone);
+    set("ajarnEmail", tpl.ajarnEmail);
+    set("coordinatorName", tpl.coordinatorName);
+    set("coordinatorPhone", tpl.coordinatorPhone);
+    set("maleCount", tpl.maleCount);
+    set("femaleCount", tpl.femaleCount);
+    set("passengerNotes", tpl.passengerNotes);
+    setPassengerCount(String(tpl.passengerCount ?? 1));
+    setOutOfProvince(tpl.outOfProvince);
+    setIsEmergency(tpl.isEmergency);
+    setWaitAtDestination(tpl.waitAtDestination);
+    setPreferredVehicleType(tpl.preferredVehicleType);
+    setNeedsOutsourcing(tpl.needsOutsourcing);
+    const setChk = (name: string, checked: boolean) => {
+      const el = document.querySelector(`input[name="${name}"]`) as HTMLInputElement | null;
+      if (el) el.checked = checked;
+    };
+    setChk("travelWithinChula", tpl.travelWithinChula);
+    setTemplateMsg(t("templateApplied", { name: tpl.name }));
+  };
+
+  const saveTemplate = () => {
+    const form = formRef.current;
+    if (!form) return;
+    const name = templateName.trim();
+    if (!name) {
+      setTemplateMsg(t("templateNameRequired"));
+      return;
+    }
+    // Reuse the live form fields; the schema ignores the date/recurrence keys.
+    const fd = new FormData(form);
+    fd.set("name", name);
+    startTemplateTransition(async () => {
+      const res = await saveTripTemplateAction(fd);
+      if (res.ok) {
+        setTemplateName("");
+        setTemplateMsg(t("templateSaved", { name }));
+      } else {
+        setTemplateMsg(res.error);
+      }
+    });
+  };
+
+  const renameTemplate = (tpl: TripTemplate) => {
+    const next = window.prompt(t("templateRenamePrompt"), tpl.name);
+    if (next == null) return;
+    const name = next.trim();
+    if (!name) return;
+    const fd = new FormData();
+    fd.set("id", tpl.id);
+    fd.set("name", name);
+    startTemplateTransition(async () => {
+      const res = await renameTripTemplateAction(fd);
+      setTemplateMsg(res.ok ? null : res.error);
+    });
+  };
+
+  const deleteTemplate = (tpl: TripTemplate) => {
+    if (!window.confirm(t("templateDeleteConfirm", { name: tpl.name }))) return;
+    const fd = new FormData();
+    fd.set("id", tpl.id);
+    startTemplateTransition(async () => {
+      const res = await deleteTripTemplateAction(fd);
+      setTemplateMsg(res.ok ? null : res.error);
+    });
+  };
+
+  const requiredDays = isEmergency
+    ? LEAD_TIME_URGENT_DAYS
+    : outOfProvince
+      ? LEAD_TIME_OUTSIDE_DAYS
+      : LEAD_TIME_BANGKOK_DAYS;
   // Earliest is midnight on (today + requiredDays); any time on that day is fine.
   const earliestStart = startOfDay(addDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
@@ -269,49 +390,59 @@ export function BookingForm({
 
   const [startValue, setStartValue] = useState<string>("");
   const [endValue, setEndValue] = useState<string>("");
-  // Once the user edits the end themselves, stop auto-tracking it off the start.
-  const [endTouched, setEndTouched] = useState(false);
-  const [isEmergency, setIsEmergency] = useState(false);
 
-  const fillEarliest = () => {
-    const start = new Date(earliestStart);
-    start.setHours(8, 0);
-    const end = new Date(start);
-    end.setHours(start.getHours() + 4);
-    setStartValue(datetimeLocalValue(start));
-    setEndValue(datetimeLocalValue(end));
-    setEndTouched(true);
-  };
+  // The end DATE is never freely chosen — it's derived from the start date
+  // plus the overnight toggle: same calendar day when not overnight, the day
+  // after when overnight. Whenever start or overnight changes, we correct
+  // end's date to match. We never invent a TIME on the requester's behalf —
+  // if they haven't picked an end time yet, it stays blank; if they have, we
+  // shift its date and keep the time-of-day they chose.
+  const startDateObj = startValue ? new Date(startValue) : null;
+  const startIsValid = !!startDateObj && !Number.isNaN(startDateObj.getTime());
+  const requiredEndDay = startIsValid
+    ? outOfProvince
+      ? addDays(startOfDay(startDateObj!), 1)
+      : startOfDay(startDateObj!)
+    : null;
+  const endDayValue = requiredEndDay ? datetimeLocalValue(requiredEndDay) : undefined;
 
-  // Default the end to 2h after start (same calendar day) whenever the user
-  // changes the start, until they pick an end of their own — keeps the end
-  // date matching the start date by default.
+  useEffect(() => {
+    if (!requiredEndDay) return;
+    const day = requiredEndDay;
+    setEndValue((prev) => {
+      if (!prev) return prev; // no end time chosen yet — nothing to correct
+      const prevDate = new Date(prev);
+      if (Number.isNaN(prevDate.getTime())) return prev;
+      if (isSameDay(prevDate, day)) return prev; // already compliant
+      // Shift the date only; keep whatever time the requester already chose.
+      const next = new Date(day);
+      next.setHours(prevDate.getHours(), prevDate.getMinutes(), 0, 0);
+      return datetimeLocalValue(next);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `requiredEndDay` is a new Date each render; depend on its primitive instead to avoid an infinite loop.
+  }, [requiredEndDay?.getTime()]);
+
   const handleStartChange = (v: string) => {
     setStartValue(v);
-    if (endTouched) return; // user chose their own end — leave it alone
-    const start = new Date(v);
-    if (Number.isNaN(start.getTime())) return;
-    const end = new Date(start);
-    end.setHours(start.getHours() + 2);
-    if (startOfDay(end).getTime() === startOfDay(start).getTime()) {
-      setEndValue(datetimeLocalValue(end));
-    }
   };
 
   const handleEndChange = (v: string) => {
     setEndValue(v);
-    setEndTouched(true);
   };
 
-  // Open the stored Maps link when the requester has one; otherwise fall back to
-  // a name-search of the typed destination. No API key — plain maps.google.com.
+  // Open the stored Maps link when present; otherwise fall back to a name-search
+  // of the typed destination. No API key — plain maps.google.com.
   const openDestinationInMaps = () => {
-    const stored = mapsUrl.trim();
+    const stored = (
+      document.getElementById("googleMapsUrl") as HTMLInputElement | null
+    )?.value.trim();
     if (stored) {
       window.open(stored, "_blank", "noopener,noreferrer");
       return;
     }
-    const dest = destination.trim();
+    const dest = (
+      document.getElementById("destination") as HTMLInputElement | null
+    )?.value.trim();
     const url = dest
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`
       : "https://www.google.com/maps";
@@ -331,17 +462,18 @@ export function BookingForm({
 
   // Required-field names + the translation key for each label, used to
   // pre-validate the submission so the user sees an in-form message rather
-  // than a browser-native tooltip. departmentId is omitted — it is locked to
-  // the profile and resolved server-side.
+  // than a browser-native tooltip.
   const baseRequired: Array<{ name: string; labelKey: string }> = [
+    { name: "startAt", labelKey: "startLabel" },
+    { name: "endAt", labelKey: "endLabel" },
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
     { name: "googleMapsUrl", labelKey: "mapsLinkLabel" },
+    { name: "pickupLocation", labelKey: "pickupLocation" },
     { name: "province", labelKey: "province" },
-    { name: "startAt", labelKey: "startLabel" },
-    { name: "endAt", labelKey: "endLabel" },
     { name: "passengerCount", labelKey: "passengerCount" },
     { name: "ajarnName", labelKey: "ajarnName" },
+    { name: "departmentId", labelKey: "department" },
     { name: "ajarnPhone", labelKey: "ajarnPhone" },
     { name: "ajarnEmail", labelKey: "ajarnEmail" },
     { name: "coordinatorName", labelKey: "coordinatorName" },
@@ -353,17 +485,19 @@ export function BookingForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("title")}</CardTitle>
-        <CardDescription>
-          {t.rich(isOutside ? "leadTimeOutside" : "leadTimeBangkok", {
-            ...richStrong,
-            days: requiredDays,
-          })}{" "}
-          {t.rich("earliestSentence", { ...richStrong, date: earliestDateLabel })}
-        </CardDescription>
+        {!isEmergency && (
+          <CardDescription>
+            {t.rich(outOfProvince ? "leadTimeOutside" : "leadTimeBangkok", {
+              ...richStrong,
+              days: requiredDays,
+            })}{" "}
+            {t.rich("earliestSentence", { ...richStrong, date: earliestDateLabel })}
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent>
         <form
+          ref={formRef}
           onSubmit={(e) => {
             // Use onSubmit (not the `action` prop) so React 19 does NOT
             // auto-reset the form after the handler runs. With `action`, a
@@ -371,10 +505,6 @@ export function BookingForm({
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             setError(null);
-            if (!userDepartment) {
-              setError(t("noDepartmentBody"));
-              return;
-            }
             const missing = baseRequired.filter((f) => {
               const v = formData.get(f.name);
               return typeof v !== "string" || v.trim() === "";
@@ -399,98 +529,73 @@ export function BookingForm({
           }}
           className="space-y-4"
         >
-          <p className="text-xs text-muted-foreground">
-            <span aria-hidden className="text-destructive">*</span>{" "}
-            {t("requiredFieldsHint")}
-          </p>
-
-          {/* 1. Requester & coordinator */}
-          <fieldset className="space-y-4 rounded-md border bg-muted/30 p-4">
-            <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
-
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("requesterBlockTitle")}
-              </p>
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
-                <Input id="ajarnName" name="ajarnName" required autoComplete="off" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="departmentDisplay">{t("department")}</Label>
-                {userDepartment ? (
-                  <>
-                    <div
-                      id="departmentDisplay"
-                      className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
-                    >
-                      <Lock aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span>{userDepartment.name}</span>
-                    </div>
-                    <a
-                      href="/account"
-                      className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      {t("departmentEditLink")}
-                    </a>
-                  </>
-                ) : (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/40">
-                    <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                      {t("noDepartmentTitle")}
-                    </p>
-                    <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
-                      {t("noDepartmentBody")}
-                    </p>
-                    <a
-                      href="/account"
-                      className="mt-2 inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      {t("departmentEditLink")}
-                    </a>
-                  </div>
-                )}
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
-                  <Input id="ajarnPhone" name="ajarnPhone" type="tel" required autoComplete="off" />
-                </div>
-                <div className="grid gap-2">
-                  <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
-                  <Input id="ajarnEmail" name="ajarnEmail" type="email" required autoComplete="off" />
-                </div>
-              </div>
+          <div className="space-y-3 rounded-md border border-dashed bg-muted/20 p-4">
+            <div className="flex items-center gap-2">
+              <BookmarkPlus aria-hidden className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">{t("templatesTitle")}</span>
             </div>
+            <p className="text-xs text-muted-foreground">{t("templatesHelper")}</p>
 
-            <div className="space-y-3 border-t pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("coordinatorBlockTitle")}
-              </p>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <ReqLabel htmlFor="coordinatorName">{t("coordinatorName")}</ReqLabel>
-                  <Input id="coordinatorName" name="coordinatorName" required autoComplete="off" />
-                </div>
-                <div className="grid gap-2">
-                  <ReqLabel htmlFor="coordinatorPhone">{t("coordinatorPhone")}</ReqLabel>
-                  <Input
-                    id="coordinatorPhone"
-                    name="coordinatorPhone"
-                    type="tel"
-                    required
-                    autoComplete="off"
-                  />
-                </div>
-              </div>
+            {templates.length > 0 && (
+              <ul className="flex flex-wrap gap-2">
+                {templates.map((tpl) => (
+                  <li
+                    key={tpl.id}
+                    className="inline-flex items-center gap-1 rounded-md border bg-background py-1 pl-1 pr-1.5 text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate(tpl)}
+                      className="rounded px-2 py-0.5 font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {tpl.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => renameTemplate(tpl)}
+                      aria-label={t("templateRename", { name: tpl.name })}
+                      className="grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTemplate(tpl)}
+                      aria-label={t("templateDelete", { name: tpl.name })}
+                      className="grid h-7 w-7 place-items-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder={t("templateNamePlaceholder")}
+                aria-label={t("templateNamePlaceholder")}
+                className="h-9 w-full sm:w-64"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={saveTemplate}
+                disabled={templateBusy}
+                className="h-9"
+              >
+                {t("saveTemplate")}
+              </Button>
             </div>
-          </fieldset>
+            {templateMsg && (
+              <p className="text-xs font-medium text-muted-foreground">{templateMsg}</p>
+            )}
+          </div>
 
-          {/* 2. Date & time (+ recurring) */}
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("scheduleSectionHelper")}</p>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2 min-w-0">
                 <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
@@ -503,6 +608,23 @@ export function BookingForm({
                   defaultValue={startValue}
                   placeholder={t("startLabel")}
                   onChange={handleStartChange}
+                  overnight={{
+                    value: outOfProvince,
+                    onChange: setOutOfProvince,
+                    label: t("outOfProvinceLabel"),
+                    helper: t("outOfProvinceHelper"),
+                    warning: t("outOfProvinceLeadWarning", { days: LEAD_TIME_OUTSIDE_DAYS }),
+                    yesLabel: t("overnightYes"),
+                    noLabel: t("overnightNo"),
+                  }}
+                  urgent={{
+                    value: isEmergency,
+                    onChange: setIsEmergency,
+                    label: t("emergencyLabel"),
+                    helper: t("emergencyHelper"),
+                    yesLabel: t("overnightYes"),
+                    noLabel: t("overnightNo"),
+                  }}
                 />
               </div>
               <div className="grid gap-2 min-w-0">
@@ -511,31 +633,73 @@ export function BookingForm({
                   id="endAt"
                   name="endAt"
                   required
-                  min={startValue || minStart}
-                  max={maxStart}
+                  min={endDayValue ?? (startValue || minStart)}
+                  max={endDayValue ?? maxStart}
                   defaultValue={endValue}
                   placeholder={t("endLabel")}
                   onChange={handleEndChange}
+                  pickupReturn={{
+                    wait: waitAtDestination,
+                    onWaitChange: setWaitAtDestination,
+                    pickupTime: pickupReturnTime,
+                    onPickupTimeChange: setPickupReturnTime,
+                    label: t("waitAtDestinationLabel"),
+                    helper: t("waitAtDestinationHelper"),
+                    waitYesLabel: t("waitYes"),
+                    waitNoLabel: t("waitNo"),
+                    pickupTimeLabel: t("pickupReturnTimeLabel"),
+                  }}
                 />
               </div>
+              {/* Empty cell keeps the helper text under End only, while the
+                  pickers above stay aligned regardless of how many lines the
+                  helper text wraps to. */}
+              <div />
+              <p className="text-xs text-muted-foreground">
+                {t.rich("endHelper", richStrong)}
+              </p>
             </div>
             {endBeforeStart && (
               <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
             )}
-            <p className="text-xs text-muted-foreground pb-1">
-              {t.rich("endHelper", richStrong)}
-            </p>
-            <button
-              type="button"
-              onClick={fillEarliest}
-              className="inline-flex h-9 items-center rounded-md px-2 -mx-2 text-xs font-medium text-primary hover:bg-primary/5 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {t("useEarliest", { date: earliestDateLabel })}
-            </button>
-            <details className="rounded-md border bg-background p-3">
-              <summary className="cursor-pointer text-sm font-medium">{t("recurringSummary")}</summary>
-              <div className="mt-3 space-y-3">
-                <p className="text-xs text-muted-foreground">{t("recurringDescription")}</p>
+            {startIsValid && (
+              <p className="text-xs text-muted-foreground">
+                {outOfProvince ? t("endDateAutoNextDay") : t("endDateAutoSameDay")}
+              </p>
+            )}
+
+            {/* คอย/ไม่คอย is toggled from inside the End date picker (it's
+                about what happens before the return trip, so it belongs next
+                to the date). Both ride along as hidden fields. waitAtDestination
+                must emit "true"/"" — never "false" — because z.coerce.boolean
+                treats any non-empty string as true. pickupReturnTime is only
+                meaningful (and only shown) when not waiting; clear it
+                otherwise so a stale typed value never lingers. */}
+            <input
+              type="hidden"
+              name="waitAtDestination"
+              value={waitAtDestination ? "true" : ""}
+            />
+            <input
+              type="hidden"
+              name="pickupReturnTime"
+              value={waitAtDestination ? "" : pickupReturnTime}
+            />
+
+            {/* Low-key disclosure matching the urgent toggle's style — a
+                routine option, but not so prominent it gets clicked by habit. */}
+            <details className="group">
+              <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+                <span>{t("recurringSummary")}</span>
+                <ChevronDown
+                  aria-hidden
+                  className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div className="mt-2 space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("recurringDescription")}
+                </p>
                 <RecurrenceWeekdays />
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
@@ -554,13 +718,21 @@ export function BookingForm({
             </details>
           </fieldset>
 
-          {/* 3. Purpose & destination */}
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("tripSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("tripSectionHelper")}</p>
             <div className="grid gap-2">
               <ReqLabel htmlFor="purpose">{t("purpose")}</ReqLabel>
               <Input id="purpose" name="purpose" required />
+            </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="pickupLocation">{t("pickupLocation")}</ReqLabel>
+              <Input
+                id="pickupLocation"
+                name="pickupLocation"
+                required
+                defaultValue="หน้าอาคารอานันทมหิดล"
+                placeholder={t("pickupLocationPlaceholder")}
+              />
             </div>
             {places.length > 0 && (
               <div className="grid gap-2">
@@ -574,9 +746,12 @@ export function BookingForm({
                   onChange={(id) => {
                     const p = places.find((x) => x.id === id);
                     if (!p) return;
-                    setDestination(p.destination);
-                    setProvince(p.province);
-                    setMapsUrl(p.googleMapsUrl ?? "");
+                    const setVal = (eid: string, v: string) => {
+                      const el = document.getElementById(eid) as HTMLInputElement | null;
+                      if (el) el.value = v;
+                    };
+                    setVal("destination", p.destination);
+                    setVal("googleMapsUrl", p.googleMapsUrl ?? "");
                   }}
                 />
                 <a
@@ -589,13 +764,7 @@ export function BookingForm({
             )}
             <div className="grid gap-2">
               <ReqLabel htmlFor="destination">{t("destination")}</ReqLabel>
-              <Input
-                id="destination"
-                name="destination"
-                required
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-              />
+              <Input id="destination" name="destination" required />
               <button
                 type="button"
                 onClick={openDestinationInMaps}
@@ -613,50 +782,38 @@ export function BookingForm({
                 type="url"
                 inputMode="url"
                 required
-                value={mapsUrl}
-                onChange={(e) => setMapsUrl(e.target.value)}
                 placeholder="https://maps.app.goo.gl/…"
               />
               <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>
-              <SaveDestination destination={destination} province={province} mapsUrl={mapsUrl} />
+              <SaveDestination />
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="province">{t("province")}</ReqLabel>
-                <Input
-                  id="province"
-                  name="province"
-                  required
-                  value={province}
-                  onChange={(e) => setProvince(e.target.value)}
-                  placeholder={t("provincePlaceholder")}
-                  autoComplete="off"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="tripType">{t("tripDirectionLabel")}</Label>
-                <SelectField
-                  id="tripType"
-                  name="tripType"
-                  defaultValue=""
-                  className="h-10"
-                  options={[
-                    { value: "", label: t("tripDirectionNone") },
-                    { value: "ROUND_TRIP", label: t("tripRoundTrip") },
-                    { value: "DROP_OFF", label: t("tripDropOff") },
-                    { value: "PICK_UP_DROP_OFF", label: t("tripPickupDropOff") },
-                  ]}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="pickupLocation">{t("pickupLocation")}</Label>
-              <Input
-                id="pickupLocation"
-                name="pickupLocation"
-                placeholder={t("pickupLocationPlaceholder")}
+            {/* Province + outOfProvince are derived from the overnight Yes/No
+                toggle that now lives inside the start date picker (it drives
+                lead time, so it belongs next to the date). Both ride along as
+                hidden fields. outOfProvince must emit "true"/"" — never
+                "false" — because z.coerce.boolean treats any non-empty string
+                as true. id="province" lets the saved-place inline-save read it. */}
+            <input
+              type="hidden"
+              id="province"
+              name="province"
+              value={outOfProvince ? "ต่างจังหวัด" : BANGKOK_PROVINCE}
+            />
+            <input type="hidden" name="outOfProvince" value={outOfProvince ? "true" : ""} />
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="travelWithinChula"
+                value="true"
+                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
-            </div>
+              <span>
+                <span className="font-medium">{t("travelWithinChulaLabel")}</span>
+                <span className="block text-xs text-muted-foreground">{t("travelWithinChulaHelper")}</span>
+              </span>
+            </label>
+            {/* Sub-project A: campus/off-campus hint (separate signal from the
+                WERN-forcing travelWithinChula above; surfaced as a chip). */}
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input
                 type="checkbox"
@@ -669,43 +826,20 @@ export function BookingForm({
                 <span className="block text-xs text-muted-foreground">{t("outsideChulaHelper")}</span>
               </span>
             </label>
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                name="outOfProvince"
-                value="true"
-                checked={outOfProvince}
-                onChange={(e) => setOutOfProvince(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <span>
-                <span className="font-medium">{t("outOfProvinceLabel")}</span>
-                <span className="block text-xs text-muted-foreground">{t("outOfProvinceHelper")}</span>
-              </span>
-            </label>
           </fieldset>
 
-          {/* 4. Passengers & details */}
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("loadSectionTitle")}</legend>
-            <p className="-mt-1 text-xs text-muted-foreground">{t("loadSectionHelper")}</p>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-3 gap-4">
               <div className="grid gap-2">
                 <ReqLabel htmlFor="passengerCount">{t("passengerCount")}</ReqLabel>
-                <PassengerStepper min={1} max={60} />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="estimatedDistance">{t("estimatedDistance")}</Label>
-                <Input
-                  id="estimatedDistance"
-                  name="estimatedDistance"
-                  type="number"
-                  min={0}
-                  placeholder={t("estimatedDistancePlaceholder")}
+                <PassengerStepper
+                  value={passengerCount}
+                  onChange={setPassengerCount}
+                  min={1}
+                  max={60}
                 />
               </div>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="maleCount">{t("maleCount")}</Label>
                 <Input id="maleCount" name="maleCount" type="number" min={0} placeholder="0" />
@@ -716,16 +850,43 @@ export function BookingForm({
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="preferredVehicleId">{t("preferredVehicle")}</Label>
-              <SelectField
-                id="preferredVehicleId"
-                name="preferredVehicleId"
-                defaultValue=""
-                className="h-10"
-                options={[
-                  { value: "", label: t("preferredVehicleNone") },
-                  ...vehicles.map((v) => ({ value: v.id, label: `${v.registrationNumber} · ${v.capacity}` })),
-                ]}
+              <ReqLabel htmlFor="preferredVehicleType">{t("preferredVehicle")}</ReqLabel>
+              <select
+                id="preferredVehicleType"
+                name="preferredVehicleType"
+                required
+                value={preferredVehicleType}
+                onChange={(e) => setPreferredVehicleType(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="VAN">{t("preferredVehicleVan")}</option>
+                <option value="TRUCK_6_WHEEL">{t("preferredVehicleTruck6Wheel")}</option>
+                <option value="PICKUP">{t("preferredVehiclePickup")}</option>
+                <option value="SEDAN_DEAN">{t("preferredVehicleSedanDean")}</option>
+                <option value="BUS_OUTSOURCED">{t("preferredVehicleBusOutsourced")}</option>
+              </select>
+              {/* Bus is always an outsourced rental — backend forces
+                  needsOutsourcing regardless of this checkbox, so reflect
+                  that truth here instead of leaving it editable. */}
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isBus || needsOutsourcing}
+                  disabled={isBus}
+                  onChange={(e) => setNeedsOutsourcing(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                />
+                <span>
+                  <span className="font-medium">{t("flagOutsourcing")}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {isBus ? t("flagOutsourcingBusNotice") : t("flagOutsourcingHelper")}
+                  </span>
+                </span>
+              </label>
+              <input
+                type="hidden"
+                name="needsOutsourcing"
+                value={isBus || needsOutsourcing ? "true" : ""}
               />
             </div>
             <div className="grid gap-2">
@@ -734,52 +895,97 @@ export function BookingForm({
             </div>
           </fieldset>
 
-          {/* Remark */}
-          <div className="grid gap-2">
-            <Label htmlFor="remark">{t("remarkLabel")}</Label>
-            <Textarea id="remark" name="remark" rows={3} placeholder={t("remarkPlaceholder")} />
-          </div>
-
-          <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              name="needsOutsourcing"
-              value="true"
-              className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <span>
-              <span className="font-medium">{t("flagOutsourcing")}</span>
-              <span className="block text-xs text-muted-foreground">{t("flagOutsourcingHelper")}</span>
-            </span>
-          </label>
-
-          <div className="space-y-3">
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                name="isEmergency"
-                value="true"
-                checked={isEmergency}
-                onChange={(e) => setIsEmergency(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
+            <legend className="px-1 text-sm font-semibold">{t("ajarnSectionTitle")}</legend>
+            <p className="-mt-1 text-xs text-muted-foreground">{t("ajarnSectionHelper")}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("requesterGroupTitle")}
+            </p>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="ajarnName">{t("ajarnName")}</ReqLabel>
+              <Input
+                id="ajarnName"
+                name="ajarnName"
+                required
+                autoComplete="off"
+                defaultValue={defaultAjarnName}
               />
-              <span>
-                <span className="font-medium">{t("emergencyLabel")}</span>
-                <span className="block text-xs text-muted-foreground">{t("emergencyHelper")}</span>
-              </span>
-            </label>
-            {isEmergency && (
+            </div>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="departmentDisplay">{t("department")}</ReqLabel>
+              {/* Locked: the department rides on the user profile, not the form. */}
+              <input type="hidden" id="departmentId" name="departmentId" value={defaultDepartmentId ?? ""} />
+              <Input
+                id="departmentDisplay"
+                value={
+                  defaultDepartment
+                    ? isThai
+                      ? defaultDepartment.nameTh
+                      : defaultDepartment.nameEn
+                    : t("departmentNotSet")
+                }
+                readOnly
+                disabled
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("departmentLockedHint")}{" "}
+                <a href="/account" className="font-medium text-primary hover:underline">
+                  {t("departmentEditLink")}
+                </a>
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="emergencyReason">{t("emergencyReasonLabel")}</Label>
-                <Textarea
-                  id="emergencyReason"
-                  name="emergencyReason"
-                  rows={3}
-                  placeholder={t("emergencyReasonPlaceholder")}
+                <ReqLabel htmlFor="ajarnPhone">{t("ajarnPhone")}</ReqLabel>
+                <Input
+                  id="ajarnPhone"
+                  name="ajarnPhone"
+                  type="tel"
+                  required
+                  autoComplete="off"
+                  defaultValue={defaultAjarnPhone}
                 />
               </div>
-            )}
-          </div>
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="ajarnEmail">{t("ajarnEmail")}</ReqLabel>
+                <Input
+                  id="ajarnEmail"
+                  name="ajarnEmail"
+                  type="email"
+                  required
+                  autoComplete="off"
+                  defaultValue={defaultAjarnEmail}
+                />
+              </div>
+            </div>
+            <div className="space-y-3 border-t pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("coordinatorGroupTitle")}
+              </p>
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="coordinatorName">{t("coordinatorName")}</ReqLabel>
+                <Input id="coordinatorName" name="coordinatorName" required autoComplete="off" />
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <ReqLabel htmlFor="coordinatorPhone">{t("coordinatorPhone")}</ReqLabel>
+                  <Input
+                    id="coordinatorPhone"
+                    name="coordinatorPhone"
+                    type="tel"
+                    required
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          {/* Urgent ("จองเร่งด่วน") is toggled from inside the start date
+              picker (it waives the lead time, so it belongs next to the date).
+              It rides along as a hidden field — "true"/"" only, never "false",
+              because z.coerce.boolean treats any non-empty string as true. */}
+          <input type="hidden" name="isEmergency" value={isEmergency ? "true" : ""} />
 
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

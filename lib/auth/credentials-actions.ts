@@ -157,6 +157,33 @@ export async function changeUsernameAction(formData: FormData): Promise<ActionRe
   return { ok: true };
 }
 
+// ---- Department (หน่วยงานผู้ขอใช้รถ) ----
+// The booking form shows the department read-only; the account page is the
+// one place a user changes it themselves.
+
+export async function changeDepartmentAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireUser();
+  const te = await getTranslations("errors");
+
+  const departmentId = String(formData.get("departmentId") ?? "").trim();
+  if (!departmentId) {
+    return { ok: false, error: te("invalidInput"), field: "departmentId" };
+  }
+  const department = await prisma.department.findUnique({
+    where: { id: departmentId },
+    select: { id: true },
+  });
+  if (!department) {
+    return { ok: false, error: te("invalidInput"), field: "departmentId" };
+  }
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { departmentId },
+  });
+  revalidatePath("/account");
+  return { ok: true };
+}
+
 // ---- Forgot password: request reset email ----
 
 const requestResetSchema = z.object({
