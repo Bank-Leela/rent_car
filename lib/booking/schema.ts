@@ -113,6 +113,14 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
+    // No-wait split: end of leg 1 (datetime-local). Required + ordered when
+    // waitAtDestination = false (see the cross-field refine below).
+    dropOffDone: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? new Date(v) : undefined))
+      .refine((d) => d === undefined || !Number.isNaN(d.getTime()), "Invalid drop-off time"),
     preferredVehicleType,
     recurringWeekdays: z
       .string()
@@ -141,7 +149,30 @@ export const newBookingSchema = z
   .refine((data) => data.endAt.getTime() > data.startAt.getTime(), {
     path: ["endAt"],
     message: "End time must be after start time",
-  });
+  })
+  // No-wait split must be a same-day, well-ordered pair of legs:
+  // startAt < dropOffDone < pickupReturnTime < endAt.
+  .refine(
+    (d) => {
+      if (d.waitAtDestination) return true;
+      if (!d.dropOffDone || !d.pickupReturnTime) return false;
+      const [h, m] = d.pickupReturnTime.split(":").map(Number);
+      const ret = new Date(d.startAt);
+      ret.setHours(h, m, 0, 0);
+      const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+      return (
+        d.startAt < d.dropOffDone &&
+        d.dropOffDone < ret &&
+        ret < d.endAt &&
+        sameDay(d.startAt, d.dropOffDone) &&
+        sameDay(d.startAt, d.endAt)
+      );
+    },
+    {
+      path: ["dropOffDone"],
+      message: "No-wait trips need start < drop-off < return < end, same day",
+    },
+  );
 
 export type NewBookingInput = z.infer<typeof newBookingSchema>;
 
