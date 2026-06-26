@@ -162,6 +162,10 @@
     "error_invalidJobType": "เลือกประเภทงาน",
     "error_endBeforeStart": "เวลาสิ้นสุดต้องหลังเวลาเริ่ม",
     "error_invalidKm": "ระยะทางต้องเป็นจำนวนบวก",
+    "error_invalidSplit": "ไม่คอย: ต้องเรียง เริ่ม < ส่งเสร็จ < กลับมารับ < สิ้นสุด ในวันเดียวกัน",
+    "waitLabel": "คนขับคอย",
+    "dropOffLabel": "ส่งเสร็จเวลา",
+    "returnLabel": "เวลากลับมารับ",
     "error_noDrivers": "ไม่มีคนขับที่ใช้งานและมีรถประจำให้จำลอง"
   },
   "decisions": {

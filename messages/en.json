@@ -162,6 +162,10 @@
     "error_invalidJobType": "Pick a job type.",
     "error_endBeforeStart": "End must be after start.",
     "error_invalidKm": "Distance must be a positive number.",
+    "error_invalidSplit": "No-wait: need start < drop-off < return < end, same day.",
+    "waitLabel": "Driver waits",
+    "dropOffLabel": "Drop-off done",
+    "returnLabel": "Return pickup",
     "error_noDrivers": "No active, car-paired drivers to simulate against."
   },
   "decisions": {
