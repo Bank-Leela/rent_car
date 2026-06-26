@@ -69,6 +69,11 @@ export interface TripWindow {
   // Drives the job-type-aware chaining rule (OT uncapped vs NORMAL morning/
   // afternoon). Omitted → treated as NORMAL.
   jobType?: JobType;
+  // No-wait split fields (optional; absent ⇒ single interval). canChain frees a
+  // no-wait trip's middle when measuring overlap/gap against it.
+  waitAtDestination?: boolean;
+  dropOffDone?: Date | null;
+  pickupReturnTime?: string | null;
 }
 
 /**

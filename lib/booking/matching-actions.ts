@@ -72,6 +72,9 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       jobType: true,
       startAt: true,
       endAt: true,
+      waitAtDestination: true,
+      dropOffDone: true,
+      pickupReturnTime: true,
     },
   });
   // --- Algorithm 2 inputs ---
@@ -138,10 +141,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   for (const d of drivers) tripsByDriver.set(d.id, []);
   for (const b of dayBookings) {
     if (b.primaryDriverId && tripsByDriver.has(b.primaryDriverId)) {
-      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType });
+      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
     }
     if (b.secondaryDriverId && tripsByDriver.has(b.secondaryDriverId)) {
-      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType });
+      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
     }
   }
   if (onCallDriverId && tripsByDriver.has(onCallDriverId)) {
@@ -172,7 +175,14 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const decision = match({
     jobType: booking.jobType,
     timeBucket: booking.timeBucket,
-    newTrip: { startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType },
+    newTrip: {
+      startAt: booking.startAt,
+      endAt: booking.endAt,
+      jobType: booking.jobType,
+      waitAtDestination: booking.waitAtDestination,
+      dropOffDone: booking.dropOffDone,
+      pickupReturnTime: booking.pickupReturnTime,
+    },
     estimatedDistance: booking.estimatedDistance,
     driverCar,
     driverMatrix,

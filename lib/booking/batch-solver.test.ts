@@ -554,3 +554,36 @@ describe("solveDay — WERN goes to the on-call duty driver (docs §1)", () => {
     expect(out.assignments[0]?.primaryDriverId).toBe("B");
   });
 });
+
+describe("solveDay — no-wait split frees the middle", () => {
+  // An existing no-wait split on driver A: legs 08:00–10:00 and 15:30–18:00.
+  const split = {
+    id: "split",
+    startAt: D("2026-06-10T08:00:00"),
+    endAt: D("2026-06-10T18:00:00"),
+    jobType: "OT" as const,
+    waitAtDestination: false,
+    dropOffDone: D("2026-06-10T10:00:00"),
+    pickupReturnTime: "15:30",
+  };
+  const base = (fillerStart: string, fillerEnd: string): SolverInput => ({
+    date: D("2026-06-10"),
+    bookings: [booking({ bookingId: "f", jobType: "OT", startAt: D(fillerStart), endAt: D(fillerEnd) })],
+    drivers: [driver({ driverId: "A" })], // only driver → filler must fit A's gap
+    dutyDriverId: null,
+    activeTjwCommitments: [],
+    existingByDriver: new Map([["A", [split]]]),
+  });
+
+  it("places a filler that fits the freed gap (≥2h to each leg)", () => {
+    const out = solveDay(base("2026-06-10T12:00:00", "2026-06-10T13:00:00"));
+    expect(out.overflows).toHaveLength(0);
+    expect(out.assignments.map((a) => a.primaryDriverId)).toEqual(["A"]);
+  });
+
+  it("overflows a filler that overlaps a leg (no free driver)", () => {
+    const out = solveDay(base("2026-06-10T16:00:00", "2026-06-10T17:00:00"));
+    expect(out.assignments).toHaveLength(0);
+    expect(out.overflows).toHaveLength(1);
+  });
+});

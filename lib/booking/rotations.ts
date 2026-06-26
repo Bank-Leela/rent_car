@@ -37,6 +37,11 @@ export interface ScheduledTrip {
   startAt: Date;
   endAt: Date;
   jobType: JobType;
+  // No-wait split fields (optional; absent ⇒ single interval). Let canChain free
+  // the middle of a no-wait trip when checking overlap/gap against this trip.
+  waitAtDestination?: boolean;
+  dropOffDone?: Date | null;
+  pickupReturnTime?: string | null;
 }
 
 /**
