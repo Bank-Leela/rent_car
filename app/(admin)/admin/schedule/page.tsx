@@ -13,6 +13,7 @@ import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { findConflictLosers } from "@/lib/booking/conflict-resolve";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
 import { daySpan, daySuperscript } from "@/lib/booking/day-window";
+import { tripLegs } from "@/lib/booking/trip-legs";
 
 // Compact clock for the board's narrow blocks: drop ":00" so a 2h block fits its
 // own start–end ("08:00–12:00" → "08–12"); keep the minutes only when non-zero.
@@ -62,6 +63,9 @@ export default async function SchedulePage({
         destination: true,
         outsideChula: true,
         googleMapsUrl: true,
+        waitAtDestination: true,
+        dropOffDone: true,
+        pickupReturnTime: true,
         startAt: true,
         endAt: true,
         vehicleId: true,
@@ -178,7 +182,24 @@ export default async function SchedulePage({
     const su = b.secondaryDriver?.user;
     const secondaryDriverName = su ? (isThai ? su.thaiName ?? su.name : su.name ?? su.thaiName) ?? null : null;
     // Project the (possibly multi-day) trip onto this viewed day.
-    const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
+    // No-wait split: the primary block is clamped to leg 1; leg 2 renders as a
+    // read-only return ghost. Waiting/single-interval trips → one leg, unchanged.
+    const legs = tripLegs(b);
+    const pStart = legs[0]!.startAt;
+    const pEnd = legs[0]!.endAt;
+    const span = daySpan(pStart, pEnd, dayStart, dayEnd);
+    const returnLeg =
+      legs.length === 2
+        ? (() => {
+            const rs = daySpan(legs[1]!.startAt, legs[1]!.endAt, dayStart, dayEnd);
+            return {
+              startHour: rs.startHour,
+              endHour: rs.endHour,
+              timeLabel: hm(legs[1]!.startAt),
+              endLabel: hm(legs[1]!.endAt),
+            };
+          })()
+        : null;
     const r = recos.get(b.id);
     const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
     const reco =
@@ -200,20 +221,22 @@ export default async function SchedulePage({
       destination: b.destination,
       outsideChula: b.outsideChula,
       googleMapsUrl: b.googleMapsUrl,
+      returnLeg,
       // On its departure day a trip shows its start time; on a later (return or
       // middle) day it shows "↪ <departure date>" so it's clear it's continuing.
+      // pStart/pEnd are leg 1's bounds (= the whole trip when waiting).
       timeLabel: span.continuesBefore
-        ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}`
-        : hm(b.startAt),
+        ? `↪ ${format(pStart, "EEE d MMM", { locale: dfLocale })}`
+        : hm(pStart),
       // Ending the same day → just the time; ending a later day → the return time
       // plus the return date ("↩ <date>").
       endLabel: span.continuesAfter
-        ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
-        : hm(b.endAt),
+        ? `${hm(pEnd)} ↩ ${format(pEnd, "EEE d MMM", { locale: dfLocale })}`
+        : hm(pEnd),
       // Airline-style depart/arrive for the both-ends multi-day rendering: time +
       // a day-offset marker relative to the viewed day ("18:00⁺1" = next day).
-      departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),
-      arriveLabel: hm(b.endAt) + daySuperscript(b.endAt, dayStart),
+      departLabel: hm(pStart) + daySuperscript(pStart, dayStart),
+      arriveLabel: hm(pEnd) + daySuperscript(pEnd, dayStart),
       startHour: span.startHour,
       endHour: span.endHour,
       continuesBefore: span.continuesBefore,

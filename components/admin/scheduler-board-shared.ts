@@ -20,6 +20,9 @@ export type SchedulerBooking = {
   // Optional so non-admin board construction sites needn't set them.
   outsideChula?: boolean;
   googleMapsUrl?: string | null;
+  // No-wait split: leg 2 (return pickup) rendered as a read-only ghost; the
+  // primary block above is clamped to leg 1. null for waiting/single-interval trips.
+  returnLeg?: { startHour: number; endHour: number; timeLabel: string; endLabel: string } | null;
   // Start as "HH:mm", or "↪ <date>" when the trip began on an earlier day.
   timeLabel: string;
   // End time as "HH:mm", with "↩ <return date>" when it ends on a later day.

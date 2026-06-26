@@ -235,6 +235,7 @@
     "noAssignedDriver": "No driver set for this car — set one in Cars & drivers.",
     "coDriverSamePrimary": "The co-driver can't be the same as the main driver.",
     "arrives": "arr.",
+    "returnLeg": "กลับมารับ",
     "coDriverNeeded": "Co-driver needed",
     "coDriverNeededCard": "Needs a co-driver — drag onto a car",
     "externalRows": "Outside drivers (this day only)",
