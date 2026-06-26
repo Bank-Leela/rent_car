@@ -920,6 +920,7 @@
     "scheduleSectionTitle": "Date & time",
     "loadSectionTitle": "Passengers & details",
     "loadSectionHelper": "How many people travel, plus any extra notes.",
+    "estimatedDistance": "Estimated distance (km, optional)",
     "ajarnName": "Requester full name",
     "ajarnPhone": "Phone",
     "ajarnEmail": "Email",

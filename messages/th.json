@@ -920,6 +920,7 @@
     "scheduleSectionTitle": "วันและเวลา",
     "loadSectionTitle": "ผู้โดยสารและรายละเอียด",
     "loadSectionHelper": "จำนวนผู้โดยสารและหมายเหตุเพิ่มเติม",
+    "estimatedDistance": "ระยะทางโดยประมาณ (กม. ไม่บังคับ)",
     "ajarnName": "ชื่อ-สกุล ผู้ขอใช้รถ",
     "ajarnPhone": "โทรศัพท์",
     "ajarnEmail": "อีเมล",
