@@ -9,7 +9,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { CancelForm } from "@/components/forms/cancel-form";
 import { EvaluationForm } from "@/components/forms/evaluation-form";
 import { TimeChangeForm } from "@/components/forms/time-change-form";
-import { Field } from "@/components/detail-field";
+import { DetailField as Field } from "@/components/detail-field";
 import { InChulaChip } from "@/components/in-chula-chip";
 
 export default async function RequesterBookingDetail({
@@ -114,6 +114,12 @@ export default async function RequesterBookingDetail({
             <Field label={t("ajarnName")} value={booking.ajarnName} />
             <Field label={t("ajarnPhone")} value={booking.ajarnPhone} />
             <Field label={t("ajarnEmail")} value={booking.ajarnEmail} colSpan />
+            {booking.coordinatorName && (
+              <>
+                <Field label={t("coordinatorName")} value={booking.coordinatorName} />
+                <Field label={t("coordinatorPhone")} value={booking.coordinatorPhone} />
+              </>
+            )}
           </CardContent>
         </Card>
       )}

@@ -37,7 +37,7 @@ type DetailBooking = {
   estimatedDistance: number | null;
   passengerNotes: string | null;
   isEmergency: boolean;
-  outsideChula: boolean;
+  travelWithinChula: boolean;
 };
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
@@ -63,9 +63,9 @@ function BookingInputs({ b, labels }: { b: DetailBooking; labels: Record<string,
             {labels.emergency}
           </span>
         )}
-        {b.outsideChula && (
+        {b.travelWithinChula && (
           <span className="rounded bg-sky-100 px-1.5 py-0.5 font-medium text-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
-            {labels.outsideChula}
+            {labels.travelWithinChula}
           </span>
         )}
       </div>
@@ -105,8 +105,8 @@ export default async function AdminBatchPage({
     pickup: tf("pickupLocation"),
     distance: tf("estimatedDistance"),
     notes: tf("passengerNotes"),
-    emergency: tf("emergencyLabel"),
-    outsideChula: tf("outsideChulaLabel"),
+    emergency: tf("urgentBadge"),
+    travelWithinChula: tf("travelWithinChulaLabel"),
   };
   const { date: dateParam } = await searchParams;
 

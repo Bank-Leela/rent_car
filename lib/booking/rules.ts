@@ -4,8 +4,12 @@ import { LONG_TRIP_KM } from "./classification";
 // Province name for Bangkok in Thai. Used for the lead-time short list.
 export const BANGKOK_PROVINCE = "กรุงเทพมหานคร";
 
-export const LEAD_TIME_BANGKOK_DAYS = 7;
-export const LEAD_TIME_OUTSIDE_DAYS = 15;
+export const LEAD_TIME_BANGKOK_DAYS = 3;
+export const LEAD_TIME_OUTSIDE_DAYS = 7;
+// Urgent ("จองเร่งด่วน") requests waive the normal lead time down to this
+// floor. They are also excluded from auto-assign so an admin handles them by
+// hand (lib/booking/batch-actions.ts).
+export const LEAD_TIME_URGENT_DAYS = 1;
 
 // The >400 km "needs a co-driver" threshold has one source of truth:
 // classification.ts's LONG_TRIP_KM. Re-exported under the rules-domain name so
@@ -37,6 +41,8 @@ export function isWithinWorkHours({ startAt, endAt }: WorkHoursInput): boolean {
 export type LeadTimeInput = {
   startAt: Date;
   province: string;
+  /** Urgent requests collapse the lead time to LEAD_TIME_URGENT_DAYS. */
+  urgent?: boolean;
   /** "now" injected so it's testable. */
   now: Date;
 };
@@ -46,12 +52,16 @@ export type LeadTimeResult =
   | { ok: false; reason: "TOO_SOON"; minimumDays: number; minimumStartAt: Date };
 
 /**
- * Lead time check (plan §5.2). Bangkok = ≥7d, anywhere else = ≥15d.
- * Calendar-day rule: the earliest allowed start is midnight on (today + minDays);
- * any time on that day is fine.
+ * Lead time check (plan §5.2). Bangkok = ≥3d, out-of-province overnight = ≥7d,
+ * urgent = ≥1d (waives the above). Calendar-day rule: the earliest allowed
+ * start is midnight on (today + minDays); any time on that day is fine.
  */
-export function checkLeadTime({ startAt, province, now }: LeadTimeInput): LeadTimeResult {
-  const minDays = province === BANGKOK_PROVINCE ? LEAD_TIME_BANGKOK_DAYS : LEAD_TIME_OUTSIDE_DAYS;
+export function checkLeadTime({ startAt, province, urgent, now }: LeadTimeInput): LeadTimeResult {
+  const minDays = urgent
+    ? LEAD_TIME_URGENT_DAYS
+    : province === BANGKOK_PROVINCE
+      ? LEAD_TIME_BANGKOK_DAYS
+      : LEAD_TIME_OUTSIDE_DAYS;
   const minimumStartAt = startOfDay(addDays(now, minDays));
   if (startAt.getTime() < minimumStartAt.getTime()) {
     return { ok: false, reason: "TOO_SOON", minimumDays: minDays, minimumStartAt };
