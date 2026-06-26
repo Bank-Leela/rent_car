@@ -143,6 +143,21 @@ No change to category **priority** (TJW → OT → WERN → NORMAL) or fairness 
 
 ---
 
+## 7.1 Placement simulator (`/admin/simulate`)
+
+The what-if placement simulator (`components/admin/simulate-form.tsx` +
+`simulatePlacementAction` in `lib/booking/simulate-actions.ts`) runs one synthetic
+booking through `solveDay`. Extend it to simulate a no-wait split:
+
+- Form gains a "driver waits" toggle + `dropOffDone` and `pickupReturnTime` time inputs
+  (shown when **not** waiting), mirroring the booking form. Same ordering/same-day rule.
+- `simulatePlacementAction` reads the three fields, resolves them onto the chosen day, and
+  puts them on the synthetic `SolverBookingInput`. The existing-trips query (`assignedToday`)
+  also selects the three fields so an **existing** no-wait trip's gap is honored in the sim.
+- Because `solveDay`/`canChain` are leg-aware (§6), the sim then shows where a split trip
+  lands (or that it fits a car whose only busy windows are around an existing trip's legs) —
+  the same `SimResult` shape (car·driver / overflow reason).
+
 ## 8. Testing
 
 - **Unit:** `trip-legs.test.ts` — 1-interval (wait / legacy / missing data) vs 2-interval;
@@ -181,6 +196,9 @@ No change to category **priority** (TJW → OT → WERN → NORMAL) or fairness 
   `app/(admin)/admin/{schedule,calendar}/page.tsx`, admin/driver month grids,
   driver dashboard, batch roster.
 - `components/forms/booking-form.tsx`: `dropOffDone` input shown when "no wait".
+- `components/admin/simulate-form.tsx` + `lib/booking/simulate-actions.ts`: no-wait toggle +
+  `dropOffDone`/`pickupReturnTime` inputs; synthetic booking + existing-trips query carry the
+  leg fields (§7.1).
 - `messages/{en,th}.json`: `รับ` / `กลับมารับ` leg labels + drop-off field labels.
 - `docs/scheduling-algorithm.md`: §4–5 leg-aware rule update.
 - Tests under `lib/` + `tests/`.

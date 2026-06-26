@@ -413,7 +413,35 @@ it("canChain: overlapping a leg is rejected", () => {
 
 ---
 
-### Task 10: Rule doc + full verification
+### Task 10: Placement simulator — no-wait support (`/admin/simulate`)
+
+**Files:**
+- Modify: `components/admin/simulate-form.tsx`, `lib/booking/simulate-actions.ts`
+- Modify: `messages/{en,th}.json` (toggle + field labels)
+
+**Interfaces:**
+- Consumes: leg-aware `solveDay`/`canChain` (T5–T6); `SolverBookingInput` + `ScheduledTrip` now carry `waitAtDestination`/`dropOffDone`/`pickupReturnTime` (added in T6).
+- Produces: the simulator can place a no-wait split trip and honors existing no-wait gaps.
+
+- [ ] **Step 1: Form inputs.** In `simulate-form.tsx` add a "driver waits" toggle (default on) and, when off, two `type="time"` inputs `name="dropOffDone"` + `name="pickupReturnTime"` (the form already uses plain `type="time"`/`type="date"` inputs). Add `simulate.waitLabel` / `simulate.dropOffLabel` / `simulate.returnLabel` to en/th.
+
+- [ ] **Step 2: Read + validate in the action.** In `simulatePlacementAction` read `waitAtDestination` (`String(formData.get("wait")) !== "false"`), `dropOffDone` (HH:mm), `pickupReturnTime` (HH:mm). When not waiting: require both, build `dropOffDone = new Date(\`${dateStr}T${dropStr}:00\`)`, resolve return onto the day, and enforce `startAt < dropOffDone < return < endAt` (else `return { ok:false, error:"invalidSplit" }`). Add `i18n` for the error in the form's error map.
+
+- [ ] **Step 3: Put leg fields on the synthetic booking + existing trips.** Add to the `synthetic: SolverBookingInput`:
+```ts
+    waitAtDestination,
+    dropOffDone: waitAtDestination ? null : dropOffDone,
+    pickupReturnTime: waitAtDestination ? null : pickupReturnStr,
+```
+and add `waitAtDestination: true, dropOffDone: true, pickupReturnTime: true` to the `assignedToday` `select`, and pass them through `addTrip` into each `ScheduledTrip` so an **existing** no-wait trip's gap is respected in the sim. (Both types gained these fields in T6.)
+
+- [ ] **Step 4: Typecheck + dev smoke.** `npm run typecheck`; `npm run dev`, open `/admin/simulate`, choose a day with a busy car, enter a no-wait trip whose legs straddle that car's existing trip → simulator places it (or shows the overflow reason), proving leg-aware placement end-to-end.
+
+- [ ] **Step 5: Commit** — `feat(simulate): no-wait split support in the placement simulator`
+
+---
+
+### Task 11: Rule doc + full verification
 
 **Files:**
 - Modify: `docs/scheduling-algorithm.md` (§4 `canChain`, §5 no-overlap)
@@ -428,7 +456,7 @@ it("canChain: overlapping a leg is rejected", () => {
 
 ## Self-Review
 
-**Spec coverage:** §3 data model (T1) ✓; §4 validation/same-day (T3) ✓; §5 trip-legs helper (T2) ✓; §6 rules leg-aware — canChain (T5), matcher/solver (T6), reassign/conflict-resolve (T7), rule doc (T10) ✓; §7 rendering all 6 views (T8) ✓; §8 testing (every task TDD + T10 gates) ✓; persist + form (T4, T9) ✓; §9 out-of-scope respected (no gap-hunting heuristic; no multi-day no-wait — enforced by T3 same-day refine) ✓.
+**Spec coverage:** §3 data model (T1) ✓; §4 validation/same-day (T3) ✓; §5 trip-legs helper (T2) ✓; §6 rules leg-aware — canChain (T5), matcher/solver (T6), reassign/conflict-resolve (T7), rule doc (T11) ✓; §7 rendering all 6 views (T8) ✓; §7.1 placement simulator (T10) ✓; §8 testing (every task TDD + T11 gates) ✓; persist + form (T4, T9) ✓; §9 out-of-scope respected (no gap-hunting heuristic; no multi-day no-wait — enforced by T3 same-day refine) ✓.
 
 **Placeholder scan:** code given for the new/tricky surfaces (helper, zod, canChain, conflict-resolve, migration); the 5 secondary renderers (T8 Step 3) and the matcher/solver field-threading (T6) reference exact files + the one pattern to apply, since their current code must be read per-file at implementation — not placeholders, but read-then-apply steps. Flagged so the implementer reads each file.
 
