@@ -275,6 +275,9 @@ export function BookingForm({
   // Only meaningful when waitAtDestination is false; cleared on submit
   // otherwise so a stale typed time never lingers once "คอย" is re-selected.
   const [pickupReturnTime, setPickupReturnTime] = useState("");
+  // No-wait split: when not waiting, the time the driver finishes the drop-off
+  // run (leg-1 end). Combined with the start date into a datetime-local on submit.
+  const [dropOffTime, setDropOffTime] = useState("");
   // Controlled so applying a template can set it (PassengerStepper reads it).
   const [passengerCount, setPassengerCount] = useState<string>("1");
   // Controlled so the outsourcing checkbox can react to it: a bus is always
@@ -522,6 +525,11 @@ export function BookingForm({
               document.getElementById("endAt")?.focus();
               return;
             }
+            if (!waitAtDestination && (!dropOffTime || !pickupReturnTime)) {
+              setError(t("noWaitTimesRequired"));
+              document.getElementById("dropOffTime")?.focus();
+              return;
+            }
             startTransition(async () => {
               const res = await createBookingAction(formData);
               if (res && !res.ok) setError(res.error);
@@ -684,6 +692,30 @@ export function BookingForm({
               type="hidden"
               name="pickupReturnTime"
               value={waitAtDestination ? "" : pickupReturnTime}
+            />
+            {/* No-wait split: drop-off-done time (leg-1 end). Same calendar day
+                as the start; combined into a datetime-local for the hidden field. */}
+            {!waitAtDestination && (
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="dropOffTime">{t("dropOffDoneLabel")}</ReqLabel>
+                <input
+                  id="dropOffTime"
+                  type="time"
+                  value={dropOffTime}
+                  onChange={(e) => setDropOffTime(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <span className="text-xs text-muted-foreground">{t("dropOffDoneHelper")}</span>
+              </div>
+            )}
+            <input
+              type="hidden"
+              name="dropOffDone"
+              value={
+                !waitAtDestination && dropOffTime && startValue
+                  ? `${startValue.slice(0, 10)}T${dropOffTime}`
+                  : ""
+              }
             />
 
             {/* Low-key disclosure matching the urgent toggle's style — a
