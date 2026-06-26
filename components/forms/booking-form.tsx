@@ -183,16 +183,6 @@ export type BookingFormDepartment = {
   nameTh: string;
 };
 
-// A requester's saved destination (origin/main "saved places" feature). Picking
-// one fills in the destination + Google Maps link.
-export type BookingFormPlace = {
-  id: string;
-  label: string;
-  destination: string;
-  province: string;
-  googleMapsUrl: string | null;
-};
-
 export function BookingForm({
   departments,
   defaultDepartmentId,
@@ -200,7 +190,6 @@ export function BookingForm({
   defaultAjarnPhone,
   defaultAjarnEmail,
   templates,
-  places = [],
   locale,
 }: {
   departments: BookingFormDepartment[];
@@ -211,7 +200,6 @@ export function BookingForm({
   defaultAjarnPhone: string;
   defaultAjarnEmail: string;
   templates: TripTemplate[];
-  places?: BookingFormPlace[];
   locale: string;
 }) {
   const t = useTranslations("bookingForm");
@@ -244,6 +232,11 @@ export function BookingForm({
   // an unchecked native checkbox sends nothing at all, which would fall back
   // to the schema default (true) and silently ignore the uncheck.
   const [waitAtDestination, setWaitAtDestination] = useState(true);
+  // One-way ("ไม่เดินทางกลับ"): the requester only books the outbound leg and
+  // leaves the end time to the admin (set at approval). When false the end
+  // picker is hidden and a provisional endAt rides along so the server schema
+  // (which always wants an endAt) stays happy.
+  const [returnTrip, setReturnTrip] = useState(true);
   // Only meaningful when waitAtDestination is false; cleared on submit
   // otherwise so a stale typed time never lingers once "คอย" is re-selected.
   const [pickupReturnTime, setPickupReturnTime] = useState("");
@@ -281,6 +274,7 @@ export function BookingForm({
     };
     set("purpose", tpl.purpose);
     set("destination", tpl.destination);
+    set("googleMapsUrl", tpl.googleMapsUrl);
     set("pickupLocation", tpl.pickupLocation);
     setPickupReturnTime(tpl.pickupReturnTime ?? "");
     set("waitingLocation", tpl.waitingLocation);
@@ -299,6 +293,7 @@ export function BookingForm({
       tpl.travelWithinChula ? "WITHIN_CHULA" : tpl.outOfProvince ? "UPCOUNTRY" : "BANGKOK_METRO",
     );
     setIsEmergency(tpl.isEmergency);
+    setReturnTrip(tpl.returnTrip);
     setWaitAtDestination(tpl.waitAtDestination);
     setPreferredVehicleType(tpl.preferredVehicleType);
     setNeedsOutsourcing(tpl.needsOutsourcing);
@@ -381,6 +376,11 @@ export function BookingForm({
   // may end on the next day OR any later day — the requester picks it.
   const startDateObj = startValue ? new Date(startValue) : null;
   const startIsValid = !!startDateObj && !Number.isNaN(startDateObj.getTime());
+  // One-way: no end is chosen, but the server still wants an endAt > startAt.
+  // Send a provisional (start + 3h) — the admin overwrites it at approval.
+  const provisionalEndValue = startIsValid
+    ? datetimeLocalValue(new Date(startDateObj!.getTime() + 3 * 60 * 60 * 1000))
+    : "";
   const minEndDay = startIsValid
     ? isOvernight
       ? addDays(startOfDay(startDateObj!), 1)
@@ -453,7 +453,9 @@ export function BookingForm({
   // than a browser-native tooltip.
   const baseRequired: Array<{ name: string; labelKey: string }> = [
     { name: "startAt", labelKey: "startLabel" },
-    { name: "endAt", labelKey: "endLabel" },
+    // endAt is only required for round trips; one-way leaves it to the admin
+    // (a provisional value rides along in a hidden field).
+    ...(returnTrip ? [{ name: "endAt", labelKey: "endLabel" }] : []),
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
     { name: "googleMapsUrl", labelKey: "mapsLinkLabel" },
@@ -704,35 +706,76 @@ export function BookingForm({
                 />
               </div>
               <div className="grid gap-2 min-w-0">
-                <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
-                <DateTimePicker
-                  id="endAt"
-                  name="endAt"
-                  required
-                  min={endMinValue}
-                  max={endMaxValue}
-                  defaultValue={endValue}
-                  placeholder={t("endLabel")}
-                  onChange={handleEndChange}
-                  timeLabel={t("endTimeLabel")}
-                  pickupReturn={{
-                    wait: waitAtDestination,
-                    onWaitChange: setWaitAtDestination,
-                    pickupTime: pickupReturnTime,
-                    onPickupTimeChange: setPickupReturnTime,
-                    label: t("waitAtDestinationLabel"),
-                    helper: t("waitAtDestinationHelper"),
-                    waitYesLabel: t("waitYes"),
-                    waitNoLabel: t("waitNo"),
-                    pickupTimeLabel: t("pickupReturnTimeLabel"),
-                  }}
-                />
+                {returnTrip ? (
+                  <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
+                ) : (
+                  <Label htmlFor="endAt">{t("endLabel")}</Label>
+                )}
+                {/* เดินทางกลับ / ไม่เดินทางกลับ (เที่ยวเดียว). One-way hides the
+                    end picker — the admin sets the real end time at approval. */}
+                <div
+                  role="radiogroup"
+                  aria-label={t("returnTripLabel")}
+                  className="grid grid-cols-2 gap-1.5"
+                >
+                  {[
+                    { v: true, label: t("returnTripYes") },
+                    { v: false, label: t("returnTripNo") },
+                  ].map((o) => {
+                    const selected = returnTrip === o.v;
+                    return (
+                      <button
+                        key={String(o.v)}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setReturnTrip(o.v)}
+                        className={
+                          "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+                          (selected
+                            ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                            : "border-input bg-background text-foreground hover:bg-muted/60")
+                        }
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {returnTrip ? (
+                  <DateTimePicker
+                    id="endAt"
+                    name="endAt"
+                    required
+                    min={endMinValue}
+                    max={endMaxValue}
+                    defaultValue={endValue}
+                    placeholder={t("endLabel")}
+                    onChange={handleEndChange}
+                    timeLabel={t("endTimeLabel")}
+                    pickupReturn={{
+                      wait: waitAtDestination,
+                      onWaitChange: setWaitAtDestination,
+                      pickupTime: pickupReturnTime,
+                      onPickupTimeChange: setPickupReturnTime,
+                      label: t("waitAtDestinationLabel"),
+                      helper: t("waitAtDestinationHelper"),
+                      waitYesLabel: t("waitYes"),
+                      waitNoLabel: t("waitNo"),
+                      pickupTimeLabel: t("pickupReturnTimeLabel"),
+                    }}
+                  />
+                ) : (
+                  <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                    {t("oneWayNote")}
+                  </div>
+                )}
               </div>
             </div>
-            {endBeforeStart && (
+            {returnTrip && endBeforeStart && (
               <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
             )}
-            {startIsValid && !isOvernight && (
+            {returnTrip && startIsValid && !isOvernight && (
               <p className="text-xs text-muted-foreground">{t("endDateAutoSameDay")}</p>
             )}
 
@@ -753,6 +796,11 @@ export function BookingForm({
               name="pickupReturnTime"
               value={waitAtDestination ? "" : pickupReturnTime}
             />
+            {/* returnTrip rides along ("true"/"" only — z.coerce.boolean treats
+                any non-empty string as true). One-way hides the end picker, so
+                send a provisional endAt the admin overwrites at approval. */}
+            <input type="hidden" name="returnTrip" value={returnTrip ? "true" : ""} />
+            {!returnTrip && <input type="hidden" name="endAt" value={provisionalEndValue} />}
 
             {/* Prominent disclosure: a bordered card with a primary-tinted
                 icon so recurring bookings are easy to find and act on. */}
@@ -831,40 +879,6 @@ export function BookingForm({
               />
               <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>
             </div>
-            {/* Saved places (origin/main): pick one to fill destination + map link. */}
-            {places.length > 0 && (
-              <div className="grid gap-2">
-                <Label htmlFor="savedPlace">{t("savedPlaceLabel")}</Label>
-                <select
-                  id="savedPlace"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  defaultValue=""
-                  onChange={(e) => {
-                    const p = places.find((x) => x.id === e.target.value);
-                    if (!p) return;
-                    const setVal = (eid: string, v: string) => {
-                      const el = document.getElementById(eid) as HTMLInputElement | null;
-                      if (el) el.value = v;
-                    };
-                    setVal("destination", p.destination);
-                    setVal("googleMapsUrl", p.googleMapsUrl ?? "");
-                  }}
-                >
-                  <option value="">{t("savedPlacePlaceholder")}</option>
-                  {places.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-                <a
-                  href="/requester/places"
-                  className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
-                >
-                  {t("managePlacesLink")}
-                </a>
-              </div>
-            )}
             <div className="grid gap-2">
               <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
               <Input

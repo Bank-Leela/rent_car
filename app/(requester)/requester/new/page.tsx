@@ -2,7 +2,6 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingForm } from "@/components/forms/booking-form";
-import { listMyPlaces } from "@/lib/places/actions";
 import { listDepartments } from "@/lib/departments";
 
 export default async function NewBookingPage() {
@@ -19,7 +18,6 @@ export default async function NewBookingPage() {
     where: { userId: session.user.id },
     orderBy: { updatedAt: "desc" },
   });
-  const places = await listMyPlaces();
 
   return (
     <div className="space-y-6">
@@ -31,13 +29,6 @@ export default async function NewBookingPage() {
         defaultAjarnPhone={me?.phone ?? ""}
         defaultAjarnEmail={me?.email ?? ""}
         templates={templates}
-        places={places.map((p) => ({
-          id: p.id,
-          label: p.label,
-          destination: p.destination,
-          province: p.province,
-          googleMapsUrl: p.googleMapsUrl,
-        }))}
         locale={locale}
       />
     </div>

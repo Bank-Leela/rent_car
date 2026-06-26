@@ -173,6 +173,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       maleCount: data.maleCount,
       femaleCount: data.femaleCount,
       pickupLocation: data.pickupLocation,
+      returnTrip: data.returnTrip,
       waitAtDestination: data.waitAtDestination,
       pickupReturnTime: data.pickupReturnTime,
       waitingLocation: data.waitingLocation,

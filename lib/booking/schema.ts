@@ -105,6 +105,10 @@ export const newBookingSchema = z
       .or(z.literal(""))
       .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     pickupLocation: z.string().trim().min(1, "Pickup point is required").max(500),
+    // One-way ("ไม่เดินทางกลับ"): the requester leaves the end time to the admin.
+    // The form still sends a provisional endAt so the data model stays simple;
+    // the admin sets the real one at approval.
+    returnTrip: z.coerce.boolean().optional().default(true),
     // Independent of pickupReturnTime — neither field gates the other.
     waitAtDestination: z.coerce.boolean().optional().default(true),
     pickupReturnTime: z
@@ -196,8 +200,12 @@ export const tripTemplateSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   purpose: z.string().max(500).optional().default(""),
   destination: z.string().max(500).optional().default(""),
+  // Plain optional string here (not a strict URL): the booking form re-validates
+  // googleMapsUrl on submit; the template just snapshots whatever was typed.
+  googleMapsUrl: optStr(2000),
   province: z.string().max(120).optional().default(""),
   pickupLocation: optStr(500),
+  returnTrip: z.coerce.boolean().optional().default(true),
   waitingLocation: optStr(500),
   passengerCount: z.coerce.number().int().min(1).max(60).optional().default(1),
   maleCount: optInt,

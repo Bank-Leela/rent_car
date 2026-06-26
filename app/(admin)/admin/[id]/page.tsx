@@ -414,7 +414,12 @@ export default async function AdminBookingDetail({
               <CardTitle>{ta("approveTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <ApproveForm bookingId={booking.id} hasSignature={!!me.signatureImageUrl} />
+              <ApproveForm
+                bookingId={booking.id}
+                hasSignature={!!me.signatureImageUrl}
+                returnTrip={booking.returnTrip}
+                startAt={format(booking.startAt, "yyyy-MM-dd'T'HH:mm")}
+              />
             </CardContent>
           </Card>
           <Card>

@@ -37,6 +37,13 @@ async function canApprove(userId: string): Promise<boolean> {
 const approveSchema = z.object({
   bookingId: z.string().min(1),
   comment: z.string().max(1000).optional().or(z.literal("")).transform((v) => v || undefined),
+  // Only sent for one-way ("ไม่เดินทางกลับ") bookings: the admin sets the real
+  // end time here before approving. "yyyy-MM-ddTHH:mm" local string.
+  endAt: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? new Date(v) : undefined)),
 });
 
 const denySchema = z.object({
@@ -62,7 +69,7 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
-  const { bookingId, comment } = parsed.data;
+  const { bookingId, comment, endAt } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
@@ -73,6 +80,19 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
   }
   if (!(await canApprove(userId))) {
     return { ok: false, error: te("notAuthorizedToApprove") };
+  }
+
+  // One-way ("ไม่เดินทางกลับ") bookings carry a provisional endAt; the admin must
+  // set the real end time before approving. Round trips ignore any sent endAt.
+  let confirmedEndAt: Date | undefined;
+  if (!booking.returnTrip) {
+    if (!endAt || Number.isNaN(endAt.getTime())) {
+      return { ok: false, field: "endAt", error: te("endTimeRequiredOneWay") };
+    }
+    if (endAt.getTime() <= booking.startAt.getTime()) {
+      return { ok: false, field: "endAt", error: te("endBeforeStart") };
+    }
+    confirmedEndAt = endAt;
   }
 
   const approver = await prisma.user.findUniqueOrThrow({
@@ -93,7 +113,12 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     });
     await tx.booking.update({
       where: { id: bookingId },
-      data: { status: "APPROVED", decidedAt: new Date() },
+      data: {
+        status: "APPROVED",
+        decidedAt: new Date(),
+        // One-way: replace the provisional end with the admin-set time.
+        ...(confirmedEndAt ? { endAt: confirmedEndAt } : {}),
+      },
     });
     await logTransition({
       bookingId,

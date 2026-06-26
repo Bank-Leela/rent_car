@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { approveBookingAction, denyByApproverAction } from "@/lib/booking/approval-actions";
@@ -10,11 +11,33 @@ import { useFormAction } from "@/components/forms/use-form-action";
 import { FormError } from "@/components/forms/form-error";
 import { DenyPresetChips } from "@/components/forms/deny-preset-chips";
 
-export function ApproveForm({ bookingId, hasSignature }: { bookingId: string; hasSignature: boolean }) {
+export function ApproveForm({
+  bookingId,
+  hasSignature,
+  returnTrip,
+  startAt,
+}: {
+  bookingId: string;
+  hasSignature: boolean;
+  // One-way ("ไม่เดินทางกลับ") booking → the admin must set the end time before
+  // approving. startAt ("yyyy-MM-ddTHH:mm") bounds the picker's minimum.
+  returnTrip: boolean;
+  startAt: string;
+}) {
   const t = useTranslations("approverActions");
   const { error, pending, run } = useFormAction(approveBookingAction, { bookingId });
   return (
     <form action={run} className="space-y-3">
+      {!returnTrip && (
+        <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-400/40 dark:bg-amber-500/10">
+          <Label htmlFor="endAt" className="text-amber-900 dark:text-amber-200">
+            {t("setEndTimeLabel")}
+            <span aria-hidden className="ml-0.5 text-destructive">*</span>
+          </Label>
+          <Input id="endAt" name="endAt" type="datetime-local" min={startAt} required />
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/70">{t("setEndTimeHelper")}</p>
+        </div>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="comment">{t("commentOptional")}</Label>
         <Textarea id="comment" name="comment" rows={2} />
