@@ -46,10 +46,14 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   // --- Pending bookings for the day (APPROVED, no primary yet). ---
+  // TJW is no longer assigned here — it goes through the global request-order
+  // pass (assignTjwByRequestOrder); the daily batch handles OT/WERN/NORMAL and
+  // sees TJW-committed drivers as away via activeTjwCommitments.
   const pending = await prisma.booking.findMany({
     where: {
       status: "APPROVED",
       primaryDriverId: null,
+      jobType: { not: "TJW" },
       startAt: { gte: dayStart, lt: dayEnd },
     },
     orderBy: { createdAt: "asc" },
