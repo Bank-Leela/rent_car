@@ -356,10 +356,13 @@
     "noDutyDriverNote": "No duty driver assigned for this date yet.",
     "pendingTitle": "Pending ({count})",
     "pendingEmpty": "No pending bookings for this date.",
+    "pendingEmptyTitle": "Nothing pending",
     "overflowTitle": "Overflow / escalations ({count})",
     "overflowEmpty": "No overflows.",
+    "overflowEmptyTitle": "All clear",
     "assignedTitle": "Already assigned ({count})",
     "assignedEmpty": "Nothing assigned yet.",
+    "assignedEmptyTitle": "Nothing assigned yet",
     "reclaimPrompt": "This >400 km trip can only be staffed by reassigning today's duty driver. Pick one:",
     "reclaimWern": "Reclaim duty driver",
     "outsourceInstead": "Outsource the trip",
@@ -542,6 +545,7 @@
     "cancel": "Cancel",
     "update": "Update",
     "empty": "No saved places yet. Add one below.",
+    "emptyTitle": "No saved places",
     "deleteConfirm": "Delete this saved place?"
   },
   "adminDetail": {
@@ -730,6 +734,7 @@
   "calendarDay": {
     "backToMonth": "Back to month",
     "nothingScheduled": "Nothing scheduled.",
+    "emptyTitle": "No trips this day",
     "bookingCount": "{count, plural, one {# booking} other {# bookings}}",
     "viewAgenda": "Agenda",
     "viewTimeline": "Timeline",

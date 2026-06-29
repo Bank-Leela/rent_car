@@ -356,10 +356,13 @@
     "noDutyDriverNote": "ยังไม่ได้กำหนดคนขับเวรของวันนี้",
     "pendingTitle": "รอจัด ({count})",
     "pendingEmpty": "ไม่มีงานรอจัดของวันที่นี้",
+    "pendingEmptyTitle": "ไม่มีงานรอจัด",
     "overflowTitle": "งานที่จัดไม่ได้ / ส่งพี่ท็อป ({count})",
     "overflowEmpty": "ไม่มี",
+    "overflowEmptyTitle": "จัดได้ครบทุกงาน",
     "assignedTitle": "จัดเรียบร้อยแล้ว ({count})",
     "assignedEmpty": "ยังไม่มีงานถูกจัด",
+    "assignedEmptyTitle": "ยังไม่มีงานถูกจัด",
     "reclaimPrompt": "ทริปเกิน 400 กม. นี้จัดได้เฉพาะกรณีย้ายคนขับเวรเท่านั้น เลือกหนึ่ง:",
     "reclaimWern": "ย้ายคนขับเวรมา",
     "outsourceInstead": "เช่าจากภายนอกแทน",
@@ -542,6 +545,7 @@
     "cancel": "ยกเลิก",
     "update": "อัปเดต",
     "empty": "ยังไม่มีสถานที่ที่บันทึก เพิ่มด้านล่าง",
+    "emptyTitle": "ยังไม่มีสถานที่ที่บันทึก",
     "deleteConfirm": "ลบสถานที่ที่บันทึกนี้หรือไม่?"
   },
   "adminDetail": {
@@ -730,6 +734,7 @@
   "calendarDay": {
     "backToMonth": "กลับไปมุมมองเดือน",
     "nothingScheduled": "ไม่มีกำหนดการ",
+    "emptyTitle": "วันนี้ไม่มีทริป",
     "bookingCount": "การจอง {count} รายการ",
     "viewAgenda": "รายการ",
     "viewTimeline": "ไทม์ไลน์",
