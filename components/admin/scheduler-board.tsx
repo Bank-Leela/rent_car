@@ -460,6 +460,7 @@ export function SchedulerBoard({
                   noDriverLabel={t("noDriver")}
                   coDriverLabel={t("coDriver")}
                   arrivesLabel={t("arrives")}
+                  returnLegLabel={t("returnLeg")}
                   unassignLabel={t("unassign")}
                   onUnassign={unassign}
                   dayStart={dayStart}

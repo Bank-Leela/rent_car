@@ -222,3 +222,29 @@ describe("canChain — 2h-gap boundaries + NORMAL cap shapes", () => {
     ).toBe(true);
   });
 });
+
+describe("canChain — no-wait split legs", () => {
+  const trip = (s: string, e: string, jt: JobType = "OT") => ({ startAt: D(s), endAt: D(e), jobType: jt });
+  // Split: leg1 08:00–10:00, leg2 15:30–18:00, free gap 10:00–15:30.
+  const SPLIT = {
+    startAt: D("2026-06-10T08:00:00"),
+    endAt: D("2026-06-10T18:00:00"),
+    jobType: "NORMAL" as JobType,
+    waitAtDestination: false,
+    dropOffDone: D("2026-06-10T10:00:00"),
+    pickupReturnTime: "15:30",
+  };
+
+  it("allows a trip that fits the freed gap with ≥2h to each leg", () => {
+    expect(canChain(trip("2026-06-10T12:00:00", "2026-06-10T13:00:00"), [SPLIT])).toBe(true);
+  });
+  it("rejects a trip overlapping leg 1", () => {
+    expect(canChain(trip("2026-06-10T09:00:00", "2026-06-10T09:30:00"), [SPLIT])).toBe(false);
+  });
+  it("rejects a trip overlapping leg 2", () => {
+    expect(canChain(trip("2026-06-10T16:00:00", "2026-06-10T17:00:00"), [SPLIT])).toBe(false);
+  });
+  it("rejects a trip <2h from leg 1 (gap rule is per-leg)", () => {
+    expect(canChain(trip("2026-06-10T11:00:00", "2026-06-10T13:00:00"), [SPLIT])).toBe(false);
+  });
+});

@@ -165,6 +165,10 @@
     "error_invalidJobType": "เลือกประเภทงาน",
     "error_endBeforeStart": "เวลาสิ้นสุดต้องหลังเวลาเริ่ม",
     "error_invalidKm": "ระยะทางต้องเป็นจำนวนบวก",
+    "error_invalidSplit": "ไม่คอย: ต้องเรียง เริ่ม < ส่งเสร็จ < กลับมารับ < สิ้นสุด ในวันเดียวกัน",
+    "waitLabel": "คนขับคอย",
+    "dropOffLabel": "ส่งเสร็จเวลา",
+    "returnLabel": "เวลากลับมารับ",
     "error_noDrivers": "ไม่มีคนขับที่ใช้งานและมีรถประจำให้จำลอง"
   },
   "decisions": {
@@ -237,6 +241,7 @@
     "noAssignedDriver": "รถคันนี้ยังไม่มีคนขับประจำ — ตั้งค่าในเมนูรถและคนขับ",
     "coDriverSamePrimary": "คนขับเสริมต้องไม่ใช่คนเดียวกับคนขับหลัก",
     "arrives": "ถึง",
+    "returnLeg": "กลับมารับ",
     "coDriverNeeded": "ต้องการคนขับเสริม",
     "coDriverNeededCard": "ลากไปวางบนรถเพื่อเพิ่มคนขับเสริม",
     "externalRows": "คนขับนอก (เฉพาะวันนี้)",
@@ -1005,6 +1010,9 @@
     "pickupReturnTimeLabel": "เวลาที่คนขับกลับมารับ",
     "waitingLocation": "จอดรอรับที่",
     "waitingLocationPlaceholder": "จุดที่รถจอดรอ เช่น ลานจอดด้านหลังอาคาร",
+    "dropOffDoneLabel": "ส่งเสร็จเวลา",
+    "dropOffDoneHelper": "เวลาที่คนขับส่งผู้โดยสารเสร็จและว่าง (วันเดียวกัน) หลังจากนั้นรถจะว่างรับงานอื่นได้จนถึงเวลากลับมารับ",
+    "noWaitTimesRequired": "กรณีไม่คอย ต้องระบุทั้งเวลาส่งเสร็จและเวลากลับมารับ",
     "preferredVehicle": "ประเภทรถ",
     "preferredVehicleVan": "รถตู้",
     "preferredVehicleTruck6Wheel": "รถ 6 ล้อ",

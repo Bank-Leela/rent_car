@@ -135,3 +135,38 @@ describe("pickConflictLoser / findConflictLosers — edge cases", () => {
     expect([...losers]).toEqual(["b"]); // 30s overlap → NORMAL (lower) moves
   });
 });
+
+describe("findConflictLosers — no-wait split frees the middle", () => {
+  // OT split on car-1: legs 08:00–10:00 and 15:30–18:00.
+  const split = trip({
+    id: "split",
+    jobType: "OT",
+    startAt: new Date("2026-06-18T08:00:00"),
+    endAt: new Date("2026-06-18T18:00:00"),
+    waitAtDestination: false,
+    dropOffDone: new Date("2026-06-18T10:00:00"),
+    pickupReturnTime: "15:30",
+  });
+
+  it("no conflict when the other trip fits the freed gap (same car)", () => {
+    const filler = trip({
+      id: "filler",
+      jobType: "OT",
+      startAt: new Date("2026-06-18T12:00:00"),
+      endAt: new Date("2026-06-18T13:00:00"),
+    });
+    expect(findConflictLosers([split, filler]).size).toBe(0);
+  });
+
+  it("conflict when the other trip overlaps a leg (same car)", () => {
+    const hit = trip({
+      id: "hit",
+      jobType: "NORMAL",
+      startAt: new Date("2026-06-18T16:00:00"),
+      endAt: new Date("2026-06-18T17:00:00"),
+    });
+    const losers = findConflictLosers([split, hit]);
+    expect(losers.size).toBe(1);
+    expect(losers.has("hit")).toBe(true); // NORMAL loses to OT
+  });
+});

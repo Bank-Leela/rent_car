@@ -12,6 +12,9 @@ export function SimulateForm({ today }: { today: string }) {
   const t = useTranslations("simulate");
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<SimResult | null>(null);
+  // No-wait split: when off, the driver drops off then returns later, so the
+  // sim feeds the two-leg booking to the leg-aware solver.
+  const [wait, setWait] = useState(true);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,6 +57,30 @@ export function SimulateForm({ today }: { today: string }) {
             <label htmlFor="sim-end" className={label}>{t("end")}</label>
             <input id="sim-end" name="end" type="time" defaultValue="12:00" required className={field} />
           </div>
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={wait}
+                onChange={(e) => setWait(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              {t("waitLabel")}
+            </label>
+          </div>
+          <input type="hidden" name="wait" value={wait ? "true" : ""} />
+          {!wait && (
+            <>
+              <div>
+                <label htmlFor="sim-drop" className={label}>{t("dropOffLabel")}</label>
+                <input id="sim-drop" name="dropOff" type="time" defaultValue="11:00" className={field} />
+              </div>
+              <div>
+                <label htmlFor="sim-return" className={label}>{t("returnLabel")}</label>
+                <input id="sim-return" name="pickupReturn" type="time" defaultValue="14:00" className={field} />
+              </div>
+            </>
+          )}
           <div className="flex items-end">
             <button
               type="submit"

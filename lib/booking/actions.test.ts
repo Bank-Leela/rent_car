@@ -143,6 +143,54 @@ describe("createBookingAction", () => {
     createdIds.push(booking.id);
   });
 
+  it("persists a no-wait split (dropOffDone + waitAtDestination=false)", async () => {
+    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    start.setHours(9, 0, 0, 0);
+    const drop = new Date(start); drop.setHours(11, 0, 0, 0);
+    const end = new Date(start); end.setHours(16, 0, 0, 0);
+
+    await expect(
+      createBookingAction(
+        formDataFor({
+          departmentId: "seed-dept-medicine",
+          purpose: "No-wait split smoke",
+          destination: "Lab",
+          pickupLocation: "Test lobby",
+          province: BANGKOK_PROVINCE,
+          googleMapsUrl: "https://maps.app.goo.gl/smoke",
+          startAt: isoLocal(start),
+          endAt: isoLocal(end),
+          waitAtDestination: "",
+          dropOffDone: isoLocal(drop),
+          pickupReturnTime: "14:00",
+          passengerCount: "2",
+          passengerNotes: "",
+          estimatedDistance: "",
+          ajarnName: "ศ. ดร. ทดสอบ",
+          ajarnPhone: "0812345678",
+          ajarnEmail: "ajarn@chula.ac.th",
+          coordinatorName: "นางสาว ประสาน",
+          coordinatorPhone: "0898765432",
+          jobType: "OT",
+          recurringWeekdays: "",
+          recurringUntil: "",
+        }),
+      ),
+    ).rejects.toMatchObject({ message: "NEXT_REDIRECT" });
+
+    const after = await prisma.booking.findMany({
+      where: { requesterId: REQUESTER_ID, purpose: "No-wait split smoke" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(after).toHaveLength(1);
+    const booking = after[0]!;
+    expect(booking.waitAtDestination).toBe(false);
+    expect(booking.pickupReturnTime).toBe("14:00");
+    expect(booking.dropOffDone).not.toBeNull();
+    expect(booking.dropOffDone!.getHours()).toBe(11);
+    createdIds.push(booking.id);
+  });
+
   it("rejects when start violates Bangkok lead time", async () => {
     const tooSoon = new Date();
     tooSoon.setHours(tooSoon.getHours() + 1);

@@ -124,6 +124,9 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
     estimatedDistance: b.estimatedDistance,
     outOfProvince: b.outOfProvince,
     submittedAt: b.createdAt,
+    waitAtDestination: b.waitAtDestination,
+    dropOffDone: b.dropOffDone,
+    pickupReturnTime: b.pickupReturnTime,
   }));
 
   // car=driver: a booking's vehicle is its PRIMARY driver's assigned car
@@ -161,13 +164,25 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
       startAt: { lt: dayEnd },
       endAt: { gt: dayStart },
     },
-    select: { id: true, startAt: true, endAt: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
+    select: {
+      id: true, startAt: true, endAt: true, jobType: true, primaryDriverId: true, secondaryDriverId: true,
+      waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+    },
   });
   const existingByDriver = new Map<string, ScheduledTrip[]>();
-  const addTrip = (driverId: string | null, t: { id: string; startAt: Date; endAt: Date; jobType: JobType }) => {
+  const addTrip = (
+    driverId: string | null,
+    t: {
+      id: string; startAt: Date; endAt: Date; jobType: JobType;
+      waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null;
+    },
+  ) => {
     if (!driverId) return;
     const list = existingByDriver.get(driverId) ?? [];
-    list.push({ id: t.id, startAt: t.startAt, endAt: t.endAt, jobType: t.jobType });
+    list.push({
+      id: t.id, startAt: t.startAt, endAt: t.endAt, jobType: t.jobType,
+      waitAtDestination: t.waitAtDestination, dropOffDone: t.dropOffDone, pickupReturnTime: t.pickupReturnTime,
+    });
     existingByDriver.set(driverId, list);
   };
   for (const t of assignedToday) {

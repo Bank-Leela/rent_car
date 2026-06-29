@@ -7,6 +7,17 @@ import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { findConflictLosers } from "@/lib/booking/conflict-resolve";
+import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
+
+// Adapt a booking row to the leg helper (no-wait trips free their middle).
+type LegRow = { startAt: Date; endAt: Date; waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null };
+const toLegSrc = (b: LegRow): LegSource => ({
+  startAt: b.startAt,
+  endAt: b.endAt,
+  waitAtDestination: b.waitAtDestination,
+  dropOffDone: b.dropOffDone,
+  pickupReturnTime: b.pickupReturnTime,
+});
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 
 // car=driver: dropping a booking on a car assigns the car AND its assigned
@@ -57,7 +68,10 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   // Skip only when re-dropping on the same car (a booking can't collide with
   // itself; the query already excludes its own id).
   if (vehicleId !== booking.vehicleId) {
-    const conflicts = await prisma.booking.findMany({
+    // SQL window-overlap is a coarse PREFILTER (superset of leg-overlap); refine
+    // per-leg in JS so a trip that only fits a no-wait trip's freed middle is not
+    // flagged as a conflict.
+    const candidates = await prisma.booking.findMany({
       where: {
         id: { not: bookingId },
         vehicleId,
@@ -66,9 +80,16 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
         endAt: { gt: booking.startAt },
       },
       orderBy: { startAt: "asc" },
-      take: 3,
-      select: { jobNumber: true, startAt: true, endAt: true },
+      select: {
+        jobNumber: true, startAt: true, endAt: true,
+        waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      },
     });
+    const bookingLeg = toLegSrc(booking);
+    const conflicts = candidates
+      .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
+      .slice(0, 3)
+      .map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt }));
     if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
   }
 
@@ -87,7 +108,9 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
     if (!secActive) secondary = null;
   }
   if (secondary) {
-    const secBusy = await prisma.booking.findFirst({
+    // Coarse window-overlap prefilter, then refine per-leg: the co-driver is only
+    // busy if a LEG of one of their trips overlaps a leg of this trip.
+    const secCandidates = await prisma.booking.findMany({
       where: {
         id: { not: bookingId },
         status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
@@ -95,9 +118,10 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
         startAt: { lt: booking.endAt },
         endAt: { gt: booking.startAt },
       },
-      select: { id: true },
+      select: { startAt: true, endAt: true, waitAtDestination: true, dropOffDone: true, pickupReturnTime: true },
     });
-    if (secBusy) secondary = null;
+    const bookingLeg = toLegSrc(booking);
+    if (secCandidates.some((c) => legsOverlap(bookingLeg, toLegSrc(c)))) secondary = null;
   }
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
@@ -282,6 +306,9 @@ export async function resolveScheduleConflictsAction(formData: FormData): Promis
       createdAt: true,
       status: true,
       secondaryDriverId: true,
+      waitAtDestination: true,
+      dropOffDone: true,
+      pickupReturnTime: true,
     },
   });
 
@@ -293,6 +320,9 @@ export async function resolveScheduleConflictsAction(formData: FormData): Promis
       endAt: t.endAt,
       jobType: t.jobType,
       submittedAt: t.createdAt,
+      waitAtDestination: t.waitAtDestination,
+      dropOffDone: t.dropOffDone,
+      pickupReturnTime: t.pickupReturnTime,
     })),
   );
   if (loserIds.size === 0) return { ok: true, resolved: 0, failures: [] };

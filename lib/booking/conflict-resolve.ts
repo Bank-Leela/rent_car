@@ -5,6 +5,7 @@
 // (the red ring), one must move. This module decides WHICH one (the "loser") so
 // the action layer can re-match it to a free legal car. Pure — no I/O.
 import type { JobType } from "@prisma/client";
+import { legsOverlap, type LegSource } from "./trip-legs";
 
 // Keep the higher-priority trip on the car; move the lower. Order matches the
 // batch solver's category priority (TJW → OT → WERN → NORMAL → SMUS).
@@ -24,11 +25,26 @@ export type ConflictTrip = {
   jobType: JobType;
   /** createdAt — the same-priority tie-break (later-submitted moves). */
   submittedAt: Date;
+  // No-wait split fields (optional; absent ⇒ single interval). A no-wait trip
+  // frees its middle, so two trips on one car only conflict when a LEG of each
+  // overlaps (lib/booking/trip-legs.ts).
+  waitAtDestination?: boolean;
+  dropOffDone?: Date | null;
+  pickupReturnTime?: string | null;
 };
 
-// Half-open overlap: touching edges (a.end === b.start) do NOT overlap.
+const legSrc = (t: ConflictTrip): LegSource => ({
+  startAt: t.startAt,
+  endAt: t.endAt,
+  waitAtDestination: t.waitAtDestination ?? true,
+  dropOffDone: t.dropOffDone ?? null,
+  pickupReturnTime: t.pickupReturnTime ?? null,
+});
+
+// Per-leg overlap: a no-wait trip's freed middle is not a conflict. Touching
+// edges (a.end === b.start) do NOT overlap.
 function overlaps(a: ConflictTrip, b: ConflictTrip): boolean {
-  return a.startAt < b.endAt && b.startAt < a.endAt;
+  return legsOverlap(legSrc(a), legSrc(b));
 }
 
 /**

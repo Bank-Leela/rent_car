@@ -165,6 +165,10 @@
     "error_invalidJobType": "Pick a job type.",
     "error_endBeforeStart": "End must be after start.",
     "error_invalidKm": "Distance must be a positive number.",
+    "error_invalidSplit": "No-wait: need start < drop-off < return < end, same day.",
+    "waitLabel": "Driver waits",
+    "dropOffLabel": "Drop-off done",
+    "returnLabel": "Return pickup",
     "error_noDrivers": "No active, car-paired drivers to simulate against."
   },
   "decisions": {
@@ -237,6 +241,7 @@
     "noAssignedDriver": "No driver set for this car — set one in Cars & drivers.",
     "coDriverSamePrimary": "The co-driver can't be the same as the main driver.",
     "arrives": "arr.",
+    "returnLeg": "กลับมารับ",
     "coDriverNeeded": "Co-driver needed",
     "coDriverNeededCard": "Needs a co-driver — drag onto a car",
     "externalRows": "Outside drivers (this day only)",
@@ -1005,6 +1010,9 @@
     "pickupReturnTimeLabel": "Driver's pickup return time",
     "waitingLocation": "Waiting location",
     "waitingLocationPlaceholder": "Where the vehicle waits, e.g. parking behind the building",
+    "dropOffDoneLabel": "Drop-off done by",
+    "dropOffDoneHelper": "When the driver finishes the drop-off and is free (same day). The car is then open for another trip until the return pickup.",
+    "noWaitTimesRequired": "Not-waiting trips need both a drop-off-done time and a return pickup time.",
     "preferredVehicle": "Vehicle type",
     "preferredVehicleVan": "Van",
     "preferredVehicleTruck6Wheel": "6-wheel truck",
