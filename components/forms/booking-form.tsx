@@ -531,7 +531,10 @@ export function BookingForm({
                   setError(res.error);
                 }
               }
-              if (res) toastResult(res, { success: tt("bookingSubmitted") });
+              // success redirects to the booking detail, so only the error path
+              // returns here — toastResult fires the error toast (the success arg
+              // is a never-reached fallback, kept only to satisfy the signature).
+              if (res) toastResult(res, { success: tt("genericError") });
             });
           }}
           className="space-y-4"
