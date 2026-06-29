@@ -1106,5 +1106,9 @@
     "declined": "Trip declined.",
     "templateSaved": "Template saved.",
     "templateDeleted": "Template deleted."
+  },
+  "listSearch": {
+    "placeholder": "Search…",
+    "noMatches": "No matches"
   }
 }

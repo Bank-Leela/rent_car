@@ -1106,5 +1106,9 @@
     "declined": "ปฏิเสธงานแล้ว",
     "templateSaved": "บันทึกเทมเพลตแล้ว",
     "templateDeleted": "ลบเทมเพลตแล้ว"
+  },
+  "listSearch": {
+    "placeholder": "ค้นหา…",
+    "noMatches": "ไม่พบรายการ"
   }
 }
