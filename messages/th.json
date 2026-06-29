@@ -1092,5 +1092,19 @@
     "viewOnly": "ดูอย่างเดียว",
     "error_bookingNotFound": "ไม่พบทริปนี้แล้ว",
     "error_forbidden": "คุณไม่มีสิทธิ์ดูทริปนี้"
+  },
+  "toast": {
+    "genericError": "เกิดข้อผิดพลาด กรุณาลองใหม่",
+    "bookingSubmitted": "ส่งคำขอแล้ว",
+    "bookingApproved": "อนุมัติแล้ว",
+    "bookingDenied": "ปฏิเสธแล้ว",
+    "batchDone": "จัดรอบเสร็จแล้ว",
+    "tjwAssigned": "จัด ตจว ตามลำดับการจองแล้ว",
+    "assigned": "จัดรถแล้ว",
+    "unassigned": "ส่งกลับคิวแล้ว",
+    "claimed": "รับงานแล้ว",
+    "declined": "ปฏิเสธงานแล้ว",
+    "templateSaved": "บันทึกเทมเพลตแล้ว",
+    "templateDeleted": "ลบเทมเพลตแล้ว"
   }
 }

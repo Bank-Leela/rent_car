@@ -1092,5 +1092,19 @@
     "viewOnly": "View only.",
     "error_bookingNotFound": "That trip no longer exists.",
     "error_forbidden": "You can't view this trip."
+  },
+  "toast": {
+    "genericError": "Something went wrong. Please try again.",
+    "bookingSubmitted": "Booking submitted.",
+    "bookingApproved": "Booking approved.",
+    "bookingDenied": "Booking denied.",
+    "batchDone": "Batch complete.",
+    "tjwAssigned": "TJW assigned by request order.",
+    "assigned": "Assigned.",
+    "unassigned": "Returned to the queue.",
+    "claimed": "Trip claimed.",
+    "declined": "Trip declined.",
+    "templateSaved": "Template saved.",
+    "templateDeleted": "Template deleted."
   }
 }
