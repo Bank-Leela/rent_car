@@ -18,6 +18,10 @@ import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { runBatchAction, type BatchStats } from "@/lib/booking/batch-actions";
 import type { ActionResult } from "@/lib/booking/actions";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
+import { assignTjwByRequestOrder } from "@/lib/booking/tjw-request-actions";
+import { generateRandomDemoBookings, type GeneratedBooking } from "@/lib/booking/sim-generator";
+import { checkInvariants, type AssignedTrip, type RuleViolation } from "@/lib/booking/sim-invariants";
 
 const runBatchSchema = z.object({ date: z.string().min(8) });
 
@@ -279,4 +283,177 @@ export async function clearBatchDemoAction(formData: FormData): Promise<ActionRe
   revalidatePath("/admin/batch");
   revalidatePath("/admin/schedule");
   return { ok: true, clearedCount: del.count };
+}
+
+// ---- 30-day fuzz simulation ----
+
+export interface ThirtyDaySummary {
+  startDate: string;
+  days: number;
+  seed: number;
+  seededCount: number;
+  tjwAssigned: number;
+  tjwOverflow: number;
+  noWaitCount: number;
+  perDay: { date: string; matched: number; pending: number; overflow: number }[];
+  totals: { matched: number; pending: number; overflow: number };
+  fairness: { min: number; max: number; spread: number; stddev: number };
+  ruleViolations: RuleViolation[];
+}
+
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Persist a generated month as BatchDemo bookings; ensure a duty driver per day.
+async function persistGenerated(gen: GeneratedBooking[], start: Date): Promise<{ seeded: number; noWait: number }> {
+  const requester = await prisma.user.findFirst({
+    where: { roles: { some: { role: "REQUESTER" } }, isActive: true, departmentId: { not: null } },
+    select: { id: true, departmentId: true },
+  });
+  if (!requester?.departmentId) throw new Error("No active requester with a department. Seed the DB first.");
+
+  const day0 = startOfDay(start);
+  const days = gen.length ? Math.max(...gen.map((g) => g.dayIndex)) + 1 : 0;
+  const dutyPool = await prisma.driver.findMany({ where: { isActive: true }, orderBy: { id: "asc" }, select: { id: true } });
+  for (let d = 0; d < days && dutyPool.length; d++) {
+    const dd = new Date(day0);
+    dd.setDate(dd.getDate() + d);
+    const dutyId = dutyPool[Math.floor(dd.getTime() / 86_400_000) % dutyPool.length]!.id;
+    await prisma.onCallShift.upsert({ where: { date: dd }, create: { date: dd, driverId: dutyId }, update: { driverId: dutyId } });
+  }
+
+  const ym = `VB-${day0.getFullYear()}${String(day0.getMonth() + 1).padStart(2, "0")}`;
+  const peers = await prisma.booking.findMany({ where: { jobNumber: { startsWith: ym } }, select: { jobNumber: true } });
+  let next = peers.map((p) => Number(p.jobNumber.split("-").pop() ?? 0)).reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
+  const tb = (h: number) => (h < 8 ? "BEFORE_08" : h < 12 ? "MORNING_08_12" : h < 16 ? "AFTERNOON_12_16" : "AFTER_16");
+
+  let noWait = 0;
+  for (const g of gen) {
+    if (!g.waitAtDestination) noWait++;
+    await prisma.booking.create({
+      data: {
+        jobNumber: `${ym}-${next++}`,
+        requesterId: requester.id,
+        departmentId: requester.departmentId,
+        purpose: `${BATCH_DEMO_TAG} ${g.purpose}`,
+        destination: g.destination,
+        province: g.province,
+        startAt: g.startAt,
+        endAt: g.endAt,
+        passengerCount: g.passengerCount,
+        maleCount: g.maleCount,
+        femaleCount: g.femaleCount,
+        pickupLocation: "จุดรับ (สุ่ม)",
+        ajarnName: "อ. สุ่ม ทดสอบ",
+        ajarnPhone: "0812345678",
+        ajarnEmail: "random@chula.ac.th",
+        isEmergency: false,
+        outsideChula: g.outOfProvince,
+        status: "APPROVED",
+        decidedAt: new Date(),
+        jobType: g.jobType,
+        timeBucket: tb(g.startAt.getHours()),
+        outOfProvince: g.outOfProvince,
+        estimatedDistance: g.estimatedDistance,
+        waitAtDestination: g.waitAtDestination,
+        dropOffDone: g.dropOffDone,
+        pickupReturnTime: g.pickupReturnTime,
+        createdAt: g.createdAt,
+      },
+    });
+  }
+  return { seeded: gen.length, noWait };
+}
+
+/**
+ * Run the full ตจว-first pipeline over a random month, then check invariants.
+ * Fuzz test: overflows are reported (normal under load); a non-empty
+ * `ruleViolations` is a surfaced algorithm bug (reproducible from `seed`).
+ */
+export async function runDemoSimulation(start: Date, days: number, seed: number): Promise<ThirtyDaySummary> {
+  const day0 = startOfDay(start);
+  const gen = generateRandomDemoBookings(day0, days, seed);
+  const { seeded, noWait } = await persistGenerated(gen, day0);
+
+  // 1) ตจว + multi-day first, in request order.
+  const tjwRes = await assignTjwByRequestOrder();
+  const tjwAssigned = tjwRes.ok ? tjwRes.assigned : 0;
+  const tjwOverflow = tjwRes.ok ? tjwRes.overflows.length : 0;
+
+  // 2) Per-day batch for OT/WERN/NORMAL.
+  const perDay: ThirtyDaySummary["perDay"] = [];
+  const totals = { matched: 0, pending: 0, overflow: 0 };
+  for (let d = 0; d < days; d++) {
+    const dd = new Date(day0);
+    dd.setDate(dd.getDate() + d);
+    const fd = new FormData();
+    fd.set("date", ymd(dd));
+    const res = await runBatchAction(fd);
+    const s = res.ok ? res.stats : undefined;
+    const matched = s?.matchedCount ?? 0;
+    const pending = s?.pendingCount ?? 0;
+    const overflow = s ? Object.values(s.overflowByReason).reduce((a, b) => a + b, 0) : 0;
+    perDay.push({ date: ymd(dd), matched, pending, overflow });
+    totals.matched += matched;
+    totals.pending += pending;
+    totals.overflow += overflow;
+  }
+
+  // 3) Invariant check on the persisted assignments (leg-aware, per driver).
+  const rangeEnd = new Date(day0);
+  rangeEnd.setDate(rangeEnd.getDate() + days + 4); // cover overnight ตจว spillover
+  const rows = await prisma.booking.findMany({
+    where: {
+      purpose: { startsWith: BATCH_DEMO_TAG },
+      status: { in: COMMITTED_STATUSES },
+      primaryDriverId: { not: null },
+      startAt: { gte: day0, lt: rangeEnd },
+    },
+    select: {
+      id: true, jobType: true, startAt: true, endAt: true,
+      waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      primaryDriverId: true, secondaryDriverId: true,
+    },
+  });
+  const trips: AssignedTrip[] = [];
+  for (const b of rows) {
+    const leg = { startAt: b.startAt, endAt: b.endAt, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime };
+    trips.push({ bookingId: b.id, driverId: b.primaryDriverId!, jobType: b.jobType, ...leg });
+    if (b.secondaryDriverId) trips.push({ bookingId: b.id, driverId: b.secondaryDriverId, jobType: b.jobType, ...leg });
+  }
+  const ruleViolations = checkInvariants(trips);
+
+  // Fairness: assignments per driver across the run.
+  const counts = new Map<string, number>();
+  for (const t of trips) counts.set(t.driverId, (counts.get(t.driverId) ?? 0) + 1);
+  const vals = [...counts.values()];
+  const min = vals.length ? Math.min(...vals) : 0;
+  const max = vals.length ? Math.max(...vals) : 0;
+  const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  const stddev = vals.length ? Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) : 0;
+
+  return {
+    startDate: ymd(day0), days, seed, seededCount: seeded, tjwAssigned, tjwOverflow, noWaitCount: noWait,
+    perDay, totals, fairness: { min, max, spread: max - min, stddev: Number(stddev.toFixed(2)) }, ruleViolations,
+  };
+}
+
+export async function simulate30DaysAction(
+  formData: FormData,
+): Promise<ActionResult & { summary?: ThirtyDaySummary }> {
+  await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+  const parsed = runBatchSchema.safeParse({ date: formData.get("date") });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  const date = new Date(`${parsed.data.date}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return { ok: false, error: te("invalidInput") };
+  const seed = Math.floor(Math.random() * 1_000_000_000);
+  try {
+    const summary = await runDemoSimulation(date, 30, seed);
+    revalidatePath("/admin/batch");
+    revalidatePath("/admin/schedule");
+    return { ok: true, summary };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : te("invalidInput") };
+  }
 }
