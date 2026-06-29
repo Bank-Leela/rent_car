@@ -46,6 +46,9 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
   dayEnd.setDate(dayEnd.getDate() + 1);
 
   // --- Pending bookings for the day (APPROVED, no primary yet). ---
+  // TJW is no longer assigned here — it goes through the global request-order
+  // pass (assignTjwByRequestOrder); the daily batch handles OT/WERN/NORMAL and
+  // sees TJW-committed drivers as away via activeTjwCommitments.
   const pending = await prisma.booking.findMany({
     where: {
       status: "APPROVED",
@@ -53,9 +56,10 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
       // Urgent ("จองเร่งด่วน") requests are deliberately left out of auto-assign:
       // they stay APPROVED so an admin reviews and matches them by hand.
       isEmergency: false,
-      // SMUS = external charter (outside buses/vans); never auto-assigned an
-      // internal vehicle/driver or a slot.
-      jobType: { not: "SMUS" },
+      // SMUS = external charter (outside buses/vans), never auto-assigned an
+      // internal vehicle/driver. TJW goes through the global request-order pass
+      // (assignTjwByRequestOrder), so the daily batch handles OT/WERN/NORMAL only.
+      jobType: { notIn: ["SMUS", "TJW"] },
       startAt: { gte: dayStart, lt: dayEnd },
     },
     orderBy: { createdAt: "asc" },

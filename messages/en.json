@@ -346,7 +346,7 @@
   },
   "adminBatch": {
     "title": "Daily batch (CR-07)",
-    "description": "Solve the day's approved bookings in one pass: TJW → OT → WERN → NORMAL → Phase C (TJW return-day OT fallback).",
+    "description": "Solve the day's approved bookings in one pass: ตจว → OT → WERN → NORMAL → Phase C (ตจว return-day OT fallback).",
     "runTitle": "Run batch",
     "date": "Date",
     "run": "Run batch",
@@ -372,9 +372,11 @@
     "simulate": "Simulate day",
     "simulating": "Simulating…",
     "clearDemo": "Clear demo data",
-    "simulateHelper": "Simulate seeds a mixed set of TJW / OT / WERN / NORMAL bookings (tagged BatchDemo:) into the chosen date and runs the batch in one shot. Real bookings are untouched.",
+    "simulateHelper": "Simulate seeds a mixed set of ตจว / OT / WERN / NORMAL bookings (tagged BatchDemo:) into the chosen date and runs the batch in one shot. Real bookings are untouched.",
     "simulateSeeded": "Seeded {count} demo bookings for this date.",
-    "clearedNote": "Cleared {count} demo bookings."
+    "clearedNote": "Cleared {count} demo bookings.",
+    "assignTjw": "Assign ตจว (request order)",
+    "assignTjwDone": "Assigned {count} ตจว by request order."
   },
   "adminUsers": {
     "title": "User accounts",

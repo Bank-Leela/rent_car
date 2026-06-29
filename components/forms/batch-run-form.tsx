@@ -11,6 +11,7 @@ import {
   simulateAndRunBatchAction,
   clearBatchDemoAction,
 } from "@/lib/booking/batch-demo-actions";
+import { assignTjwByRequestOrder } from "@/lib/booking/tjw-request-actions";
 
 type Stats = {
   pendingCount: number;
@@ -26,6 +27,7 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [seeded, setSeeded] = useState<number | null>(null);
   const [cleared, setCleared] = useState<number | null>(null);
+  const [tjw, setTjw] = useState<{ assigned: number; overflows: { reason: string }[] } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function refresh() {
@@ -38,6 +40,18 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
     setStats(null);
     setSeeded(null);
     setCleared(null);
+    setTjw(null);
+  }
+
+  // New-algorithm: assign all pending TJW in global request order (not per-day).
+  function runTjw() {
+    reset();
+    startTransition(async () => {
+      const res = await assignTjwByRequestOrder();
+      if (!res.ok) { setError(res.error); return; }
+      setTjw({ assigned: res.assigned, overflows: res.overflows });
+      refresh();
+    });
   }
 
   function run() {
@@ -101,6 +115,9 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
         <Button type="button" variant="ghost" onClick={clearDemo} disabled={pending}>
           {t("clearDemo")}
         </Button>
+        <Button type="button" variant="outline" onClick={runTjw} disabled={pending}>
+          {t("assignTjw")}
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground">{t("simulateHelper")}</p>
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -111,6 +128,12 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
       )}
       {cleared != null && (
         <p className="text-xs text-muted-foreground">{t("clearedNote", { count: cleared })}</p>
+      )}
+      {tjw != null && (
+        <p className="text-xs text-emerald-700 dark:text-emerald-400">
+          {t("assignTjwDone", { count: tjw.assigned })}
+          {tjw.overflows.length > 0 ? ` · ${tjw.overflows.length} overflow` : ""}
+        </p>
       )}
       {stats && (
         <div className="rounded-md border bg-muted/40 p-3 text-xs">

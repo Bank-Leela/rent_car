@@ -181,6 +181,25 @@ TJW → OT → WERN → NORMAL → SMUS
 
 (or pure global FCFS when `fcfsOverridesCategoryPriority` is set).
 
+### TJW by request order (new-algorithm variant — `feat/new-algorithm`)
+
+**TJW no longer goes through `solveDay`.** A dedicated pass
+(`lib/booking/tjw-request-solver.ts` → `assignTjwByRequestOrder`) takes **all
+pending APPROVED + unassigned TJW across every day**, sorts them strictly by
+`createdAt` (tie-break `bookingId`), and assigns each the **fairest eligible
+driver** (`rankForRotation` on `lastTjwAt` + earnings — the *same* driver-pick as
+before). Each assignment provisionally bumps `lastTjwAt`, so the next request
+falls to the next-fairest. So request *date*, not trip date, sets the order: a TJW
+requested 25 Jun (trip 10 Jul) is assigned before one requested 26 Jun (trip 2 Jul).
+
+- **Eligible** = car-paired, free across the trip's whole span, and not the duty
+  driver on any day it spans. >400 km still pairs a co-driver.
+- **Idempotent:** only *unassigned* pending TJW are placed; already-assigned TJW are
+  **fixed commitments** (never reshuffled). Re-runnable.
+- The daily batch query (`runBatchAction`) **excludes `jobType = "TJW"`**; `solveDay`
+  still treats TJW-assigned drivers as away via `activeTjwCommitments`.
+- **OT / WERN / NORMAL are unchanged** — still per-day `solveDay` with rotation/fairness.
+
 **Per booking** (`placeBooking`):
 1. `eligibleForPrimary` = drivers that are **not** away-on-TJW, **not** the duty
    driver, under the **NORMAL-only** cap (OT is exempt), on the right side of the
