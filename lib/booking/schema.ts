@@ -117,8 +117,17 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
-    // Where the vehicle parks/waits near the destination — required.
-    waitingLocation: z.string().trim().min(1, "Waiting location is required").max(500),
+    // Where the vehicle parks/waits near the destination. Required only when the
+    // car waits (see the cross-field refine below) — a no-wait trip has none.
+    waitingLocation: z.string().trim().max(500).optional(),
+    // No-wait split: end of leg 1 (datetime-local). Required + ordered when
+    // waitAtDestination = false (see the cross-field refine below).
+    dropOffDone: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? new Date(v) : undefined))
+      .refine((d) => d === undefined || !Number.isNaN(d.getTime()), "Invalid drop-off time"),
     preferredVehicleType,
     // External charter (SMUS) vehicle counts — outside buses/vans. Optional in
     // general; the SMUS refinement below requires a non-zero total.
@@ -174,7 +183,36 @@ export const newBookingSchema = z
       path: ["externalBusCount"],
       message: "Specify at least one bus or van",
     },
-  );
+  )
+  // No-wait split must be a same-day, well-ordered pair of legs:
+  // startAt < dropOffDone < pickupReturnTime < endAt.
+  .refine(
+    (d) => {
+      if (d.waitAtDestination) return true;
+      if (!d.dropOffDone || !d.pickupReturnTime) return false;
+      const [h, m] = d.pickupReturnTime.split(":").map(Number);
+      const ret = new Date(d.startAt);
+      ret.setHours(h, m, 0, 0);
+      const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+      return (
+        d.startAt < d.dropOffDone &&
+        d.dropOffDone < ret &&
+        ret < d.endAt &&
+        sameDay(d.startAt, d.dropOffDone) &&
+        sameDay(d.startAt, d.endAt)
+      );
+    },
+    {
+      path: ["dropOffDone"],
+      message: "No-wait trips need start < drop-off < return < end, same day",
+    },
+  )
+  // Waiting location only applies when the car waits at the destination; a
+  // no-wait trip drops off and returns, so it has none.
+  .refine((d) => !d.waitAtDestination || (d.waitingLocation?.trim().length ?? 0) > 0, {
+    path: ["waitingLocation"],
+    message: "Waiting location is required",
+  });
 
 export type NewBookingInput = z.infer<typeof newBookingSchema>;
 

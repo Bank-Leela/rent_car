@@ -133,3 +133,31 @@ describe("newBookingSchema googleMapsUrl", () => {
     }
   });
 });
+
+describe("newBookingSchema no-wait split", () => {
+  const noWait = {
+    ...baseInput,
+    // The form emits "" for no-wait ("true" for wait); z.coerce.boolean("") = false.
+    waitAtDestination: "",
+    dropOffDone: "2026-06-10T10:00",
+    pickupReturnTime: "15:30",
+    startAt: "2026-06-10T08:00",
+    endAt: "2026-06-10T18:00",
+  };
+  it("accepts a well-ordered same-day split", () => {
+    expect(newBookingSchema.safeParse(noWait).success).toBe(true);
+  });
+  it("rejects missing dropOffDone when not waiting", () => {
+    const { dropOffDone: _drop, ...rest } = noWait;
+    expect(newBookingSchema.safeParse(rest).success).toBe(false);
+  });
+  it("rejects dropOffDone after pickupReturnTime", () => {
+    expect(newBookingSchema.safeParse({ ...noWait, dropOffDone: "2026-06-10T16:00" }).success).toBe(false);
+  });
+  it("rejects a cross-day split", () => {
+    expect(newBookingSchema.safeParse({ ...noWait, endAt: "2026-06-11T09:00" }).success).toBe(false);
+  });
+  it("ignores dropOffDone when waiting (single interval)", () => {
+    expect(newBookingSchema.safeParse({ ...baseInput, waitAtDestination: "true" }).success).toBe(true);
+  });
+});

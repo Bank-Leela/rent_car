@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { format, startOfDay, addDays } from "date-fns";
 import { th, enUS } from "date-fns/locale";
+import { Inbox, CheckCircle2, ListChecks } from "lucide-react";
 import { getTranslations, getLocale } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { BatchRunForm } from "@/components/forms/batch-run-form";
 import { ReclaimDecisionForm } from "@/components/forms/reclaim-decision-form";
@@ -195,7 +197,7 @@ export default async function AdminBatchPage({
         </CardHeader>
         <CardContent>
           {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("pendingEmpty")}</p>
+            <EmptyState icon={Inbox} title={t("pendingEmptyTitle")} description={t("pendingEmpty")} />
           ) : (
             <ul className="divide-y">
               {pending.map((b) => (
@@ -222,7 +224,7 @@ export default async function AdminBatchPage({
         </CardHeader>
         <CardContent>
           {overflows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("overflowEmpty")}</p>
+            <EmptyState icon={CheckCircle2} title={t("overflowEmptyTitle")} description={t("overflowEmpty")} />
           ) : (
             <ul className="space-y-3">
               {overflows.map((b) => {
@@ -291,7 +293,7 @@ export default async function AdminBatchPage({
         </CardHeader>
         <CardContent>
           {assigned.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("assignedEmpty")}</p>
+            <EmptyState icon={ListChecks} title={t("assignedEmptyTitle")} description={t("assignedEmpty")} />
           ) : (
             <ul className="divide-y text-sm">
               {assigned.map((b) => (

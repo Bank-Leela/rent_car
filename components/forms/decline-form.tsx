@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,8 +14,13 @@ import { FormError } from "@/components/forms/form-error";
 // sends the trip back to the admin queue, so it's deliberate, not one-tap.
 export function DeclineForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("tripForms");
+  const tt = useTranslations("toast");
   const [open, setOpen] = useState(false);
-  const { error, pending, run } = useFormAction(declineAssignmentAction, { bookingId });
+  const { error, pending, run } = useFormAction(declineAssignmentAction, {
+    bookingId,
+    onSuccess: () => toast.success(tt("declined")),
+    onError: (err) => toast.error(err ?? tt("genericError")),
+  });
 
   if (!open) {
     return (

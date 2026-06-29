@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { MapPinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/empty-state";
 import { createPlaceAction, updatePlaceAction, deletePlaceAction } from "@/lib/places/actions";
 
 type Place = {
@@ -40,7 +42,7 @@ export function PlacesManager({ places }: { places: Place[] }) {
   return (
     <div className="space-y-6">
       {places.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("empty")}</p>
+        <EmptyState icon={MapPinOff} title={t("emptyTitle")} description={t("empty")} />
       ) : (
         <ul className="divide-y rounded-md border">
           {places.map((p) =>

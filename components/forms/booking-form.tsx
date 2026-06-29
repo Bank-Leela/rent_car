@@ -41,6 +41,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import { isThaiLocale } from "@/i18n/config";
+import { useActionToast } from "@/components/hooks/use-action-toast";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -203,6 +204,8 @@ export function BookingForm({
   locale: string;
 }) {
   const t = useTranslations("bookingForm");
+  const tt = useTranslations("toast");
+  const { toastResult } = useActionToast();
   const now = new Date();
   const formRef = useRef<HTMLFormElement>(null);
   // Trip area drives lead time + รถเวร routing. Overnight is a separate choice
@@ -240,6 +243,9 @@ export function BookingForm({
   // Only meaningful when waitAtDestination is false; cleared on submit
   // otherwise so a stale typed time never lingers once "คอย" is re-selected.
   const [pickupReturnTime, setPickupReturnTime] = useState("");
+  // No-wait split: when not waiting, the time the driver finishes the drop-off
+  // run (leg-1 end). Combined with the start date into a datetime-local on submit.
+  const [dropOffTime, setDropOffTime] = useState("");
   // Controlled so applying a template can set it (PassengerStepper reads it).
   const [passengerCount, setPassengerCount] = useState<string>("1");
   // Controlled so the outsourcing checkbox can react to it: a bus is always
@@ -314,6 +320,7 @@ export function BookingForm({
     fd.set("name", name);
     startTemplateTransition(async () => {
       const res = await saveTripTemplateAction(fd);
+      toastResult(res, { success: tt("templateSaved") });
       if (res.ok) {
         setTemplateName("");
         setTemplateMsg(t("templateSaved", { name }));
@@ -343,6 +350,7 @@ export function BookingForm({
     fd.set("id", tpl.id);
     startTemplateTransition(async () => {
       const res = await deleteTripTemplateAction(fd);
+      toastResult(res, { success: tt("templateDeleted") });
       if (res.ok && activeTemplateId === tpl.id) setActiveTemplateId(null);
       setTemplateMsg(res.ok ? null : res.error);
     });
@@ -500,6 +508,11 @@ export function BookingForm({
               document.getElementById("endAt")?.focus();
               return;
             }
+            if (!waitAtDestination && (!dropOffTime || !pickupReturnTime)) {
+              setError(t("noWaitTimesRequired"));
+              document.getElementById("dropOffTime")?.focus();
+              return;
+            }
             startTransition(async () => {
               const res = await createBookingAction(formData);
               if (res && !res.ok) {
@@ -518,6 +531,10 @@ export function BookingForm({
                   setError(res.error);
                 }
               }
+              // success redirects to the booking detail, so only the error path
+              // returns here — toastResult fires the error toast (the success arg
+              // is a never-reached fallback, kept only to satisfy the signature).
+              if (res) toastResult(res, { success: tt("genericError") });
             });
           }}
           className="space-y-4"
@@ -801,6 +818,30 @@ export function BookingForm({
                 send a provisional endAt the admin overwrites at approval. */}
             <input type="hidden" name="returnTrip" value={returnTrip ? "true" : ""} />
             {!returnTrip && <input type="hidden" name="endAt" value={provisionalEndValue} />}
+            {/* No-wait split: drop-off-done time (leg-1 end). Same calendar day
+                as the start; combined into a datetime-local for the hidden field. */}
+            {!waitAtDestination && (
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="dropOffTime">{t("dropOffDoneLabel")}</ReqLabel>
+                <input
+                  id="dropOffTime"
+                  type="time"
+                  value={dropOffTime}
+                  onChange={(e) => setDropOffTime(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <span className="text-xs text-muted-foreground">{t("dropOffDoneHelper")}</span>
+              </div>
+            )}
+            <input
+              type="hidden"
+              name="dropOffDone"
+              value={
+                !waitAtDestination && dropOffTime && startValue
+                  ? `${startValue.slice(0, 10)}T${dropOffTime}`
+                  : ""
+              }
+            />
 
             {/* Prominent disclosure: a bordered card with a primary-tinted
                 icon so recurring bookings are easy to find and act on. */}
@@ -879,15 +920,17 @@ export function BookingForm({
               />
               <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>
             </div>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
-              <Input
-                id="waitingLocation"
-                name="waitingLocation"
-                required
-                placeholder={t("waitingLocationPlaceholder")}
-              />
-            </div>
+            {waitAtDestination && (
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
+                <Input
+                  id="waitingLocation"
+                  name="waitingLocation"
+                  required
+                  placeholder={t("waitingLocationPlaceholder")}
+                />
+              </div>
+            )}
             {/* province / outOfProvince / travelWithinChula are all derived from
                 the single Trip-area choice at the top of the schedule section
                 and ride along as hidden fields. The booleans must emit "true"/""

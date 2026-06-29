@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
+import { useActionToast } from "@/components/hooks/use-action-toast";
 import { format } from "date-fns";
 import { th, enUS } from "date-fns/locale";
 import { Wand2, GripVertical, AlertTriangle, Plus } from "lucide-react";
@@ -78,6 +79,8 @@ export function SchedulerBoard({
   adHocRows: AdHocRowData[];
 }) {
   const t = useTranslations("scheduler");
+  const tt = useTranslations("toast");
+  const { toastResult } = useActionToast();
   const locale = useLocale();
   const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
   const router = useRouter();
@@ -155,6 +158,8 @@ export function SchedulerBoard({
         }
         const key = res.error === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed";
         setDropError(t(key));
+      } else {
+        toastResult(res, { success: tt("assigned") });
       }
       router.refresh();
     });
@@ -182,6 +187,8 @@ export function SchedulerBoard({
               ? "coDriverSamePrimary"
               : "dropFailed";
         setDropError(t(key));
+      } else {
+        toastResult(res, { success: vehicleId ? tt("assigned") : tt("unassigned") });
       }
       router.refresh();
     });
@@ -195,6 +202,7 @@ export function SchedulerBoard({
         (() => { const fd = new FormData(); fd.append("bookingId", bookingId); return fd; })(),
       );
       if (!res.ok) setDropError(t("dropFailed"));
+      else toastResult(res, { success: tt("unassigned") });
       router.refresh();
     });
   }
@@ -460,6 +468,7 @@ export function SchedulerBoard({
                   noDriverLabel={t("noDriver")}
                   coDriverLabel={t("coDriver")}
                   arrivesLabel={t("arrives")}
+                  returnLegLabel={t("returnLeg")}
                   unassignLabel={t("unassign")}
                   onUnassign={unassign}
                   dayStart={dayStart}
