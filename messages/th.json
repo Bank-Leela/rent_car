@@ -379,7 +379,13 @@
     "simulateSeeded": "สร้างงานตัวอย่าง {count} รายการสำหรับวันที่นี้",
     "clearedNote": "ลบงานตัวอย่าง {count} รายการ",
     "assignTjw": "จัด ตจว (ตามลำดับการจอง)",
-    "assignTjwDone": "จัด ตจว แล้ว {count} รายการ ตามลำดับการจอง"
+    "assignTjwDone": "จัด ตจว แล้ว {count} รายการ ตามลำดับการจอง",
+    "simulate30": "จำลอง 30 วัน (สุ่ม)",
+    "simulate30Title": "จำลองแบบสุ่ม 30 วัน ({days} วัน)",
+    "simulate30Totals": "สร้าง {seeded} · ตจว {tjw} · ไม่คอย {nowait} · จัดได้ {matched} · ล้น {overflow}",
+    "simulate30Fairness": "ความต่างภาระคนขับ {spread} (ส่วนเบี่ยงเบน {stddev})",
+    "simulate30Clean": "✓ ผ่านกฎทั้งหมด — ไม่มีการละเมิด",
+    "simulate30Violations": "⚠ ละเมิดกฎ {count} รายการ — เจอบั๊ก (seed {seed})"
   },
   "adminUsers": {
     "title": "บัญชีผู้ใช้",

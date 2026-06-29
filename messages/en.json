@@ -379,7 +379,13 @@
     "simulateSeeded": "Seeded {count} demo bookings for this date.",
     "clearedNote": "Cleared {count} demo bookings.",
     "assignTjw": "Assign ตจว (request order)",
-    "assignTjwDone": "Assigned {count} ตจว by request order."
+    "assignTjwDone": "Assigned {count} ตจว by request order.",
+    "simulate30": "Simulate 30 days (fuzz)",
+    "simulate30Title": "30-day fuzz simulation ({days} days)",
+    "simulate30Totals": "Seeded {seeded} · ตจว {tjw} · no-wait {nowait} · matched {matched} · overflow {overflow}",
+    "simulate30Fairness": "Driver-load spread {spread} (stddev {stddev})",
+    "simulate30Clean": "✓ Invariants clean — 0 rule violations",
+    "simulate30Violations": "⚠ {count} RULE VIOLATIONS — bug surfaced (seed {seed})"
   },
   "adminUsers": {
     "title": "User accounts",

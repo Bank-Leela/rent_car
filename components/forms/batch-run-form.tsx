@@ -10,6 +10,8 @@ import { runBatchAction } from "@/lib/booking/batch-actions";
 import {
   simulateAndRunBatchAction,
   clearBatchDemoAction,
+  simulate30DaysAction,
+  type ThirtyDaySummary,
 } from "@/lib/booking/batch-demo-actions";
 import { assignTjwByRequestOrder } from "@/lib/booking/tjw-request-actions";
 import { useActionToast } from "@/components/hooks/use-action-toast";
@@ -31,6 +33,7 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
   const [seeded, setSeeded] = useState<number | null>(null);
   const [cleared, setCleared] = useState<number | null>(null);
   const [tjw, setTjw] = useState<{ assigned: number; overflows: { reason: string }[] } | null>(null);
+  const [sim30, setSim30] = useState<ThirtyDaySummary | null>(null);
   const [pending, startTransition] = useTransition();
 
   function refresh() {
@@ -44,6 +47,21 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
     setSeeded(null);
     setCleared(null);
     setTjw(null);
+    setSim30(null);
+  }
+
+  // 30-day fuzz: random month → ตจว-first pipeline → invariant check.
+  function simulate30() {
+    reset();
+    const fd = new FormData();
+    fd.set("date", date);
+    startTransition(async () => {
+      const res = await simulate30DaysAction(fd);
+      toastResult(res, { success: tt("batchDone") });
+      if (!res.ok) { setError(res.error); return; }
+      if (res.summary) setSim30(res.summary);
+      refresh();
+    });
   }
 
   // New-algorithm: assign all pending TJW in global request order (not per-day).
@@ -124,6 +142,9 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
         <Button type="button" variant="outline" onClick={runTjw} disabled={pending}>
           {t("assignTjw")}
         </Button>
+        <Button type="button" variant="outline" onClick={simulate30} disabled={pending}>
+          {pending ? t("simulating") : t("simulate30")}
+        </Button>
       </div>
       <p className="text-xs text-muted-foreground">{t("simulateHelper")}</p>
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -140,6 +161,47 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
           {t("assignTjwDone", { count: tjw.assigned })}
           {tjw.overflows.length > 0 ? ` · ${tjw.overflows.length} overflow` : ""}
         </p>
+      )}
+      {sim30 && (
+        <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-xs">
+          <p className="font-medium">{t("simulate30Title", { days: sim30.days })}</p>
+          <p>
+            {t("simulate30Totals", {
+              seeded: sim30.seededCount,
+              tjw: sim30.tjwAssigned,
+              nowait: sim30.noWaitCount,
+              matched: sim30.totals.matched,
+              overflow: sim30.totals.overflow,
+            })}
+          </p>
+          <p>
+            {t("simulate30Fairness", { spread: sim30.fairness.spread, stddev: sim30.fairness.stddev })} · seed{" "}
+            <span className="font-mono">{sim30.seed}</span>
+          </p>
+          {sim30.ruleViolations.length === 0 ? (
+            <p className="font-medium text-emerald-700 dark:text-emerald-400">{t("simulate30Clean")}</p>
+          ) : (
+            <div className="rounded border border-destructive/40 bg-destructive/10 p-2">
+              <p className="font-medium text-destructive">
+                {t("simulate30Violations", { count: sim30.ruleViolations.length, seed: sim30.seed })}
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {sim30.ruleViolations.slice(0, 10).map((v, i) => (
+                  <li key={i} className="font-mono">
+                    <span className="font-semibold">{v.type}</span> {v.detail}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <ul className="grid grid-cols-2 gap-x-4 sm:grid-cols-3">
+            {sim30.perDay.map((d) => (
+              <li key={d.date} className="font-mono tabular-nums">
+                {d.date}: {d.matched}✓{d.overflow > 0 ? ` ${d.overflow}⚠` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {stats && (
         <div className="rounded-md border bg-muted/40 p-3 text-xs">
