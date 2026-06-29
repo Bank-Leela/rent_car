@@ -117,8 +117,9 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v ? v : undefined)),
-    // Where the vehicle parks/waits near the destination — required.
-    waitingLocation: z.string().trim().min(1, "Waiting location is required").max(500),
+    // Where the vehicle parks/waits near the destination. Required only when the
+    // car waits (see the cross-field refine below) — a no-wait trip has none.
+    waitingLocation: z.string().trim().max(500).optional(),
     // No-wait split: end of leg 1 (datetime-local). Required + ordered when
     // waitAtDestination = false (see the cross-field refine below).
     dropOffDone: z
@@ -205,7 +206,13 @@ export const newBookingSchema = z
       path: ["dropOffDone"],
       message: "No-wait trips need start < drop-off < return < end, same day",
     },
-  );
+  )
+  // Waiting location only applies when the car waits at the destination; a
+  // no-wait trip drops off and returns, so it has none.
+  .refine((d) => !d.waitAtDestination || (d.waitingLocation?.trim().length ?? 0) > 0, {
+    path: ["waitingLocation"],
+    message: "Waiting location is required",
+  });
 
 export type NewBookingInput = z.infer<typeof newBookingSchema>;
 

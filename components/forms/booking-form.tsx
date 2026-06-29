@@ -911,15 +911,17 @@ export function BookingForm({
               />
               <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>
             </div>
-            <div className="grid gap-2">
-              <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
-              <Input
-                id="waitingLocation"
-                name="waitingLocation"
-                required
-                placeholder={t("waitingLocationPlaceholder")}
-              />
-            </div>
+            {waitAtDestination && (
+              <div className="grid gap-2">
+                <ReqLabel htmlFor="waitingLocation">{t("waitingLocation")}</ReqLabel>
+                <Input
+                  id="waitingLocation"
+                  name="waitingLocation"
+                  required
+                  placeholder={t("waitingLocationPlaceholder")}
+                />
+              </div>
+            )}
             {/* province / outOfProvince / travelWithinChula are all derived from
                 the single Trip-area choice at the top of the schedule section
                 and ride along as hidden fields. The booleans must emit "true"/""
