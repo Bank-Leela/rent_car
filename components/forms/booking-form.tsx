@@ -41,6 +41,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import { isThaiLocale } from "@/i18n/config";
+import { useActionToast } from "@/components/hooks/use-action-toast";
 
 const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -203,6 +204,8 @@ export function BookingForm({
   locale: string;
 }) {
   const t = useTranslations("bookingForm");
+  const tt = useTranslations("toast");
+  const { toastResult } = useActionToast();
   const now = new Date();
   const formRef = useRef<HTMLFormElement>(null);
   // Trip area drives lead time + รถเวร routing. Overnight is a separate choice
@@ -317,6 +320,7 @@ export function BookingForm({
     fd.set("name", name);
     startTemplateTransition(async () => {
       const res = await saveTripTemplateAction(fd);
+      toastResult(res, { success: tt("templateSaved") });
       if (res.ok) {
         setTemplateName("");
         setTemplateMsg(t("templateSaved", { name }));
@@ -346,6 +350,7 @@ export function BookingForm({
     fd.set("id", tpl.id);
     startTemplateTransition(async () => {
       const res = await deleteTripTemplateAction(fd);
+      toastResult(res, { success: tt("templateDeleted") });
       if (res.ok && activeTemplateId === tpl.id) setActiveTemplateId(null);
       setTemplateMsg(res.ok ? null : res.error);
     });
@@ -526,6 +531,7 @@ export function BookingForm({
                   setError(res.error);
                 }
               }
+              if (res) toastResult(res, { success: tt("bookingSubmitted") });
             });
           }}
           className="space-y-4"

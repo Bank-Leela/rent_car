@@ -12,6 +12,7 @@ import {
   clearBatchDemoAction,
 } from "@/lib/booking/batch-demo-actions";
 import { assignTjwByRequestOrder } from "@/lib/booking/tjw-request-actions";
+import { useActionToast } from "@/components/hooks/use-action-toast";
 
 type Stats = {
   pendingCount: number;
@@ -21,6 +22,8 @@ type Stats = {
 
 export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
   const t = useTranslations("adminBatch");
+  const tt = useTranslations("toast");
+  const { toastResult } = useActionToast();
   const router = useRouter();
   const [date, setDate] = useState(defaultDate);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +51,7 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
     reset();
     startTransition(async () => {
       const res = await assignTjwByRequestOrder();
+      toastResult(res, { success: tt("tjwAssigned") });
       if (!res.ok) { setError(res.error); return; }
       setTjw({ assigned: res.assigned, overflows: res.overflows });
       refresh();
@@ -60,6 +64,7 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
     fd.set("date", date);
     startTransition(async () => {
       const res = await runBatchAction(fd);
+      toastResult(res, { success: tt("batchDone") });
       if (!res.ok) { setError(res.error); return; }
       if (res.stats) setStats(res.stats);
       refresh();
@@ -72,6 +77,7 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
     fd.set("date", date);
     startTransition(async () => {
       const res = await simulateAndRunBatchAction(fd);
+      toastResult(res, { success: tt("batchDone") });
       if (!res.ok) { setError(res.error); return; }
       if (res.seededCount != null) setSeeded(res.seededCount);
       if (res.stats) setStats(res.stats);
