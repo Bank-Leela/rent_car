@@ -1,129 +1,152 @@
-# Design — ตจว-first pipeline + 30-day simulation
+# Design — ตจว-first pipeline + 30-day **fuzz** simulation
 
-**Date:** 2026-06-29
+**Date:** 2026-06-29 (amended same day: random generator + no-wait + invariant gate)
 **Branch:** `feat/sim-30day` (off `main`)
 **Status:** Approved (brainstorming) → ready for implementation plan
-**Scope:** A persisted, viewable **30-day** demo simulation that runs the new
-scheduling pipeline in the correct order — **ตจว + multi-day first, then the
-per-day batch** — so the algorithm can be validated over a month. Demo-only flow
-(`BatchDemo:`-tagged, clearable); the two production buttons are **not** changed.
+**Scope:** A persisted, viewable **30-day** demo that runs the real scheduling pipeline
+— **ตจว + multi-day first, then the per-day batch** — over a month of **randomly
+generated** bookings, and **checks the scheduling invariants** on the result. It is a
+**fuzz test**: random load may overflow (fine), but any rule violation is a surfaced
+bug. Demo-only (`BatchDemo:`-tagged, clearable); the two production buttons are unchanged.
 
 ---
 
 ## 1. Why
 
-`/admin/batch` already has **"simulate day"** (`simulateAndRunBatchAction`): seed one
-day of `BatchDemo:` bookings, run the daily batch. But the daily batch now **skips
-ตจว** (`jobType notIn [SMUS, TJW]`) — ตจว is assigned by the separate **"Assign ตจว"**
-pass (`assignTjwByRequestOrder`). So a plain day-sim **never assigns the seeded
-ตจว/overnight trips**. The fix is to run the **pipeline in order** and extend it to a
-month so the request-order algorithm is visible at horizon.
+`/admin/batch` has **"simulate day"**, but (a) it seeds a fixed, hand-picked set that
+can't surface edge cases, (b) the daily batch now skips ตจว, so seeded ตจว never get
+assigned, and (c) there's no month-horizon view. This feature seeds a **random** month,
+runs the **ตจว-first pipeline**, and **asserts invariants** — so it actually validates
+the algorithm under realistic/adversarial load instead of a rigged happy path.
 
-## 2. Pipeline order (the "sort ตจว first" requirement)
+## 2. Pipeline order
 
-Planning runs in a fixed order:
+Planning runs in a fixed order; the sim orchestrates it:
+1. **`assignTjwByRequestOrder`** — pending ตจว (multi-day/overnight), request-order, cross-day.
+2. **`runBatchAction({ date })` per day** — OT/WERN/NORMAL; sees ตจว-committed drivers as away.
 
-1. **`assignTjwByRequestOrder`** — all pending ตจว (multi-day/overnight), sorted by
-   request date (`createdAt`), cross-day, fairest eligible driver each. Reserves
-   multi-day drivers first.
-2. **`runBatchAction({ date })` per day** — OT / WERN / NORMAL, which already treats
-   the ตจว-committed drivers as away (`activeTjwCommitments`).
+Order matters (ตจว reserves multi-day drivers before the per-day batch fills around them).
 
-**Order matters:** the ตจว pass must run before the per-day batch, or the batch could
-hand a multi-day driver a same-day OT that the ตจว trip then needs. The 30-day sim
-orchestrates this order explicitly. (Production already achieves it **when the ตจว
-button is run before the batch**; a one-click production "plan day (ตจว-first)" is a
-possible follow-up — **out of scope** here.)
+## 3. Random generator (replaces fixed `DEMO_SLOTS`)
 
-## 3. 30-day seed generator
+`generateRandomDemoBookings(start: Date, days: number, seed: number): GeneratedBooking[]`
+— a seeded RNG (reuse simulate-cr07's `rng(seed)`/`randInt` technique):
 
-Extend the demo seeder (`lib/booking/batch-demo-actions.ts`) with a range seeder:
+- **Per day:** a random count `0..N` where the ceiling occasionally **exceeds** the
+  ~11/day capacity (so overflow happens — it must be observable, not engineered away).
+- **Per booking, random within VALID bounds:**
+  - **jobType** — weighted mix of `NORMAL` / `OT` / `WERN` / `ตจว(TJW)` (+ occasional
+    `SMUS`). WERN ≈ the day's duty round.
+  - **times** — random start within and around the 08/16 OT edges; random duration.
+  - **distance** — random, including `> LONG_TRIP_KM` (→ co-driver path).
+  - **passengers / male / female** — random small counts.
+  - **province / outOfProvince** — random; **ตจว is always out-of-province + overnight**
+    (multi-day, random 1–3 day span) — required for it to classify as ตจว.
+  - **createdAt** — randomized request dates, spread *before* and **shuffled vs** trip
+    date, so the ตจว request-order pass has a meaningful, non-trivial ordering.
+- **Schema-valid by construction:** randomness stays inside valid bounds (ตจว overnight,
+  no-wait same-day+ordered, sane times), so every insert succeeds. The fuzzing probes
+  **capacity and edges**, never invalid input.
+- All rows `BatchDemo:`-tagged; ensures an `OnCallShift` per day (duty rotates).
 
-- `seedBatchDemoRange(startDate, days = 30): Promise<number>` — for each of `days`
-  consecutive days from `startDate`:
-  - seed the existing per-day OT / WERN / NORMAL mix (reuse the current `DEMO_SLOTS`
-    logic for that day);
-  - sprinkle a few **ตจว / multi-day overnight** trips (spanning 1–3 days) with
-    **varied `createdAt`** (request dates spread *earlier* than their trip dates, and
-    deliberately out of trip-date order) so the request-order pass has meaningful
-    ordering to demonstrate;
-  - ensure an `OnCallShift` exists for the day (WERN duty rotates daily — reuse the
-    current logic).
-- All rows keep the `BatchDemo:` tag. Returns total seeded count.
+### 3b. No-wait case (NEW)
 
-`seedBatchDemoForDate` is kept (the 1-day sim still uses it) — the range seeder may
-call it per day plus add the cross-day ตจว.
+A random share (≈25%) of **same-day** `NORMAL`/`OT` trips get `waitAtDestination=false`
+with a valid same-day split: `startAt < dropOffDone < pickupReturnTime < endAt` (times
+random **within** that ordering). This exercises the **leg-aware `solveDay`** capacity
+(the freed middle becoming bookable). ตจว/overnight trips are never no-wait (the split is
+same-day only).
 
-## 4. `simulate30DaysAction`
+### 3c. Seed
 
-New action in `batch-demo-actions.ts`:
+The action generates a **random seed each run** (`Math.floor(Math.random()*1e9)`),
+threads it through the RNG, and **returns it in the summary**, so a run that surfaces a
+violation can be replayed exactly.
+
+## 4. `runDemoSimulation` + `simulate30DaysAction`
+
+`runDemoSimulation(start, days, seed): Promise<ThirtyDaySummary>`:
+1. `generateRandomDemoBookings` → persist as `BatchDemo:` bookings (`status APPROVED`).
+2. `assignTjwByRequestOrder()` once.
+3. `runBatchAction({ date })` for each day → collect per-day stats.
+4. **Invariant check** (§5) on the persisted assignments.
+5. Aggregate `ThirtyDaySummary`.
+
+`simulate30DaysAction(formData)` — admin-only wrapper: parse start `date`, pick a random
+seed, `runDemoSimulation(date, 30, seed)`, revalidate, return the summary.
 
 ```ts
-export async function simulate30DaysAction(
-  formData: FormData,             // { date } = start day
-): Promise<ActionResult & { summary?: ThirtyDaySummary }>;
+interface RuleViolation { type: "DOUBLE_BOOK" | "GAP_2H" | "NORMAL_CAP" | "AWAY_CONFLICT"; detail: string; }
+interface ThirtyDaySummary {
+  startDate: string; days: number; seed: number;
+  seededCount: number; tjwAssigned: number; tjwOverflow: number; noWaitCount: number;
+  perDay: { date: string; matched: number; pending: number; overflow: number }[];
+  totals: { matched: number; pending: number; overflow: number };
+  fairness: { min: number; max: number; spread: number; stddev: number };
+  ruleViolations: RuleViolation[]; // empty = clean
+}
 ```
 
-Flow (admin-only):
-1. `seedBatchDemoRange(startDate, 30)`.
-2. `assignTjwByRequestOrder()` once — assigns all seeded ตจว in request order.
-3. For each of the 30 days: `runBatchAction({ date })` (collect each day's stats).
-4. Aggregate `ThirtyDaySummary`:
-   - `seededCount`, `tjwAssigned` (count + the request-order sequence),
-   - per-day `{ date, matched, pending, overflowByReason }`,
-   - month totals + **fairness spread** (per-driver assignment count: min/max/stddev).
-5. `revalidatePath("/admin/batch")` + `/admin/schedule`.
+## 5. Invariant check (the fuzz gate)
 
-Persisted → every seeded+assigned trip is browsable on the board/calendar for its day.
+After the pipeline, load the persisted assignments for the range and verify **leg-aware**
+(using `tripLegs` / `legsOverlap` from `lib/booking/trip-legs.ts`), per driver:
+- **DOUBLE_BOOK** — no two assigned legs overlap for the same driver (primary or co-driver).
+- **GAP_2H** — consecutive same-day trips honor the 2-hour gap (the `canChain` rule).
+- **NORMAL_CAP** — ≤ 2 NORMAL trips/day per driver.
+- **AWAY_CONFLICT** — a driver on a multi-day ตจว has no other assignment overlapping that span.
 
-## 5. UI
+Each violation → a `RuleViolation` entry. **Overflows are NOT violations** (expected under
+load). A non-empty `ruleViolations` is a **surfaced algorithm bug** — surfaced with the
+seed to reproduce.
 
-- **"จำลอง 30 วัน / Simulate 30 days"** button on `components/forms/batch-run-form.tsx`,
-  next to "simulate day". On click → `simulate30DaysAction({ date })` → render a
-  **30-day summary** panel (totals, ตจว-assigned count, fairness spread, and a compact
-  per-day matched/overflow list). Fire a toast on completion (reuse `useActionToast`).
-- i18n: `adminBatch.simulate30`, `simulate30Helper`, summary labels — en + th parity.
+## 6. UI
 
-## 6. Clear-demo extended
+- **"จำลอง 30 วัน / Simulate 30 days"** button on `batch-run-form.tsx`. On click →
+  `simulate30DaysAction` → summary panel: totals, ตจว-assigned, no-wait count, fairness
+  spread, **seed**, per-day matched/overflow, and a **prominent RULE VIOLATIONS block**
+  (green "0 — clean" or red list with the seed). Toast on completion.
+- i18n `simulate30*` + violation labels, en + th parity.
 
-`clearBatchDemoAction` currently clears one day. Extend it to wipe **all `BatchDemo:`-
-tagged bookings** (whole range), so a 30-day run is fully reversible in one click.
-(Delete the bookings + their dependent rows — audit logs, drafts, trips — same as the
-existing clear, just unscoped from a single date.)
+## 7. Clear-demo
 
-## 7. Testing
+`clearBatchDemoAction` already wipes ALL `BatchDemo:` rows across every date — reuse;
+no change. Confirm it covers the random month.
 
-- **Unit/integration** (`batch-demo-actions.test.ts` or a focused new test, seeded dev DB):
-  seed a **short** range (e.g. 3 days) → run the pipeline → assert
-  (a) ตจว were assigned **before**/independently of the per-day batch and in
-  `createdAt` order, (b) each day's non-ตจว bookings were processed, (c) no driver
-  double-booked across overlapping ตจว spans. Clean up by `BatchDemo:` tag in `afterAll`.
-- The existing **336-test suite stays green** (no scheduling-logic change — this only
-  orchestrates existing actions + adds a seeder).
-- Optional: `simulate-cr07` unaffected (separate CLI).
+## 8. Testing
 
-## 8. Non-goals
+- **Generator** (unit, seeded): produces schema-valid bookings; includes ตจว (overnight,
+  out-of-province) and no-wait (same-day, ordered legs); same seed → same output.
+- **Invariant checker** (unit): catches a **planted** double-book (and a planted cap
+  breach), passes a clean arrangement.
+- **Fuzz run** (integration, fixed seed, short e.g. 3-day range): full pipeline →
+  `ruleViolations` is empty.
+- Existing suite stays green (this only adds a generator + checker + orchestration; no
+  scheduling-rule change).
 
-- No change to the production "Run batch" / "Assign ตจว" buttons or their actions.
-- No new production "plan day" combo action (possible follow-up).
-- No change to `solveDay` / `solveTjwByRequest` / scheduling rules.
-- No schema change.
-- Not a load test — 30 days × ~11/day is fine for a demo; it's admin-triggered and
-  may take a few seconds (≈30 batch transactions).
+## 9. Non-goals
 
-## 9. Affected files (anticipated)
+- No change to production "Run batch" / "Assign ตจว" buttons, `solveDay`,
+  `solveTjwByRequest`, scheduling rules, or schema.
+- No new production "plan day" combo action.
+- Not a load/perf test — 30 days × random load is fine for an admin-triggered demo
+  (≈30 batch transactions; may take a few seconds).
 
-- `lib/booking/batch-demo-actions.ts` — `seedBatchDemoRange`, `simulate30DaysAction`,
-  extend `clearBatchDemoAction`; `ThirtyDaySummary` type.
-- `components/forms/batch-run-form.tsx` — the button + summary panel.
-- `messages/{en,th}.json` — `simulate30*` + summary keys (en+th parity).
-- Test under `lib/booking/`.
+## 10. Affected files (anticipated)
 
-## 10. Self-review notes
+- `lib/booking/batch-demo-actions.ts` — `generateRandomDemoBookings`, no-wait mixing,
+  `runDemoSimulation`, `simulate30DaysAction`, `ThirtyDaySummary`/`RuleViolation`.
+- `lib/booking/sim-invariants.ts` (new, pure) — the leg-aware invariant checker + tests.
+- `components/forms/batch-run-form.tsx` — button + summary/violations panel.
+- `messages/{en,th}.json` — `simulate30*` + violation keys.
+- Tests under `lib/booking/`.
 
-- Reuses existing primitives end-to-end (`assignTjwByRequestOrder`, `runBatchAction`,
-  the demo seeder, `useActionToast`, `BatchDemo:` tag). The only new logic is the range
-  seeder + the orchestration/aggregation — no scheduling rule is touched.
-- The headline value: it makes the **ตจว-first order explicit and observable** over a
-  month, which the 1-day sim could not (it silently dropped ตจว).
+## 11. Self-review notes
+
+- The headline shift from the original spec: the seeder is now **random + fuzzing** (not
+  curated), it includes **no-wait**, and the run **asserts invariants** — turning the demo
+  into a real validator. Reuses `tripLegs`/`legsOverlap`, the RNG technique, the pipeline
+  actions, and the `BatchDemo:` lifecycle.
+- "As random as possible" is bounded by schema validity (invalid input would just fail the
+  insert, testing nothing) — the randomness lives in distribution, volume, and edges.
 </content>
