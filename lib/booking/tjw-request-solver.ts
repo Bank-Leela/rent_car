@@ -9,6 +9,11 @@ import { LONG_TRIP_KM } from "./classification";
 // rank, and the chosen driver's stamp is provisionally bumped so the next request
 // falls to the next-fairest. Only TJW uses this; OT/WERN/NORMAL stay in solveDay.
 // See docs/scheduling-algorithm.md.
+//
+// Leg note: TJW is always multi-day (out-of-province + overnight), and the no-wait
+// split is same-day-only (the booking schema refine forbids no-wait unless the
+// legs are same-day). So a TJW is never split — one interval per request here, and
+// no leg-awareness is needed (unlike the per-day solveDay, which does handle legs).
 
 export interface TjwRequestInput {
   bookingId: string;
