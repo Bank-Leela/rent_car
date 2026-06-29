@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { CreateUserForm } from "@/components/forms/create-user-form";
-import { UserRow } from "@/components/forms/admin-user-row";
+import { UsersListClient } from "@/components/admin/users-list-client";
 
 export default async function AdminUsersPage() {
   await requireRole("ADMIN");
@@ -17,6 +17,18 @@ export default async function AdminUsersPage() {
     }),
     prisma.department.findMany({ orderBy: { nameEn: "asc" } }),
   ]);
+
+  const userRows = users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    username: u.username,
+    name: u.name,
+    thaiName: u.thaiName,
+    department: u.department?.nameEn ?? null,
+    roles: u.roles.map((r) => r.role),
+    isActive: u.isActive,
+    mustChangePassword: u.mustChangePassword,
+  }));
 
   return (
     <div className="space-y-6">
@@ -36,27 +48,10 @@ export default async function AdminUsersPage() {
           <CardTitle>{t("listTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {users.length === 0 ? (
+          {userRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("emptyList")}</p>
           ) : (
-            <ul className="divide-y">
-              {users.map((u) => (
-                <UserRow
-                  key={u.id}
-                  user={{
-                    id: u.id,
-                    email: u.email,
-                    username: u.username,
-                    name: u.name,
-                    thaiName: u.thaiName,
-                    department: u.department?.nameEn ?? null,
-                    roles: u.roles.map((r) => r.role),
-                    isActive: u.isActive,
-                    mustChangePassword: u.mustChangePassword,
-                  }}
-                />
-              ))}
-            </ul>
+            <UsersListClient users={userRows} />
           )}
         </CardContent>
       </Card>
