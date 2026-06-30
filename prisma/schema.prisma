@@ -400,6 +400,9 @@ model Booking {
   // Where the vehicle parks/waits near the destination while waiting
   // (distinct from `destination` itself — e.g. a specific parking spot).
   waitingLocation   String?
+  // No-wait split: end of leg 1 (driver free after the drop-off run). Null ⇒
+  // single-interval trip. Only meaningful when waitAtDestination = false.
+  dropOffDone       DateTime?
   // Requester's preferred vehicle category. Required; informational only —
   // does not drive assignment.
   preferredVehicleType PreferredVehicleType @default(VAN)
@@ -540,6 +543,7 @@ model TripTemplate {
   waitAtDestination  Boolean @default(true)
   pickupReturnTime   String?
   waitingLocation    String?
+  dropOffDone        DateTime?
   passengerCount     Int     @default(1)
   maleCount          Int?
   femaleCount        Int?

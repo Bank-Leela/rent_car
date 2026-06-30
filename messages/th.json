@@ -124,7 +124,7 @@
     "batch": "จัดรอบ",
     "users": "ผู้ใช้",
     "myBookings": "การจองของฉัน",
-    "upcoming": "เร็ว ๆ นี้",
+    "upcoming": "ที่จะมาถึง",
     "history": "ประวัติ",
     "newBooking": "จองใหม่",
     "pendingApprovals": "รออนุมัติ",
@@ -133,8 +133,7 @@
     "schedule": "ตารางงาน",
     "scheduleBoard": "กระดานรับงาน",
     "decisions": "การตัดสินใจของฉัน",
-    "simulate": "จำลอง",
-    "places": "สถานที่ที่บันทึก"
+    "simulate": "จำลอง"
   },
   "simulate": {
     "title": "จำลองการจัดรถ",
@@ -158,6 +157,9 @@
     "reason_NEEDS_WERN_RECLAIM_DECISION": "มีแต่รถเวรที่รับได้ — ต้องให้คุณตัดสินว่าจะดึงรถเวรหรือจ้างนอก",
     "dutyContext": "คนขับเวรของวันนั้น: {name}",
     "dutyNone": "วันนั้นไม่มีคนขับเวร",
+    "bookSlot": "จองช่องนี้จริง",
+    "bookedDone": "จองแล้ว — {job} แสดงบนตารางและการจัดรอบแล้ว",
+    "bookFailed": "จองไม่สำเร็จ — ช่องอาจเพิ่งถูกจองไป กดจำลองใหม่อีกครั้ง",
     "jt_NORMAL": "งานปกติ",
     "jt_OT": "งานล่วงเวลา",
     "jt_TJW": "งานค้างคืนหลายวัน",
@@ -168,6 +170,10 @@
     "error_invalidJobType": "เลือกประเภทงาน",
     "error_endBeforeStart": "เวลาสิ้นสุดต้องหลังเวลาเริ่ม",
     "error_invalidKm": "ระยะทางต้องเป็นจำนวนบวก",
+    "error_invalidSplit": "ไม่คอย: ต้องเรียง เริ่ม < ส่งเสร็จ < กลับมารับ < สิ้นสุด ในวันเดียวกัน",
+    "waitLabel": "คนขับคอย",
+    "dropOffLabel": "ส่งเสร็จเวลา",
+    "returnLabel": "เวลากลับมารับ",
     "error_noDrivers": "ไม่มีคนขับที่ใช้งานและมีรถประจำให้จำลอง"
   },
   "decisions": {
@@ -240,6 +246,7 @@
     "noAssignedDriver": "รถคันนี้ยังไม่มีคนขับประจำ — ตั้งค่าในเมนูรถและคนขับ",
     "coDriverSamePrimary": "คนขับเสริมต้องไม่ใช่คนเดียวกับคนขับหลัก",
     "arrives": "ถึง",
+    "returnLeg": "กลับมารับ",
     "coDriverNeeded": "ต้องการคนขับเสริม",
     "coDriverNeededCard": "ลากไปวางบนรถเพื่อเพิ่มคนขับเสริม",
     "externalRows": "คนขับนอก (เฉพาะวันนี้)",
@@ -354,10 +361,13 @@
     "noDutyDriverNote": "ยังไม่ได้กำหนดคนขับเวรของวันนี้",
     "pendingTitle": "รอจัด ({count})",
     "pendingEmpty": "ไม่มีงานรอจัดของวันที่นี้",
+    "pendingEmptyTitle": "ไม่มีงานรอจัด",
     "overflowTitle": "งานที่จัดไม่ได้ / ส่งพี่ท็อป ({count})",
     "overflowEmpty": "ไม่มี",
+    "overflowEmptyTitle": "จัดได้ครบทุกงาน",
     "assignedTitle": "จัดเรียบร้อยแล้ว ({count})",
     "assignedEmpty": "ยังไม่มีงานถูกจัด",
+    "assignedEmptyTitle": "ยังไม่มีงานถูกจัด",
     "reclaimPrompt": "ทริปเกิน 400 กม. นี้จัดได้เฉพาะกรณีย้ายคนขับเวรเท่านั้น เลือกหนึ่ง:",
     "reclaimWern": "ย้ายคนขับเวรมา",
     "outsourceInstead": "เช่าจากภายนอกแทน",
@@ -372,7 +382,9 @@
     "clearDemo": "ล้างข้อมูลตัวอย่าง",
     "simulateHelper": "“จำลอง” จะสร้างงานตัวอย่างประเภท ตจว / OT / เวร / ทั่วไป (ขึ้นต้นด้วย BatchDemo:) ลงในวันที่เลือก แล้วจัดรอบให้ทันที งานจริงไม่ถูกแตะ",
     "simulateSeeded": "สร้างงานตัวอย่าง {count} รายการสำหรับวันที่นี้",
-    "clearedNote": "ลบงานตัวอย่าง {count} รายการ"
+    "clearedNote": "ลบงานตัวอย่าง {count} รายการ",
+    "assignTjw": "จัด ตจว (ตามลำดับการจอง)",
+    "assignTjwDone": "จัด ตจว แล้ว {count} รายการ ตามลำดับการจอง"
   },
   "adminUsers": {
     "title": "บัญชีผู้ใช้",
@@ -523,23 +535,6 @@
     "evaluationSubmittedNote": "ขอบคุณ — คุณได้ประเมินทริปนี้แล้ว ฟีดแบ็กถูกส่งให้ฝ่ายยานยนต์เรียบร้อย",
     "cancelTitle": "ยกเลิก",
     "changeTimeTitle": "แก้ไขเวลาเดินทาง"
-  },
-  "places": {
-    "title": "สถานที่ที่บันทึกไว้",
-    "subtitle": "ปลายทางที่คุณใช้บ่อย เป็นข้อมูลส่วนตัวของคุณ ใช้กรอกฟอร์มจองอัตโนมัติ",
-    "addTitle": "เพิ่มสถานที่",
-    "label": "ชื่อ",
-    "destination": "ปลายทาง",
-    "province": "จังหวัด",
-    "mapsLink": "ลิงก์ Google Maps (ไม่บังคับ)",
-    "save": "บันทึกสถานที่",
-    "saving": "กำลังบันทึก…",
-    "edit": "แก้ไข",
-    "delete": "ลบ",
-    "cancel": "ยกเลิก",
-    "update": "อัปเดต",
-    "empty": "ยังไม่มีสถานที่ที่บันทึก เพิ่มด้านล่าง",
-    "deleteConfirm": "ลบสถานที่ที่บันทึกนี้หรือไม่?"
   },
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
@@ -727,6 +722,7 @@
   "calendarDay": {
     "backToMonth": "กลับไปมุมมองเดือน",
     "nothingScheduled": "ไม่มีกำหนดการ",
+    "emptyTitle": "วันนี้ไม่มีทริป",
     "bookingCount": "การจอง {count} รายการ",
     "viewAgenda": "รายการ",
     "viewTimeline": "ไทม์ไลน์",
@@ -966,13 +962,6 @@
     "mapsLinkHelper": "วางลิงก์ Maps ของปลายทาง (ใช้ลิงก์แชร์ Maps แบบใดก็ได้)",
     "outsideChulaLabel": "การเดินทางออกนอกมหาวิทยาลัย (นอกจุฬาฯ)",
     "outsideChulaHelper": "ติ๊กหากจุดรับหรือปลายทางอยู่นอกพื้นที่จุฬาฯ",
-    "savedPlaceLabel": "ใช้สถานที่ที่บันทึกไว้",
-    "savedPlacePlaceholder": "เลือกสถานที่ที่บันทึกไว้…",
-    "savedPlaceNone": "ไม่ใช้สถานที่ที่บันทึก",
-    "savePlaceCta": "★ บันทึกปลายทางนี้",
-    "savePlaceNamePlaceholder": "ตั้งชื่อสถานที่ เช่น มหาวิทยาลัยคู่ MOU",
-    "savePlaceSaved": "บันทึกแล้ว",
-    "managePlacesLink": "จัดการสถานที่ที่บันทึกไว้ →",
     "province": "จังหวัด",
     "startLabel": "เริ่ม (ออกเดินทาง)",
     "endLabel": "สิ้นสุด (กลับถึงคณะ)",
@@ -1013,6 +1002,9 @@
     "pickupReturnTimeLabel": "เวลาที่คนขับกลับมารับ",
     "waitingLocation": "จอดรอรับที่",
     "waitingLocationPlaceholder": "จุดที่รถจอดรอ เช่น ลานจอดด้านหลังอาคาร",
+    "dropOffDoneLabel": "ส่งเสร็จเวลา",
+    "dropOffDoneHelper": "เวลาที่คนขับส่งผู้โดยสารเสร็จและว่าง (วันเดียวกัน) หลังจากนั้นรถจะว่างรับงานอื่นได้จนถึงเวลากลับมารับ",
+    "noWaitTimesRequired": "กรณีไม่คอย ต้องระบุทั้งเวลาส่งเสร็จและเวลากลับมารับ",
     "preferredVehicle": "ประเภทรถ",
     "preferredVehicleVan": "รถตู้",
     "preferredVehicleTruck6Wheel": "รถ 6 ล้อ",
@@ -1090,5 +1082,23 @@
     "viewOnly": "ดูอย่างเดียว",
     "error_bookingNotFound": "ไม่พบทริปนี้แล้ว",
     "error_forbidden": "คุณไม่มีสิทธิ์ดูทริปนี้"
+  },
+  "toast": {
+    "genericError": "เกิดข้อผิดพลาด กรุณาลองใหม่",
+    "bookingSubmitted": "ส่งคำขอแล้ว",
+    "bookingApproved": "อนุมัติแล้ว",
+    "bookingDenied": "ปฏิเสธแล้ว",
+    "batchDone": "จัดรอบเสร็จแล้ว",
+    "tjwAssigned": "จัด ตจว ตามลำดับการจองแล้ว",
+    "assigned": "จัดรถแล้ว",
+    "unassigned": "ส่งกลับคิวแล้ว",
+    "claimed": "รับงานแล้ว",
+    "declined": "ปฏิเสธงานแล้ว",
+    "templateSaved": "บันทึกเทมเพลตแล้ว",
+    "templateDeleted": "ลบเทมเพลตแล้ว"
+  },
+  "listSearch": {
+    "placeholder": "ค้นหา…",
+    "noMatches": "ไม่พบรายการ"
   }
 }

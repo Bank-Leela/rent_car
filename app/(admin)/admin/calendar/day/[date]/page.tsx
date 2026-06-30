@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format, parse, startOfDay, addDays } from "date-fns";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CalendarOff } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { EmptyState } from "@/components/empty-state";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
 import { daySpan, type DaySpan } from "@/lib/booking/day-window";
@@ -102,9 +103,11 @@ export default async function CalendarDay({
       </div>
 
       {bookings.length === 0 ? (
-        <p className="rounded-md border bg-card py-8 text-center text-sm text-muted-foreground">
-          {t("nothingScheduled")}
-        </p>
+        <EmptyState
+          icon={CalendarOff}
+          title={t("emptyTitle")}
+          description={t("nothingScheduled")}
+        />
       ) : view === "timeline" ? (
         <TimelineView day={day} dayStart={dayStart} dayEnd={dayEnd} bookings={bookings} conflicts={conflicts} t={t} />
       ) : (

@@ -14,6 +14,7 @@
 // (`earningsScore` ascending; then `lastAssignedAt` ascending).
 
 import type { JobType } from "@prisma/client";
+import { legsOverlap, minLegGapMinutes, type LegSource } from "./trip-legs";
 
 export const TWO_HOUR_BUFFER_MS = 2 * 60 * 60 * 1000;
 export const MAX_JOBS_PER_DAY = 2;
@@ -36,6 +37,11 @@ export interface ScheduledTrip {
   startAt: Date;
   endAt: Date;
   jobType: JobType;
+  // No-wait split fields (optional; absent ⇒ single interval). Let canChain free
+  // the middle of a no-wait trip when checking overlap/gap against this trip.
+  waitAtDestination?: boolean;
+  dropOffDone?: Date | null;
+  pickupReturnTime?: string | null;
 }
 
 /**
@@ -67,18 +73,35 @@ const NOON_MIN = MORNING_END_HOUR * 60;
 const endsByNoon = (t: { endAt: Date }) => minuteOfDay(t.endAt) <= NOON_MIN;
 const startsAfterNoon = (t: { startAt: Date }) => minuteOfDay(t.startAt) >= NOON_MIN;
 
-type TimedJob = { startAt: Date; endAt: Date; jobType?: JobType };
+type TimedJob = {
+  startAt: Date;
+  endAt: Date;
+  jobType?: JobType;
+  // No-wait split fields (optional; absent ⇒ single interval, back-compat).
+  waitAtDestination?: boolean;
+  dropOffDone?: Date | null;
+  pickupReturnTime?: string | null;
+};
+
+// Adapt a TimedJob to the leg helper. Missing split data ⇒ one continuous leg.
+const legSrc = (j: TimedJob): LegSource => ({
+  startAt: j.startAt,
+  endAt: j.endAt,
+  waitAtDestination: j.waitAtDestination ?? true,
+  dropOffDone: j.dropOffDone ?? null,
+  pickupReturnTime: j.pickupReturnTime ?? null,
+});
 
 export function canChain(next: TimedJob, existing: TimedJob[]): boolean {
   if (existing.length === 0) return true;
 
   // Universal: no overlap, and ≥2h between the new trip and EVERY existing trip.
+  // Both are evaluated PER-LEG — a no-wait trip frees its middle, so another trip
+  // may sit in the gap (lib/booking/trip-legs.ts is the single source of truth).
+  // See docs/scheduling-algorithm.md §4–5.
   for (const e of existing) {
-    if (next.startAt < e.endAt && e.startAt < next.endAt) return false; // overlap
-    const gap2h =
-      next.endAt.getTime() + TWO_HOUR_BUFFER_MS <= e.startAt.getTime() ||
-      e.endAt.getTime() + TWO_HOUR_BUFFER_MS <= next.startAt.getTime();
-    if (!gap2h) return false;
+    if (legsOverlap(legSrc(next), legSrc(e))) return false; // overlap on any leg
+    if (minLegGapMinutes(legSrc(next), legSrc(e)) < 120) return false; // <2h to any leg
   }
 
   // Cap applies to NORMAL only — OT is extra hours on top.

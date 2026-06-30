@@ -33,6 +33,14 @@ export default async function FleetPage() {
     name: (isThai ? d.user.thaiName ?? d.user.name : d.user.name ?? d.user.thaiName) ?? d.id,
   }));
 
+  // Flatten the assigned-driver label onto each car so client-side search can
+  // match on driver name (derived from already-fetched data — no extra query).
+  const driverNameById = new Map(driverOpts.map((d) => [d.id, d.name]));
+  const carRows = cars.map((c) => ({
+    ...c,
+    driverName: c.assignedDriverId ? driverNameById.get(c.assignedDriverId) ?? "" : "",
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -52,7 +60,7 @@ export default async function FleetPage() {
           <ProvisionDriversButton label={t("provisionAction")} busyLabel={t("provisioning")} />
         </div>
       )}
-      <FleetEditor cars={cars} drivers={driverOpts} />
+      <FleetEditor cars={carRows} drivers={driverOpts} />
     </div>
   );
 }

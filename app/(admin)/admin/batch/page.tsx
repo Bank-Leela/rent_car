@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { format, startOfDay, addDays } from "date-fns";
 import { th, enUS } from "date-fns/locale";
+import { Inbox, CheckCircle2, ListChecks } from "lucide-react";
 import { getTranslations, getLocale } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { BatchRunForm } from "@/components/forms/batch-run-form";
 import { ReclaimDecisionForm } from "@/components/forms/reclaim-decision-form";
@@ -40,13 +42,15 @@ type DetailBooking = {
   travelWithinChula: boolean;
 };
 
+// Renders a label/value as two cells of the parent `grid-cols-[max-content_1fr]`
+// dl, so every value in a column lines up after the widest label. Null collapses.
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
   return (
-    <div className="flex gap-1">
-      <dt className="shrink-0 font-medium text-foreground/70">{label}:</dt>
+    <>
+      <dt className="font-medium text-foreground/70">{label}:</dt>
       <dd className="min-w-0 truncate">{value}</dd>
-    </div>
+    </>
   );
 }
 
@@ -69,21 +73,28 @@ function BookingInputs({ b, labels }: { b: DetailBooking; labels: Record<string,
           </span>
         )}
       </div>
-      <dl className="grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
-        <Field label={labels.phone} value={b.ajarnPhone} />
-        <Field label={labels.email} value={b.ajarnEmail} />
-        <Field
-          label={labels.destination}
-          value={`${b.destination} (${b.province})${b.outOfProvince ? " · ตจว" : ""}`}
-        />
-        <Field
-          label={labels.passengers}
-          value={`${b.passengerCount} — ♂${b.maleCount ?? 0} ♀${b.femaleCount ?? 0}`}
-        />
-        <Field label={labels.pickup} value={b.pickupLocation} />
-        <Field label={labels.distance} value={b.estimatedDistance != null ? `${b.estimatedDistance} km` : null} />
-        <Field label={labels.notes} value={b.passengerNotes} />
-      </dl>
+      {/* Two fixed columns so the right column (email / passengers / distance)
+          lines up across every card, and each column's values align after its
+          widest label (max-content). Left = contact/where; right = the metrics. */}
+      <div className="grid gap-x-6 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-2">
+        <dl className="grid grid-cols-[max-content_1fr] items-baseline gap-x-2 gap-y-0.5">
+          <Field label={labels.phone} value={b.ajarnPhone} />
+          <Field
+            label={labels.destination}
+            value={`${b.destination} (${b.province})${b.outOfProvince ? " · ตจว" : ""}`}
+          />
+          <Field label={labels.pickup} value={b.pickupLocation} />
+          <Field label={labels.notes} value={b.passengerNotes} />
+        </dl>
+        <dl className="grid grid-cols-[max-content_1fr] items-baseline gap-x-2 gap-y-0.5">
+          <Field label={labels.email} value={b.ajarnEmail} />
+          <Field
+            label={labels.passengers}
+            value={`${b.passengerCount} — ♂${b.maleCount ?? 0} ♀${b.femaleCount ?? 0}`}
+          />
+          <Field label={labels.distance} value={b.estimatedDistance != null ? `${b.estimatedDistance} km` : null} />
+        </dl>
+      </div>
     </div>
   );
 }
@@ -195,7 +206,7 @@ export default async function AdminBatchPage({
         </CardHeader>
         <CardContent>
           {pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("pendingEmpty")}</p>
+            <EmptyState icon={Inbox} title={t("pendingEmptyTitle")} description={t("pendingEmpty")} />
           ) : (
             <ul className="divide-y">
               {pending.map((b) => (
@@ -222,7 +233,7 @@ export default async function AdminBatchPage({
         </CardHeader>
         <CardContent>
           {overflows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("overflowEmpty")}</p>
+            <EmptyState icon={CheckCircle2} title={t("overflowEmptyTitle")} description={t("overflowEmpty")} />
           ) : (
             <ul className="space-y-3">
               {overflows.map((b) => {
@@ -291,32 +302,38 @@ export default async function AdminBatchPage({
         </CardHeader>
         <CardContent>
           {assigned.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("assignedEmpty")}</p>
+            <EmptyState icon={ListChecks} title={t("assignedEmptyTitle")} description={t("assignedEmpty")} />
           ) : (
             <ul className="divide-y text-sm">
               {assigned.map((b) => (
-                <li key={b.id} className="py-3 flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0 flex-1">
-                    <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
-                      {b.jobNumber}
-                    </Link>
-                    <span className="ml-2">{b.purpose}</span>
-                    <div className="text-xs text-muted-foreground">
-                      {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
-                    </div>
-                    <BookingInputs b={b} labels={L} />
-                  </div>
-                  <div className="text-xs">
-                    {b.vehicle && <div>{b.vehicle.registrationNumber}</div>}
-                    {b.primaryDriver && (
-                      <div>
-                        {b.primaryDriver.user.name ?? b.primaryDriver.user.email}
-                        {b.secondaryDriver && (
-                          <> · {b.secondaryDriver.user.name ?? b.secondaryDriver.user.email}</>
-                        )}
+                <li key={b.id} className="py-3 space-y-2">
+                  {/* Header + car/driver badge share a row; BookingInputs sits
+                      FULL-WIDTH below so its column grid isn't squeezed by the
+                      variable-width badge (kept the detail columns aligned across
+                      every card regardless of badge length). */}
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
+                        {b.jobNumber}
+                      </Link>
+                      <span className="ml-2">{b.purpose}</span>
+                      <div className="text-xs text-muted-foreground">
+                        {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
                       </div>
-                    )}
+                    </div>
+                    <div className="shrink-0 text-right text-xs">
+                      {b.vehicle && <div>{b.vehicle.registrationNumber}</div>}
+                      {b.primaryDriver && (
+                        <div>
+                          {b.primaryDriver.user.name ?? b.primaryDriver.user.email}
+                          {b.secondaryDriver && (
+                            <> · {b.secondaryDriver.user.name ?? b.secondaryDriver.user.email}</>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  <BookingInputs b={b} labels={L} />
                 </li>
               ))}
             </ul>

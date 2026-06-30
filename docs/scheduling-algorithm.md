@@ -88,6 +88,14 @@ an OT a driver already holds doesn't push them out of the NORMAL pick.
   a driver can stack early-bird OT + morning + afternoon NORMAL + evening OT as
   long as every pair keeps the gap.
 - **TJW** locks the driver away for the trip span; **WERN** = the reserved duty driver.
+- **No-wait split (legs):** when `waitAtDestination = false`, a trip occupies **two
+  intervals** — `[startAt, dropOffDone]` and `[pickupReturnTime, endAt]` — and its
+  middle is **free**. Overlap and the 2h gap are evaluated **per-leg**, so another
+  trip may sit in the freed gap (≥2h from each leg). A split trip still counts as
+  **one** job for the NORMAL cap. All leg/overlap/gap math lives in
+  `lib/booking/trip-legs.ts` (`tripLegs`/`legsOverlap`/`minLegGapMinutes`) — the
+  single source of truth; a waiting trip (or one missing split data) is one interval,
+  so existing behaviour is unchanged.
 
 "Existing trips" = the driver's other **same-day** commitments — so the batch
 path must load already-assigned trips (`existingByDriver`, §6b).
@@ -103,6 +111,10 @@ time. The duty driver is still **reserved** (excluded from every auto pick) and 
 WERN reclaim is handled by freeing the duty car first (unassign WERN — drag it
 back to the queue — then assign the reclaimed trip), so the duty car never needs
 to overlap.
+
+**"Same time" is per-leg** (see §4): a no-wait trip frees its middle, so two trips
+on one car conflict only when a **leg** of each overlaps. The manual no-overlap
+checks (reassign + conflict-resolve) compare legs via `lib/booking/trip-legs.ts`.
 
 Enforced in three places:
 
@@ -168,6 +180,25 @@ TJW → OT → WERN → NORMAL → SMUS
 ```
 
 (or pure global FCFS when `fcfsOverridesCategoryPriority` is set).
+
+### TJW by request order (new-algorithm variant — `feat/new-algorithm`)
+
+**TJW no longer goes through `solveDay`.** A dedicated pass
+(`lib/booking/tjw-request-solver.ts` → `assignTjwByRequestOrder`) takes **all
+pending APPROVED + unassigned TJW across every day**, sorts them strictly by
+`createdAt` (tie-break `bookingId`), and assigns each the **fairest eligible
+driver** (`rankForRotation` on `lastTjwAt` + earnings — the *same* driver-pick as
+before). Each assignment provisionally bumps `lastTjwAt`, so the next request
+falls to the next-fairest. So request *date*, not trip date, sets the order: a TJW
+requested 25 Jun (trip 10 Jul) is assigned before one requested 26 Jun (trip 2 Jul).
+
+- **Eligible** = car-paired, free across the trip's whole span, and not the duty
+  driver on any day it spans. >400 km still pairs a co-driver.
+- **Idempotent:** only *unassigned* pending TJW are placed; already-assigned TJW are
+  **fixed commitments** (never reshuffled). Re-runnable.
+- The daily batch query (`runBatchAction`) **excludes `jobType = "TJW"`**; `solveDay`
+  still treats TJW-assigned drivers as away via `activeTjwCommitments`.
+- **OT / WERN / NORMAL are unchanged** — still per-day `solveDay` with rotation/fairness.
 
 **Per booking** (`placeBooking`):
 1. `eligibleForPrimary` = drivers that are **not** away-on-TJW, **not** the duty

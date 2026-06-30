@@ -200,6 +200,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       waitAtDestination: data.waitAtDestination,
       pickupReturnTime: data.pickupReturnTime,
       waitingLocation: data.waitingLocation,
+      dropOffDone: data.dropOffDone ?? null,
       preferredVehicleType: data.preferredVehicleType,
       // External charter (SMUS) only — null otherwise.
       externalBusCount: data.jobType === "SMUS" ? data.externalBusCount ?? 0 : null,

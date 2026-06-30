@@ -55,6 +55,10 @@ export interface SolverBookingInput {
   outOfProvince: boolean;
   /** FCFS key; defaults to createdAt. */
   submittedAt: Date;
+  // No-wait split fields (optional; absent ⇒ single interval).
+  waitAtDestination?: boolean;
+  dropOffDone?: Date | null;
+  pickupReturnTime?: string | null;
 }
 
 export interface TjwCommitment {
@@ -278,7 +282,17 @@ function placeBooking(
   const duty = drivers.find(
     (d) => d.driverId === dutyDriverId &&
       !d.awayOnTjw &&
-      canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday),
+      canTake(
+        {
+          startAt: booking.startAt,
+          endAt: booking.endAt,
+          jobType: booking.jobType,
+          waitAtDestination: booking.waitAtDestination,
+          dropOffDone: booking.dropOffDone,
+          pickupReturnTime: booking.pickupReturnTime,
+        },
+        d.scheduledToday,
+      ),
   );
   if (!duty) return { kind: "fail", reason: "NO_SECONDARY_DRIVER" };
 
@@ -348,7 +362,17 @@ function canDriverTakeNew(
   booking: SolverBookingInput,
 ): boolean {
   const d = drivers.find((x) => x.driverId === driverId)!;
-  return canTake({ startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType }, d.scheduledToday);
+  return canTake(
+        {
+          startAt: booking.startAt,
+          endAt: booking.endAt,
+          jobType: booking.jobType,
+          waitAtDestination: booking.waitAtDestination,
+          dropOffDone: booking.dropOffDone,
+          pickupReturnTime: booking.pickupReturnTime,
+        },
+        d.scheduledToday,
+      );
 }
 
 function commitAssignment(
@@ -374,6 +398,9 @@ function commitTrip(drivers: MutableDriver[], driverId: string, booking: SolverB
     startAt: booking.startAt,
     endAt: booking.endAt,
     jobType: booking.jobType,
+    waitAtDestination: booking.waitAtDestination,
+    dropOffDone: booking.dropOffDone,
+    pickupReturnTime: booking.pickupReturnTime,
   });
   d.earningsScore += tripEffort(booking.jobType, booking.startAt, booking.endAt);
 }

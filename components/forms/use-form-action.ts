@@ -16,7 +16,7 @@ type Action = (formData: FormData) => Promise<ActionResult | void>;
  */
 export function useFormAction(
   action: Action,
-  opts?: { bookingId?: string; onSuccess?: () => void },
+  opts?: { bookingId?: string; onSuccess?: () => void; onError?: (error: string | undefined) => void },
 ) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -26,8 +26,12 @@ export function useFormAction(
     if (opts?.bookingId !== undefined) formData.set("bookingId", opts.bookingId);
     startTransition(async () => {
       const res = await action(formData);
-      if (res && !res.ok) setError(res.error);
-      else opts?.onSuccess?.();
+      if (res && !res.ok) {
+        setError(res.error);
+        opts?.onError?.(res.error);
+      } else {
+        opts?.onSuccess?.();
+      }
     });
   }
 

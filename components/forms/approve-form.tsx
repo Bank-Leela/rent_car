@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +26,12 @@ export function ApproveForm({
   startAt: string;
 }) {
   const t = useTranslations("approverActions");
-  const { error, pending, run } = useFormAction(approveBookingAction, { bookingId });
+  const tt = useTranslations("toast");
+  const { error, pending, run } = useFormAction(approveBookingAction, {
+    bookingId,
+    onSuccess: () => toast.success(tt("bookingApproved")),
+    onError: (err) => toast.error(err ?? tt("genericError")),
+  });
   return (
     <form action={run} className="space-y-3">
       {!returnTrip && (
@@ -55,7 +61,12 @@ export function ApproveForm({
 
 export function ApproverDenyForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("approverActions");
-  const { error, pending, run } = useFormAction(denyByApproverAction, { bookingId });
+  const tt = useTranslations("toast");
+  const { error, pending, run } = useFormAction(denyByApproverAction, {
+    bookingId,
+    onSuccess: () => toast.success(tt("bookingDenied")),
+    onError: (err) => toast.error(err ?? tt("genericError")),
+  });
   const [reason, setReason] = useState("");
   return (
     <form action={run} className="space-y-3">

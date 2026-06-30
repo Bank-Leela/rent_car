@@ -133,8 +133,7 @@
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board",
     "decisions": "My decisions",
-    "simulate": "Simulate",
-    "places": "Saved places"
+    "simulate": "Simulate"
   },
   "simulate": {
     "title": "Placement simulator",
@@ -158,6 +157,9 @@
     "reason_NEEDS_WERN_RECLAIM_DECISION": "Only the duty car could take it — needs your reclaim-vs-outsource decision.",
     "dutyContext": "Duty driver that day: {name}.",
     "dutyNone": "No duty driver rostered that day.",
+    "bookSlot": "Book this slot",
+    "bookedDone": "Booked — {job}. It now shows on the schedule & batch.",
+    "bookFailed": "Couldn't book — the slot may have just been taken. Re-run Simulate.",
     "jt_NORMAL": "normal trip",
     "jt_OT": "overtime",
     "jt_TJW": "multi-day work-away",
@@ -168,6 +170,10 @@
     "error_invalidJobType": "Pick a job type.",
     "error_endBeforeStart": "End must be after start.",
     "error_invalidKm": "Distance must be a positive number.",
+    "error_invalidSplit": "No-wait: need start < drop-off < return < end, same day.",
+    "waitLabel": "Driver waits",
+    "dropOffLabel": "Drop-off done",
+    "returnLabel": "Return pickup",
     "error_noDrivers": "No active, car-paired drivers to simulate against."
   },
   "decisions": {
@@ -240,6 +246,7 @@
     "noAssignedDriver": "No driver set for this car — set one in Cars & drivers.",
     "coDriverSamePrimary": "The co-driver can't be the same as the main driver.",
     "arrives": "arr.",
+    "returnLeg": "กลับมารับ",
     "coDriverNeeded": "Co-driver needed",
     "coDriverNeededCard": "Needs a co-driver — drag onto a car",
     "externalRows": "Outside drivers (this day only)",
@@ -344,7 +351,7 @@
   },
   "adminBatch": {
     "title": "Daily batch (CR-07)",
-    "description": "Solve the day's approved bookings in one pass: TJW → OT → WERN → NORMAL → Phase C (TJW return-day OT fallback).",
+    "description": "Solve the day's approved bookings in one pass: ตจว → OT → WERN → NORMAL → Phase C (ตจว return-day OT fallback).",
     "runTitle": "Run batch",
     "date": "Date",
     "run": "Run batch",
@@ -354,10 +361,13 @@
     "noDutyDriverNote": "No duty driver assigned for this date yet.",
     "pendingTitle": "Pending ({count})",
     "pendingEmpty": "No pending bookings for this date.",
+    "pendingEmptyTitle": "Nothing pending",
     "overflowTitle": "Overflow / escalations ({count})",
     "overflowEmpty": "No overflows.",
+    "overflowEmptyTitle": "All clear",
     "assignedTitle": "Already assigned ({count})",
     "assignedEmpty": "Nothing assigned yet.",
+    "assignedEmptyTitle": "Nothing assigned yet",
     "reclaimPrompt": "This >400 km trip can only be staffed by reassigning today's duty driver. Pick one:",
     "reclaimWern": "Reclaim duty driver",
     "outsourceInstead": "Outsource the trip",
@@ -370,9 +380,11 @@
     "simulate": "Simulate day",
     "simulating": "Simulating…",
     "clearDemo": "Clear demo data",
-    "simulateHelper": "Simulate seeds a mixed set of TJW / OT / WERN / NORMAL bookings (tagged BatchDemo:) into the chosen date and runs the batch in one shot. Real bookings are untouched.",
+    "simulateHelper": "Simulate seeds a mixed set of ตจว / OT / WERN / NORMAL bookings (tagged BatchDemo:) into the chosen date and runs the batch in one shot. Real bookings are untouched.",
     "simulateSeeded": "Seeded {count} demo bookings for this date.",
-    "clearedNote": "Cleared {count} demo bookings."
+    "clearedNote": "Cleared {count} demo bookings.",
+    "assignTjw": "Assign ตจว (request order)",
+    "assignTjwDone": "Assigned {count} ตจว by request order."
   },
   "adminUsers": {
     "title": "User accounts",
@@ -523,23 +535,6 @@
     "evaluationSubmittedNote": "Thanks — you've already rated this trip. Your feedback is shared with the fleet office.",
     "cancelTitle": "Cancel",
     "changeTimeTitle": "Change trip time"
-  },
-  "places": {
-    "title": "Saved places",
-    "subtitle": "Destinations you reuse. Private to you; used to autofill the booking form.",
-    "addTitle": "Add a place",
-    "label": "Name",
-    "destination": "Destination",
-    "province": "Province",
-    "mapsLink": "Google Maps link (optional)",
-    "save": "Save place",
-    "saving": "Saving…",
-    "edit": "Edit",
-    "delete": "Delete",
-    "cancel": "Cancel",
-    "update": "Update",
-    "empty": "No saved places yet. Add one below.",
-    "deleteConfirm": "Delete this saved place?"
   },
   "adminDetail": {
     "backToQueue": "Back to queue",
@@ -727,6 +722,7 @@
   "calendarDay": {
     "backToMonth": "Back to month",
     "nothingScheduled": "Nothing scheduled.",
+    "emptyTitle": "No trips this day",
     "bookingCount": "{count, plural, one {# booking} other {# bookings}}",
     "viewAgenda": "Agenda",
     "viewTimeline": "Timeline",
@@ -966,13 +962,6 @@
     "mapsLinkHelper": "Paste a Maps link for the destination (any Maps share link works).",
     "outsideChulaLabel": "Trip leaves the university (outside Chula)",
     "outsideChulaHelper": "Tick if the pickup or destination is off the Chula campus.",
-    "savedPlaceLabel": "Use a saved place",
-    "savedPlacePlaceholder": "Pick a saved place…",
-    "savedPlaceNone": "No saved place",
-    "savePlaceCta": "★ Save this destination",
-    "savePlaceNamePlaceholder": "Name this place, e.g. MOU partner uni",
-    "savePlaceSaved": "Saved",
-    "managePlacesLink": "Manage saved places →",
     "province": "Province",
     "startLabel": "Start (departure)",
     "endLabel": "End (back at faculty)",
@@ -1013,6 +1002,9 @@
     "pickupReturnTimeLabel": "Driver's pickup return time",
     "waitingLocation": "Waiting location",
     "waitingLocationPlaceholder": "Where the vehicle waits, e.g. parking behind the building",
+    "dropOffDoneLabel": "Drop-off done by",
+    "dropOffDoneHelper": "When the driver finishes the drop-off and is free (same day). The car is then open for another trip until the return pickup.",
+    "noWaitTimesRequired": "Not-waiting trips need both a drop-off-done time and a return pickup time.",
     "preferredVehicle": "Vehicle type",
     "preferredVehicleVan": "Van",
     "preferredVehicleTruck6Wheel": "6-wheel truck",
@@ -1090,5 +1082,23 @@
     "viewOnly": "View only.",
     "error_bookingNotFound": "That trip no longer exists.",
     "error_forbidden": "You can't view this trip."
+  },
+  "toast": {
+    "genericError": "Something went wrong. Please try again.",
+    "bookingSubmitted": "Booking submitted.",
+    "bookingApproved": "Booking approved.",
+    "bookingDenied": "Booking denied.",
+    "batchDone": "Batch complete.",
+    "tjwAssigned": "TJW assigned by request order.",
+    "assigned": "Assigned.",
+    "unassigned": "Returned to the queue.",
+    "claimed": "Trip claimed.",
+    "declined": "Trip declined.",
+    "templateSaved": "Template saved.",
+    "templateDeleted": "Template deleted."
+  },
+  "listSearch": {
+    "placeholder": "Search…",
+    "noMatches": "No matches"
   }
 }

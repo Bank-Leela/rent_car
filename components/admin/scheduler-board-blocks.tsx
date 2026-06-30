@@ -293,6 +293,41 @@ export function CoDriverQueueCard({ b, label }: { b: SchedulerBooking; label: st
   );
 }
 
+// Read-only "return pickup" leg (leg 2) of a no-wait trip. The draggable primary
+// block is leg 1; this ghost shows the car going out again to collect passengers,
+// with the freed middle between them. Styled in the trip's job colour, dashed.
+function ReturnLegGhost({
+  b,
+  returnLegLabel,
+  dayStart,
+  dayHours,
+  top,
+  height,
+}: {
+  b: SchedulerBooking;
+  returnLegLabel: string;
+  dayStart: number;
+  dayHours: number;
+  top: number;
+  height: number;
+}) {
+  const leg = b.returnLeg!;
+  const left = pctOf(leg.startHour, dayStart, dayHours);
+  const width = Math.max(pctOf(leg.endHour, dayStart, dayHours) - left, 1.2);
+  return (
+    <div
+      title={`${b.jobNumber} · ${returnLegLabel} · ${leg.timeLabel}–${leg.endLabel}`}
+      className={`absolute overflow-hidden rounded-md border border-dashed px-2 py-1 text-left text-[11px] opacity-80 ${jobStyle(b.jobType).block}`}
+      style={{ left: `${left}%`, width: `${width}%`, top, height }}
+    >
+      <div className="truncate font-medium">
+        {leg.timeLabel}–{leg.endLabel}
+      </div>
+      <div className="truncate text-[10px] text-muted-foreground">{returnLegLabel}</div>
+    </div>
+  );
+}
+
 // A car row = a droppable lane. Drop a card here to assign this car + a driver.
 export function CarRow({
   vehicle,
@@ -304,6 +339,7 @@ export function CarRow({
   noDriverLabel,
   coDriverLabel,
   arrivesLabel,
+  returnLegLabel,
   unassignLabel,
   onUnassign,
   dayStart,
@@ -320,6 +356,7 @@ export function CarRow({
   noDriverLabel: string;
   coDriverLabel: string;
   arrivesLabel: string;
+  returnLegLabel: string;
   unassignLabel: string;
   onUnassign: (bookingId: string) => void;
   dayStart: number;
@@ -333,13 +370,23 @@ export function CarRow({
   type RowItem = {
     key: string;
     b: SchedulerBooking;
-    kind: "primary" | "co";
+    kind: "primary" | "co" | "return";
     startHour: number;
     endHour: number;
   };
   const items: RowItem[] = [
     ...bookings.map((b) => ({ key: b.id, b, kind: "primary" as const, startHour: b.startHour, endHour: b.endHour })),
     ...coDriverBookings.map((b) => ({ key: `co-${b.id}`, b, kind: "co" as const, startHour: b.startHour, endHour: b.endHour })),
+    // No-wait return legs: read-only ghosts; occupy the lane so nothing stacks on them.
+    ...bookings
+      .filter((b) => b.returnLeg)
+      .map((b) => ({
+        key: `ret-${b.id}`,
+        b,
+        kind: "return" as const,
+        startHour: b.returnLeg!.startHour,
+        endHour: b.returnLeg!.endHour,
+      })),
   ];
 
   // Greedy lane packing: an item joins the first lane whose last item ends at or
@@ -412,21 +459,37 @@ export function CarRow({
           const lane = laneOf.get(it.key) ?? 0;
           const top = lane * LANE_PX + LANE_PAD;
           const height = LANE_PX - 2 * LANE_PAD;
-          return it.kind === "primary" ? (
-            <TimelineBlock
-              key={it.key}
-              b={it.b}
-              noDriverLabel={noDriverLabel}
-              arrivesLabel={arrivesLabel}
-              unassignLabel={unassignLabel}
-              onUnassign={onUnassign}
-              dayStart={dayStart}
-              dayHours={dayHours}
-              top={top}
-              height={height}
-              conflict={conflictIds.has(it.b.id)}
-            />
-          ) : (
+          if (it.kind === "primary") {
+            return (
+              <TimelineBlock
+                key={it.key}
+                b={it.b}
+                noDriverLabel={noDriverLabel}
+                arrivesLabel={arrivesLabel}
+                unassignLabel={unassignLabel}
+                onUnassign={onUnassign}
+                dayStart={dayStart}
+                dayHours={dayHours}
+                top={top}
+                height={height}
+                conflict={conflictIds.has(it.b.id)}
+              />
+            );
+          }
+          if (it.kind === "return") {
+            return (
+              <ReturnLegGhost
+                key={it.key}
+                b={it.b}
+                returnLegLabel={returnLegLabel}
+                dayStart={dayStart}
+                dayHours={dayHours}
+                top={top}
+                height={height}
+              />
+            );
+          }
+          return (
             <CoDriverGhost
               key={it.key}
               b={it.b}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   claimBookingAction,
@@ -19,7 +20,12 @@ export function ClaimButton({
   disabled?: boolean;
 }) {
   const t = useTranslations("claimForm");
-  const { error, pending, run } = useFormAction(claimBookingAction, { bookingId });
+  const tt = useTranslations("toast");
+  const { error, pending, run } = useFormAction(claimBookingAction, {
+    bookingId,
+    onSuccess: () => toast.success(tt("claimed")),
+    onError: (err) => toast.error(err ?? tt("genericError")),
+  });
   const label = role === "PRIMARY" ? t("claimPrimary") : t("claimSecondary");
   return (
     <form
