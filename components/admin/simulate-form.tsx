@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { Car, CircleSlash, FlaskConical, UserRound } from "lucide-react";
+import { Car, CircleSlash, FlaskConical, UserRound, CalendarPlus } from "lucide-react";
 import { SelectField } from "@/components/ui/select-field";
-import { simulatePlacementAction, type SimResult } from "@/lib/booking/simulate-actions";
+import { simulatePlacementAction, bookSimulatedSlotAction, type SimResult } from "@/lib/booking/simulate-actions";
 
 const JOB_TYPES = ["NORMAL", "OT", "TJW", "WERN", "SMUS"] as const;
 
@@ -12,6 +12,9 @@ export function SimulateForm({ today }: { today: string }) {
   const t = useTranslations("simulate");
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<SimResult | null>(null);
+  const [booked, setBooked] = useState<string | null>(null);
+  const [bookError, setBookError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   // No-wait split: when off, the driver drops off then returns later, so the
   // sim feeds the two-leg booking to the leg-aware solver.
   const [wait, setWait] = useState(true);
@@ -19,8 +22,25 @@ export function SimulateForm({ today }: { today: string }) {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    setBooked(null);
+    setBookError(null);
     startTransition(async () => {
       setResult(await simulatePlacementAction(fd));
+    });
+  }
+
+  // Commit the previewed slot: re-submit the same form to the persisting action.
+  function book() {
+    if (!formRef.current) return;
+    const fd = new FormData(formRef.current);
+    startTransition(async () => {
+      const res = await bookSimulatedSlotAction(fd);
+      if (res.ok) {
+        setBooked(res.jobNumber);
+        setBookError(null);
+      } else {
+        setBookError(res.error);
+      }
     });
   }
 
@@ -29,7 +49,7 @@ export function SimulateForm({ today }: { today: string }) {
 
   return (
     <div className="space-y-5">
-      <form onSubmit={onSubmit} className="rounded-xl border p-4 sm:p-5">
+      <form ref={formRef} onSubmit={onSubmit} className="rounded-xl border p-4 sm:p-5">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label htmlFor="sim-date" className={label}>{t("date")}</label>
@@ -94,13 +114,36 @@ export function SimulateForm({ today }: { today: string }) {
       </form>
 
       <div aria-live="polite" role="status">
-        {result && <ResultCard result={result} t={t} />}
+        {result && (
+          <ResultCard
+            result={result}
+            t={t}
+            onBook={book}
+            booking={pending}
+            booked={booked}
+            bookError={bookError}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function ResultCard({ result, t }: { result: SimResult; t: ReturnType<typeof useTranslations> }) {
+function ResultCard({
+  result,
+  t,
+  onBook,
+  booking,
+  booked,
+  bookError,
+}: {
+  result: SimResult;
+  t: ReturnType<typeof useTranslations>;
+  onBook: () => void;
+  booking: boolean;
+  booked: string | null;
+  bookError: string | null;
+}) {
   if (!result.ok) {
     return (
       <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
@@ -150,6 +193,23 @@ function ResultCard({ result, t }: { result: SimResult; t: ReturnType<typeof use
       </div>
       {reclaim && <p className="mt-2 text-xs text-amber-800 dark:text-amber-300/90">{t("reclaimDetail")}</p>}
       <p className="mt-3 text-xs text-muted-foreground">{duty}</p>
+      <div className="mt-4 border-t pt-3">
+        {booked ? (
+          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{t("bookedDone", { job: booked })}</p>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onBook}
+              disabled={booking}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            >
+              <CalendarPlus className="h-4 w-4" aria-hidden /> {t("bookSlot")}
+            </button>
+            {bookError && <p className="mt-1.5 text-xs text-destructive">{t("bookFailed")}</p>}
+          </>
+        )}
+      </div>
     </div>
   );
 }

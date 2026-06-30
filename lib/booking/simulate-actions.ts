@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { startOfDay } from "date-fns";
 import { getLocale } from "next-intl/server";
 import type { JobType, OverflowReason } from "@prisma/client";
@@ -26,13 +27,41 @@ export type SimResult =
   | { ok: true; kind: "none"; reason: OverflowReason | "NO_SLOT"; dutyDriverName: string | null; jobType: JobType }
   | { ok: false; error: string };
 
-// What-if placement sim: feed one synthetic job (type + time on a chosen day)
-// through the SAME solver the daily batch uses (solveDay), against that day's live
-// drivers / rotation stamps / duty / committed bookings / TJW away-locks. Read-only
-// — nothing is written. Surfaces the exact slot auto-assign would pick (car·driver,
-// +co-driver), or the overflow reason if it can't place it. Mirrors batch-actions.
-export async function simulatePlacementAction(formData: FormData): Promise<SimResult> {
-  await requireRole("ADMIN");
+// The synthetic job's inputs, kept so "book this slot" can persist exactly what was simulated.
+type PlacementInputs = {
+  jobType: JobType;
+  startAt: Date;
+  endAt: Date;
+  km: number | null;
+  waitAtDestination: boolean;
+  dropOffDone: Date | null;
+  pickupReturnTime: string | null;
+  dayStart: Date;
+};
+
+type PlacementOutcome =
+  | { ok: false; error: string }
+  | { ok: true; kind: "none"; reason: OverflowReason | "NO_SLOT"; dutyDriverName: string | null; jobType: JobType }
+  | {
+      ok: true;
+      kind: "fit" | "reclaim";
+      primaryDriverId: string;
+      secondaryDriverId: string | null;
+      vehicleId: string | null;
+      registrationNumber: string | null;
+      driverName: string | null;
+      secondaryDriverName: string | null;
+      dutyDriverName: string | null;
+      jobType: JobType;
+      inputs: PlacementInputs;
+    };
+
+// What-if placement: feed one synthetic job through the SAME solver the daily batch
+// uses (solveDay), against the chosen day's live drivers / rotation / duty / committed
+// bookings / TJW away-locks. Read-only here — returns the chosen slot's IDs + names, or
+// the overflow reason. Shared by the preview (simulatePlacementAction) and the persist
+// (bookSimulatedSlotAction). Mirrors batch-actions.runBatchAction.
+async function runPlacement(formData: FormData): Promise<PlacementOutcome> {
   const dateStr = String(formData.get("date") ?? "");
   const startStr = String(formData.get("start") ?? "");
   const endStr = String(formData.get("end") ?? "");
@@ -48,13 +77,11 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
   if (!JOB_TYPES.includes(jobTypeStr as JobType)) return { ok: false, error: "invalidJobType" };
   const jobType = jobTypeStr as JobType;
 
-  // Local-time wall-clock on the chosen day (matches the app's local-midnight day).
   const startAt = new Date(`${dateStr}T${startStr}:00`);
   const endAt = new Date(`${dateStr}T${endStr}:00`);
   if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return { ok: false, error: "invalidTime" };
   if (endAt <= startAt) return { ok: false, error: "endBeforeStart" };
 
-  // No-wait split: leg1 = [startAt, dropOffDone], leg2 = [pickupReturnTime, endAt].
   let dropOffDone: Date | null = null;
   if (!waitAtDestination) {
     if (!/^\d{2}:\d{2}$/.test(dropOffStr) || !/^\d{2}:\d{2}$/.test(pickupReturnStr)) {
@@ -76,15 +103,10 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  // --- Driver pool + rotation snapshots (mirror batch-actions.runBatchAction). ---
   const drivers = await prisma.driver.findMany({
     where: { isActive: true, user: { is: { isActive: true } }, unavailabilities: { none: { date: dayStart } } },
     select: {
-      id: true,
-      lastTjwAt: true,
-      lastOtAt: true,
-      lastDutyAt: true,
-      lastAssignedAt: true,
+      id: true, lastTjwAt: true, lastOtAt: true, lastDutyAt: true, lastAssignedAt: true,
       user: { select: { name: true, thaiName: true } },
     },
   });
@@ -103,7 +125,6 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
     earningsScore: earnings.get(d.id) ?? 0,
   }));
 
-  // car=driver: only paired (car-assigned) drivers are dispatchable.
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
     select: { id: true, registrationNumber: true, assignedDriverId: true },
@@ -113,14 +134,11 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
   const pairedDriverStates = driverStates.filter((d) => driverCar.has(d.driverId));
   if (pairedDriverStates.length === 0) return { ok: false, error: "noDrivers" };
 
-  // Duty driver, validated against the active+paired pool (a deactivated/unpaired
-  // duty driver is a ghost — null it so WERN falls back to the duty rotation).
   const onCall = await prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } });
   const dutyDriverId =
     onCall?.driverId && pairedDriverStates.some((d) => d.driverId === onCall.driverId) ? onCall.driverId : null;
   const dutyDriverName = dutyDriverId ? nameById.get(dutyDriverId) ?? null : null;
 
-  // --- Active TJW commitments (multi-day TJW spanning today → away-lock). ---
   const tjwSpanning = await prisma.booking.findMany({
     where: { jobType: "TJW", status: { in: COMMITTED_STATUSES }, startAt: { lt: dayEnd }, endAt: { gt: dayStart } },
     select: { primaryDriverId: true, secondaryDriverId: true, startAt: true, endAt: true },
@@ -131,7 +149,6 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
     if (t.secondaryDriverId) commitments.push({ driverId: t.secondaryDriverId, startAt: t.startAt, endAt: t.endAt });
   }
 
-  // --- Trips already on a car today seed each driver's schedule (overlap + cap). ---
   const assignedToday = await prisma.booking.findMany({
     where: { status: { in: COMMITTED_STATUSES }, primaryDriverId: { not: null }, startAt: { lt: dayEnd }, endAt: { gt: dayStart } },
     select: {
@@ -142,17 +159,11 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
   const existingByDriver = new Map<string, ScheduledTrip[]>();
   const addTrip = (
     driverId: string | null,
-    t: {
-      id: string; startAt: Date; endAt: Date; jobType: JobType;
-      waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null;
-    },
+    t: { id: string; startAt: Date; endAt: Date; jobType: JobType; waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null },
   ) => {
     if (!driverId) return;
     const list = existingByDriver.get(driverId) ?? [];
-    list.push({
-      id: t.id, startAt: t.startAt, endAt: t.endAt, jobType: t.jobType,
-      waitAtDestination: t.waitAtDestination, dropOffDone: t.dropOffDone, pickupReturnTime: t.pickupReturnTime,
-    });
+    list.push({ id: t.id, startAt: t.startAt, endAt: t.endAt, jobType: t.jobType, waitAtDestination: t.waitAtDestination, dropOffDone: t.dropOffDone, pickupReturnTime: t.pickupReturnTime });
     existingByDriver.set(driverId, list);
   };
   for (const t of assignedToday) {
@@ -185,18 +196,114 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
   const a = result.assignments.find((x) => x.bookingId === "sim");
   if (a) {
     const vehicleId = driverCar.get(a.primaryDriverId) ?? null;
-    // A non-WERN job landing on the duty driver = the solver reclaimed the duty car.
     const reclaim = a.jobType !== "WERN" && dutyDriverId != null && a.primaryDriverId === dutyDriverId;
     return {
       ok: true,
       kind: reclaim ? "reclaim" : "fit",
+      primaryDriverId: a.primaryDriverId,
+      secondaryDriverId: a.secondaryDriverId,
+      vehicleId,
       registrationNumber: vehicleId ? regByVehicle.get(vehicleId) ?? null : null,
       driverName: nameById.get(a.primaryDriverId) ?? null,
       secondaryDriverName: a.secondaryDriverId ? nameById.get(a.secondaryDriverId) ?? null : null,
       dutyDriverName,
       jobType: a.jobType,
+      inputs: { jobType, startAt, endAt, km, waitAtDestination, dropOffDone, pickupReturnTime: waitAtDestination ? null : pickupReturnStr, dayStart },
     };
   }
   const o = result.overflows.find((x) => x.bookingId === "sim");
   return { ok: true, kind: "none", reason: o?.reason ?? "NO_SLOT", dutyDriverName, jobType };
+}
+
+// Read-only preview — nothing is written. Surfaces the slot auto-assign would pick.
+export async function simulatePlacementAction(formData: FormData): Promise<SimResult> {
+  await requireRole("ADMIN");
+  const r = await runPlacement(formData);
+  if (!r.ok) return r;
+  if (r.kind === "none") return { ok: true, kind: "none", reason: r.reason, dutyDriverName: r.dutyDriverName, jobType: r.jobType };
+  return {
+    ok: true,
+    kind: r.kind,
+    registrationNumber: r.registrationNumber,
+    driverName: r.driverName,
+    secondaryDriverName: r.secondaryDriverName,
+    dutyDriverName: r.dutyDriverName,
+    jobType: r.jobType,
+  };
+}
+
+export type BookSlotResult = { ok: true; jobNumber: string } | { ok: false; error: string };
+
+// Commit a simulated placement: re-run the placement against the CURRENT schedule, then
+// create a real ASSIGNED booking on the chosen car/driver so it shows on จัดรอบ + schedule.
+// The simulator doesn't collect requester/destination/passengers, so those default (admin
+// as requester, "[จำลอง]"-marked purpose) — the booking is identifiable and cancelable.
+export async function bookSimulatedSlotAction(formData: FormData): Promise<BookSlotResult> {
+  const session = await requireRole("ADMIN");
+  const r = await runPlacement(formData);
+  if (!r.ok) return r;
+  if (r.kind === "none") return { ok: false, error: r.reason };
+  if (!r.vehicleId) return { ok: false, error: "NO_SLOT" };
+
+  const me = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, name: true, email: true, departmentId: true },
+  });
+  const deptId = me?.departmentId ?? (await prisma.department.findFirst({ select: { id: true } }))?.id;
+  if (!me || !deptId) return { ok: false, error: "noDepartment" };
+
+  const i = r.inputs;
+  const ym = `VB-${i.dayStart.getFullYear()}${String(i.dayStart.getMonth() + 1).padStart(2, "0")}`;
+  const peers = await prisma.booking.findMany({ where: { jobNumber: { startsWith: ym } }, select: { jobNumber: true } });
+  const next = peers.map((p) => Number(p.jobNumber.split("-").pop() ?? 0)).reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
+  const jobNumber = `${ym}-${next}`;
+  const h = i.startAt.getHours();
+  const timeBucket = h < 8 ? "BEFORE_08" : h < 12 ? "MORNING_08_12" : h < 16 ? "AFTERNOON_12_16" : "AFTER_16";
+  const stamp = i.startAt;
+  const stampData: { lastAssignedAt: Date; lastTjwAt?: Date; lastOtAt?: Date; lastDutyAt?: Date } = { lastAssignedAt: stamp };
+  if (i.jobType === "TJW") stampData.lastTjwAt = stamp;
+  else if (i.jobType === "OT") stampData.lastOtAt = stamp;
+  else if (i.jobType === "WERN") stampData.lastDutyAt = stamp;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.create({
+      data: {
+        jobNumber,
+        requesterId: me.id,
+        departmentId: deptId,
+        purpose: `[จำลอง] ${i.jobType}`,
+        destination: "(จำลอง / simulator)",
+        province: "กรุงเทพมหานคร",
+        startAt: i.startAt,
+        endAt: i.endAt,
+        passengerCount: 1,
+        ajarnName: me.name ?? "-",
+        ajarnPhone: "-",
+        ajarnEmail: me.email ?? "sim@chula.ac.th",
+        status: "ASSIGNED",
+        driverScheduleStatus: "CONFIRMED",
+        decidedAt: new Date(),
+        jobType: i.jobType,
+        timeBucket,
+        outOfProvince: false,
+        estimatedDistance: i.km,
+        waitAtDestination: i.waitAtDestination,
+        dropOffDone: i.dropOffDone,
+        pickupReturnTime: i.pickupReturnTime,
+        vehicleId: r.vehicleId,
+        primaryDriverId: r.primaryDriverId,
+        secondaryDriverId: r.secondaryDriverId,
+      },
+    });
+    await tx.driver.update({ where: { id: r.primaryDriverId }, data: stampData });
+    if (r.secondaryDriverId) {
+      const co: typeof stampData = { lastAssignedAt: stamp };
+      if (i.jobType === "TJW") co.lastTjwAt = stamp;
+      await tx.driver.update({ where: { id: r.secondaryDriverId }, data: co });
+    }
+  });
+
+  revalidatePath("/admin/schedule");
+  revalidatePath("/admin/batch");
+  return { ok: true, jobNumber };
 }
