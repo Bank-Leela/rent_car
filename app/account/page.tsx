@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, homePathFor } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
@@ -15,7 +16,9 @@ export default async function AccountPage({
 }) {
   const session = await requireUser();
   const t = await getTranslations("account");
+  const tc = await getTranslations("common");
   const locale = await getLocale();
+  const homePath = homePathFor(session.user.roles);
   const { forceChange } = await searchParams;
 
   const user = await prisma.user.findUniqueOrThrow({
@@ -37,7 +40,20 @@ export default async function AccountPage({
 
   return (
     <div className="min-h-screen p-6 max-w-2xl mx-auto space-y-6">
-      <PageHeader title={t("title")} description={t("description")} />
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={
+          !forced && (
+            <Link
+              href={homePath}
+              className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              {tc("back")}
+            </Link>
+          )
+        }
+      />
 
       {forced && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
