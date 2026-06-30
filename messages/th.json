@@ -137,7 +137,13 @@
     "schedule": "ตารางงาน",
     "scheduleBoard": "กระดานรับงาน",
     "decisions": "การตัดสินใจของฉัน",
-    "simulate": "จำลอง"
+    "simulate": "จำลอง",
+    "requests": "คำขอ",
+    "scheduling": "การจัดรถ",
+    "people": "บุคลากร",
+    "insights": "ภาพรวม",
+    "fleet": "ยานพาหนะ",
+    "signature": "ลายเซ็นและผู้รับมอบ"
   },
   "simulate": {
     "title": "จำลองการจัดรถ",

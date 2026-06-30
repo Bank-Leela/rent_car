@@ -137,7 +137,13 @@
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board",
     "decisions": "My decisions",
-    "simulate": "Simulate"
+    "simulate": "Simulate",
+    "requests": "Requests",
+    "scheduling": "Scheduling",
+    "people": "People",
+    "insights": "Insights",
+    "fleet": "Vehicles",
+    "signature": "Signature & delegation"
   },
   "simulate": {
     "title": "Placement simulator",

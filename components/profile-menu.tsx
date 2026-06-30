@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
-import { UserCog, KeyRound, LogOut } from "lucide-react";
+import { UserCog, KeyRound, LogOut, FileSignature } from "lucide-react";
 import { signOutAction } from "@/lib/auth/credentials-actions";
 import {
   DropdownMenu,
@@ -28,12 +28,15 @@ export function ProfileMenu({
   email,
   roleLabel,
   labels,
+  extraItems,
   isDevImpersonation,
 }: {
   name: string | null;
   email: string | null;
   roleLabel: string;
   labels: { account: string; changePassword: string; signOut: string };
+  // Role-specific extra links (e.g. admin "Signature & delegation").
+  extraItems?: { href: string; label: string }[];
   isDevImpersonation: boolean;
 }) {
   const router = useRouter();
@@ -64,6 +67,12 @@ export function ProfileMenu({
             <KeyRound className="mr-2 h-4 w-4" aria-hidden />
             {labels.changePassword}
           </DropdownMenuItem>
+          {extraItems?.map((item) => (
+            <DropdownMenuItem key={item.href} onClick={() => router.push(item.href)}>
+              <FileSignature className="mr-2 h-4 w-4" aria-hidden />
+              {item.label}
+            </DropdownMenuItem>
+          ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={() => signOutFormRef.current?.requestSubmit()}>
             <LogOut className="mr-2 h-4 w-4" aria-hidden />

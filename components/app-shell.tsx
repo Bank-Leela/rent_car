@@ -16,15 +16,25 @@ export async function AppShell({
   badgeRole,
   user,
   nav,
+  desktopNav,
   headerActions,
+  profileExtra,
   children,
 }: {
   /** The role to display in the header pill. */
   badgeRole: Role;
   user: { name?: string | null; email?: string | null; roles: Role[] };
+  /** Flat nav items — used by the mobile drawer, and the desktop bar unless
+      `desktopNav` overrides it. */
   nav: NavItem[];
+  /** Optional custom desktop nav (e.g. the grouped admin section nav). When
+      provided it replaces the default flat `NavLinks` on desktop; the mobile
+      drawer still uses `nav`. */
+  desktopNav?: React.ReactNode;
   /** Optional header slot (e.g. the admin notification bell). */
   headerActions?: React.ReactNode;
+  /** Optional extra items appended to the avatar dropdown (e.g. admin signature). */
+  profileExtra?: NavItem[];
   children: React.ReactNode;
 }) {
   const t = await getTranslations();
@@ -48,7 +58,7 @@ export async function AppShell({
             </Link>
           </div>
           <nav className="flex items-center gap-1">
-            <NavLinks items={nav} />
+            {desktopNav ?? <NavLinks items={nav} />}
             {headerActions}
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
             <ThemeToggle />
@@ -62,6 +72,7 @@ export async function AppShell({
                 changePassword: t("common.changePassword"),
                 signOut: t("common.signOut"),
               }}
+              extraItems={profileExtra}
               isDevImpersonation={isDevImpersonation}
             />
           </nav>

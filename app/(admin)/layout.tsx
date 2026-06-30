@@ -4,37 +4,33 @@ import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
+import { AdminPrimaryNav, AdminSubnav, type LabeledSection } from "@/components/admin/admin-nav";
+import { ADMIN_SECTIONS, flatAdminRoutes } from "@/lib/admin/nav-sections";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAnyRole(["ADMIN"]);
   const t = await getTranslations("nav");
   const tn = await getTranslations("notifications");
-  const roles = session.user.roles;
-  const isAdmin = roles.includes("ADMIN");
-  const nav = [
-    { href: "/admin", label: t("queue") },
-    { href: "/admin/calendar", label: t("calendar") },
-    { href: "/admin/dashboard", label: t("dashboard") },
-    { href: "/admin/evaluations", label: t("evaluations") },
-  ];
-  if (roles.includes("ADMIN")) {
-    nav.push({ href: "/admin/schedule", label: t("schedule") });
-    nav.push({ href: "/admin/simulate", label: t("simulate") });
-    nav.push({ href: "/admin/batch", label: t("batch") });
-    nav.push({ href: "/admin/users", label: t("users") });
-    nav.push({ href: "/admin/drivers", label: t("drivers") });
-    nav.push({ href: "/admin/decisions", label: t("decisions") });
-    nav.push({ href: "/admin/profile", label: t("profile") });
-  }
-  // Notification bell: count of cases awaiting a decision (new pending
-  // requests + over-capacity waitlist).
-  const showBell = isAdmin;
-  const actionableCount = showBell
-    ? await prisma.booking.count({
-        where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] } },
-      })
-    : 0;
-  const bell = showBell ? (
+
+  // 5 grouped sections (desktop) + a flat leaf list (mobile drawer). Labels are
+  // resolved here; the routing/structure lives in lib/admin/nav-sections.ts.
+  const sections: LabeledSection[] = ADMIN_SECTIONS.map((s) => ({
+    key: s.key,
+    href: s.href,
+    label: t(s.labelKey),
+    match: s.match,
+    tabs: s.tabs.map((tab) => ({ href: tab.href, label: t(tab.labelKey) })),
+  }));
+  const mobileNav = flatAdminRoutes().map((r) => ({ href: r.href, label: t(r.labelKey) }));
+  // Signature + delegation lives in the avatar menu now, not the main nav.
+  const profileExtra = [{ href: "/admin/profile", label: t("signature") }];
+
+  // Notification bell: count of cases awaiting a decision (new pending requests
+  // + over-capacity waitlist).
+  const actionableCount = await prisma.booking.count({
+    where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] } },
+  });
+  const bell = (
     <Link
       href="/admin"
       aria-label={tn("bell", { count: actionableCount })}
@@ -47,15 +43,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </span>
       )}
     </Link>
-  ) : undefined;
+  );
 
   return (
     <AppShell
       badgeRole="ADMIN"
       user={session.user}
-      nav={nav}
+      nav={mobileNav}
+      desktopNav={<AdminPrimaryNav sections={sections} />}
       headerActions={bell}
+      profileExtra={profileExtra}
     >
+      <AdminSubnav sections={sections} />
       {children}
     </AppShell>
   );
