@@ -8,12 +8,14 @@ import { EmptyState } from "@/components/empty-state";
 import {
   RequesterBookingList,
   ACTIVE_BOOKING_STATUSES,
+  HISTORY_BOOKING_STATUSES,
 } from "@/components/requester-booking-list";
+import { RequesterHistoryClient } from "@/components/requester-history-client";
 
 export default async function RequesterHome() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("requester");
-  const [bookings, pendingEvalBookings] = await Promise.all([
+  const [bookings, pendingEvalBookings, history] = await Promise.all([
     prisma.booking.findMany({
       where: { requesterId: session.user.id, status: { in: ACTIVE_BOOKING_STATUSES } },
       orderBy: { createdAt: "desc" },
@@ -27,7 +29,23 @@ export default async function RequesterHome() {
       },
       select: { id: true, jobNumber: true, purpose: true, destination: true },
     }),
+    prisma.booking.findMany({
+      where: { requesterId: session.user.id, status: { in: HISTORY_BOOKING_STATUSES } },
+      orderBy: { createdAt: "desc" },
+      include: { vehicle: true },
+    }),
   ]);
+
+  const historyRows = history.map((b) => ({
+    id: b.id,
+    jobNumber: b.jobNumber,
+    status: b.status,
+    purpose: b.purpose,
+    destination: b.destination,
+    province: b.province,
+    startAt: b.startAt,
+    vehicle: b.vehicle ? { registrationNumber: b.vehicle.registrationNumber } : null,
+  }));
 
   const newBookingButton = (
     <Link
@@ -41,11 +59,7 @@ export default async function RequesterHome() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title={t("title")}
-        description={t("description")}
-        actions={newBookingButton}
-      />
+      <PageHeader title={t("title")} description={t("description")} actions={newBookingButton} />
 
       {pendingEvalBookings.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
@@ -53,13 +67,11 @@ export default async function RequesterHome() {
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-amber-200 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
               <Star className="h-5 w-5" aria-hidden />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
                 {t("pendingEvalTitle", { count: pendingEvalBookings.length })}
               </h2>
-              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300/90">
-                {t("pendingEvalDescription")}
-              </p>
+              <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-300/90">{t("pendingEvalDescription")}</p>
               <ul className="mt-2 space-y-1">
                 {pendingEvalBookings.map((b) => (
                   <li key={b.id}>
@@ -80,6 +92,7 @@ export default async function RequesterHome() {
         </div>
       )}
 
+      {/* Active bookings */}
       {bookings.length === 0 ? (
         <EmptyState
           icon={FileText}
@@ -90,6 +103,19 @@ export default async function RequesterHome() {
       ) : (
         <RequesterBookingList bookings={bookings} />
       )}
+
+      {/* History — same page, below the active bookings (ประวัติ) */}
+      <section className="space-y-4 border-t pt-8">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">{t("historyTitle")}</h2>
+          <p className="text-sm text-muted-foreground">{t("historyDescription")}</p>
+        </div>
+        {historyRows.length === 0 ? (
+          <EmptyState icon={FileText} title={t("historyEmptyTitle")} description={t("historyEmptyDescription")} />
+        ) : (
+          <RequesterHistoryClient bookings={historyRows} />
+        )}
+      </section>
     </div>
   );
 }
