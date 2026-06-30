@@ -64,13 +64,6 @@ enum ApprovalStatus {
   DENIED
 }
 
-enum EvaluationRating {
-  NOT_GOOD
-  SLIGHTLY_NOT_GOOD
-  GOOD
-  VERY_GOOD
-}
-
 // CR-02: driver-side scheduling lifecycle. The admin only allows the booking
 // + picks a vehicle; drivers then claim primary/secondary roles, and the
 // primary driver confirms the trip is dispatch-ready.
@@ -699,7 +692,7 @@ model Evaluation {
   id          String           @id @default(cuid())
   tripId      String           @unique
   trip        Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  rating      EvaluationRating
+  rating      Int // 1–5 stars
   comment     String?
   submittedAt DateTime         @default(now())
 

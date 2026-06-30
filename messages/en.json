@@ -620,7 +620,10 @@
     "destination": "Destination",
     "tripDate": "Trip",
     "emptyTitle": "No feedback yet",
-    "emptyDescription": "Once a requester rates a completed trip, it appears here."
+    "emptyDescription": "Once a requester rates a completed trip, it appears here.",
+    "back": "Back to dashboard",
+    "noReviews": "No reviews yet",
+    "reviewCount": "{count, plural, one {# review} other {# reviews}}"
   },
   "matching": {
     "runMatch": "Run matcher",
@@ -682,6 +685,7 @@
   "evaluationForm": {
     "howWasTheTrip": "How was the trip?",
     "comment": "Comment",
+    "optional": "optional",
     "commentRequired": "A comment is required for negative ratings.",
     "submitting": "Submitting…",
     "submit": "Submit evaluation",

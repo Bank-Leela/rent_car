@@ -1,91 +1,74 @@
-import { Star } from "lucide-react";
-import { getTranslations } from "next-intl/server";
-import { requireAnyRole } from "@/lib/auth-helpers";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
+import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
-import { EvaluationsListClient } from "@/components/admin/evaluations-list-client";
-
-const RATING_TONE: Record<string, string> = {
-  VERY_GOOD: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-200",
-  GOOD: "border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-200",
-  SLIGHTLY_NOT_GOOD: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200",
-  NOT_GOOD: "border-destructive/40 bg-destructive/10 text-destructive",
-};
+import { StarRatingDisplay } from "@/components/ui/star-rating";
 
 export default async function AdminEvaluations() {
-  await requireAnyRole(["ADMIN"]);
+  await requireRole("ADMIN");
   const t = await getTranslations("adminEvaluations");
-  const tr = await getTranslations("evaluationForm");
+  const locale = await getLocale();
+  const isThai = locale.toLowerCase().startsWith("th");
+  const nameOf = (u: { name: string | null; thaiName: string | null }) =>
+    (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? "—";
 
-  const evaluations = await prisma.evaluation.findMany({
-    orderBy: { submittedAt: "desc" },
-    include: {
-      trip: {
-        include: {
-          booking: {
-            include: {
-              requester: true,
-              department: true,
-              vehicle: true,
-              primaryDriver: { include: { user: true } },
-            },
-          },
-        },
-      },
-    },
-  });
+  const [drivers, evaluations] = await Promise.all([
+    prisma.driver.findMany({
+      where: { isActive: true },
+      select: { id: true, user: { select: { name: true, thaiName: true } } },
+      orderBy: { user: { name: "asc" } },
+    }),
+    prisma.evaluation.findMany({
+      select: { rating: true, trip: { select: { booking: { select: { primaryDriverId: true } } } } },
+    }),
+  ]);
 
-  // Aggregate counts per rating for the header summary.
-  const totals = { VERY_GOOD: 0, GOOD: 0, SLIGHTLY_NOT_GOOD: 0, NOT_GOOD: 0 } as Record<string, number>;
-  for (const e of evaluations) totals[e.rating] = (totals[e.rating] ?? 0) + 1;
+  // Group ratings by the trip's primary driver.
+  const byDriver = new Map<string, number[]>();
+  for (const e of evaluations) {
+    const did = e.trip.booking.primaryDriverId;
+    if (!did) continue;
+    const arr = byDriver.get(did) ?? [];
+    arr.push(e.rating);
+    byDriver.set(did, arr);
+  }
 
-  // Map to a flat, serializable shape for the client list (display + search).
-  const evaluationRows = evaluations.map((e) => {
-    const b = e.trip.booking;
-    return {
-      id: e.id,
-      bookingId: b.id,
-      jobNumber: b.jobNumber,
-      rating: e.rating,
-      purpose: b.purpose,
-      requesterName: b.requester.name ?? b.requester.email,
-      departmentName: b.department.nameEn,
-      submittedAt: e.submittedAt,
-      comment: e.comment,
-      vehicleReg: b.vehicle?.registrationNumber ?? null,
-      driverName: b.primaryDriver?.user.name ?? b.primaryDriver?.user.email ?? "",
-      destination: b.destination,
-      province: b.province,
-      startAt: b.startAt,
-    };
+  const cards = drivers.map((d) => {
+    const ratings = byDriver.get(d.id) ?? [];
+    const count = ratings.length;
+    const avg = count ? ratings.reduce((a, b) => a + b, 0) / count : 0;
+    return { id: d.id, name: nameOf(d.user), count, avg };
   });
 
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} description={t("description")} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {(["VERY_GOOD", "GOOD", "SLIGHTLY_NOT_GOOD", "NOT_GOOD"] as const).map((r) => (
-          <div
-            key={r}
-            className={`rounded-xl border p-4 ${RATING_TONE[r]}`}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map((c) => (
+          <Link
+            key={c.id}
+            href={`/admin/evaluations/${c.id}`}
+            className="group flex items-center justify-between gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/30"
           >
-            <div className="text-xs uppercase tracking-wide opacity-80">{tr(`ratings.${r}`)}</div>
-            <div className="mt-1 text-2xl font-semibold tabular-nums">{totals[r] ?? 0}</div>
-          </div>
+            <div className="min-w-0">
+              <div className="truncate font-medium">{c.name}</div>
+              {c.count === 0 ? (
+                <div className="mt-1 text-xs text-muted-foreground">{t("noReviews")}</div>
+              ) : (
+                <div className="mt-1 flex items-center gap-2">
+                  <StarRatingDisplay value={c.avg} size="sm" />
+                  <span className="text-sm font-semibold tabular-nums">{c.avg.toFixed(1)}</span>
+                  <span className="text-xs text-muted-foreground">{t("reviewCount", { count: c.count })}</span>
+                </div>
+              )}
+            </div>
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />
+          </Link>
         ))}
       </div>
-
-      {evaluationRows.length === 0 ? (
-        <EmptyState
-          icon={Star}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
-        />
-      ) : (
-        <EvaluationsListClient evaluations={evaluationRows} />
-      )}
     </div>
   );
 }
