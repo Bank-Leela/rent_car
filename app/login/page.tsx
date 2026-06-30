@@ -31,7 +31,9 @@ export default async function LoginPage({
 
   const devUsers = DEV_ENABLED
     ? await prisma.user.findMany({
-        where: { id: { startsWith: "seed-user-" } },
+        // Station-only driver model: drivers sign in at the shared station kiosk,
+        // not as individuals — so exclude the individual driver, keep driverstation.
+        where: { id: { startsWith: "seed-user-", not: "seed-user-driver" } },
         include: { roles: true },
         orderBy: { email: "asc" },
       })
