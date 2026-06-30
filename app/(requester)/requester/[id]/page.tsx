@@ -22,6 +22,17 @@ export default async function RequesterBookingDetail({
   const t = await getTranslations("bookingDetail");
   const tc = await getTranslations("common");
   const tr = await getTranslations("requesterDetail");
+  // Reuse the booking-form field/value labels so the requester can review every
+  // input they filled in (pickup, vehicle type, gender counts, one-way, etc.).
+  const tf = await getTranslations("bookingForm");
+  const vehicleTypeLabel = (v: string) =>
+    ({
+      VAN: tf("preferredVehicleVan"),
+      TRUCK_6_WHEEL: tf("preferredVehicleTruck6Wheel"),
+      PICKUP: tf("preferredVehiclePickup"),
+      SEDAN_DEAN: tf("preferredVehicleSedanDean"),
+      BUS_OUTSOURCED: tf("preferredVehicleBusOutsourced"),
+    })[v] ?? v;
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -83,10 +94,46 @@ export default async function RequesterBookingDetail({
               </div>
             </div>
           )}
+          {booking.pickupLocation && (
+            <Field label={tf("pickupLocation")} value={booking.pickupLocation} />
+          )}
+          {booking.waitingLocation && (
+            <Field label={t("waitingLocation")} value={booking.waitingLocation} />
+          )}
           <Field label={t("department")} value={booking.department.nameEn} />
           <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
           <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
+          <Field
+            label={tf("returnTripLabel")}
+            value={booking.returnTrip ? tf("returnTripYes") : tf("returnTripNo")}
+          />
           <Field label={t("passengers")} value={String(booking.passengerCount)} />
+          {booking.maleCount != null && (
+            <Field label={tf("maleCount")} value={String(booking.maleCount)} />
+          )}
+          {booking.femaleCount != null && (
+            <Field label={tf("femaleCount")} value={String(booking.femaleCount)} />
+          )}
+          {booking.jobType === "SMUS" ? (
+            <Field
+              label={tf("externalVehicleCounts")}
+              value={`${tf("externalBusCount")} ${booking.externalBusCount ?? 0} · ${tf("externalVanCount")} ${booking.externalVanCount ?? 0}`}
+            />
+          ) : (
+            <Field label={tf("preferredVehicle")} value={vehicleTypeLabel(booking.preferredVehicleType)} />
+          )}
+          {!booking.waitAtDestination && (
+            <Field label={t("flag")} value={t("notWaitingAtDestination")} />
+          )}
+          {booking.pickupReturnTime && (
+            <Field label={t("pickupReturnTime")} value={booking.pickupReturnTime} />
+          )}
+          {booking.needsOutsourcing && (
+            <Field label={t("flag")} value={t("flaggedForOutsourcing")} />
+          )}
+          {booking.isEmergency && (
+            <Field label={t("flag")} value={tf("urgentBadge")} />
+          )}
           {booking.estimatedDistance != null && (
             <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
@@ -99,6 +146,17 @@ export default async function RequesterBookingDetail({
           )}
           {booking.passengerNotes && (
             <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
+          )}
+          {booking.attachmentUrl && (
+            <div className="col-span-full">
+              <p className="text-xs font-medium text-muted-foreground">{t("attachment")}</p>
+              <a
+                href={`/api/files/booking-attachment/${booking.id}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                {booking.attachmentFilename ?? t("attachment")}
+              </a>
+            </div>
           )}
         </CardContent>
       </Card>

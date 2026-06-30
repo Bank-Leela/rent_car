@@ -32,6 +32,17 @@ export default async function AdminBookingDetail({
   const tad = await getTranslations("adminDetail");
   const taf = await getTranslations("assignForm");
   const ta = await getTranslations("approverActions");
+  // Reuse the booking-form field/value labels (pickup, vehicle type, gender
+  // counts, etc.) so the detail page surfaces every input the requester filled.
+  const tf = await getTranslations("bookingForm");
+  const vehicleTypeLabel = (v: string) =>
+    ({
+      VAN: tf("preferredVehicleVan"),
+      TRUCK_6_WHEEL: tf("preferredVehicleTruck6Wheel"),
+      PICKUP: tf("preferredVehiclePickup"),
+      SEDAN_DEAN: tf("preferredVehicleSedanDean"),
+      BUS_OUTSOURCED: tf("preferredVehicleBusOutsourced"),
+    })[v] ?? v;
   const isAdmin = session.user.roles.includes("ADMIN");
   const isApprover = session.user.roles.includes("APPROVER");
 
@@ -189,9 +200,45 @@ export default async function AdminBookingDetail({
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
           <Field label={t("destination")} value={`${booking.destination}, ${booking.province}`} />
+          {booking.googleMapsUrl && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("mapsLink")}</div>
+              <div className="mt-0.5">
+                <a
+                  href={booking.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {t("mapsLink")}
+                </a>
+              </div>
+            </div>
+          )}
+          {booking.pickupLocation && (
+            <Field label={tf("pickupLocation")} value={booking.pickupLocation} />
+          )}
           <Field label={t("passengers")} value={String(booking.passengerCount)} />
+          {booking.maleCount != null && (
+            <Field label={tf("maleCount")} value={String(booking.maleCount)} />
+          )}
+          {booking.femaleCount != null && (
+            <Field label={tf("femaleCount")} value={String(booking.femaleCount)} />
+          )}
           <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
           <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
+          <Field
+            label={tf("returnTripLabel")}
+            value={booking.returnTrip ? tf("returnTripYes") : tf("returnTripNo")}
+          />
+          {booking.jobType === "SMUS" ? (
+            <Field
+              label={tf("externalVehicleCounts")}
+              value={`${tf("externalBusCount")} ${booking.externalBusCount ?? 0} · ${tf("externalVanCount")} ${booking.externalVanCount ?? 0}`}
+            />
+          ) : (
+            <Field label={tf("preferredVehicle")} value={vehicleTypeLabel(booking.preferredVehicleType)} />
+          )}
           {booking.estimatedDistance != null && (
             <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
           )}
@@ -214,6 +261,17 @@ export default async function AdminBookingDetail({
           )}
           {booking.passengerNotes && (
             <Field label={t("passengerNotes")} value={booking.passengerNotes} colSpan />
+          )}
+          {booking.attachmentUrl && (
+            <div className="col-span-full">
+              <p className="text-xs font-medium text-muted-foreground">{t("attachment")}</p>
+              <a
+                href={`/api/files/booking-attachment/${booking.id}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                {booking.attachmentFilename ?? t("attachment")}
+              </a>
+            </div>
           )}
         </CardContent>
       </Card>
