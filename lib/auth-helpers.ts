@@ -25,5 +25,6 @@ export function homePathFor(roles: Role[]): string {
   // Approver shares the admin console; they only differ in which forms appear.
   if (roles.includes("APPROVER")) return "/admin";
   if (roles.includes("DRIVER")) return "/driver";
-  return "/requester";
+  // Requesters land on the booking form (the primary action), not the list.
+  return "/requester/new";
 }
