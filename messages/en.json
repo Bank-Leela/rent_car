@@ -73,7 +73,8 @@
     "resetTokenInvalid": "This reset link is invalid or has expired.",
     "placeNotFound": "Saved place not found.",
     "driverNotFound": "Driver not found.",
-    "invalidUsername": "Username must be 3–40 chars: letters, numbers, dot, underscore."
+    "invalidUsername": "Username must be 3–40 chars: letters, numbers, dot, underscore.",
+    "vehicleAssignedElsewhere": "That vehicle is already assigned to another driver. Unassign them first."
   },
   "common": {
     "back": "Back",

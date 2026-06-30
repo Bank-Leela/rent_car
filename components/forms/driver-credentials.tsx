@@ -44,6 +44,7 @@ export function DriverCredentials({
           defaultValue={username ?? ""}
           minLength={3}
           maxLength={40}
+          pattern="[A-Za-z0-9._]{3,40}"
           required
           autoComplete="off"
         />
@@ -58,8 +59,10 @@ export function DriverCredentials({
           fd.set("userId", userId);
           startTransition(async () => {
             const res = await adminResetPasswordAction(fd);
+            // adminResetPasswordAction (lib/auth) returns an ALREADY-translated
+            // error string — pass it through; do NOT te() it again.
             toastResult(
-              res && !res.ok ? { ok: false, error: te(res.error) } : { ok: true },
+              res && !res.ok ? { ok: false, error: res.error } : { ok: true },
               { success: t("passwordReset") },
             );
           });

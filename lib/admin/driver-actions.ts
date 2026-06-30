@@ -28,6 +28,7 @@ export async function adminUpdateDriverAction(formData: FormData): Promise<Drive
   if (!driver) return { ok: false, error: "driverNotFound" };
 
   const name = strOrNull(formData, "name");
+  if (!name) return { ok: false, error: "invalidInput" };
   const thaiName = strOrNull(formData, "thaiName");
   const phone = strOrNull(formData, "phone");
   const nickname = strOrNull(formData, "nickname");
@@ -57,8 +58,16 @@ export async function adminUpdateDriverAction(formData: FormData): Promise<Drive
   // "" = unassign the driver's car. A vehicleId must exist.
   const vehicleId = strOrNull(formData, "vehicleId");
   if (vehicleId) {
-    const v = await prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true } });
+    const v = await prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      select: { id: true, assignedDriverId: true },
+    });
     if (!v) return { ok: false, error: "invalidInput" };
+    // Don't silently steal another driver's car (that would orphan them and they
+    // can no longer be dispatched). Admin must unassign the other driver first.
+    if (v.assignedDriverId && v.assignedDriverId !== driver.id) {
+      return { ok: false, error: "vehicleAssignedElsewhere" };
+    }
   }
 
   await prisma.$transaction(async (tx) => {
