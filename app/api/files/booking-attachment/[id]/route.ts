@@ -20,10 +20,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   });
   if (!booking || !booking.attachmentUrl) return new NextResponse("Not found", { status: 404 });
 
-  // Access: requester, the dept head (or their delegate), or any ADMIN/APPROVER
+  // Access: requester, the dept head (or their delegate), or any ADMIN
   // — same circle as the booking PDF.
   const userId = session.user.id;
-  const isStaff = session.user.roles.includes("ADMIN") || session.user.roles.includes("APPROVER");
+  const isStaff = session.user.roles.includes("ADMIN");
   const isOwner = booking.requesterId === userId;
   const isHead = booking.department.headUserId === userId;
   const isDelegate = booking.department.head?.delegatedToUserId === userId;

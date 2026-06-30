@@ -18,7 +18,7 @@ export default async function ApproverDecisions({
 }: {
   searchParams: Promise<{ filter?: string }>;
 }) {
-  const session = await requireRole("APPROVER");
+  const session = await requireRole("ADMIN");
   const t = await getTranslations("decisions");
   const { filter: filterParam } = await searchParams;
   const filter: Filter = FILTERS.includes(filterParam as Filter) ? (filterParam as Filter) : "all";

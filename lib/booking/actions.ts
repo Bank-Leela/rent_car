@@ -312,10 +312,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     include: bookingDetailInclude,
   });
 
-  // Notify the fleet-section approver(s) and their delegates. Admins are
-  // notified later, only after the approver signs off.
+  // Notify the admins who handle approvals (+ any delegates).
   const approverUsers = await prisma.user.findMany({
-    where: { roles: { some: { role: "APPROVER" } }, isActive: true },
+    where: { roles: { some: { role: "ADMIN" } }, isActive: true },
     select: { email: true, delegatedTo: { select: { email: true } } },
   });
   const approverEmails = [

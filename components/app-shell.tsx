@@ -16,8 +16,6 @@ type NavItem = { href: string; label: string };
 const ROLE_TINT: Record<Role, string> = {
   ADMIN:
     "bg-indigo-100 text-indigo-900 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-900/40",
-  APPROVER:
-    "bg-fuchsia-100 text-fuchsia-900 ring-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-200 dark:ring-fuchsia-900/40",
   DRIVER:
     "bg-emerald-100 text-emerald-900 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/40",
   REQUESTER:

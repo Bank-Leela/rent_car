@@ -22,9 +22,8 @@ export default async function AdminQueue({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const session = await requireAnyRole(["ADMIN", "APPROVER"]);
+  const session = await requireAnyRole(["ADMIN"]);
   const isAdmin = session.user.roles.includes("ADMIN");
-  const isApprover = session.user.roles.includes("APPROVER");
   const t = await getTranslations("admin");
   const tAuto = await getTranslations("matching");
   const now = new Date();
@@ -332,7 +331,7 @@ export default async function AdminQueue({
                     </div>
                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                   </Link>
-                  {isApprover && (
+                  {isAdmin && (
                     <ApproverQueueActions
                       bookingId={b.id}
                       canDeny={b.status === "PENDING_APPROVAL"}

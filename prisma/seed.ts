@@ -65,7 +65,6 @@ async function main() {
   // One user per role.
   const users = [
     { id: "seed-user-requester", email: "requester@chula.ac.th", name: "อรวรรณ พิทักษ์ชัย", role: Role.REQUESTER },
-    { id: "seed-user-approver", email: "approver@chula.ac.th", name: "ศาสตราจารย์ ดร. ธนากร ศรีสุวรรณ", role: Role.APPROVER },
     { id: "seed-user-admin", email: "admin@chula.ac.th", name: "ปิยะ วงศ์สวัสดิ์", role: Role.ADMIN },
     { id: "seed-user-driver", email: "driver@chula.ac.th", name: "อนุชา เพชรรัตน์", role: Role.DRIVER },
     // Shared "driver station" login (one account all drivers use on the shared

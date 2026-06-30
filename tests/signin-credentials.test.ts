@@ -11,10 +11,9 @@ import { prisma } from "@/lib/db";
 // (authorize() itself lives in the read-blocked lib/auth/*; this asserts the
 // substance it depends on. Account passwords aren't assumed — the live dev DB
 // may have rotated them — so #2 uses a throwaway user with a known password.)
-const SEED_USERNAMES = [
-  "requester", "approver", "admin",
-  "driverA", "driverB", "driverC", "driverD", "driverE", "driverF",
-];
+// Only login-capable seed accounts. Individual drivers are login-less now —
+// they sign in through the shared driver-station kiosk, not personal accounts.
+const SEED_USERNAMES = ["requester", "admin", "driverstation"];
 
 const throwawayIds: string[] = [];
 

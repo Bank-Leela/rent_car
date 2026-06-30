@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { SelectField } from "@/components/ui/select-field";
 import { adminCreateUserAction } from "@/lib/auth/credentials-actions";
 
-const ROLES = ["REQUESTER", "APPROVER", "ADMIN", "DRIVER"] as const;
+const ROLES = ["REQUESTER", "ADMIN", "DRIVER"] as const;
 
 export function CreateUserForm({
   departments,

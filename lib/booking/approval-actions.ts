@@ -17,9 +17,8 @@ import { generateBookingPdf } from "@/lib/pdf/generate";
 import type { ActionResult } from "@/lib/booking/actions";
 
 /**
- * Approver permission. The fleet section has a single approver (the head of
- * the car-renting section), who may also delegate. Any APPROVER-role user can
- * act, as can a delegate of an APPROVER-role user.
+ * Approval permission. The former APPROVER role was merged into ADMIN, so any
+ * ADMIN can approve, as can a delegate of an ADMIN.
  */
 async function canApprove(userId: string): Promise<boolean> {
   const me = await prisma.user.findUnique({
@@ -30,8 +29,8 @@ async function canApprove(userId: string): Promise<boolean> {
     },
   });
   if (!me) return false;
-  if (me.roles.some((r) => r.role === "APPROVER")) return true;
-  return me.delegatedBy.some((u) => u.roles.some((r) => r.role === "APPROVER"));
+  if (me.roles.some((r) => r.role === "ADMIN")) return true;
+  return me.delegatedBy.some((u) => u.roles.some((r) => r.role === "ADMIN"));
 }
 
 const approveSchema = z.object({
@@ -205,7 +204,7 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
       actorUserId: userId,
       fromStatus: "PENDING_APPROVAL",
       toStatus: "DENIED",
-      action: "BOOKING_DENIED_BY_APPROVER",
+      action: "BOOKING_DENIED",
       metadata: { comment },
       tx,
     });

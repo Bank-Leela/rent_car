@@ -285,7 +285,7 @@ const createUserSchema = z.object({
     .transform((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
 });
 
-const VALID_ROLES: ReadonlyArray<Role> = ["REQUESTER", "APPROVER", "ADMIN", "DRIVER"];
+const VALID_ROLES: ReadonlyArray<Role> = ["REQUESTER", "ADMIN", "DRIVER"];
 
 export async function adminCreateUserAction(formData: FormData): Promise<ActionResult> {
   await requireRole("ADMIN");
