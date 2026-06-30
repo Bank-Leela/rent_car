@@ -297,6 +297,12 @@ model Driver {
   licenseNumber    String?
   licenseExpiresAt DateTime?
   isActive         Boolean    @default(true)
+  // Roster fields (admin-managed via /admin/drivers; follow the driver sheet).
+  nickname         String?    // ชื่อเล่น
+  licenseType      String?    // ใบขับขี่ "ประเภท 2"
+  position         String?    // ตำแหน่ง (free text, e.g. ลูกจ้างประจำ)
+  retirementYear   Int?       // เกษียณ — Thai BE year as shown
+  notes            String?    @db.Text // หมายเหตุ
   // CR-05: fairness tie-break. Bumped to the trip's startAt whenever the
   // matcher assigns this driver a primary or secondary role.
   lastAssignedAt   DateTime?
