@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Car, CircleSlash, FlaskConical, UserRound, CalendarPlus } from "lucide-react";
 import { SelectField } from "@/components/ui/select-field";
+import { TimeField } from "@/components/ui/time-field";
 import { simulatePlacementAction, bookSimulatedSlotAction, type SimResult } from "@/lib/booking/simulate-actions";
 
 const JOB_TYPES = ["NORMAL", "OT", "TJW", "WERN", "SMUS"] as const;
@@ -71,11 +72,11 @@ export function SimulateForm({ today }: { today: string }) {
           </div>
           <div>
             <label htmlFor="sim-start" className={label}>{t("start")}</label>
-            <input id="sim-start" name="start" type="time" step={900} defaultValue="09:00" required className={field} />
+            <TimeField id="sim-start" name="start" defaultValue="09:00" required className="h-10" aria-label={t("start")} />
           </div>
           <div>
             <label htmlFor="sim-end" className={label}>{t("end")}</label>
-            <input id="sim-end" name="end" type="time" step={900} defaultValue="12:00" required className={field} />
+            <TimeField id="sim-end" name="end" defaultValue="12:00" required className="h-10" aria-label={t("end")} />
           </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 text-sm">
@@ -93,11 +94,11 @@ export function SimulateForm({ today }: { today: string }) {
             <>
               <div>
                 <label htmlFor="sim-drop" className={label}>{t("dropOffLabel")}</label>
-                <input id="sim-drop" name="dropOff" type="time" step={900} defaultValue="11:00" className={field} />
+                <TimeField id="sim-drop" name="dropOff" defaultValue="11:00" className="h-10" aria-label={t("dropOffLabel")} />
               </div>
               <div>
                 <label htmlFor="sim-return" className={label}>{t("returnLabel")}</label>
-                <input id="sim-return" name="pickupReturn" type="time" step={900} defaultValue="14:00" className={field} />
+                <TimeField id="sim-return" name="pickupReturn" defaultValue="14:00" className="h-10" aria-label={t("returnLabel")} />
               </div>
             </>
           )}
