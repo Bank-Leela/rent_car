@@ -45,7 +45,7 @@ export function ProfileMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={display || labels.account}
-          className="grid h-9 w-9 place-items-center rounded-full bg-muted text-xs font-semibold uppercase text-foreground ring-1 ring-inset ring-border transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="ml-2 grid h-9 w-9 place-items-center rounded-full bg-muted text-xs font-semibold uppercase text-foreground ring-1 ring-inset ring-border transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {initialsOf(name, email)}
         </DropdownMenuTrigger>
