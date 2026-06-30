@@ -32,6 +32,10 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   if (!booking) return { ok: false, error: "bookingNotFound" };
   // External charter (SMUS) — outside buses/vans, not placed on an internal car.
   if (booking.jobType === "SMUS") return { ok: false, error: "externalCharterNoMatch" };
+  // Outsourced-rental bus — same as SMUS, never placed on an internal car.
+  if (booking.preferredVehicleType === "BUS_OUTSOURCED") {
+    return { ok: false, error: "outsourcedVehicleNoMatch" };
+  }
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },

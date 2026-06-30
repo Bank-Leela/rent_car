@@ -39,6 +39,8 @@ import {
   Check,
   MoreVertical,
   Bookmark,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { isThaiLocale } from "@/i18n/config";
 
@@ -147,7 +149,7 @@ function PassengerStepper({
         aria-label={t("passengerDecrement")}
         onClick={() => nudge(-1)}
         disabled={!Number.isNaN(num) && num <= min}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border bg-background text-xl leading-none hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background text-lg leading-none hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
       >
         −
       </button>
@@ -162,14 +164,14 @@ function PassengerStepper({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => onChange(String(Number.isNaN(num) ? min : clamp(num)))}
-        className="h-11 text-center text-base tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="h-10 text-center text-base tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <button
         type="button"
         aria-label={t("passengerIncrement")}
         onClick={() => nudge(1)}
         disabled={!Number.isNaN(num) && num >= max}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border bg-background text-xl leading-none hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background text-lg leading-none hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
       >
         +
       </button>
@@ -247,6 +249,12 @@ export function BookingForm({
   const [preferredVehicleType, setPreferredVehicleType] = useState("VAN");
   const isBus = preferredVehicleType === "BUS_OUTSOURCED";
   const [needsOutsourcing, setNeedsOutsourcing] = useState(false);
+  // Optional supporting-document attachment (memo, invitation letter, etc.)
+  // alongside the remark/notes. Name shown for confirmation; the actual File
+  // object lives in the (uncontrolled) file input and rides along in the
+  // FormData the submit handler builds.
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const isThai = isThaiLocale(locale);
   const defaultDepartment = departments.find((d) => d.id === defaultDepartmentId) ?? null;
   const [error, setError] = useState<string | null>(null);
@@ -638,7 +646,7 @@ export function BookingForm({
               <div
                 role="radiogroup"
                 aria-label={t("tripAreaLabel")}
-                className="grid gap-2 sm:grid-cols-3"
+                className="grid grid-cols-2 gap-2"
               >
                 {TRIP_AREAS.map(({ value, key }) => {
                   const selected = tripArea === value;
@@ -668,8 +676,8 @@ export function BookingForm({
                 )}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <div className="grid gap-2 min-w-0">
+            <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+              <div className="grid min-w-0 flex-1 gap-2 basis-40">
                 <ReqLabel htmlFor="startAt">{t("startLabel")}</ReqLabel>
                 <DateTimePicker
                   id="startAt"
@@ -705,43 +713,29 @@ export function BookingForm({
                   }}
                 />
               </div>
-              <div className="grid gap-2 min-w-0">
+              {/* เดินทางกลับ / ไม่เดินทางกลับ (เที่ยวเดียว) — its own compact
+                  column, placed in front of (to the left of) the end-date box
+                  so start and end stay equal-sized boxes. One-way swaps the
+                  end picker for a note — the admin sets the real end time at
+                  approval. */}
+              <div className="grid w-36 shrink-0 gap-2">
+                <Label htmlFor="returnTrip">{t("returnTripLabel")}</Label>
+                <select
+                  id="returnTrip"
+                  value={returnTrip ? "yes" : "no"}
+                  onChange={(e) => setReturnTrip(e.target.value === "yes")}
+                  className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="yes">{t("returnTripYes")}</option>
+                  <option value="no">{t("returnTripNo")}</option>
+                </select>
+              </div>
+              <div className="grid min-w-0 flex-1 gap-2 basis-40">
                 {returnTrip ? (
                   <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
                 ) : (
                   <Label htmlFor="endAt">{t("endLabel")}</Label>
                 )}
-                {/* เดินทางกลับ / ไม่เดินทางกลับ (เที่ยวเดียว). One-way hides the
-                    end picker — the admin sets the real end time at approval. */}
-                <div
-                  role="radiogroup"
-                  aria-label={t("returnTripLabel")}
-                  className="grid grid-cols-2 gap-1.5"
-                >
-                  {[
-                    { v: true, label: t("returnTripYes") },
-                    { v: false, label: t("returnTripNo") },
-                  ].map((o) => {
-                    const selected = returnTrip === o.v;
-                    return (
-                      <button
-                        key={String(o.v)}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => setReturnTrip(o.v)}
-                        className={
-                          "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
-                          (selected
-                            ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
-                            : "border-input bg-background text-foreground hover:bg-muted/60")
-                        }
-                      >
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                </div>
                 {returnTrip ? (
                   <DateTimePicker
                     id="endAt"
@@ -766,7 +760,10 @@ export function BookingForm({
                     }}
                   />
                 ) : (
-                  <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+                  <div
+                    id="endAt"
+                    className="flex h-10 items-center rounded-md border border-dashed bg-muted/30 px-3 text-xs text-muted-foreground"
+                  >
                     {t("oneWayNote")}
                   </div>
                 )}
@@ -920,11 +917,25 @@ export function BookingForm({
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="maleCount">{t("maleCount")}</Label>
-                <Input id="maleCount" name="maleCount" type="number" min={0} placeholder="0" />
+                <Input
+                  id="maleCount"
+                  name="maleCount"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  className="h-10"
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="femaleCount">{t("femaleCount")}</Label>
-                <Input id="femaleCount" name="femaleCount" type="number" min={0} placeholder="0" />
+                <Input
+                  id="femaleCount"
+                  name="femaleCount"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  className="h-10"
+                />
               </div>
             </div>
             {isExternalCharter ? (
@@ -1001,6 +1012,7 @@ export function BookingForm({
                     </span>
                   </span>
                 </label>
+                <p className="text-xs text-muted-foreground">{t("flagOutsourcingDenyNotice")}</p>
                 <input
                   type="hidden"
                   name="needsOutsourcing"
@@ -1011,6 +1023,44 @@ export function BookingForm({
             <div className="grid gap-2">
               <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
               <Textarea id="passengerNotes" name="passengerNotes" rows={3} />
+              {/* Optional supporting file (memo, invitation letter, etc.) to
+                  back up the note above — uploaded alongside the booking. */}
+              <input
+                ref={attachmentInputRef}
+                id="attachment"
+                name="attachment"
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => setAttachmentName(e.target.files?.[0]?.name ?? null)}
+              />
+              {attachmentName ? (
+                <div className="flex w-fit items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                  <Paperclip aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="max-w-[14rem] truncate">{attachmentName}</span>
+                  <button
+                    type="button"
+                    aria-label={t("attachmentRemove")}
+                    onClick={() => {
+                      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+                      setAttachmentName(null);
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                >
+                  <Paperclip aria-hidden className="h-3.5 w-3.5" />
+                  {t("attachmentAdd")}
+                </button>
+              )}
+              <p className="text-xs text-muted-foreground">{t("attachmentHelper")}</p>
             </div>
           </fieldset>
 

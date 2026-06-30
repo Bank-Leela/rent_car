@@ -56,6 +56,9 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
       // SMUS = external charter (outside buses/vans); never auto-assigned an
       // internal vehicle/driver or a slot.
       jobType: { not: "SMUS" },
+      // BUS_OUTSOURCED = the requester picked an outsourced-rental bus, not an
+      // internal vehicle. Same as SMUS: never auto-assigned.
+      preferredVehicleType: { not: "BUS_OUTSOURCED" },
       startAt: { gte: dayStart, lt: dayEnd },
     },
     orderBy: { createdAt: "asc" },

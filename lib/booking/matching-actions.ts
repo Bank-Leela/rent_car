@@ -41,6 +41,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   if (booking.jobType === "SMUS") {
     return { ok: false, error: te("externalCharterNoMatch") };
   }
+  // Outsourced-rental bus — same as SMUS, no internal vehicle/driver to match.
+  if (booking.preferredVehicleType === "BUS_OUTSOURCED") {
+    return { ok: false, error: te("outsourcedVehicleNoMatch") };
+  }
   if (booking.status !== "APPROVED") {
     return { ok: false, error: te("cannotMatchInStatus", { status: ts(booking.status) }) };
   }
