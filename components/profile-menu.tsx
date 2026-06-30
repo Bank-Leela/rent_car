@@ -56,16 +56,16 @@ export function ProfileMenu({
             <div className="mt-0.5 text-xs text-muted-foreground">{roleLabel}</div>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => router.push("/account")}>
+          <DropdownMenuItem onClick={() => router.push("/account")}>
             <UserCog className="mr-2 h-4 w-4" aria-hidden />
             {labels.account}
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => router.push("/account#password")}>
+          <DropdownMenuItem onClick={() => router.push("/account#password")}>
             <KeyRound className="mr-2 h-4 w-4" aria-hidden />
             {labels.changePassword}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onSelect={() => signOutFormRef.current?.requestSubmit()}>
+          <DropdownMenuItem variant="destructive" onClick={() => signOutFormRef.current?.requestSubmit()}>
             <LogOut className="mr-2 h-4 w-4" aria-hidden />
             {labels.signOut}
           </DropdownMenuItem>
