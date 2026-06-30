@@ -26,7 +26,7 @@ export default async function AdminBookingDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireAnyRole(["ADMIN", "APPROVER"]);
+  const session = await requireAnyRole(["ADMIN"]);
   const { id } = await params;
   const t = await getTranslations("bookingDetail");
   const tad = await getTranslations("adminDetail");
@@ -44,7 +44,6 @@ export default async function AdminBookingDetail({
       BUS_OUTSOURCED: tf("preferredVehicleBusOutsourced"),
     })[v] ?? v;
   const isAdmin = session.user.roles.includes("ADMIN");
-  const isApprover = session.user.roles.includes("APPROVER");
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -106,7 +105,7 @@ export default async function AdminBookingDetail({
   const isAssigned = booking.status === "ASSIGNED";
   // Admin's mutation forms only apply once the approver signs off.
   const showAssignForms = isAdmin && isApproved;
-  const showApproverForms = isApprover && isPendingApproval;
+  const showApproverForms = isAdmin && isPendingApproval;
   const showCompleteForm = isAdmin && isAssigned;
   const cancellationWarning = shouldWarnAboutCancellations(recentCancellations);
 

@@ -14,7 +14,7 @@ const RATING_TONE: Record<string, string> = {
 };
 
 export default async function AdminEvaluations() {
-  await requireAnyRole(["ADMIN", "APPROVER"]);
+  await requireAnyRole(["ADMIN"]);
   const t = await getTranslations("adminEvaluations");
   const tr = await getTranslations("evaluationForm");
 

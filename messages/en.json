@@ -115,7 +115,6 @@
   },
   "roles": {
     "REQUESTER": "Requester",
-    "APPROVER": "Department Head",
     "ADMIN": "Administrator",
     "DRIVER": "Driver"
   },
@@ -450,7 +449,6 @@
     "roles": "Roles",
     "role": {
       "REQUESTER": "Requester",
-      "APPROVER": "Approver",
       "ADMIN": "Admin",
       "DRIVER": "Driver"
     },

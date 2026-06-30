@@ -12,7 +12,7 @@ import { prisma } from "@/lib/db";
 // substance it depends on. Account passwords aren't assumed — the live dev DB
 // may have rotated them — so #2 uses a throwaway user with a known password.)
 const SEED_USERNAMES = [
-  "requester", "approver", "admin",
+  "requester", "admin",
   "driverA", "driverB", "driverC", "driverD", "driverE", "driverF",
 ];
 

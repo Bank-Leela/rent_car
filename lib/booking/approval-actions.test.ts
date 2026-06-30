@@ -9,7 +9,7 @@ vi.mock("next-intl/server", () => ({
 }));
 vi.mock("@/lib/session", () => ({
   getSession: vi.fn(async () => ({
-    user: { id: "seed-user-approver", roles: ["APPROVER"] },
+    user: { id: "seed-user-admin", roles: ["ADMIN"] },
   })),
 }));
 const mocks = vi.hoisted(() => ({ sendEmail: vi.fn(async () => {}) }));

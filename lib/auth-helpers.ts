@@ -22,8 +22,6 @@ export async function requireAnyRole(roles: Role[]) {
 
 export function homePathFor(roles: Role[]): string {
   if (roles.includes("ADMIN")) return "/admin";
-  // Approver shares the admin console; they only differ in which forms appear.
-  if (roles.includes("APPROVER")) return "/admin";
   if (roles.includes("DRIVER")) return "/driver";
   // Requesters land on the booking form (the primary action), not the list.
   return "/requester/new";

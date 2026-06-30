@@ -22,7 +22,7 @@ export default async function AdminDashboard({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  await requireAnyRole(["ADMIN", "APPROVER"]);
+  await requireAnyRole(["ADMIN"]);
   const t = await getTranslations("dashboard");
   const locale = await getLocale();
   const qs = await searchParams;

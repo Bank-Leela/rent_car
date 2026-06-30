@@ -30,8 +30,8 @@ async function canApprove(userId: string): Promise<boolean> {
     },
   });
   if (!me) return false;
-  if (me.roles.some((r) => r.role === "APPROVER")) return true;
-  return me.delegatedBy.some((u) => u.roles.some((r) => r.role === "APPROVER"));
+  if (me.roles.some((r) => r.role === "ADMIN")) return true;
+  return me.delegatedBy.some((u) => u.roles.some((r) => r.role === "ADMIN"));
 }
 
 const approveSchema = z.object({

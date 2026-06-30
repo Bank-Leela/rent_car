@@ -50,11 +50,6 @@ async function main() {
     where: { roles: { some: { role: "REQUESTER" } }, isActive: true, departmentId: { not: null } },
     select: { id: true, departmentId: true },
   });
-  const approver = await prisma.user.findFirst({
-    where: { roles: { some: { role: "APPROVER" } }, isActive: true },
-    select: { id: true },
-  });
-
   const ym = `VB-${target.getFullYear()}${String(target.getMonth() + 1).padStart(2, "0")}`;
   const peers = await prisma.booking.findMany({
     where: { jobNumber: { startsWith: ym } },

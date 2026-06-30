@@ -76,7 +76,7 @@ export default async function AdminCalendar({
 }: {
   searchParams: Promise<{ month?: string; vehicle?: string }>;
 }) {
-  await requireAnyRole(["ADMIN", "APPROVER"]);
+  await requireAnyRole(["ADMIN"]);
   const t = await getTranslations("calendar");
   const tc = await getTranslations("common");
   const localeCode = await getLocale();

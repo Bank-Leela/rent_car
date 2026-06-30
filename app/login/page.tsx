@@ -13,8 +13,6 @@ import { SignInForm } from "@/components/forms/sign-in-form";
 const ROLE_TINT: Record<string, string> = {
   ADMIN:
     "border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100/70 text-indigo-950 dark:border-indigo-400/30 dark:bg-indigo-500/15 dark:hover:bg-indigo-500/20 dark:text-indigo-100",
-  APPROVER:
-    "border-fuchsia-200 bg-fuchsia-50/60 hover:bg-fuchsia-100/70 text-fuchsia-950 dark:border-fuchsia-400/30 dark:bg-fuchsia-500/15 dark:hover:bg-fuchsia-500/20 dark:text-fuchsia-100",
   DRIVER:
     "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-emerald-950 dark:border-emerald-400/30 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/20 dark:text-emerald-100",
   REQUESTER:
@@ -95,7 +93,7 @@ export default async function LoginPage({
                           }`}
                         >
                           <span className="block text-sm font-medium">
-                            {role ? t(`roles.${role}` as `roles.${"REQUESTER"|"APPROVER"|"ADMIN"|"DRIVER"}`) : "user"}
+                            {role ? t(`roles.${role}` as `roles.${"REQUESTER"|"ADMIN"|"DRIVER"}`) : "user"}
                           </span>
                           <span className="block text-xs opacity-70 truncate">
                             {u.email}

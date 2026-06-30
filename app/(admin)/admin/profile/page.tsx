@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { SignatureForm, DelegateForm } from "@/components/forms/signature-form";
 
 export default async function ApproverProfile() {
-  const session = await requireRole("APPROVER");
+  const session = await requireRole("ADMIN");
   const t = await getTranslations("profile");
   const me = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },

@@ -6,11 +6,10 @@ import { prisma } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireAnyRole(["ADMIN", "APPROVER"]);
+  const session = await requireAnyRole(["ADMIN"]);
   const t = await getTranslations("nav");
   const tn = await getTranslations("notifications");
   const roles = session.user.roles;
-  const isApproverOnly = roles.includes("APPROVER") && !roles.includes("ADMIN");
   const isAdmin = roles.includes("ADMIN");
   const nav = [
     { href: "/admin", label: t("queue") },
@@ -25,15 +24,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     nav.push({ href: "/admin/users", label: t("users") });
     nav.push({ href: "/admin/drivers", label: t("drivers") });
   }
-  if (roles.includes("APPROVER")) {
-    nav.push({ href: "/admin/decisions", label: t("decisions") });
-    nav.push({ href: "/admin/profile", label: t("profile") });
-  }
-
   // Notification bell: count of cases awaiting a decision (new pending
-  // requests + over-capacity waitlist). Shown to admins AND approvers — an
-  // approver's whole job is this queue, so they need the live count too.
-  const showBell = isAdmin || roles.includes("APPROVER");
+  // requests + over-capacity waitlist).
+  const showBell = isAdmin;
   const actionableCount = showBell
     ? await prisma.booking.count({
         where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] } },
@@ -56,7 +49,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <AppShell
-      badgeRole={isApproverOnly ? "APPROVER" : "ADMIN"}
+      badgeRole="ADMIN"
       user={session.user}
       nav={nav}
       headerActions={bell}
