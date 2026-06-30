@@ -73,21 +73,12 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
 
 // ---- Post-trip evaluation (plan §5.9 + §6 Phase 5) ----
 
-const evalSchema = z
-  .object({
-    bookingId: z.string().min(1),
-    rating: z.enum(["NOT_GOOD", "SLIGHTLY_NOT_GOOD", "GOOD", "VERY_GOOD"]),
-    comment: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
-  })
-  .superRefine((val, ctx) => {
-    if ((val.rating === "NOT_GOOD" || val.rating === "SLIGHTLY_NOT_GOOD") && !val.comment) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["comment"],
-        message: "A comment is required for negative ratings.",
-      });
-    }
-  });
+const evalSchema = z.object({
+  bookingId: z.string().min(1),
+  // 1–5 stars (Google-review style). Comment is always optional.
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
+});
 
 export async function submitEvaluationAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();

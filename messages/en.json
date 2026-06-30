@@ -620,7 +620,10 @@
     "destination": "Destination",
     "tripDate": "Trip",
     "emptyTitle": "No feedback yet",
-    "emptyDescription": "Once a requester rates a completed trip, it appears here."
+    "emptyDescription": "Once a requester rates a completed trip, it appears here.",
+    "back": "Back to dashboard",
+    "noReviews": "No reviews yet",
+    "reviewCount": "{count, plural, one {# review} other {# reviews}}"
   },
   "matching": {
     "runMatch": "Run matcher",
@@ -682,17 +685,12 @@
   "evaluationForm": {
     "howWasTheTrip": "How was the trip?",
     "comment": "Comment",
-    "commentRequired": "A comment is required for negative ratings.",
+    "optional": "optional",
+    "starLabel": "{count, plural, one {# star} other {# stars}}",
     "submitting": "Submitting…",
     "submit": "Submit evaluation",
     "thanksTitle": "Thanks for the feedback.",
-    "thanksDescription": "You can submit new bookings again.",
-    "ratings": {
-      "VERY_GOOD": "Very good",
-      "GOOD": "Good",
-      "SLIGHTLY_NOT_GOOD": "Slightly not good",
-      "NOT_GOOD": "Not good"
-    }
+    "thanksDescription": "You can submit new bookings again."
   },
   "tripForms": {
     "startingKm": "Starting kilometres",

@@ -620,7 +620,10 @@
     "destination": "ปลายทาง",
     "tripDate": "วันที่ทริป",
     "emptyTitle": "ยังไม่มีฟีดแบ็ก",
-    "emptyDescription": "หลังจากผู้ขอประเมินทริปที่เสร็จแล้ว ระบบจะแสดงข้อมูลที่นี่"
+    "emptyDescription": "หลังจากผู้ขอประเมินทริปที่เสร็จแล้ว ระบบจะแสดงข้อมูลที่นี่",
+    "back": "กลับไปแดชบอร์ด",
+    "noReviews": "ยังไม่มีรีวิว",
+    "reviewCount": "{count} รีวิว"
   },
   "matching": {
     "runMatch": "จับคู่อัตโนมัติ",
@@ -682,17 +685,12 @@
   "evaluationForm": {
     "howWasTheTrip": "การเดินทางเป็นอย่างไรบ้าง?",
     "comment": "ความคิดเห็น",
-    "commentRequired": "ต้องใส่ความคิดเห็นสำหรับคะแนนเชิงลบ",
+    "optional": "ไม่บังคับ",
+    "starLabel": "{count} ดาว",
     "submitting": "กำลังส่ง…",
     "submit": "ส่งผลการประเมิน",
     "thanksTitle": "ขอบคุณสำหรับความคิดเห็น",
-    "thanksDescription": "คุณสามารถจองใหม่ได้แล้ว",
-    "ratings": {
-      "VERY_GOOD": "ดีมาก",
-      "GOOD": "ดี",
-      "SLIGHTLY_NOT_GOOD": "ค่อนข้างไม่ดี",
-      "NOT_GOOD": "ไม่ดี"
-    }
+    "thanksDescription": "คุณสามารถจองใหม่ได้แล้ว"
   },
   "tripForms": {
     "startingKm": "เลขไมล์เริ่มต้น",

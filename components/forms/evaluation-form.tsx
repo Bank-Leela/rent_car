@@ -7,16 +7,15 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { StarRatingInput } from "@/components/ui/star-rating";
 import { submitEvaluationAction } from "@/lib/booking/extra-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
 import { FormError } from "@/components/forms/form-error";
 
-const RATING_VALUES = ["VERY_GOOD", "GOOD", "SLIGHTLY_NOT_GOOD", "NOT_GOOD"] as const;
-
 export function EvaluationForm({ bookingId }: { bookingId: string }) {
   const t = useTranslations("evaluationForm");
   const router = useRouter();
-  const [rating, setRating] = useState<string>("");
+  const [rating, setRating] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const { error, pending, run } = useFormAction(submitEvaluationAction, {
     bookingId,
@@ -25,7 +24,6 @@ export function EvaluationForm({ bookingId }: { bookingId: string }) {
       router.refresh();
     },
   });
-  const requiresComment = rating === "NOT_GOOD" || rating === "SLIGHTLY_NOT_GOOD";
 
   if (submitted) {
     return (
@@ -43,35 +41,20 @@ export function EvaluationForm({ bookingId }: { bookingId: string }) {
     <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label>{t("howWasTheTrip")}</Label>
-        <div className="grid sm:grid-cols-2 gap-2">
-          {RATING_VALUES.map((value) => (
-            <label
-              key={value}
-              className={`flex items-center gap-2 rounded-md border p-3 cursor-pointer ${
-                rating === value ? "bg-primary/10 border-primary" : "hover:bg-muted"
-              }`}
-            >
-              <input
-                type="radio"
-                name="rating"
-                value={value}
-                onChange={(e) => setRating(e.target.value)}
-                required
-              />
-              {t(`ratings.${value}`)}
-            </label>
-          ))}
-        </div>
+        <StarRatingInput
+          name="rating"
+          value={rating}
+          onChange={setRating}
+          label={t("howWasTheTrip")}
+          starLabel={(n) => t("starLabel", { count: n })}
+        />
       </div>
 
       <div className="grid gap-2">
         <Label htmlFor="comment">
-          {t("comment")} {requiresComment && <span className="text-destructive">*</span>}
+          {t("comment")} <span className="text-xs font-normal text-muted-foreground">({t("optional")})</span>
         </Label>
-        <Textarea id="comment" name="comment" rows={3} required={requiresComment} />
-        {requiresComment && (
-          <p className="text-xs text-muted-foreground">{t("commentRequired")}</p>
-        )}
+        <Textarea id="comment" name="comment" rows={3} />
       </div>
 
       <FormError message={error} />
