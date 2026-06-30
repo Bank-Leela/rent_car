@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuLabel,
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -51,11 +50,11 @@ export function ProfileMenu({
           {initialsOf(name, email)}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="font-normal">
+          <div className="px-2 py-1.5">
             {display && <div className="truncate text-sm font-medium">{display}</div>}
             {email && <div className="truncate text-xs text-muted-foreground">{email}</div>}
             <div className="mt-0.5 text-xs text-muted-foreground">{roleLabel}</div>
-          </DropdownMenuLabel>
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => router.push("/account")}>
             <UserCog className="mr-2 h-4 w-4" aria-hidden />
