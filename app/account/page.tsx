@@ -97,7 +97,7 @@ export default async function AccountPage({
         </CardContent>
       </Card>
 
-      <Card className={forced ? "border-primary/40 ring-1 ring-primary/30" : ""}>
+      <Card id="password" className={forced ? "border-primary/40 ring-1 ring-primary/30" : ""}>
         <CardHeader>
           <CardTitle>{t("passwordTitle")}</CardTitle>
         </CardHeader>

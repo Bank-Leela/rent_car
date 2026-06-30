@@ -85,6 +85,7 @@
     "signIn": "เข้าสู่ระบบ",
     "signOut": "ออกจากระบบ",
     "accountSettings": "ตั้งค่าบัญชี",
+    "changePassword": "เปลี่ยนรหัสผ่าน",
     "delete": "ลบ",
     "edit": "แก้ไข",
     "view": "ดู",

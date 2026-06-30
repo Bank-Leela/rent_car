@@ -2,25 +2,15 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { Car } from "lucide-react";
 import { getTranslations } from "next-intl/server";
-import { signOut } from "@/auth";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NavLinks, MobileNav } from "@/components/nav-links";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ProfileMenu } from "@/components/profile-menu";
 import type { Role } from "@prisma/client";
 
 type NavItem = { href: string; label: string };
-
-const ROLE_TINT: Record<Role, string> = {
-  ADMIN:
-    "bg-indigo-100 text-indigo-900 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-900/40",
-  DRIVER:
-    "bg-emerald-100 text-emerald-900 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-900/40",
-  REQUESTER:
-    "bg-sky-100 text-sky-900 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-900/40",
-};
 
 export async function AppShell({
   badgeRole,
@@ -39,7 +29,7 @@ export async function AppShell({
 }) {
   const t = await getTranslations();
   const isDevImpersonation = DEV_ENABLED && !!(await cookies()).get(DEV_COOKIE);
-  const tint = ROLE_TINT[badgeRole];
+  const roleLabel = t(`roles.${badgeRole}`);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -56,11 +46,6 @@ export async function AppShell({
               </span>
               <span className="inline">{t("brand.name")}</span>
             </Link>
-            <span
-              className={`hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tint}`}
-            >
-              {t(`roles.${badgeRole}`)}
-            </span>
           </div>
           <nav className="flex items-center gap-1">
             <NavLinks items={nav} />
@@ -68,31 +53,17 @@ export async function AppShell({
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
             <ThemeToggle />
             <LanguageSwitcher />
-            <Link
-              href="/account"
-              className="hidden lg:inline text-sm text-muted-foreground max-w-48 truncate hover:text-foreground hover:underline focus-visible:outline-none focus-visible:underline"
-              title={t("common.accountSettings")}
-            >
-              {user.name ?? user.email}
-            </Link>
-            {isDevImpersonation ? (
-              <form action="/api/dev/sign-out" method="post">
-                <Button type="submit" variant="outline" size="sm">
-                  {t("common.signOut")}
-                </Button>
-              </form>
-            ) : (
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
-                <Button type="submit" variant="outline" size="sm">
-                  {t("common.signOut")}
-                </Button>
-              </form>
-            )}
+            <ProfileMenu
+              name={user.name ?? null}
+              email={user.email ?? null}
+              roleLabel={roleLabel}
+              labels={{
+                account: t("common.accountSettings"),
+                changePassword: t("common.changePassword"),
+                signOut: t("common.signOut"),
+              }}
+              isDevImpersonation={isDevImpersonation}
+            />
           </nav>
         </div>
       </header>
