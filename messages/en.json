@@ -686,17 +686,11 @@
     "howWasTheTrip": "How was the trip?",
     "comment": "Comment",
     "optional": "optional",
-    "commentRequired": "A comment is required for negative ratings.",
+    "starLabel": "{count, plural, one {# star} other {# stars}}",
     "submitting": "Submitting…",
     "submit": "Submit evaluation",
     "thanksTitle": "Thanks for the feedback.",
-    "thanksDescription": "You can submit new bookings again.",
-    "ratings": {
-      "VERY_GOOD": "Very good",
-      "GOOD": "Good",
-      "SLIGHTLY_NOT_GOOD": "Slightly not good",
-      "NOT_GOOD": "Not good"
-    }
+    "thanksDescription": "You can submit new bookings again."
   },
   "tripForms": {
     "startingKm": "Starting kilometres",

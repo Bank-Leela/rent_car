@@ -41,7 +41,13 @@ export function EvaluationForm({ bookingId }: { bookingId: string }) {
     <form action={run} className="space-y-4">
       <div className="grid gap-2">
         <Label>{t("howWasTheTrip")}</Label>
-        <StarRatingInput name="rating" value={rating} onChange={setRating} label={t("howWasTheTrip")} />
+        <StarRatingInput
+          name="rating"
+          value={rating}
+          onChange={setRating}
+          label={t("howWasTheTrip")}
+          starLabel={(n) => t("starLabel", { count: n })}
+        />
       </div>
 
       <div className="grid gap-2">

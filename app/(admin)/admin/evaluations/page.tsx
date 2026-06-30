@@ -14,16 +14,9 @@ export default async function AdminEvaluations() {
   const nameOf = (u: { name: string | null; thaiName: string | null }) =>
     (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? "—";
 
-  const [drivers, evaluations] = await Promise.all([
-    prisma.driver.findMany({
-      where: { isActive: true },
-      select: { id: true, user: { select: { name: true, thaiName: true } } },
-      orderBy: { user: { name: "asc" } },
-    }),
-    prisma.evaluation.findMany({
-      select: { rating: true, trip: { select: { booking: { select: { primaryDriverId: true } } } } },
-    }),
-  ]);
+  const evaluations = await prisma.evaluation.findMany({
+    select: { rating: true, trip: { select: { booking: { select: { primaryDriverId: true } } } } },
+  });
 
   // Group ratings by the trip's primary driver.
   const byDriver = new Map<string, number[]>();
@@ -34,6 +27,14 @@ export default async function AdminEvaluations() {
     arr.push(e.rating);
     byDriver.set(did, arr);
   }
+
+  // Active drivers PLUS any inactive/retired driver that still has reviews — so
+  // no feedback is hidden from the dashboard.
+  const drivers = await prisma.driver.findMany({
+    where: { OR: [{ isActive: true }, { id: { in: [...byDriver.keys()] } }] },
+    select: { id: true, user: { select: { name: true, thaiName: true } } },
+    orderBy: { user: { name: "asc" } },
+  });
 
   const cards = drivers.map((d) => {
     const ratings = byDriver.get(d.id) ?? [];

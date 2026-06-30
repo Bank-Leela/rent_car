@@ -686,17 +686,11 @@
     "howWasTheTrip": "การเดินทางเป็นอย่างไรบ้าง?",
     "comment": "ความคิดเห็น",
     "optional": "ไม่บังคับ",
-    "commentRequired": "ต้องใส่ความคิดเห็นสำหรับคะแนนเชิงลบ",
+    "starLabel": "{count} ดาว",
     "submitting": "กำลังส่ง…",
     "submit": "ส่งผลการประเมิน",
     "thanksTitle": "ขอบคุณสำหรับความคิดเห็น",
-    "thanksDescription": "คุณสามารถจองใหม่ได้แล้ว",
-    "ratings": {
-      "VERY_GOOD": "ดีมาก",
-      "GOOD": "ดี",
-      "SLIGHTLY_NOT_GOOD": "ค่อนข้างไม่ดี",
-      "NOT_GOOD": "ไม่ดี"
-    }
+    "thanksDescription": "คุณสามารถจองใหม่ได้แล้ว"
   },
   "tripForms": {
     "startingKm": "เลขไมล์เริ่มต้น",
