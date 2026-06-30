@@ -12,6 +12,7 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR
 
 export const SIGNATURE_DIR = path.join(UPLOADS_DIR, "signatures");
 export const PDF_DIR = path.join(UPLOADS_DIR, "booking-pdfs");
+export const ATTACHMENT_DIR = path.join(UPLOADS_DIR, "booking-attachments");
 
 async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true });
@@ -51,6 +52,32 @@ export async function readBookingPdf(bookingId: string): Promise<Buffer | null> 
   if (bookingId.includes("/") || bookingId.includes("..")) return null;
   try {
     return await fs.readFile(path.join(PDF_DIR, `${bookingId}.pdf`));
+  } catch {
+    return null;
+  }
+}
+
+// Supporting-document attachment alongside a booking's remark (e.g. an
+// official memo). One file per booking; re-attaching overwrites the prior one.
+export async function writeBookingAttachment(
+  bookingId: string,
+  ext: string,
+  bytes: Buffer,
+): Promise<string> {
+  await ensureDir(ATTACHMENT_DIR);
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "").slice(0, 10) || "bin";
+  const filename = `${bookingId}.${safeExt}`;
+  await fs.writeFile(path.join(ATTACHMENT_DIR, filename), bytes);
+  return `attachment:${filename}`;
+}
+
+export async function readBookingAttachment(storedRef: string): Promise<Buffer | null> {
+  if (!storedRef.startsWith("attachment:")) return null;
+  const filename = storedRef.slice("attachment:".length);
+  // Defence-in-depth path traversal check.
+  if (filename.includes("/") || filename.includes("..")) return null;
+  try {
+    return await fs.readFile(path.join(ATTACHMENT_DIR, filename));
   } catch {
     return null;
   }

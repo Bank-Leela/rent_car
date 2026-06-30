@@ -34,6 +34,7 @@ import {
   requesterDeniedEmail,
 } from "@/lib/email/templates";
 import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
+import { writeBookingAttachment } from "@/lib/storage";
 
 const bookingDetailInclude = {
   requester: true,
@@ -77,6 +78,28 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
           ? te("leadTimeTooSoonCalendar", { days: lead.minimumDays })
           : te("leadTimeTooSoon", { days: lead.minimumDays }),
     };
+  }
+
+  // Optional supporting-document attachment (memo, invitation letter, etc.)
+  // alongside the remark/notes. Validated before the transaction so a bad
+  // file fails fast without creating a half-finished booking.
+  const attachment = formData.get("attachment");
+  let attachmentBytes: Buffer | null = null;
+  let attachmentExt = "";
+  if (attachment instanceof File && attachment.size > 0) {
+    if (attachment.size > 10_000_000) {
+      return { ok: false, field: "attachment", error: te("attachmentTooLarge") };
+    }
+    const allowed: Record<string, string> = {
+      "application/pdf": "pdf",
+      "image/png": "png",
+      "image/jpeg": "jpg",
+    };
+    attachmentExt = allowed[attachment.type] ?? "";
+    if (!attachmentExt) {
+      return { ok: false, field: "attachment", error: te("attachmentBadFormat") };
+    }
+    attachmentBytes = Buffer.from(await attachment.arrayBuffer());
   }
 
   // Out-of-hours justification is no longer collected on the booking form;
@@ -272,6 +295,16 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
 
     return parent;
   });
+
+  // Keyed by the now-known booking id, so this happens after the transaction
+  // (disk writes don't belong inside a DB transaction).
+  if (attachmentBytes) {
+    const ref = await writeBookingAttachment(created.id, attachmentExt, attachmentBytes);
+    await prisma.booking.update({
+      where: { id: created.id },
+      data: { attachmentUrl: ref, attachmentFilename: (attachment as File).name },
+    });
+  }
 
   const detailed = await prisma.booking.findUniqueOrThrow({
     where: { id: created.id },

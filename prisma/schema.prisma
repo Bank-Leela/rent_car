@@ -373,6 +373,11 @@ model Booking {
   // both mirrored from the official request form.
   tripType         TripType?
   remark           String?
+  // Supporting file the requester attaches alongside the remark (e.g. an
+  // official memo or invitation letter). Stored ref ("attachment:<id>.<ext>")
+  // + the original filename for download. Both null when nothing's attached.
+  attachmentUrl      String?
+  attachmentFilename String?
   // Required justification when start/end falls outside driver work hours
   // (07:00–18:00) or spans midnight. Set on submission or time edit.
   outOfHoursReason String?
