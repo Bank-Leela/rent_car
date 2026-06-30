@@ -130,8 +130,7 @@
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board",
     "decisions": "My decisions",
-    "simulate": "Simulate",
-    "places": "Saved places"
+    "simulate": "Simulate"
   },
   "simulate": {
     "title": "Placement simulator",
@@ -532,24 +531,6 @@
     "evaluationSubmittedNote": "Thanks — you've already rated this trip. Your feedback is shared with the fleet office.",
     "cancelTitle": "Cancel",
     "changeTimeTitle": "Change trip time"
-  },
-  "places": {
-    "title": "Saved places",
-    "subtitle": "Destinations you reuse. Private to you; used to autofill the booking form.",
-    "addTitle": "Add a place",
-    "label": "Name",
-    "destination": "Destination",
-    "province": "Province",
-    "mapsLink": "Google Maps link (optional)",
-    "save": "Save place",
-    "saving": "Saving…",
-    "edit": "Edit",
-    "delete": "Delete",
-    "cancel": "Cancel",
-    "update": "Update",
-    "empty": "No saved places yet. Add one below.",
-    "emptyTitle": "No saved places",
-    "deleteConfirm": "Delete this saved place?"
   },
   "adminDetail": {
     "backToQueue": "Back to queue",
