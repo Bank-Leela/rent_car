@@ -22,7 +22,8 @@ export async function requireAnyRole(roles: Role[]) {
 
 export function homePathFor(roles: Role[]): string {
   if (roles.includes("ADMIN")) return "/admin";
-  if (roles.includes("DRIVER")) return "/driver";
+  // Drivers sign in only via the shared station kiosk — land on the all-trips board.
+  if (roles.includes("DRIVER")) return "/driver/schedule";
   // Requesters land on the booking form (the primary action), not the list.
   return "/requester/new";
 }

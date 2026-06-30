@@ -23,6 +23,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     nav.push({ href: "/admin/batch", label: t("batch") });
     nav.push({ href: "/admin/users", label: t("users") });
     nav.push({ href: "/admin/drivers", label: t("drivers") });
+    nav.push({ href: "/admin/decisions", label: t("decisions") });
+    nav.push({ href: "/admin/profile", label: t("profile") });
   }
   // Notification bell: count of cases awaiting a decision (new pending
   // requests + over-capacity waitlist).

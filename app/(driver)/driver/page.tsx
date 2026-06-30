@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { format, startOfDay, addDays } from "date-fns";
 import { Coffee, ChevronRight, MapPin } from "lucide-react";
+import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { EmptyState } from "@/components/empty-state";
@@ -12,6 +14,9 @@ import { daySpan } from "@/lib/booking/day-window";
 export default async function DriverHome() {
   const session = await requireRole("DRIVER");
   const t = await getTranslations("driver");
+
+  // The shared station kiosk has no personal "today" view — send it to the schedule.
+  if (isStationEmail(session.user.email)) redirect("/driver/schedule");
 
   const driverProfile = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!driverProfile) {

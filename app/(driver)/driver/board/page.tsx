@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { ClipboardList, ChevronRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -11,6 +13,9 @@ import { ClaimButton } from "@/components/forms/claim-form";
 export default async function DriverBoard() {
   const session = await requireRole("DRIVER");
   const t = await getTranslations("driverBoard");
+
+  // The shared station kiosk has no personal claim board — send it to the schedule.
+  if (isStationEmail(session.user.email)) redirect("/driver/schedule");
 
   const me = await prisma.driver.findUnique({ where: { userId: session.user.id } });
   if (!me) {
