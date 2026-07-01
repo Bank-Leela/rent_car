@@ -66,7 +66,6 @@ async function main() {
   const users = [
     { id: "seed-user-requester", email: "requester@chula.ac.th", name: "อรวรรณ พิทักษ์ชัย", role: Role.REQUESTER },
     { id: "seed-user-admin", email: "admin@chula.ac.th", name: "ปิยะ วงศ์สวัสดิ์", role: Role.ADMIN },
-    { id: "seed-user-driver", email: "driver@chula.ac.th", name: "อนุชา เพชรรัตน์", role: Role.DRIVER },
     // Shared "driver station" login (one account all drivers use on the shared
     // device). DRIVER role but NO Driver profile — it's a login, not a car-paired
     // driver; the schedule board it opens shows ALL cars.
@@ -112,25 +111,16 @@ async function main() {
     data: { representativeUserId: "seed-user-requester" },
   });
 
-  // Driver profile for the impersonatable driver user
-  await prisma.driver.upsert({
-    where: { userId: "seed-user-driver" },
-    create: {
-      userId: "seed-user-driver",
-      pool: DriverPool.PUBLIC,
-      licenseNumber: "DL-0001",
-    },
-    update: {},
-  });
-
-  // 5 public drivers per the plan. Private pool not yet confirmed by the
-  // client — leave it out until we know.
+  // Fleet drivers (car = driver). The individual "seed-user-driver" demo login
+  // was removed — drivers sign in only at the shared station kiosk — so all six
+  // cars pair to these six fleet drivers.
   const extraDrivers = [
     { id: "seed-driver-2", email: "driver2@chula.ac.th", name: "สมชาย ใจดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0002" },
     { id: "seed-driver-3", email: "driver3@chula.ac.th", name: "วิชัย รักงาน", pool: DriverPool.PUBLIC, licenseNumber: "DL-0003" },
     { id: "seed-driver-4", email: "driver4@chula.ac.th", name: "ประยุทธ ขับดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0004" },
     { id: "seed-driver-5", email: "driver5@chula.ac.th", name: "สุชาติ มั่นคง", pool: DriverPool.PUBLIC, licenseNumber: "DL-0005" },
     { id: "seed-driver-6", email: "driver6@chula.ac.th", name: "ธีระ สมบูรณ์", pool: DriverPool.PUBLIC, licenseNumber: "DL-0006" },
+    { id: "seed-driver-7", email: "driver7@chula.ac.th", name: "อนุชา เพชรรัตน์", pool: DriverPool.PUBLIC, licenseNumber: "DL-0007" },
   ];
   for (const d of extraDrivers) {
     const username = d.email.split("@")[0]!;
@@ -193,7 +183,7 @@ async function main() {
     "seed-driver-4", // ประยุทธ ขับดี
     "seed-driver-5", // สุชาติ มั่นคง
     "seed-driver-6", // ธีระ สมบูรณ์
-    "seed-user-driver", // อนุชา เพชรรัตน์
+    "seed-driver-7", // อนุชา เพชรรัตน์
     "seed-driver-2", // สมชาย ใจดี
     "seed-driver-3", // วิชัย รักงาน
   ];
