@@ -148,6 +148,7 @@ describe("newBookingSchema no-wait split", () => {
     expect(newBookingSchema.safeParse(noWait).success).toBe(true);
   });
   it("rejects missing dropOffDone when not waiting", () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to omit dropOffDone from `rest`
     const { dropOffDone: _drop, ...rest } = noWait;
     expect(newBookingSchema.safeParse(rest).success).toBe(false);
   });

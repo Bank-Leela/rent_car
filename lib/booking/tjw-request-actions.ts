@@ -145,7 +145,6 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
   revalidatePath("/admin");
   revalidatePath("/admin/batch");
   revalidatePath("/admin/schedule");
-  revalidatePath("/driver/board");
 
   return { ok: true, assigned: result.assignments.length, overflows: result.overflows };
 }

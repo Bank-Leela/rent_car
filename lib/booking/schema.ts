@@ -277,19 +277,6 @@ export const assignBookingSchema = z.object({
   vehicleId: z.string().min(1, "Pick a vehicle"),
 });
 
-export const claimBookingSchema = z.object({
-  bookingId: z.string().min(1),
-  role: z.enum(["PRIMARY", "SECONDARY"]),
-});
-
-export const releaseClaimSchema = z.object({
-  bookingId: z.string().min(1),
-});
-
-export const confirmScheduleSchema = z.object({
-  bookingId: z.string().min(1),
-});
-
 export const denyBookingSchema = z.object({
   bookingId: z.string().min(1),
   reason: z.string().min(3, "Reason is required"),

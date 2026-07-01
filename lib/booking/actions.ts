@@ -400,7 +400,6 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
   revalidatePath(`/admin/${data.bookingId}`);
   revalidatePath("/requester");
   revalidatePath(`/requester/${data.bookingId}`);
-  revalidatePath("/driver/board");
   return { ok: true };
 }
 

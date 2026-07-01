@@ -241,7 +241,6 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
-  revalidatePath("/driver/board");
   return { ok: true };
 }
 
@@ -378,6 +377,5 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
   });
 
   revalidatePath("/admin");
-  revalidatePath("/driver/board");
   return { ok: true };
 }

@@ -273,7 +273,6 @@ export async function runBatchAction(formData: FormData): Promise<ActionResult &
 
   revalidatePath("/admin");
   revalidatePath("/admin/batch");
-  revalidatePath("/driver/board");
 
   const stats: BatchStats = {
     pendingCount: pending.length,

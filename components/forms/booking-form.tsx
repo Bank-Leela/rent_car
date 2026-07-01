@@ -414,6 +414,7 @@ export function BookingForm({
   useEffect(() => {
     if (!minEndDay) return;
     const floor = minEndDay;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- correct the chosen end time when the min-end floor shifts (controlled sync of a derived bound, not fresh state)
     setEndValue((prev) => {
       if (!prev) return prev; // no end time chosen yet — nothing to correct
       const prevDate = new Date(prev);
