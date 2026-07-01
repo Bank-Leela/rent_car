@@ -144,7 +144,7 @@ describe("createBookingAction", () => {
   });
 
   it("persists a no-wait split (dropOffDone + waitAtDestination=false)", async () => {
-    const start = new Date(startOfDay(addDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
+    const start = new Date(startOfDay(addBusinessDays(new Date(), LEAD_TIME_BANGKOK_DAYS + 1)));
     start.setHours(9, 0, 0, 0);
     const drop = new Date(start); drop.setHours(11, 0, 0, 0);
     const end = new Date(start); end.setHours(16, 0, 0, 0);
