@@ -24,7 +24,6 @@ import {
   reassignVehicleAction,
   reassignSecondaryAction,
   unassignBookingAction,
-  resolveScheduleConflictsAction,
   type ReassignConflict,
 } from "@/lib/booking/schedule-actions";
 import {
@@ -64,16 +63,13 @@ export function SchedulerBoard({
   vehicles,
   bookings,
   dutyVehicleId,
-  conflictCount,
   date,
   adHocRows,
 }: {
   vehicles: SchedulerVehicle[];
   bookings: SchedulerBooking[];
   dutyVehicleId: string | null;
-  // Overlap conflicts among assigned trips that auto-assign will try to resolve.
-  conflictCount: number;
-  // ISO yyyy-MM-dd of the viewed day — passed to the conflict-resolve action.
+  // ISO yyyy-MM-dd of the viewed day.
   date: string;
   // Per-day external/outside-driver rows + the trips outsourced to them.
   adHocRows: AdHocRowData[];
@@ -249,7 +245,7 @@ export function SchedulerBoard({
   }
 
   function autoAssignAll() {
-    if (work.length + conflictCount === 0) return;
+    if (work.length === 0) return;
     setResult(null);
     setDropError(null);
     startTransition(async () => {
@@ -268,18 +264,6 @@ export function SchedulerBoard({
         }
         if (res?.ok) assigned += 1;
         else failures.push(`${b.jobNumber}: ${res?.error ?? "error"}`);
-      }
-      // 2) Re-match the loser of every overlap conflict among assigned trips.
-      if (conflictCount > 0) {
-        const fd = new FormData();
-        fd.append("date", date);
-        const cr = await resolveScheduleConflictsAction(fd);
-        if (cr.ok) {
-          assigned += cr.resolved;
-          failures.push(...cr.failures);
-        } else {
-          failures.push(cr.error);
-        }
       }
       setResult({ assigned, failures });
       router.refresh();
@@ -360,11 +344,11 @@ export function SchedulerBoard({
           <button
             type="button"
             onClick={autoAssignAll}
-            disabled={pending || work.length + conflictCount === 0}
+            disabled={pending || work.length === 0}
             className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50"
           >
             <Wand2 className="h-4 w-4" aria-hidden />
-            {pending ? t("assigning") : t("autoAssign", { count: work.length + conflictCount })}
+            {pending ? t("assigning") : t("autoAssign", { count: work.length })}
           </button>
         </div>
 

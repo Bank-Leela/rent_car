@@ -20,7 +20,6 @@ import { prisma } from "@/lib/db";
 import {
   reassignVehicleAction,
   unassignBookingAction,
-  resolveScheduleConflictsAction,
 } from "@/lib/booking/schedule-actions";
 
 const REQ_ID = "seed-user-requester";
@@ -37,10 +36,6 @@ const at = (h: number, m = 0) => {
   const d = new Date(DAY);
   d.setHours(h, m, 0, 0);
   return d;
-};
-const iso = (d: Date) => {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 function fd(o: Record<string, string>): FormData {
   const f = new FormData();
@@ -146,31 +141,5 @@ describe("unassignBookingAction", () => {
     expect(after?.primaryDriverId).toBeNull();
     expect(after?.status).toBe("APPROVED");
     expect(after?.driverScheduleStatus).toBe("UNCLAIMED");
-  });
-});
-
-describe("resolveScheduleConflictsAction", () => {
-  it("re-homes the loser of an overlap and keeps the higher-priority trip on its car", async () => {
-    // Legacy-style illegal overlap on vA: a TJW (high priority, stays) + a
-    // NORMAL (loser, must move). reassign can't create this, so seed it directly.
-    const keep = await mkBooking({
-      jobType: "TJW", outOfProvince: true, estimatedDistance: 100,
-      startAt: at(9), endAt: at(13), vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
-    });
-    const loser = await mkBooking({
-      jobType: "NORMAL",
-      startAt: at(10), endAt: at(11), vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
-    });
-
-    const res = await resolveScheduleConflictsAction(fd({ date: iso(DAY) }));
-
-    expect(res.ok).toBe(true);
-    if (res.ok) expect(res.resolved).toBeGreaterThanOrEqual(1);
-
-    const keptAfter = await prisma.booking.findUnique({ where: { id: keep.id } });
-    const loserAfter = await prisma.booking.findUnique({ where: { id: loser.id } });
-    expect(keptAfter?.vehicleId).toBe(vA.id); // TJW pinned to its car
-    expect(loserAfter?.vehicleId).toBeTruthy(); // moved to a real car…
-    expect(loserAfter?.vehicleId).not.toBe(vA.id); // …a different one (overlap resolved)
   });
 });

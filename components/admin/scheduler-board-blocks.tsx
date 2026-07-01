@@ -26,7 +26,6 @@ function TimelineBlock({
   dayHours,
   top,
   height,
-  conflict,
 }: {
   b: SchedulerBooking;
   noDriverLabel: string;
@@ -40,8 +39,6 @@ function TimelineBlock({
   // Vertical placement within the car row: which stacked lane this block sits in.
   top: number;
   height: number;
-  // Overlaps another trip on a car that is NOT allowed to overlap (non-duty).
-  conflict: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: b.id });
   const tc = useTranslations("common");
@@ -58,13 +55,11 @@ function TimelineBlock({
       className={`group absolute cursor-grab touch-none overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
         jobStyle(b.jobType).block
       } ${
-        conflict
-          ? "ring-2 ring-destructive"
-          : b.secondaryDriverName
-            ? "ring-1 ring-violet-400/70"
-            : !b.hasDriver
-              ? "ring-1 ring-destructive/70"
-              : ""
+        b.secondaryDriverName
+          ? "ring-1 ring-violet-400/70"
+          : !b.hasDriver
+            ? "ring-1 ring-destructive/70"
+            : ""
       } ${b.continuesBefore ? "rounded-l-none border-l-4 border-l-foreground/40" : ""} ${
         b.continuesAfter ? "rounded-r-none border-r-4 border-r-foreground/40" : ""
       }`}
@@ -407,22 +402,6 @@ export function CarRow({
   }
   const laneCount = Math.max(1, laneEnds.length);
 
-  // Flag PRIMARY trips that overlap another primary on this car — on EVERY car,
-  // duty included (no car may be double-booked). Co-driver ghosts are ride-alongs
-  // and never count as conflicts.
-  const primaries = sorted.filter((it) => it.kind === "primary");
-  const conflictIds = new Set<string>();
-  for (let i = 0; i < primaries.length; i++) {
-    for (let j = i + 1; j < primaries.length; j++) {
-      const a = primaries[i]!;
-      const c = primaries[j]!;
-      if (a.startHour < c.endHour && c.startHour < a.endHour) {
-        conflictIds.add(a.b.id);
-        conflictIds.add(c.b.id);
-      }
-    }
-  }
-
   return (
     <div className="flex border-b last:border-b-0">
       <div
@@ -472,7 +451,6 @@ export function CarRow({
                 dayHours={dayHours}
                 top={top}
                 height={height}
-                conflict={conflictIds.has(it.b.id)}
               />
             );
           }

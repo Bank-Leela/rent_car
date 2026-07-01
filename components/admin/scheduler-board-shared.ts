@@ -57,7 +57,7 @@ export type SchedulerBooking = {
 };
 
 // Per-job-type colour, tuned for both light and dark themes. Fills + borders
-// only — the conflict (red) and co-driver (violet) cues stay as rings so they
+// only — the co-driver (violet) and no-driver (red) cues stay as rings so they
 // never clash with these. TJW=ค้างคืน, OT=ล่วงเวลา, WERN=เวร, NORMAL=ทั่วไป.
 export const JOB_COLOR: Record<string, { block: string; dot: string; label: string }> = {
   TJW: {
