@@ -111,18 +111,76 @@ async function main() {
     data: { representativeUserId: "seed-user-requester" },
   });
 
-  // Fleet drivers (car = driver). The individual "seed-user-driver" demo login
-  // was removed — drivers sign in only at the shared station kiosk — so all six
-  // cars pair to these six fleet drivers.
-  const extraDrivers = [
-    { id: "seed-driver-2", email: "driver2@chula.ac.th", name: "สมชาย ใจดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0002" },
-    { id: "seed-driver-3", email: "driver3@chula.ac.th", name: "วิชัย รักงาน", pool: DriverPool.PUBLIC, licenseNumber: "DL-0003" },
-    { id: "seed-driver-4", email: "driver4@chula.ac.th", name: "ประยุทธ ขับดี", pool: DriverPool.PUBLIC, licenseNumber: "DL-0004" },
-    { id: "seed-driver-5", email: "driver5@chula.ac.th", name: "สุชาติ มั่นคง", pool: DriverPool.PUBLIC, licenseNumber: "DL-0005" },
-    { id: "seed-driver-6", email: "driver6@chula.ac.th", name: "ธีระ สมบูรณ์", pool: DriverPool.PUBLIC, licenseNumber: "DL-0006" },
-    { id: "seed-driver-7", email: "driver7@chula.ac.th", name: "อนุชา เพชรรัตน์", pool: DriverPool.PUBLIC, licenseNumber: "DL-0007" },
+  // Fleet drivers (car = driver), from the faculty driver sheet. Each driver is
+  // paired to their PRIMARY car; any second car is recorded in `notes` (the app's
+  // car=driver model is 1:1). Drivers don't log in individually — they share the
+  // station kiosk — so the username is just a stable handle.
+  // NOTE: the sheet continues past these six (e.g. ศักดิ์ทวี ทองเหลือง); only the
+  // first six rows are seeded so far.
+  const fleetDrivers = [
+    {
+      id: "seed-driver-2", email: "driver2@chula.ac.th",
+      name: "สุรพงษ์ ไชยเสนา", nickname: "น้าโต", phone: "063-229-8387",
+      licenseType: "ประเภท 2", licenseExpiresAt: "2028-03-30",
+      position: "ลูกจ้างประจำ", retirementYear: 2569,
+      car: "สธ-831", notes: "รถสำรอง: สธ-832 · ใบขับขี่ตลอดชีพ · เวรล่าสุด: พชร.ส่วนกลาง",
+    },
+    {
+      id: "seed-driver-3", email: "driver3@chula.ac.th",
+      name: "สันติ ฉายยางโทน", nickname: "น้าติ", phone: "086-090-7709",
+      licenseType: "ประเภท 2", licenseExpiresAt: "2026-03-26",
+      position: "ลูกจ้างประจำ", retirementYear: 2569,
+      car: "สษ-6692", notes: "ใบขับขี่ตลอดชีพ · เวรล่าสุด: พชร.ส่วนกลาง",
+    },
+    {
+      id: "seed-driver-4", email: "driver4@chula.ac.th",
+      name: "บุญชู พรมรักษ์", nickname: "น้าชู", phone: "089-226-9827",
+      licenseType: "ประเภท 2", licenseExpiresAt: "2033-11-03",
+      position: "ลูกจ้างประจำ", retirementYear: 2570,
+      car: "อ-5098", notes: "รถสำรอง: 1นซ-4198 · ใบขับขี่ตลอดชีพ · เวรล่าสุด: พชร.คณบดี",
+    },
+    {
+      id: "seed-driver-5", email: "driver5@chula.ac.th",
+      name: "วินัย จุ้ยสม", nickname: "น้าวินัย", phone: "089-025-0109",
+      licenseType: "ประเภท 2", licenseExpiresAt: "2028-08-21",
+      position: "ลูกจ้างประจำ", retirementYear: 2573,
+      car: "41-6224", notes: "รถสำรอง: สษ-34 · ใบขับขี่ตลอดชีพ · เวรล่าสุด: พชร.ส่วนกลาง",
+    },
+    {
+      id: "seed-driver-6", email: "driver6@chula.ac.th",
+      name: "นฤทธิ์ สุกสุด", nickname: "พี่กอล์ฟ", phone: "087-986-3879",
+      licenseType: null, licenseExpiresAt: null,
+      position: "ลูกจ้างประจำ", retirementYear: 2579,
+      car: "1นซ-4197", notes: "ใบขับขี่ตลอดชีพ · เวรล่าสุด: พชร.ส่วนกลาง",
+    },
+    {
+      id: "seed-driver-7", email: "driver7@chula.ac.th",
+      name: "ลหัส เจริญสุข", nickname: "พี่รง", phone: "086-093-4682",
+      licenseType: "ประเภท 2", licenseExpiresAt: "2028-08-21",
+      position: "พนักงานมหาวิทยาลัย", retirementYear: 2581,
+      car: "1ผผ-1932", notes: "รถสำรอง: อฉ-371 · เวรล่าสุด: พชร.ส่วนกลาง",
+    },
   ];
-  for (const d of extraDrivers) {
+  const rosterPlates = fleetDrivers.map((d) => d.car);
+
+  // Real cars — the drivers' primary plates. Type/capacity aren't on the sheet;
+  // SEDAN/4 as a placeholder until confirmed.
+  for (const plate of rosterPlates) {
+    await prisma.vehicle.upsert({
+      where: { registrationNumber: plate },
+      create: { registrationNumber: plate, type: VehicleType.SEDAN, capacity: 4 },
+      update: {},
+    });
+  }
+  // Idempotent re-pair: clear every pairing first (so changing plates never trips
+  // the assignedDriverId @unique), then retire any car not on the current roster.
+  await prisma.vehicle.updateMany({ data: { assignedDriverId: null } });
+  await prisma.vehicle.updateMany({
+    where: { registrationNumber: { notIn: rosterPlates } },
+    data: { isActive: false },
+  });
+
+  for (const d of fleetDrivers) {
     const username = d.email.split("@")[0]!;
     const u = await prisma.user.upsert({
       where: { id: d.id },
@@ -131,77 +189,42 @@ async function main() {
         email: d.email,
         username,
         name: d.name,
+        phone: d.phone,
         passwordHash: seedHash,
         mustChangePassword: true,
         departmentId: dept.id,
         roles: { create: { role: Role.DRIVER } },
       },
+      update: { name: d.name, phone: d.phone, username },
+    });
+    const driver = await prisma.driver.upsert({
+      where: { userId: u.id },
+      create: {
+        userId: u.id,
+        pool: DriverPool.PUBLIC,
+        licenseNumber: null,
+        nickname: d.nickname,
+        licenseType: d.licenseType,
+        licenseExpiresAt: d.licenseExpiresAt ? new Date(d.licenseExpiresAt) : null,
+        position: d.position,
+        retirementYear: d.retirementYear,
+        notes: d.notes,
+      },
       update: {
-        name: d.name,
-        username,
-        passwordHash: seedHash,
+        pool: DriverPool.PUBLIC,
+        nickname: d.nickname,
+        licenseType: d.licenseType,
+        licenseExpiresAt: d.licenseExpiresAt ? new Date(d.licenseExpiresAt) : null,
+        position: d.position,
+        retirementYear: d.retirementYear,
+        notes: d.notes,
       },
     });
-    await prisma.driver.upsert({
-      where: { userId: u.id },
-      create: { userId: u.id, pool: d.pool, licenseNumber: d.licenseNumber },
-      // Keep pool in sync so changes to the seed actually land in the DB.
-      update: { pool: d.pool, licenseNumber: d.licenseNumber },
+    // car = driver (1:1): pair this driver to their own car.
+    await prisma.vehicle.update({
+      where: { registrationNumber: d.car },
+      data: { assignedDriverId: driver.id, isActive: true },
     });
-  }
-
-  // Six vehicles — one per driver (car = driver). Matches the fleet the admin
-  // board shows (A–F by registration order).
-  const vehicles = [
-    { registrationNumber: "1กข-1001", type: VehicleType.SEDAN, capacity: 4 },
-    { registrationNumber: "1กข-1002", type: VehicleType.VAN, capacity: 12 },
-    { registrationNumber: "1กข-1003", type: VehicleType.PICKUP, capacity: 5 },
-    { registrationNumber: "รถเวร-904", type: VehicleType.SEDAN, capacity: 4 },
-    { registrationNumber: "รถเวร-905", type: VehicleType.VAN, capacity: 12 },
-    { registrationNumber: "รถเวร-906", type: VehicleType.PICKUP, capacity: 5 },
-  ];
-
-  for (const v of vehicles) {
-    await prisma.vehicle.upsert({
-      where: { registrationNumber: v.registrationNumber },
-      create: v,
-      update: {},
-    });
-  }
-
-  // car = driver: pair each car (board order = registrationNumber asc, the same
-  // ordering the admin board labels A, B, C…) to one driver, and give that driver
-  // the matching login driverA..driverF. So `db seed` alone reproduces the A–F
-  // fleet + per-car driver logins (no need to also run ensure-fleet / pair-cars).
-  const fleet = await prisma.vehicle.findMany({
-    where: { isActive: true },
-    orderBy: { registrationNumber: "asc" },
-    select: { id: true },
-  });
-  // Driver user ids, in the order they pair to cars A, B, C, D, E, F.
-  const driverUserIdsByCar = [
-    "seed-driver-4", // ประยุทธ ขับดี
-    "seed-driver-5", // สุชาติ มั่นคง
-    "seed-driver-6", // ธีระ สมบูรณ์
-    "seed-driver-7", // อนุชา เพชรรัตน์
-    "seed-driver-2", // สมชาย ใจดี
-    "seed-driver-3", // วิชัย รักงาน
-  ];
-  if (fleet.length !== driverUserIdsByCar.length) {
-    const extra = Math.abs(fleet.length - driverUserIdsByCar.length);
-    const kind = fleet.length > driverUserIdsByCar.length ? "car(s)" : "driver(s)";
-    console.warn(
-      `[seed] fleet (${fleet.length}) and driver list (${driverUserIdsByCar.length}) differ — ${extra} ${kind} left unpaired. Keep the arrays in sync.`,
-    );
-  }
-  for (let i = 0; i < fleet.length && i < driverUserIdsByCar.length; i++) {
-    const letter = String.fromCharCode(65 + i); // A, B, C…
-    const userId = driverUserIdsByCar[i]!;
-    const drv = await prisma.driver.findUnique({ where: { userId }, select: { id: true } });
-    if (!drv) continue;
-    await prisma.vehicle.update({ where: { id: fleet[i]!.id }, data: { assignedDriverId: drv.id } });
-    // driverA..driverF — the per-car driver login (password = the seed default).
-    await prisma.user.update({ where: { id: userId }, data: { username: `driver${letter}` } });
   }
 
   console.log("Seed complete:", {
