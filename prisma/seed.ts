@@ -114,9 +114,8 @@ async function main() {
   // Fleet drivers (car = driver), from the faculty driver sheet. Each driver is
   // paired to their PRIMARY car; any second car is recorded in `notes` (the app's
   // car=driver model is 1:1). Drivers don't log in individually — they share the
-  // station kiosk — so the username is just a stable handle.
-  // NOTE: the sheet continues past these six (e.g. ศักดิ์ทวี ทองเหลือง); only the
-  // first six rows are seeded so far.
+  // station kiosk — so the username is just a stable handle. This is the full
+  // roster — six drivers, six cars.
   const fleetDrivers = [
     {
       id: "seed-driver-2", email: "driver2@chula.ac.th",
