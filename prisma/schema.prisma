@@ -506,6 +506,9 @@ model Booking {
   adobeAgreementId String?
   adobeSignStatus  String?
   signedPdfUrl     String?
+  // Manual LESS Paper submission: the admin downloads the filled form and
+  // uploads it to LESS himself; this stamps when he marked it submitted.
+  lessSubmittedAt  DateTime?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

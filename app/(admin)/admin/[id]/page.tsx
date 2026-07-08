@@ -20,6 +20,7 @@ import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
 import { CompleteTripForm } from "@/components/forms/complete-trip-form";
 import { SendForSignatureButton } from "@/components/admin/send-for-signature-button";
+import { LessSubmitToggle } from "@/components/admin/less-submit-toggle";
 import { EstimateDistanceButton } from "@/components/admin/estimate-distance-button";
 import { isAdobeSignConfigured } from "@/lib/adobe-sign/config";
 import { isMapsConfigured } from "@/lib/maps/distance";
@@ -34,6 +35,7 @@ export default async function AdminBookingDetail({
   const { id } = await params;
   const t = await getTranslations("bookingDetail");
   const tsig = await getTranslations("adobeSign");
+  const tless = await getTranslations("less");
   const adobeConfigured = isAdobeSignConfigured();
   const mapsConfigured = isMapsConfigured();
   const tad = await getTranslations("adminDetail");
@@ -386,6 +388,14 @@ export default async function AdminBookingDetail({
             >
               {t("downloadPdf")}
             </Link>
+            {/* Manual LESS Paper submission: download above, upload to LESS, mark here. */}
+            <div className="border-t pt-3">
+              <p className="mb-2 text-xs text-muted-foreground">{tless("hint")}</p>
+              <LessSubmitToggle
+                bookingId={booking.id}
+                submittedLabel={booking.lessSubmittedAt ? format(booking.lessSubmittedAt, "d MMM yyyy HH:mm") : null}
+              />
+            </div>
             {/* Adobe Sign — only when the integration is configured. */}
             {adobeConfigured && (
               <div className="border-t pt-3">

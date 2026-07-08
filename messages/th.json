@@ -1226,5 +1226,14 @@
     "mapsNotConfigured": "ยังไม่ได้ตั้งค่า Google Maps",
     "mapsLookupFailed": "เรียก Google Maps ไม่สำเร็จ",
     "mapsNoRoute": "หาเส้นทางไม่พบ กรุณากรอกเอง"
+  },
+  "less": {
+    "hint": "ดาวน์โหลดฟอร์มด้านบน แล้วนำไปยื่นใน LESS Paper เอง จากนั้นทำเครื่องหมายว่ายื่นแล้ว",
+    "markSubmitted": "ทำเครื่องหมายว่ายื่น LESS แล้ว",
+    "marking": "กำลังบันทึก…",
+    "marked": "บันทึกว่ายื่น LESS แล้ว",
+    "unmarked": "ยกเลิกการทำเครื่องหมาย",
+    "submittedOn": "ยื่น LESS แล้วเมื่อ {date}",
+    "undo": "ยกเลิก"
   }
 }

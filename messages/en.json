@@ -1226,5 +1226,14 @@
     "mapsNotConfigured": "Google Maps is not configured",
     "mapsLookupFailed": "Google Maps lookup failed",
     "mapsNoRoute": "No route found — enter it manually"
+  },
+  "less": {
+    "hint": "Download the form above, submit it to LESS Paper yourself, then mark it here.",
+    "markSubmitted": "Mark submitted to LESS",
+    "marking": "Saving…",
+    "marked": "Marked as submitted to LESS",
+    "unmarked": "Unmarked",
+    "submittedOn": "Submitted to LESS on {date}",
+    "undo": "Undo"
   }
 }
