@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { DriverPool, Role } from "@prisma/client";
+import { z } from "zod";
+import { DriverPool, Role, VehicleType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { isStationEmail } from "@/lib/auth/station";
@@ -50,6 +51,26 @@ export async function setVehicleDriverAction(formData: FormData): Promise<Action
     await tx.vehicle.update({ where: { id: vehicleId }, data: { assignedDriverId: driverId } });
   });
 
+  revalidatePath("/admin/fleet");
+  revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
+const vehicleSpecSchema = z.object({
+  vehicleId: z.string().min(1),
+  type: z.nativeEnum(VehicleType),
+  capacity: z.coerce.number().int().min(1).max(60),
+});
+
+// Update a car's physical spec (type + seat capacity). The seed shipped
+// placeholders for the real fleet, so P'Top needs a UI to enter the true
+// values; the booking-assign picker shows "registration · type · N seats".
+export async function updateVehicleSpecAction(formData: FormData): Promise<ActionResult> {
+  await requireRole("ADMIN");
+  const parsed = vehicleSpecSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return { ok: false, error: "invalidInput" };
+  const { vehicleId, type, capacity } = parsed.data;
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { type, capacity } });
   revalidatePath("/admin/fleet");
   revalidatePath("/admin/schedule");
   return { ok: true };

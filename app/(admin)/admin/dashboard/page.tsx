@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { getLocale, getTranslations } from "next-intl/server";
+import { IdCard, CalendarClock } from "lucide-react";
 import { requireAnyRole } from "@/lib/auth-helpers";
+import { prisma } from "@/lib/db";
+import { licenseStatus, retirementStatus } from "@/lib/admin/roster-alerts";
 import {
   approvalFunnel,
   driverUtilisation,
@@ -32,14 +35,37 @@ export default async function AdminDashboard({
     to: format(range.to, "yyyy-MM-dd"),
   }).toString();
 
-  const [funnel, byMonth, byDept, vehicle, driver, cancellations] = await Promise.all([
+  const [funnel, byMonth, byDept, vehicle, driver, cancellations, activeDrivers] = await Promise.all([
     approvalFunnel(range),
     requestVolumeByMonth(range, undefined, locale),
     requestVolumeByDepartment(range),
     vehicleUtilisation(range),
     driverUtilisation(range),
     repeatCancellers(range),
+    prisma.driver.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        licenseExpiresAt: true,
+        retirementYear: true,
+        user: { select: { name: true, thaiName: true } },
+      },
+    }),
   ]);
+
+  // Roster alerts (license expiry / upcoming retirement) from the driver sheet
+  // data — same windows as the /admin/drivers badges.
+  const now = new Date();
+  const rosterAlerts = activeDrivers
+    .map((d) => ({
+      id: d.id,
+      name: d.user.name ?? d.user.thaiName ?? d.id,
+      license: licenseStatus(d.licenseExpiresAt, now),
+      licenseDate: d.licenseExpiresAt,
+      retirement: retirementStatus(d.retirementYear, now),
+      retirementYear: d.retirementYear,
+    }))
+    .filter((d) => d.license === "expiring" || d.license === "expired" || d.retirement === "soon" || d.retirement === "due");
 
   const pctText = (n: number) => {
     if (funnel.total === 0) return t("ofTotal", { pct: "0%" });
@@ -65,6 +91,51 @@ export default async function AdminDashboard({
         <KpiCard label={t("approved")} value={funnel.approved} sub={pctText(funnel.approved)} />
         <KpiCard label={t("cancelled")} value={funnel.cancelled} sub={pctText(funnel.cancelled)} />
       </div>
+
+      {rosterAlerts.length > 0 && (
+        <Card className="border-amber-300 dark:border-amber-900/40">
+          <CardHeader>
+            <CardTitle className="text-amber-900 dark:text-amber-200">{t("rosterAlertsTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5 text-sm">
+              {rosterAlerts.map((d) => (
+                <li key={d.id}>
+                  <Link href={`/admin/drivers/${d.id}`} className="group inline-flex flex-wrap items-center gap-2 hover:underline">
+                    <span className="font-medium">{d.name}</span>
+                    {(d.license === "expiring" || d.license === "expired") && d.licenseDate && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                          d.license === "expired"
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300"
+                        }`}
+                      >
+                        <IdCard className="h-3 w-3" aria-hidden />
+                        {d.license === "expired"
+                          ? t("rosterLicenseExpired", { date: format(d.licenseDate, "d MMM yyyy") })
+                          : t("rosterLicenseExpiring", { date: format(d.licenseDate, "d MMM yyyy") })}
+                      </span>
+                    )}
+                    {(d.retirement === "soon" || d.retirement === "due") && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                          d.retirement === "due"
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300"
+                        }`}
+                      >
+                        <CalendarClock className="h-3 w-3" aria-hidden />
+                        {t("rosterRetirement", { year: d.retirementYear ?? 0 })}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>

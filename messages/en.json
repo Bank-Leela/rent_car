@@ -289,7 +289,13 @@
     "missingProfilesTitle": "{count} new driver-role {count, plural, one {user has} other {users have}} no driver profile",
     "missingProfilesBody": "Creating a user with the driver role doesn't make them schedulable yet. Add their driver profile so they appear here and can be paired to a car.",
     "provisionAction": "Add driver profiles",
-    "provisioning": "Adding…"
+    "provisioning": "Adding…",
+    "type": "Type",
+    "capacity": "Seats",
+    "type_SEDAN": "Sedan",
+    "type_PICKUP": "Pickup",
+    "type_VAN": "Van",
+    "type_OTHER": "Other"
   },
   "notifications": {
     "bell": "{count, plural, =0 {No cases need attention} one {# case needs attention} other {# cases need attention}}"
@@ -434,7 +440,12 @@
     "newInitialPassword": "New password",
     "resetPassword": "Reset password",
     "passwordReset": "Password reset.",
-    "passwordResetNote": "The driver must change it on next login."
+    "passwordResetNote": "The driver must change it on next login.",
+    "licenseExpired": "License expired {date}",
+    "licenseExpiring": "License expires {date}",
+    "retirementBadge": "Retiring {year}",
+    "retirementInfo": "Retires {year}",
+    "exportCsv": "Export CSV"
   },
   "adminUsers": {
     "title": "User accounts",
@@ -842,7 +853,11 @@
     "funnelApproved": "Approved",
     "funnelDenied": "Denied",
     "funnelCancelled": "Cancelled",
-    "funnelOutsourced": "Outsourced"
+    "funnelOutsourced": "Outsourced",
+    "rosterAlertsTitle": "Roster alerts",
+    "rosterLicenseExpired": "License expired {date}",
+    "rosterLicenseExpiring": "License expires {date}",
+    "rosterRetirement": "Retiring {year} BE"
   },
   "deptUsage": {
     "titleAll": "Fleet usage across departments",

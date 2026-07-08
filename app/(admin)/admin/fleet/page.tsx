@@ -15,7 +15,7 @@ export default async function FleetPage() {
     prisma.vehicle.findMany({
       where: { isActive: true },
       orderBy: { registrationNumber: "asc" },
-      select: { id: true, registrationNumber: true, assignedDriverId: true },
+      select: { id: true, registrationNumber: true, assignedDriverId: true, type: true, capacity: true },
     }),
     prisma.driver.findMany({
       // Only assignable drivers: active profile AND active user.

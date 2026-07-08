@@ -4,19 +4,24 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Car } from "lucide-react";
+import { VehicleType } from "@prisma/client";
 import { SelectField } from "@/components/ui/select-field";
 import { ListSearch } from "@/components/list-search";
 import { EmptyState } from "@/components/empty-state";
-import { setVehicleDriverAction } from "@/lib/booking/fleet-actions";
+import { setVehicleDriverAction, updateVehicleSpecAction } from "@/lib/booking/fleet-actions";
 
 export type FleetCar = {
   id: string;
   registrationNumber: string;
   assignedDriverId: string | null;
+  type: VehicleType;
+  capacity: number;
   // Flattened for client-side search; mirrors the assigned driver's label.
   driverName: string;
 };
 export type FleetDriver = { id: string; name: string };
+
+const VEHICLE_TYPES = Object.values(VehicleType);
 
 export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: FleetDriver[] }) {
   const t = useTranslations("fleet");
@@ -34,6 +39,22 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
     });
   }
 
+  // Physical spec edits (type / seats). Type saves on pick; capacity saves on
+  // blur so typing "12" doesn't fire per keystroke.
+  function saveSpec(car: FleetCar, next: { type?: VehicleType; capacity?: number }) {
+    const type = next.type ?? car.type;
+    const capacity = next.capacity ?? car.capacity;
+    if (type === car.type && capacity === car.capacity) return;
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("vehicleId", car.id);
+      fd.set("type", type);
+      fd.set("capacity", String(capacity));
+      await updateVehicleSpecAction(fd);
+      router.refresh();
+    });
+  }
+
   return (
     <ListSearch
       items={cars}
@@ -42,10 +63,12 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
         rows.length === 0 ? (
           <EmptyState icon={Car} title={ts("noMatches")} />
         ) : (
-          <table className="w-full max-w-xl text-sm">
+          <table className="w-full max-w-3xl text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-2 font-medium">{t("car")}</th>
+                <th className="py-2 font-medium">{t("type")}</th>
+                <th className="py-2 font-medium">{t("capacity")}</th>
                 <th className="py-2 font-medium">{t("driver")}</th>
               </tr>
             </thead>
@@ -57,6 +80,32 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
                       <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                       {c.registrationNumber}
                     </span>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <SelectField
+                      disabled={pending}
+                      value={c.type}
+                      onValueChange={(v) => saveSpec(c, { type: v as VehicleType })}
+                      aria-label={`${c.registrationNumber} ${t("type")}`}
+                      className="h-9 w-32"
+                      options={VEHICLE_TYPES.map((vt) => ({ value: vt, label: t(`type_${vt}`) }))}
+                    />
+                  </td>
+                  <td className="py-2 pr-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      defaultValue={c.capacity}
+                      disabled={pending}
+                      aria-label={`${c.registrationNumber} ${t("capacity")}`}
+                      onBlur={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (Number.isFinite(v) && v >= 1 && v <= 60) saveSpec(c, { capacity: v });
+                        else e.target.value = String(c.capacity);
+                      }}
+                      className="h-9 w-20 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
                   </td>
                   <td className="py-2">
                     <SelectField

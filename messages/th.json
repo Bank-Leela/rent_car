@@ -289,7 +289,13 @@
     "missingProfilesTitle": "มีผู้ใช้สิทธิ์คนขับ {count} คนที่ยังไม่มีโปรไฟล์คนขับ",
     "missingProfilesBody": "การสร้างผู้ใช้ที่มีสิทธิ์คนขับยังไม่ทำให้จัดรถได้ กดเพิ่มโปรไฟล์คนขับเพื่อให้ปรากฏที่นี่และจับคู่กับรถได้",
     "provisionAction": "เพิ่มโปรไฟล์คนขับ",
-    "provisioning": "กำลังเพิ่ม…"
+    "provisioning": "กำลังเพิ่ม…",
+    "type": "ประเภทรถ",
+    "capacity": "จำนวนที่นั่ง",
+    "type_SEDAN": "เก๋ง",
+    "type_PICKUP": "กระบะ",
+    "type_VAN": "ตู้",
+    "type_OTHER": "อื่น ๆ"
   },
   "notifications": {
     "bell": "{count, plural, =0 {ไม่มีคำขอรอดำเนินการ} other {# คำขอรอดำเนินการ}}"
@@ -434,7 +440,12 @@
     "newInitialPassword": "รหัสผ่านใหม่",
     "resetPassword": "รีเซ็ตรหัสผ่าน",
     "passwordReset": "รีเซ็ตรหัสผ่านแล้ว",
-    "passwordResetNote": "คนขับต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป"
+    "passwordResetNote": "คนขับต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป",
+    "licenseExpired": "ใบขับขี่หมดอายุ {date}",
+    "licenseExpiring": "ใบขับขี่จะหมด {date}",
+    "retirementBadge": "เกษียณ {year}",
+    "retirementInfo": "เกษียณ {year}",
+    "exportCsv": "ส่งออก CSV"
   },
   "adminUsers": {
     "title": "บัญชีผู้ใช้",
@@ -842,7 +853,11 @@
     "funnelApproved": "อนุมัติ",
     "funnelDenied": "ไม่อนุมัติ",
     "funnelCancelled": "ยกเลิก",
-    "funnelOutsourced": "เช่าภายนอก"
+    "funnelOutsourced": "เช่าภายนอก",
+    "rosterAlertsTitle": "แจ้งเตือนทะเบียนคนขับ",
+    "rosterLicenseExpired": "ใบขับขี่หมดอายุ {date}",
+    "rosterLicenseExpiring": "ใบขับขี่จะหมด {date}",
+    "rosterRetirement": "เกษียณ พ.ศ. {year}"
   },
   "deptUsage": {
     "titleAll": "การใช้งานรถของทุกหน่วยงาน",
