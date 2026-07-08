@@ -1,7 +1,7 @@
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
-import { format, startOfDay, subDays } from "date-fns";
-import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Zap, AlertTriangle } from "lucide-react";
+import type { JobType, Prisma } from "@prisma/client";
+import { format, startOfDay, subDays, subHours } from "date-fns";
+import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Users, Zap, AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -11,16 +11,24 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { OnCallShiftForm } from "@/components/forms/matching-form";
 import { ApproverQueueActions } from "@/components/forms/approver-queue-actions";
+import { QueueFilterBar, parseQueueSort } from "@/components/admin/queue-filter-bar";
+import { QueueBulkProvider, BulkCheckbox } from "@/components/admin/queue-bulk";
+import { OtAssignButton } from "@/components/admin/ot-assign-button";
+import { JOB_COLOR } from "@/components/admin/scheduler-board-shared";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
 import { SLOT_HOLDING_STATUSES, dayCapacity } from "@/lib/booking/slot-capacity";
 import { triageFlags, waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 import { Section } from "@/components/section";
 
+const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
+const PENDING_DEFAULT_LIMIT = 100;
+const PENDING_MAX_LIMIT = 500;
+
 export default async function AdminQueue({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; jobType?: string; overdue?: string; sort?: string; limit?: string }>;
 }) {
   const session = await requireAnyRole(["ADMIN"]);
   const isAdmin = session.user.roles.includes("ADMIN");
@@ -32,7 +40,8 @@ export default async function AdminQueue({
 
   // Free-text filter across the three lists (job number / purpose / destination
   // / requester / department) — the daily "find that one booking" need.
-  const term = ((await searchParams).q ?? "").trim();
+  const sp = await searchParams;
+  const term = (sp.q ?? "").trim();
   const searchFilter: Prisma.BookingWhereInput = term
     ? {
         OR: [
@@ -45,14 +54,27 @@ export default async function AdminQueue({
       }
     : {};
 
+  // Faceted pending-queue filters (URL-persisted via QueueFilterBar): job type,
+  // "overdue only" (waiting past the SLA), sort, and a hard cap so a runaway
+  // backlog can't load unbounded rows.
+  const jobTypeFilter = (sp.jobType ?? "").split(",").filter((x): x is JobType => (JOB_TYPES as string[]).includes(x));
+  const overdueOnly = sp.overdue === "1";
+  const sort = parseQueueSort(sp.sort);
+  const pendingLimit = Math.min(Math.max(parseInt(sp.limit ?? "", 10) || PENDING_DEFAULT_LIMIT, 1), PENDING_MAX_LIMIT);
+  const pendingFilter: Prisma.BookingWhereInput = {
+    ...(jobTypeFilter.length ? { jobType: { in: jobTypeFilter } } : {}),
+    ...(overdueOnly ? { createdAt: { lte: subHours(now, SLA_WARN_HOURS) } } : {}),
+  };
+
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
   // detail page surfaces role-appropriate action forms.
   const [pending, approved, upcoming, todayShift, allDrivers] = await Promise.all([
     prisma.booking.findMany({
       // P'Top's decision queue: normal pending plus over-capacity WAITLIST
       // cases (the 11th+ booking of a day) for him to fit or deny.
-      where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] }, ...searchFilter },
-      orderBy: { startAt: "asc" },
+      where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] }, ...searchFilter, ...pendingFilter },
+      orderBy: sort === "oldest" ? { createdAt: "asc" } : { startAt: "asc" },
+      take: pendingLimit,
       include: { requester: true, department: true },
     }),
     prisma.booking.findMany({
@@ -89,7 +111,7 @@ export default async function AdminQueue({
   // Overtime placement recommendations for over-capacity WAITLIST bookings:
   // an early/evening OT that the time-blind day-cap waitlisted can still fit a
   // driver who's free at that hour. Surface who/what is free so P'Top can place it.
-  const overtimeReco = new Map<string, { name: string; reg: string; time: string }>();
+  const overtimeReco = new Map<string, { name: string; reg: string; time: string; vehicleId: string }>();
   const waitlist = pending.filter((b) => b.status === "WAITLIST");
   if (waitlist.length > 0) {
     const dayStartMs = [...new Set(waitlist.map((b) => startOfDay(b.startAt).getTime()))];
@@ -157,6 +179,7 @@ export default async function AdminQueue({
           name: driverName.get(reco.driverId) ?? reco.driverId,
           reg: vehicleReg.get(reco.vehicleId) ?? reco.vehicleId,
           time: format(b.startAt, "HH:mm"),
+          vehicleId: reco.vehicleId,
         });
       }
     }
@@ -227,6 +250,28 @@ export default async function AdminQueue({
     }
   }
 
+  // Waitlist gets its own over-capacity section; "risk" sort uses the triage
+  // flags just computed (more flags first, then longest-waiting).
+  const waitlistRows = pending.filter((b) => b.status === "WAITLIST");
+  let pendingRows = pending.filter((b) => b.status === "PENDING_APPROVAL");
+  if (sort === "risk") {
+    pendingRows = [...pendingRows].sort((a, z) => {
+      const fa = triageByBooking.get(a.id)?.length ?? 0;
+      const fz = triageByBooking.get(z.id)?.length ?? 0;
+      if (fz !== fa) return fz - fa;
+      return waitingHours(z.createdAt, now) - waitingHours(a.createdAt, now);
+    });
+  }
+  const showMoreHref = (() => {
+    const q = new URLSearchParams();
+    if (term) q.set("q", term);
+    if (sp.jobType) q.set("jobType", sp.jobType);
+    if (overdueOnly) q.set("overdue", "1");
+    if (sp.sort) q.set("sort", sp.sort);
+    q.set("limit", String(Math.min(pendingLimit + PENDING_DEFAULT_LIMIT, PENDING_MAX_LIMIT)));
+    return `/admin?${q.toString()}`;
+  })();
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -284,17 +329,84 @@ export default async function AdminQueue({
       )}
 
       <Section title={t("pendingHeading")} icon={<ClipboardCheck className="h-4 w-4" />}>
-        {pending.length === 0 ? (
+        <div className="mb-3">
+          <QueueFilterBar />
+        </div>
+        {pendingRows.length === 0 ? (
           <EmptyState
             icon={ClipboardCheck}
             title={t("pendingEmptyTitle")}
             description={t("pendingEmptyDescription")}
           />
         ) : (
+          <QueueBulkProvider>
+            <ul className="space-y-2">
+              {pendingRows.map((b) => (
+                <li key={b.id}>
+                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                    <div className="flex items-start gap-2">
+                      <BulkCheckbox bookingId={b.id} />
+                      <Link
+                        href={`/admin/${b.id}`}
+                        className="group -m-1 flex min-w-0 flex-1 items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
+                            <BookingStatusBadge status={b.status} />
+                            <InChulaChip outsideChula={b.outsideChula} />
+                            {b.isEmergency && (
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                                {urgentLabel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 font-medium truncate">{b.purpose}</div>
+                          <div className="mt-0.5 text-sm text-muted-foreground">
+                            {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {b.requester.name ?? b.requester.email} · {b.department.nameEn}
+                          </div>
+                          <QueueInfoRow
+                            jobType={b.jobType}
+                            paxLabel={t("paxCount", { count: b.passengerCount })}
+                            estimatedDistance={b.estimatedDistance}
+                            needsSecondaryDriver={b.needsSecondaryDriver}
+                            submitted={t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
+                            coDriverLabel={t("coDriverNeeded")}
+                          />
+                          <TriageChips flags={triageByBooking.get(b.id) ?? []} waitedHours={waitingHours(b.createdAt, now)} t={t} />
+                        </div>
+                        <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </div>
+                    {isAdmin && <ApproverQueueActions bookingId={b.id} canDeny />}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </QueueBulkProvider>
+        )}
+        {pending.length >= pendingLimit && pendingLimit < PENDING_MAX_LIMIT && (
+          <div className="mt-3">
+            <Link href={showMoreHref} className="text-sm text-primary underline-offset-2 hover:underline">
+              {t("showMore")}
+            </Link>
+          </div>
+        )}
+      </Section>
+
+      {waitlistRows.length > 0 && (
+        <Section title={t("waitlistHeading")} icon={<Zap className="h-4 w-4" />}>
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+            <Zap className="h-4 w-4 shrink-0" aria-hidden />
+            {t("waitlistBanner")}
+          </div>
           <ul className="space-y-2">
-            {pending.map((b) => (
+            {waitlistRows.map((b) => (
               <li key={b.id}>
-                <div className="rounded-xl border bg-card p-4 shadow-sm">
+                <div className="rounded-xl border border-amber-200 bg-card p-4 shadow-sm dark:border-amber-900/40">
                   <Link
                     href={`/admin/${b.id}`}
                     className="group -m-1 flex items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -317,32 +429,44 @@ export default async function AdminQueue({
                       <div className="mt-1 text-xs text-muted-foreground">
                         {b.requester.name ?? b.requester.email} · {b.department.nameEn}
                       </div>
-                      {overtimeReco.has(b.id) && (
-                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-                          <Zap className="h-3.5 w-3.5 shrink-0" />
-                          {t("overtimeFit", {
-                            name: overtimeReco.get(b.id)!.name,
-                            reg: overtimeReco.get(b.id)!.reg,
-                            time: overtimeReco.get(b.id)!.time,
-                          })}
-                        </div>
-                      )}
+                      <QueueInfoRow
+                        jobType={b.jobType}
+                        paxLabel={t("paxCount", { count: b.passengerCount })}
+                        estimatedDistance={b.estimatedDistance}
+                        needsSecondaryDriver={b.needsSecondaryDriver}
+                        submitted={t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
+                        coDriverLabel={t("coDriverNeeded")}
+                      />
                       <TriageChips flags={triageByBooking.get(b.id) ?? []} waitedHours={waitingHours(b.createdAt, now)} t={t} />
                     </div>
                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                   </Link>
-                  {isAdmin && (
-                    <ApproverQueueActions
-                      bookingId={b.id}
-                      canDeny={b.status === "PENDING_APPROVAL"}
-                    />
+                  {overtimeReco.has(b.id) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                        <Zap className="h-3.5 w-3.5 shrink-0" />
+                        {t("overtimeFit", {
+                          name: overtimeReco.get(b.id)!.name,
+                          reg: overtimeReco.get(b.id)!.reg,
+                          time: overtimeReco.get(b.id)!.time,
+                        })}
+                      </span>
+                      {isAdmin && (
+                        <OtAssignButton
+                          bookingId={b.id}
+                          vehicleId={overtimeReco.get(b.id)!.vehicleId}
+                          summary={`${overtimeReco.get(b.id)!.name} · ${overtimeReco.get(b.id)!.reg} · ${overtimeReco.get(b.id)!.time}`}
+                        />
+                      )}
+                    </div>
                   )}
+                  {isAdmin && <ApproverQueueActions bookingId={b.id} canDeny={false} />}
                 </div>
               </li>
             ))}
           </ul>
-        )}
-      </Section>
+        </Section>
+      )}
 
       <Section title={t("queueLogHeading")} icon={<ListOrdered className="h-4 w-4" />}>
         {approved.length === 0 ? (
@@ -436,6 +560,45 @@ export default async function AdminQueue({
 }
 
 type AdminT = Awaited<ReturnType<typeof getTranslations<"admin">>>;
+
+// Compact fact row so P'Top can triage without opening the detail page:
+// job-type dot, passenger count, distance (when meaningful), a co-driver-needed
+// marker (flagged or >400 km), and when the request was submitted.
+function QueueInfoRow({
+  jobType,
+  paxLabel,
+  estimatedDistance,
+  needsSecondaryDriver,
+  submitted,
+  coDriverLabel,
+}: {
+  jobType: string;
+  paxLabel: string;
+  estimatedDistance: number | null;
+  needsSecondaryDriver: boolean;
+  submitted: string;
+  coDriverLabel: string;
+}) {
+  const color = JOB_COLOR[jobType];
+  const needsCoDriver = needsSecondaryDriver || (estimatedDistance ?? 0) > 400;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <span className="inline-flex items-center gap-1 font-medium text-foreground">
+        {color && <span aria-hidden className={`h-2 w-2 rounded-full ${color.dot}`} />}
+        {jobType}
+      </span>
+      <span>{paxLabel}</span>
+      {estimatedDistance != null && <span>~{estimatedDistance} km</span>}
+      {needsCoDriver && (
+        <span className="inline-flex items-center gap-1 font-medium text-violet-700 dark:text-violet-400">
+          <Users className="h-3.5 w-3.5" aria-hidden />
+          {coDriverLabel}
+        </span>
+      )}
+      <span>{submitted}</span>
+    </div>
+  );
+}
 
 function Pill({ tone, children }: { tone: "amber" | "rose"; children: string }) {
   const cls =
