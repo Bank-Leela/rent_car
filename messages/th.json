@@ -73,7 +73,8 @@
     "placeNotFound": "ไม่พบสถานที่ที่บันทึกไว้",
     "driverNotFound": "ไม่พบคนขับ",
     "invalidUsername": "ชื่อผู้ใช้ต้อง 3–40 ตัว: ตัวอักษร ตัวเลข จุด ขีดล่าง",
-    "vehicleAssignedElsewhere": "รถคันนี้ถูกกำหนดให้คนขับอื่นแล้ว ต้องปลดออกจากคนนั้นก่อน"
+    "vehicleAssignedElsewhere": "รถคันนี้ถูกกำหนดให้คนขับอื่นแล้ว ต้องปลดออกจากคนนั้นก่อน",
+    "vehicleRegTaken": "ทะเบียนรถนี้มีอยู่แล้ว"
   },
   "common": {
     "back": "ย้อนกลับ",
@@ -295,7 +296,12 @@
     "type_SEDAN": "เก๋ง",
     "type_PICKUP": "กระบะ",
     "type_VAN": "ตู้",
-    "type_OTHER": "อื่น ๆ"
+    "type_OTHER": "อื่น ๆ",
+    "addVehicle": "เพิ่มรถ",
+    "add": "เพิ่ม",
+    "adding": "กำลังเพิ่ม…",
+    "cancel": "ยกเลิก",
+    "vehicleAdded": "เพิ่มรถ {reg} แล้ว"
   },
   "notifications": {
     "bell": "{count, plural, =0 {ไม่มีคำขอรอดำเนินการ} other {# คำขอรอดำเนินการ}}"
@@ -760,7 +766,8 @@
     "tripEndedToastPlain": "บันทึกจบงานเรียบร้อย",
     "toastKm": "{km} กม.",
     "toastFuel": "น้ำมัน ฿{amount}",
-    "toastToll": "ทางด่วน ฿{amount}"
+    "toastToll": "ทางด่วน ฿{amount}",
+    "fuelLiters": "น้ำมัน (ลิตร)"
   },
   "signatureForm": {
     "imageLabel": "ไฟล์ลายเซ็น (PNG หรือ JPEG, ≤1 MB)",
@@ -915,7 +922,8 @@
     "scheduleHelperLong": "ทริปนี้ถูกกำหนดให้ต้องใช้คนขับสองคน คนขับหลักยืนยันได้เมื่อมีคนขับผู้ช่วยรับงานแล้ว",
     "primary": "คนขับหลัก",
     "secondary": "คนขับผู้ช่วย",
-    "you": "คุณ"
+    "you": "คุณ",
+    "completedFuelLiters": "น้ำมัน (ลิตร)"
   },
   "approverActions": {
     "backToInbox": "กลับไปกล่องจดหมาย",
@@ -1150,7 +1158,8 @@
     "inProgress": "กำลังเดินทาง",
     "viewOnly": "ดูอย่างเดียว",
     "error_bookingNotFound": "ไม่พบทริปนี้แล้ว",
-    "error_forbidden": "คุณไม่มีสิทธิ์ดูทริปนี้"
+    "error_forbidden": "คุณไม่มีสิทธิ์ดูทริปนี้",
+    "fuelLiters": "น้ำมัน (ลิตร)"
   },
   "toast": {
     "genericError": "เกิดข้อผิดพลาด กรุณาลองใหม่",

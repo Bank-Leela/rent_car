@@ -31,6 +31,7 @@ export type StationTripDetail = {
     endMileage: number | null;
     distanceKm: number | null;
     fuelCost: number | null;
+    fuelLiters: number | null;
     tollwayCost: number | null;
     usedExpressway: boolean;
     driverNotes: string | null;
@@ -111,6 +112,7 @@ export async function getStationTripDetailAction(bookingId: string): Promise<Sta
             endMileage: t.endMileage,
             distanceKm: t.distanceKm,
             fuelCost: t.fuelCost != null ? Number(t.fuelCost) : null,
+            fuelLiters: t.fuelLiters != null ? Number(t.fuelLiters) : null,
             tollwayCost: t.tollwayCost != null ? Number(t.tollwayCost) : null,
             usedExpressway: t.usedExpressway,
             driverNotes: t.driverNotes,

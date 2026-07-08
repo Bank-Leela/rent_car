@@ -62,6 +62,27 @@ const vehicleSpecSchema = z.object({
   capacity: z.coerce.number().int().min(1).max(60),
 });
 
+const newVehicleSchema = z.object({
+  registrationNumber: z.string().trim().min(1).max(20),
+  type: z.nativeEnum(VehicleType),
+  capacity: z.coerce.number().int().min(1).max(60),
+});
+
+// Add a car to the fleet (Admin เพิ่มรถในระบบได้). Starts unpaired — pair a
+// driver from the same table. Registration is unique; a dup is a friendly error.
+export async function createVehicleAction(formData: FormData): Promise<ActionResult> {
+  await requireRole("ADMIN");
+  const parsed = newVehicleSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return { ok: false, error: "invalidInput" };
+  const { registrationNumber, type, capacity } = parsed.data;
+  const existing = await prisma.vehicle.findUnique({ where: { registrationNumber } });
+  if (existing) return { ok: false, error: "vehicleRegTaken" };
+  await prisma.vehicle.create({ data: { registrationNumber, type, capacity } });
+  revalidatePath("/admin/fleet");
+  revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
 // Update a car's physical spec (type + seat capacity). The seed shipped
 // placeholders for the real fleet, so P'Top needs a UI to enter the true
 // values; the booking-assign picker shows "registration · type · N seats".

@@ -684,6 +684,8 @@ model Trip {
   endMileage     Int?
   distanceKm     Int?
   fuelCost       Decimal?  @db.Decimal(10, 2)
+  // Liters pumped, alongside the baht cost (diagram: บันทึกน้ำมัน บาท/ลิตร).
+  fuelLiters     Decimal?  @db.Decimal(10, 2)
   tollwayCost    Decimal?  @db.Decimal(10, 2)
   usedExpressway Boolean   @default(false)
   driverNotes    String?

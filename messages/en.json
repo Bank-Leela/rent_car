@@ -73,7 +73,8 @@
     "placeNotFound": "Saved place not found.",
     "driverNotFound": "Driver not found.",
     "invalidUsername": "Username must be 3–40 chars: letters, numbers, dot, underscore.",
-    "vehicleAssignedElsewhere": "That vehicle is already assigned to another driver. Unassign them first."
+    "vehicleAssignedElsewhere": "That vehicle is already assigned to another driver. Unassign them first.",
+    "vehicleRegTaken": "That registration number already exists."
   },
   "common": {
     "back": "Back",
@@ -295,7 +296,12 @@
     "type_SEDAN": "Sedan",
     "type_PICKUP": "Pickup",
     "type_VAN": "Van",
-    "type_OTHER": "Other"
+    "type_OTHER": "Other",
+    "addVehicle": "Add vehicle",
+    "add": "Add",
+    "adding": "Adding…",
+    "cancel": "Cancel",
+    "vehicleAdded": "Added {reg}"
   },
   "notifications": {
     "bell": "{count, plural, =0 {No cases need attention} one {# case needs attention} other {# cases need attention}}"
@@ -760,7 +766,8 @@
     "tripEndedToastPlain": "Trip recorded.",
     "toastKm": "{km} km",
     "toastFuel": "฿{amount} fuel",
-    "toastToll": "฿{amount} toll"
+    "toastToll": "฿{amount} toll",
+    "fuelLiters": "Fuel (liters)"
   },
   "signatureForm": {
     "imageLabel": "Signature image (PNG or JPEG, ≤1 MB)",
@@ -915,7 +922,8 @@
     "scheduleHelperLong": "This trip is flagged for two drivers. The primary cannot confirm until a co-driver claims.",
     "primary": "Primary",
     "secondary": "Co-driver",
-    "you": "You"
+    "you": "You",
+    "completedFuelLiters": "Fuel (liters)"
   },
   "approverActions": {
     "backToInbox": "Back to inbox",
@@ -1150,7 +1158,8 @@
     "inProgress": "Trip in progress.",
     "viewOnly": "View only.",
     "error_bookingNotFound": "That trip no longer exists.",
-    "error_forbidden": "You can't view this trip."
+    "error_forbidden": "You can't view this trip.",
+    "fuelLiters": "Fuel (liters)"
   },
   "toast": {
     "genericError": "Something went wrong. Please try again.",

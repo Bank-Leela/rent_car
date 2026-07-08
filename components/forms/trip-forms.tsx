@@ -93,10 +93,14 @@ export function EndTripForm({
           className="h-14 text-lg"
         />
       </div>
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid sm:grid-cols-3 gap-4">
         <div className="grid gap-2">
           <Label htmlFor="fuelCost" className="text-base">{t("fuelCost")}</Label>
           <Input id="fuelCost" name="fuelCost" type="number" step="0.01" inputMode="decimal" className="h-12 text-base" />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="fuelLiters" className="text-base">{t("fuelLiters")}</Label>
+          <Input id="fuelLiters" name="fuelLiters" type="number" step="0.01" inputMode="decimal" className="h-12 text-base" />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="tollwayCost" className="text-base">{t("tollwayCost")}</Label>

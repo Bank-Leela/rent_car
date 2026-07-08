@@ -25,6 +25,12 @@ const endSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+  fuelLiters: z.coerce
+    .number()
+    .nonnegative()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
   tollwayCost: z.coerce
     .number()
     .nonnegative()
@@ -134,7 +140,7 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
-  const { bookingId, endMileage, fuelCost, tollwayCost, usedExpressway, driverNotes } = parsed.data;
+  const { bookingId, endMileage, fuelCost, fuelLiters, tollwayCost, usedExpressway, driverNotes } = parsed.data;
 
   if (!(await canRecordTrip(session, bookingId))) {
     return { ok: false, error: te("notAssignedToTrip") };
@@ -162,6 +168,7 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
         endMileage,
         distanceKm: endMileage - trip.startMileage,
         fuelCost,
+        fuelLiters,
         tollwayCost,
         usedExpressway,
         driverNotes,

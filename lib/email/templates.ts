@@ -196,6 +196,62 @@ export function requesterCancelledEmail(b: BookingDetailed, reason: string) {
   };
 }
 
+// Sent to the requester when their booking is handed to an outside vendor
+// (bus/charter or over-capacity overflow) instead of a fleet car.
+export function requesterOutsourcedEmail(b: BookingDetailed, vendor: string) {
+  const subject = `จ้างรถภายนอก / Outsourced · ${b.jobNumber}`;
+  const introTh = `การจองของคุณถูกจัดเป็นการจ้างรถภายนอก โดย: ${vendor}`;
+  const introEn = `Your booking has been arranged with an outside vendor: ${vendor}.`;
+  const url = viewUrl(`/requester/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n${introEn}\n\n${bookingFactsText(b)}${ctaButtonText(url, "ดูรายละเอียดการจอง", "View booking")}`,
+    html: wrapHtml(
+      `${introTh}<br/>${introEn}`,
+      bookingFactsHtml(b),
+      ctaButtonHtml(url, "ดูรายละเอียดการจอง", "View booking"),
+    ),
+  };
+}
+
+// Sent to admins when a requester cancels a booking that had already been
+// acted on (approved / assigned) — the slot is freed and P'Top may want to
+// re-fill it or clear the board.
+export function adminBookingCancelledEmail(b: BookingDetailed, reason: string) {
+  const subject = `[ยกเลิก / Cancelled ${b.jobNumber}] คืนสล็อตว่าง / slot freed`;
+  const introTh = `ผู้ขอยกเลิกการจองที่จัดรถ/อนุมัติแล้ว สล็อตถูกคืนคิว เหตุผล: ${reason}`;
+  const introEn = `The requester cancelled an approved/assigned booking; its slot is freed. Reason: ${reason}`;
+  const url = viewUrl(`/admin/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n${introEn}\n\n${bookingFactsText(b)}${ctaButtonText(url, "ดูการจอง", "View booking")}`,
+    html: wrapHtml(
+      `${introTh}<br/>${introEn}`,
+      bookingFactsHtml(b),
+      ctaButtonHtml(url, "ดูการจอง", "View booking"),
+    ),
+  };
+}
+
+// Sent to a requester whose dispatched trip lost its driver because that driver
+// was marked off (sick/leave). The trip is back in the APPROVED queue for
+// P'Top to re-dispatch (e.g. onto the duty car).
+export function requesterDriverOffEmail(b: BookingDetailed) {
+  const subject = `ต้องจัดรถใหม่ / Re-dispatch needed · ${b.jobNumber}`;
+  const introTh = `พนักงานขับรถที่ได้รับมอบหมายลางาน การจองของคุณกำลังถูกจัดรถใหม่ เวลาเดินทางเดิมไม่เปลี่ยน`;
+  const introEn = `Your assigned driver is unavailable; your booking is being re-dispatched. Your trip time is unchanged.`;
+  const url = viewUrl(`/requester/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n${introEn}\n\n${bookingFactsText(b)}${ctaButtonText(url, "ดูรายละเอียดการจอง", "View booking")}`,
+    html: wrapHtml(
+      `${introTh}<br/>${introEn}`,
+      bookingFactsHtml(b),
+      ctaButtonHtml(url, "ดูรายละเอียดการจอง", "View booking"),
+    ),
+  };
+}
+
 // Admin heads-up when a requester changes the time of an already-dispatched
 // (ASSIGNED) trip: the assignment was cleared and the trip is back in the
 // APPROVED queue for re-dispatch at the new time.

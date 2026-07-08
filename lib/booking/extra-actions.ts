@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
-import { requesterCancelledEmail } from "@/lib/email/templates";
+import { requesterCancelledEmail, requesterOutsourcedEmail, adminBookingCancelledEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
 import { rollbackRotationStampsForBooking } from "@/lib/booking/batch-actions";
 
@@ -65,26 +65,35 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
   // their slot for the next batch.
   await rollbackRotationStampsForBooking(bookingId);
 
-  // Someone other than the requester (an admin) cancelled → tell the requester.
-  // Self-cancellation sends nothing. Failure never blocks the cancel.
-  if (booking.requesterId !== userId) {
-    try {
-      const detailed = await prisma.booking.findUniqueOrThrow({
-        where: { id: bookingId },
-        include: {
-          requester: true,
-          department: true,
-          vehicle: true,
-          primaryDriver: { include: { user: true } },
-          secondaryDriver: { include: { user: true } },
-        },
-      });
+  // Notify the other party. Admin-cancel → tell the requester. Requester
+  // self-cancel of an already-approved/assigned booking → tell admins the slot
+  // was freed (คืนสล็อตว่าง แจ้งแอดมิน). Failure never blocks the cancel.
+  const wasActedOn = ["APPROVED", "ASSIGNED", "WAITLIST", "OUTSOURCED"].includes(booking.status);
+  try {
+    const detailed = await prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: {
+        requester: true,
+        department: true,
+        vehicle: true,
+        primaryDriver: { include: { user: true } },
+        secondaryDriver: { include: { user: true } },
+      },
+    });
+    if (booking.requesterId !== userId) {
       if (detailed.requester.email) {
         await sendEmail({ to: [detailed.requester.email], ...requesterCancelledEmail(detailed, reason) });
       }
-    } catch (err) {
-      console.error("[cancel] requester notify failed", err);
+    } else if (wasActedOn) {
+      const admins = await prisma.user.findMany({
+        where: { roles: { some: { role: "ADMIN" } }, isActive: true },
+        select: { email: true },
+      });
+      const to = admins.map((a) => a.email).filter((e): e is string => !!e);
+      if (to.length > 0) await sendEmail({ to, ...adminBookingCancelledEmail(detailed, reason) });
     }
+  } catch (err) {
+    console.error("[cancel] notify failed", err);
   }
 
   revalidatePath("/requester");
@@ -304,13 +313,7 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
       },
     });
     if (detailed.requester.email) {
-      const body = `Your booking ${detailed.jobNumber} has been outsourced to ${outsourceVendor}.`;
-      await sendEmail({
-        to: detailed.requester.email,
-        subject: `Booking ${detailed.jobNumber} outsourced`,
-        text: body,
-        html: `<p>${body}</p>`,
-      });
+      await sendEmail({ to: [detailed.requester.email], ...requesterOutsourcedEmail(detailed, outsourceVendor) });
     }
   }
 

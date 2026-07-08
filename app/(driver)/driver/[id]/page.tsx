@@ -163,6 +163,9 @@ export default async function DriverBookingDetail({
             {booking.trip.fuelCost != null && (
               <Field label={t("completedFuel")} value={`฿${booking.trip.fuelCost.toString()}`} />
             )}
+            {booking.trip.fuelLiters != null && (
+              <Field label={t("completedFuelLiters")} value={`${booking.trip.fuelLiters.toString()} L`} />
+            )}
             {booking.trip.tollwayCost != null && (
               <Field label={t("completedTollway")} value={`฿${booking.trip.tollwayCost.toString()}`} />
             )}

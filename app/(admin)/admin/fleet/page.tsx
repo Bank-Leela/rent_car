@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { FleetEditor } from "@/components/admin/fleet-editor";
+import { AddVehicleForm } from "@/components/admin/add-vehicle-form";
 import { ProvisionDriversButton } from "@/components/admin/provision-drivers-button";
 
 export default async function FleetPage() {
@@ -43,9 +44,12 @@ export default async function FleetPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground">{t("description")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-muted-foreground">{t("description")}</p>
+        </div>
+        <AddVehicleForm />
       </div>
       {missingProfiles > 0 && (
         <div className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/40 dark:bg-amber-950/40">

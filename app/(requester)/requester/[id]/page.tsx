@@ -206,12 +206,12 @@ export default async function RequesterBookingDetail({
             <Field label={t("vehicle")} value={booking.vehicle.registrationNumber} />
             <Field
               label={t("driver")}
-              value={booking.primaryDriver?.user.name ?? booking.primaryDriver?.user.email ?? "—"}
+              value={driverLabel(booking.primaryDriver?.user)}
             />
             {booking.secondaryDriver && (
               <Field
                 label={t("coDriver")}
-                value={booking.secondaryDriver.user.name ?? booking.secondaryDriver.user.email!}
+                value={driverLabel(booking.secondaryDriver.user)}
               />
             )}
           </CardContent>
@@ -333,4 +333,12 @@ export default async function RequesterBookingDetail({
       )}
     </div>
   );
+}
+
+// Driver name + phone so the requester can call the day of the trip
+// (แสดงชื่อ-เบอร์-ทะเบียน). Phone appended when on file.
+function driverLabel(user: { name: string | null; email: string | null; phone: string | null } | null | undefined): string {
+  if (!user) return "—";
+  const name = user.name ?? user.email ?? "—";
+  return user.phone ? `${name} · ${user.phone}` : name;
 }

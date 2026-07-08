@@ -129,6 +129,7 @@ function DrawerBody({ bookingId }: { bookingId: string }) {
               <Field label={t("endMileage")} value={`${detail.trip.endMileage ?? "—"}`} />
               <Field label={t("tripDistance")} value={detail.trip.distanceKm != null ? `${detail.trip.distanceKm} km` : "—"} />
               <Field icon={<Fuel className="h-4 w-4" />} label={t("fuel")} value={detail.trip.fuelCost != null ? `฿${detail.trip.fuelCost.toFixed(2)}` : "—"} />
+              <Field label={t("fuelLiters")} value={detail.trip.fuelLiters != null ? `${detail.trip.fuelLiters.toFixed(2)} L` : "—"} />
               <Field label={t("toll")} value={detail.trip.tollwayCost != null ? `฿${detail.trip.tollwayCost.toFixed(2)}` : "—"} />
               <Field label={t("expressway")} value={detail.trip.usedExpressway ? t("yes") : t("no")} />
             </dl>
