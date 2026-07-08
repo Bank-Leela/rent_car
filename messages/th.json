@@ -1201,5 +1201,18 @@
     "status_DENIED": "ไม่อนุมัติ",
     "status_CANCELLED": "ยกเลิก",
     "clear": "ล้างตัวกรอง"
+  },
+  "adobeSign": {
+    "send": "ส่งเซ็นด้วย Adobe Sign",
+    "sending": "กำลังส่ง…",
+    "sent": "ส่งไปเซ็นแล้ว",
+    "statusPending": "รอลายเซ็นจากหัวหน้าภาควิชา (Adobe Sign)",
+    "statusCancelled": "การเซ็นถูกยกเลิก/ปฏิเสธ",
+    "downloadSigned": "ดาวน์โหลดเอกสารที่เซ็นแล้ว",
+    "adobeNotConfigured": "ยังไม่ได้ตั้งค่า Adobe Sign",
+    "adobeBadStatus": "สถานะการจองไม่พร้อมส่งเซ็น",
+    "adobeAlreadySent": "ส่งไปเซ็นแล้ว",
+    "adobeNoSigner": "ไม่พบอีเมลหัวหน้าภาควิชาสำหรับเซ็น",
+    "adobeSendFailed": "ส่งไป Adobe Sign ไม่สำเร็จ"
   }
 }

@@ -497,6 +497,12 @@ model Booking {
   outsourceReference String?
 
   pdfUrl String?
+  // Adobe Acrobat Sign: agreement id, sub-status (OUT_FOR_SIGNATURE / SIGNED /
+  // CANCELLED), and the stored signed-PDF ref once complete. Sub-status is a
+  // plain string so BookingStatus stays untouched.
+  adobeAgreementId String?
+  adobeSignStatus  String?
+  signedPdfUrl     String?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

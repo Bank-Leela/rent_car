@@ -19,6 +19,8 @@ import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
 import { CompleteTripForm } from "@/components/forms/complete-trip-form";
+import { SendForSignatureButton } from "@/components/admin/send-for-signature-button";
+import { isAdobeSignConfigured } from "@/lib/adobe-sign/config";
 import { DetailField as Field } from "@/components/detail-field";
 
 export default async function AdminBookingDetail({
@@ -29,6 +31,8 @@ export default async function AdminBookingDetail({
   const session = await requireAnyRole(["ADMIN"]);
   const { id } = await params;
   const t = await getTranslations("bookingDetail");
+  const tsig = await getTranslations("adobeSign");
+  const adobeConfigured = isAdobeSignConfigured();
   const tad = await getTranslations("adminDetail");
   const taf = await getTranslations("assignForm");
   const ta = await getTranslations("approverActions");
@@ -367,13 +371,32 @@ export default async function AdminBookingDetail({
           <CardHeader>
             <CardTitle>{t("approvalDocument")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <Link
               href={`/api/files/booking-pdf/${booking.id}`}
               className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
             >
               {t("downloadPdf")}
             </Link>
+            {/* Adobe Sign — only when the integration is configured. */}
+            {adobeConfigured && (
+              <div className="border-t pt-3">
+                {booking.adobeSignStatus === "SIGNED" && booking.signedPdfUrl ? (
+                  <Link
+                    href={`/api/files/signed-pdf/${booking.id}`}
+                    className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"
+                  >
+                    {tsig("downloadSigned")}
+                  </Link>
+                ) : booking.adobeAgreementId ? (
+                  <p className="text-sm text-muted-foreground">
+                    {booking.adobeSignStatus === "CANCELLED" ? tsig("statusCancelled") : tsig("statusPending")}
+                  </p>
+                ) : (
+                  <SendForSignatureButton bookingId={booking.id} />
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

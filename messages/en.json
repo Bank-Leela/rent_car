@@ -1201,5 +1201,18 @@
     "status_DENIED": "Denied",
     "status_CANCELLED": "Cancelled",
     "clear": "Clear filters"
+  },
+  "adobeSign": {
+    "send": "Send for signature (Adobe Sign)",
+    "sending": "Sending…",
+    "sent": "Sent for signature",
+    "statusPending": "Awaiting the department head's signature (Adobe Sign)",
+    "statusCancelled": "Signing was cancelled or declined",
+    "downloadSigned": "Download signed document",
+    "adobeNotConfigured": "Adobe Sign is not configured",
+    "adobeBadStatus": "Booking is not in a state that can be sent",
+    "adobeAlreadySent": "Already sent for signature",
+    "adobeNoSigner": "No department-head email to sign",
+    "adobeSendFailed": "Failed to send to Adobe Sign"
   }
 }
