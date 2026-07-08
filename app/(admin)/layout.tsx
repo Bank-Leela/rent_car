@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { AppShell } from "@/components/app-shell";
 import { AdminPrimaryNav, AdminSubnav, type LabeledSection } from "@/components/admin/admin-nav";
 import { ADMIN_SECTIONS, flatAdminRoutes } from "@/lib/admin/nav-sections";
+import { isSimulationEnabled } from "@/lib/config/features";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAnyRole(["ADMIN"]);
@@ -14,14 +15,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   // 5 grouped sections (desktop) + a flat leaf list (mobile drawer). Labels are
   // resolved here; the routing/structure lives in lib/admin/nav-sections.ts.
+  // The simulate tab (a debug tool) is hidden unless the feature flag is on.
+  const simEnabled = isSimulationEnabled();
+  const showTab = (href: string) => simEnabled || href !== "/admin/simulate";
   const sections: LabeledSection[] = ADMIN_SECTIONS.map((s) => ({
     key: s.key,
     href: s.href,
     label: t(s.labelKey),
     match: s.match,
-    tabs: s.tabs.map((tab) => ({ href: tab.href, label: t(tab.labelKey) })),
+    tabs: s.tabs.filter((tab) => showTab(tab.href)).map((tab) => ({ href: tab.href, label: t(tab.labelKey) })),
   }));
-  const mobileNav = flatAdminRoutes().map((r) => ({ href: r.href, label: t(r.labelKey) }));
+  const mobileNav = flatAdminRoutes()
+    .filter((r) => showTab(r.href))
+    .map((r) => ({ href: r.href, label: t(r.labelKey) }));
   // Signature + delegation lives in the avatar menu now, not the main nav.
   const profileExtra = [{ href: "/admin/profile", label: t("signature") }];
 

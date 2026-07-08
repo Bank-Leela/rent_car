@@ -1,0 +1,22 @@
+# rent_car — daily จัดรอบ auto-run (oneshot, triggered by the timer below).
+# Copy to /etc/systemd/system/rent-car-batch.service. Edit the host + read the
+# CRON_SECRET from the same env file the app uses.
+#
+#   sudo cp deploy/rent-car-batch.service.sample /etc/systemd/system/rent-car-batch.service
+#   sudo cp deploy/rent-car-batch.timer.sample   /etc/systemd/system/rent-car-batch.timer
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rent-car-batch.timer
+
+[Unit]
+Description=rent_car daily batch (จัดรอบ) — assign tomorrow's rounds
+After=network.target rent-car.service
+
+[Service]
+Type=oneshot
+# CRON_SECRET must match ADOBE/DB etc. in the app's env file.
+EnvironmentFile=/etc/rent_car.env
+# POST to the app (behind nginx or straight to 127.0.0.1:3000). --fail so a
+# non-2xx marks the unit failed (visible in `systemctl status`).
+ExecStart=/usr/bin/curl --fail --silent --show-error \
+    -X POST \
+    -H "Authorization: Bearer ${CRON_SECRET}" \
+    https://booking.example.ac.th/api/cron/run-batch

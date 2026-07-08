@@ -39,12 +39,14 @@ UPLOADS_DIR=/var/lib/rent_car/uploads
 ```
 Optional (features stay dormant without them):
 ```
+CRON_SECRET=<openssl rand -hex 32>  # enables the daily จัดรอบ auto-run route
 GOOGLE_MAPS_API_KEY=...            # enables the "Estimate distance" button
 ADOBE_SIGN_CLIENT_ID=...           # enables Adobe Sign (see docs/adobe-sign-setup.md)
 ADOBE_SIGN_CLIENT_SECRET=...
 ADOBE_SIGN_REFRESH_TOKEN=...
 ADOBE_SIGN_SHARD=...
 FACULTY_ORIGIN=คณะแพทยศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย   # Maps distance origin override
+# ENABLE_SIMULATION=true          # show the /admin/simulate debug tool in prod (default: hidden)
 ```
 Create the uploads dir: `sudo mkdir -p /var/lib/rent_car/uploads && sudo chown rentcar /var/lib/rent_car/uploads`.
 It holds signatures, generated/signed PDFs, and attachments — **back it up**;
@@ -96,21 +98,40 @@ sudo systemctl restart rent-car
 Restart is required after any migration — the running process caches the Prisma
 client, so new columns 500 until restart.
 
-## จัดรอบ (round-scheduling) in production — kept MANUAL
+## จัดรอบ (round-scheduling) — manual button + daily auto-run
 
-The daily batch is run by an admin, not a cron. Daily SOP:
-1. Admin opens **/admin/batch**, picks the day, clicks **Run** — assigns
-   OT/WERN/NORMAL rounds. TJW is assigned by request order separately.
-2. Re-running the same day is safe (idempotent — it only touches APPROVED,
-   still-unassigned bookings).
-3. Because the batch is day-boundary sensitive, **the TZ pin in §0 is what makes
-   it correct** — verify no `[TZ WARNING]` in the logs before going live.
-4. Verify after any scheduling change:
-   `npm test` and `npx tsx scripts/simulate-cr07.ts --scenario=mixed` (rule
-   counters must stay 0).
+Both paths run the same solver; they're idempotent (only touch APPROVED,
+still-unassigned bookings), so they safely coexist.
 
-If you later want it automated, a systemd timer hitting a secret-protected
-"run batch" route is the path — not built now (kept manual by decision).
+**Manual** — an admin opens **/admin/batch**, picks a day, clicks **Run**.
+TJW is assigned by request order separately (still manual).
+
+**Daily auto-run** — a systemd timer POSTs to `/api/cron/run-batch` each
+evening, assigning **tomorrow's** OT/WERN/NORMAL rounds so the board is set the
+night before. To enable:
+1. Set `CRON_SECRET` in `/etc/rent_car.env` (a long random string).
+2. Install the timer + oneshot service:
+   ```bash
+   sudo cp deploy/rent-car-batch.service.sample /etc/systemd/system/rent-car-batch.service
+   sudo cp deploy/rent-car-batch.timer.sample   /etc/systemd/system/rent-car-batch.timer
+   # edit the host + confirm EnvironmentFile in the .service
+   sudo systemctl daemon-reload && sudo systemctl enable --now rent-car-batch.timer
+   systemctl list-timers rent-car-batch.timer     # confirm next run
+   ```
+The route fails closed: no `CRON_SECRET` → 503; wrong bearer → 401. It attributes
+the run to an active admin in the audit log. Override the target day for a manual
+re-run: `POST /api/cron/run-batch?date=YYYY-MM-DD`.
+
+**Correctness depends on the TZ pin (§0)** — "tomorrow" is computed server-local;
+verify no `[TZ WARNING]` in the logs. After any scheduling change, run `npm test`
+and `npx tsx scripts/simulate-cr07.ts --scenario=mixed` (rule counters must stay 0).
+
+## Simulation / debug tools
+
+`/admin/simulate` (the what-if placement sandbox) is a debugging tool, **hidden
+in production** — the nav tab and the page 404 unless `ENABLE_SIMULATION=true`.
+It's on by default in dev. The `scripts/simulate-cr07.ts` scenario runner is a
+repo dev script (never deployed) and always available for debugging.
 
 ## Checklist before go-live
 - [ ] `TZ=Asia/Bangkok` set; no `[TZ WARNING]` in `journalctl -u rent-car`.

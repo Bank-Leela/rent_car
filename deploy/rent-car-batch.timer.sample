@@ -1,0 +1,15 @@
+# rent_car — timer that runs the daily จัดรอบ each evening (assigns TOMORROW).
+# Copy to /etc/systemd/system/rent-car-batch.timer, then enable the timer
+# (see rent-car-batch.service.sample for the full install commands).
+
+[Unit]
+Description=Run rent_car daily batch (จัดรอบ) every evening
+
+[Timer]
+# 20:00 daily, server-local time. The app must run TZ=Asia/Bangkok (see the
+# main service unit + docs/deployment.md) so "tomorrow" is the right day.
+OnCalendar=*-*-* 20:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
