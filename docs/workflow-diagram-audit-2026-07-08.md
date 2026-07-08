@@ -71,21 +71,31 @@ implementation (or where it would go).
 ## Score
 
 **Original:** ~40 elements → 24 ✓ · 11 ≈ · 5 ✗.
-**Partial-fix pass 1 (`b95baaa`):** 6 closed → 30 ✓ · 5 ≈ · 5 ✗.
-**Partial-fix pass 2 (2026-07-08):** outsource details on requester detail +
-late-finish overtime flag → **32 ✓ · 3 ≈ · 5 ✗**.
+**Pass 1 (`b95baaa`):** 6 closed → 30 ✓ · 5 ≈ · 5 ✗.
+**Pass 2:** outsource details on requester detail + late-finish OT flag → 32 ✓.
+**Official form (`b6a4023`) + Adobe Sign (`5ee5c90`):** official Thai PDF fill +
+gated e-sign scaffolding.
+**Pass 3 (`ab0d0fc`):** Google Maps auto-distance (gated) + outsource
+quote-document upload → **34 ✓**.
 
-### Remaining ≈ — blocked on an external system / cost decision (not buildable in-app)
-- **Auto distance from Google Maps** — needs a paid Maps Distance API key + billing opt-in. Conflicts with the no-API-cost decision. *Give me a key + say "accept the cost" and it's ~1 file.*
-- **LESS export/sign round-trip** — needs the LESS system's API/credentials. The PDF + authority signature already exist; only the LESS handshake is missing. *Needs LESS access from IT.*
-- **Outsource quote *document* upload** — cost/vendor/ref are recorded + shown; a file-attachment for the quote itself folds into the recipient-signature/attachment work.
+### Now ✓ (this session)
+- **Auto distance from Google Maps** (`ab0d0fc`) — gated on `GOOGLE_MAPS_API_KEY`;
+  admin "Estimate distance" button before approval. Inert + free until a key is set.
+- **Outsource quote document** (`ab0d0fc`) — upload the ใบเสนอราคา on the outsource
+  form; download on admin + requester detail.
 
-### Remaining ✗ (need a decision / bigger build)
-1. **Recipient sign-off at trip end** (ผู้รับบริการเซ็นยืนยัน) — app uses star eval.
-2. **LESS document round-trip.**
-3. **Clerk-authorization records (บันทึกข้อความ) + ศูนย์/หน่วย org levels** — departments only.
-4. **1/2/3-approver chain by zone/time** — conflicts with your APPROVER-removal decision.
-5. **Grab-style saved places** — you removed this on purpose (templates kept).
+### Closed by decision — not building
+- **LESS export/sign round-trip** — *skipped (user, 2026-07-08).* Official PDF +
+  Adobe Sign cover e-signing; LESS is a separate Chula system, not needed in-app.
+- **Clerk-authorization records (บันทึกข้อความ) + ศูนย์/หน่วย org levels** —
+  *skipped (user, 2026-07-08).* Flat departments are enough.
+- **1/2/3-approver chain by zone/time** — conflicts with the APPROVER-removal call.
+- **Grab-style saved places** — removed on purpose; templates replaced it.
+
+### Open — parked (buildable, free)
+- **Recipient sign-off at trip end** (ผู้รับบริการเซ็นยืนยัน) + the **head signature**
+  on the form — deferred at the user's request ("save the signature for later").
+  Free path ready: stamp the on-file signature into the form's signature fields.
 
 ### Conflicts with your own standing decisions (diagram older than the decision?)
 - **1/2/3-approver chain by zone/time** vs. "APPROVER role removed — admins approve" (your 2026-06-30 call).
