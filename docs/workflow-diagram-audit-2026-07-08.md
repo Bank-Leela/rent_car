@@ -36,7 +36,7 @@ implementation (or where it would go).
 | แอดมิน: เข้าคิว ตรวจปฏิทิน | ✓ | Admin queue + calendar + `dayCapacity` |
 | รถเต็ม/เกินเพดานต่อวัน? | ✓ | Day-cap → WAITLIST at submit; queue shows over-capacity section + OT recommendation (1-click assign, 2026-07-08) |
 | เต็ม → จ้างภายนอก? (รถบัส/สัมมนา) | ✓ | `OUTSOURCED` status + `AdHocVehicle` rows on the board; BUS_OUTSOURCED auto-flags `needsOutsourcing` |
-| จ้างภายนอก: ขอใบเสนอราคา บันทึกค่าใช้จ่าย | ✓ (`f_partial2`) | Vendor / cost / quote-reference recorded on the outsource form **and now shown on the requester detail** (was admin-only); a separate quote *document* upload is the only piece left, gated on the ✗ recipient-signature work |
+| จ้างภายนอก: ขอใบเสนอราคา บันทึกค่าใช้จ่าย | ✓ (`dd4ca9e`) | Vendor / cost / quote-reference recorded on the outsource form **and now shown on the requester detail** (was admin-only); a separate quote *document* upload is the only piece left, gated on the ✗ recipient-signature work |
 | แจ้งผู้ขอ | ✓ (`b95baaa`) | `requesterOutsourcedEmail` — bilingual, sent on outsource |
 
 ## Dispatch & drivers
@@ -52,7 +52,7 @@ implementation (or where it would go).
 | ลาป่วย → ย้ายเป็นรถเวรแทน + อีเมลแจ้ง user | ✓ (`b95baaa`) | Marking a driver off **releases their upcoming ASSIGNED trips that day** back to APPROVED + emails requesters (`requesterDriverOffEmail`); P'Top re-dispatches (e.g. duty car). Release, not auto-assign, keeps "P'Top decides" |
 | คนขับ: ดูงานวันนี้ บันทึกไมล์เริ่ม | ✓ | Kiosk today panel (2026-07-08) + `StartTripForm` mileage |
 | ยกเลิก → คืนสล็อตว่าง แจ้งแอดมิน | ✓ (`b95baaa`) | Slot/rotation released ✓; **requester self-cancel of an approved/assigned booking now emails admins** (`adminBookingCancelledEmail`) |
-| เวลาเปลี่ยน/เลิกช้า? → แก้เวลา เซ็นกำกับ flag OT | ✓ (`f_partial2`) | Requester time-change ✓; **late finish now flagged as overtime** (actual end − scheduled end, shown on driver detail + kiosk drawer). Recipient *countersign* is still the ✗ recipient-signature item, tracked separately |
+| เวลาเปลี่ยน/เลิกช้า? → แก้เวลา เซ็นกำกับ flag OT | ✓ (`dd4ca9e`) | Requester time-change ✓; **late finish now flagged as overtime** (actual end − scheduled end, shown on driver detail + kiosk drawer). Recipient *countersign* is still the ✗ recipient-signature item, tracked separately |
 | เดินทาง บันทึกไมล์จบและน้ำมัน (บาท/ลิตร/ทางด่วน) | ✓ (`b95baaa`) | End-trip records mileage + fuel **฿ and liters** + toll ฿ + expressway |
 | เปิด 3 account, คนรถใช้ account เดียว สิทธิ์น้อยลง | ✓ | Exactly the current model: requester/admin/**shared driver-station** login |
 | ผู้รับบริการเซ็นยืนยัน (จบงาน) | ✗ | No recipient signature at trip end — post-trip star evaluation instead |
