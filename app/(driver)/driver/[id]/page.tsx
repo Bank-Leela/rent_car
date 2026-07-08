@@ -146,7 +146,7 @@ export default async function DriverBookingDetail({
                 km: booking.trip!.startMileage.toLocaleString(),
               })}
             </p>
-            <EndTripForm bookingId={booking.id} />
+            <EndTripForm bookingId={booking.id} startMileage={booking.trip?.startMileage ?? null} />
           </CardContent>
         </Card>
       )}

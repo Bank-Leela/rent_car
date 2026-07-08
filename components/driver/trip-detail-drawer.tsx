@@ -148,7 +148,7 @@ function DrawerBody({ bookingId }: { bookingId: string }) {
         {tripStarted && detail.canRecord && (
           <section className="rounded-lg border border-primary/30 bg-primary/5 p-4">
             <h3 className="mb-3 text-sm font-semibold">{t("endTitle")}</h3>
-            <EndTripForm bookingId={detail.id} onSuccess={afterRecord} />
+            <EndTripForm bookingId={detail.id} startMileage={detail.trip?.startMileage ?? null} onSuccess={afterRecord} />
           </section>
         )}
         {tripStarted && !detail.canRecord && <p className="text-sm text-muted-foreground">{t("inProgress")}</p>}

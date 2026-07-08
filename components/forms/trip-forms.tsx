@@ -1,6 +1,8 @@
 "use client";
 
+import { useRef } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +13,14 @@ import { FormError } from "@/components/forms/form-error";
 
 export function StartTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
   const t = useTranslations("tripForms");
-  const { error, pending, run } = useFormAction(startTripAction, { bookingId, onSuccess });
+  const { error, pending, run } = useFormAction(startTripAction, {
+    bookingId,
+    onSuccess: () => {
+      // Explicit confirmation so a kiosk driver knows the submit landed.
+      toast.success(t("tripStartedToast"));
+      onSuccess?.();
+    },
+  });
   return (
     <form action={run} className="space-y-4">
       <div className="grid gap-2">
@@ -34,11 +43,45 @@ export function StartTripForm({ bookingId, onSuccess }: { bookingId: string; onS
   );
 }
 
-export function EndTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
+export function EndTripForm({
+  bookingId,
+  startMileage,
+  onSuccess,
+}: {
+  bookingId: string;
+  // When known (trip already started), the success toast can show the distance.
+  startMileage?: number | null;
+  onSuccess?: () => void;
+}) {
   const t = useTranslations("tripForms");
-  const { error, pending, run } = useFormAction(endTripAction, { bookingId, onSuccess });
+  // Values from the submitted FormData, kept so the success toast can echo back
+  // exactly what was recorded — the drawer refetches and the form vanishes, so
+  // without this a network hiccup leaves the driver guessing.
+  const lastSubmit = useRef<{ end?: number; fuel?: string; toll?: string }>({});
+  const { error, pending, run } = useFormAction(endTripAction, {
+    bookingId,
+    onSuccess: () => {
+      const { end, fuel, toll } = lastSubmit.current;
+      const parts: string[] = [];
+      if (end != null && startMileage != null && end >= startMileage) {
+        parts.push(t("toastKm", { km: end - startMileage }));
+      }
+      if (fuel) parts.push(t("toastFuel", { amount: fuel }));
+      if (toll) parts.push(t("toastToll", { amount: toll }));
+      toast.success(parts.length ? t("tripEndedToast", { details: parts.join(" · ") }) : t("tripEndedToastPlain"));
+      onSuccess?.();
+    },
+  });
+  const runWithCapture = (fd: FormData) => {
+    lastSubmit.current = {
+      end: Number(fd.get("endMileage")) || undefined,
+      fuel: String(fd.get("fuelCost") ?? "") || undefined,
+      toll: String(fd.get("tollwayCost") ?? "") || undefined,
+    };
+    return run(fd);
+  };
   return (
-    <form action={run} className="space-y-4">
+    <form action={runWithCapture} className="space-y-4">
       <div className="grid gap-2">
         <Label htmlFor="endMileage" className="text-base">{t("endingKm")}</Label>
         <Input

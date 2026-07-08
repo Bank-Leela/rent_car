@@ -17,10 +17,15 @@ import {
 } from "@/components/admin/scheduler-board-shared";
 import { TripDetailDrawer } from "@/components/driver/trip-detail-drawer";
 
+// Kiosk lanes run taller than the admin board's: the garage screen is read
+// from a distance and tapped with fingers, so blocks get more height and
+// larger type while keeping the same geometry + job-type theme.
+const KIOSK_LANE_PX = Math.round(LANE_PX * 1.25);
+
 // Read-only timeline of P'Top's official schedule for the driver side: cars as
-// rows, time on the X-axis. No drag — drivers view here; the editable draft
-// board is separate. Reuses the admin board's geometry + job-type theme so the
-// two read identically.
+// rows, time on the X-axis. No drag — drivers view here; P'Top assigns on the
+// admin board. Reuses the admin board's geometry + job-type theme so the two
+// read identically.
 export function DriverScheduleBoard({
   vehicles,
   bookings,
@@ -61,11 +66,11 @@ export function DriverScheduleBoard({
           <div className="min-w-[64rem]">
             <div className="flex border-b bg-muted/30">
               <div className="w-44 shrink-0 border-r" />
-              <div className="relative h-8 flex-1">
+              <div className="relative h-9 flex-1">
                 {hours.map((h) => (
                   <span
                     key={h}
-                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground"
+                    className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs tabular-nums text-muted-foreground"
                     style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
                   >
                     {String(h).padStart(2, "0")}:00
@@ -155,7 +160,7 @@ function Row({
           </span>
         )}
       </div>
-      <div className="relative flex-1" style={{ height: laneCount * LANE_PX }}>
+      <div className="relative flex-1" style={{ height: laneCount * KIOSK_LANE_PX }}>
         {hours.map((h) => (
           <div
             key={h}
@@ -165,8 +170,8 @@ function Row({
           />
         ))}
         {items.map((it) => {
-          const top = (laneOf.get(it.key) ?? 0) * LANE_PX + LANE_PAD;
-          const height = LANE_PX - 2 * LANE_PAD;
+          const top = (laneOf.get(it.key) ?? 0) * KIOSK_LANE_PX + LANE_PAD;
+          const height = KIOSK_LANE_PX - 2 * LANE_PAD;
           const left = pctOf(it.b.startHour, dayStart, dayHours);
           const width = Math.max(pctOf(it.b.endHour, dayStart, dayHours) - left, 1.2);
           const multiDay = it.b.continuesBefore || it.b.continuesAfter;
@@ -176,7 +181,7 @@ function Row({
               type="button"
               onClick={() => onOpen(it.b.id)}
               title={`${it.b.jobNumber} · ${it.b.timeLabel} · ${it.b.purpose} → ${it.b.destination}`}
-              className={`absolute block cursor-pointer overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:brightness-110 ${
+              className={`absolute block cursor-pointer overflow-hidden rounded-md border px-2 py-1 text-left text-xs transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:brightness-110 ${
                 it.kind === "co"
                   ? "border-dashed border-violet-400/70 bg-violet-50 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200"
                   : `${jobStyle(it.b.jobType).block} ${it.b.secondaryDriverName ? "ring-1 ring-violet-400/70" : ""}`
@@ -201,15 +206,15 @@ function Row({
                 )}
               </div>
               {it.kind === "co" ? (
-                <div className="truncate text-[10px] font-medium">{labels.coDriver}</div>
+                <div className="truncate text-[11px] font-medium">{labels.coDriver}</div>
               ) : (
                 <div className="truncate text-muted-foreground">{it.b.purpose}</div>
               )}
               {it.kind === "primary" && it.b.driverName && (
-                <div className="truncate text-[10px] font-medium text-primary">{it.b.driverName}</div>
+                <div className="truncate text-[11px] font-medium text-primary">{it.b.driverName}</div>
               )}
               {it.kind === "co" && it.b.driverName && (
-                <div className="truncate text-[10px] text-violet-700 dark:text-violet-300">→ {it.b.driverName}</div>
+                <div className="truncate text-[11px] text-violet-700 dark:text-violet-300">→ {it.b.driverName}</div>
               )}
             </button>
           );

@@ -8,6 +8,8 @@ import { prisma } from "@/lib/db";
 import { daySpan, daySuperscript } from "@/lib/booking/day-window";
 import { PageHeader } from "@/components/page-header";
 import { DriverScheduleBoard } from "@/components/driver/driver-schedule-board";
+import { TodayTripsPanel, type TodayTripRow } from "@/components/driver/today-trips-panel";
+import { KioskRefresh } from "@/components/driver/kiosk-refresh";
 import type { SchedulerBooking } from "@/components/admin/scheduler-board-shared";
 
 const hm = (d: Date) => (d.getMinutes() === 0 ? format(d, "HH") : format(d, "HH:mm"));
@@ -52,6 +54,8 @@ export default async function DriverSchedule({
         primaryDriverId: true, secondaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
         secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+        status: true,
+        trip: { select: { startedAt: true, endedAt: true } },
       },
     }),
     prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
@@ -103,11 +107,38 @@ export default async function DriverSchedule({
   const navBtn =
     "inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+  // "Today at a glance": the viewed day's dispatched trips in leave order. Only
+  // rendered when the kiosk is actually showing today, where "next within the
+  // hour" means something.
+  const viewingToday = dayStart.getTime() === startOfDay(new Date()).getTime();
+  const regByVehicle = new Map(vehicleRows.map((v) => [v.id, v.registrationNumber]));
+  let todayRows: TodayTripRow[] = [];
+  if (viewingToday) {
+    const nowMs = new Date().getTime();
+    const dispatched = dayBookings
+      .filter((b) => b.status === "ASSIGNED" || b.trip != null)
+      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    const nextId = dispatched.find(
+      (b) => !b.trip && b.startAt.getTime() > nowMs && b.startAt.getTime() - nowMs <= 60 * 60 * 1000,
+    )?.id;
+    todayRows = dispatched.map((b) => ({
+      id: b.id,
+      jobNumber: b.jobNumber,
+      startLabel: format(b.startAt, "HH:mm"),
+      destination: b.destination,
+      driverName: nameOf(b.primaryDriver?.user),
+      registrationNumber: b.vehicleId ? regByVehicle.get(b.vehicleId) ?? null : null,
+      state: b.trip?.endedAt ? "done" : b.trip ? "inProgress" : "upcoming",
+      isNext: b.id === nextId,
+    }));
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <PageHeader title={td("scheduleTitle")} description={td("scheduleSubtitle")} />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <KioskRefresh />
           <Link href={`/driver/schedule?date=${isoOf(addDays(dayStart, -1))}`} className={navBtn} aria-label={t("prevDay")}>
             <ChevronLeft className="h-4 w-4" />
           </Link>
@@ -119,6 +150,20 @@ export default async function DriverSchedule({
           </Link>
         </div>
       </div>
+
+      {viewingToday && (
+        <TodayTripsPanel
+          rows={todayRows}
+          labels={{
+            title: td("todayPanelTitle"),
+            empty: td("todayPanelEmpty"),
+            upcoming: td("todayStateUpcoming"),
+            inProgress: td("todayStateInProgress"),
+            done: td("todayStateDone"),
+            next: td("todayNext"),
+          }}
+        />
+      )}
 
       <DriverScheduleBoard
         vehicles={vehicleRows}

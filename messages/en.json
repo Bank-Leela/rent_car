@@ -743,7 +743,13 @@
     "declineReasonPlaceholder": "e.g. on leave, vehicle issue, double-booked…",
     "declining": "Sending…",
     "confirmDecline": "Decline & notify office",
-    "declineCancel": "Keep it"
+    "declineCancel": "Keep it",
+    "tripStartedToast": "Trip started — mileage recorded.",
+    "tripEndedToast": "Trip recorded: {details}",
+    "tripEndedToastPlain": "Trip recorded.",
+    "toastKm": "{km} km",
+    "toastFuel": "฿{amount} fuel",
+    "toastToll": "฿{amount} toll"
   },
   "signatureForm": {
     "imageLabel": "Signature image (PNG or JPEG, ≤1 MB)",
@@ -1094,7 +1100,15 @@
     "onCall": "On-call (duty)",
     "onCallNote": "Campus duty rounds 08:00–16:00",
     "scheduleAllHeading": "All upcoming",
-    "scheduleHistoryHeading": "Past trips (last 14 days)"
+    "scheduleHistoryHeading": "Past trips (last 14 days)",
+    "todayPanelTitle": "Today's trips",
+    "todayPanelEmpty": "No dispatched trips for today yet.",
+    "todayStateUpcoming": "Upcoming",
+    "todayStateInProgress": "In progress",
+    "todayStateDone": "Done",
+    "todayNext": "Next",
+    "kioskUpdated": "Updated {time}",
+    "kioskRefresh": "Refresh"
   },
   "stationDrawer": {
     "title": "Trip details",

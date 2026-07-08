@@ -743,7 +743,13 @@
     "declineReasonPlaceholder": "เช่น ลาพัก รถมีปัญหา งานซ้อน…",
     "declining": "กำลังส่ง…",
     "confirmDecline": "ปฏิเสธและแจ้งสำนักงาน",
-    "declineCancel": "ไม่ปฏิเสธ"
+    "declineCancel": "ไม่ปฏิเสธ",
+    "tripStartedToast": "เริ่มงานแล้ว — บันทึกเลขไมล์เรียบร้อย",
+    "tripEndedToast": "บันทึกจบงานแล้ว: {details}",
+    "tripEndedToastPlain": "บันทึกจบงานเรียบร้อย",
+    "toastKm": "{km} กม.",
+    "toastFuel": "น้ำมัน ฿{amount}",
+    "toastToll": "ทางด่วน ฿{amount}"
   },
   "signatureForm": {
     "imageLabel": "ไฟล์ลายเซ็น (PNG หรือ JPEG, ≤1 MB)",
@@ -1094,7 +1100,15 @@
     "onCall": "อยู่เวร",
     "onCallNote": "ดูแลรอบรับส่งในวิทยาเขต 08:00–16:00",
     "scheduleAllHeading": "ทริปที่จะมาถึง",
-    "scheduleHistoryHeading": "ทริปที่ผ่านมา (14 วันล่าสุด)"
+    "scheduleHistoryHeading": "ทริปที่ผ่านมา (14 วันล่าสุด)",
+    "todayPanelTitle": "งานวันนี้",
+    "todayPanelEmpty": "ยังไม่มีงานที่จัดรถแล้วสำหรับวันนี้",
+    "todayStateUpcoming": "รอออกเดินทาง",
+    "todayStateInProgress": "กำลังเดินทาง",
+    "todayStateDone": "เสร็จแล้ว",
+    "todayNext": "คิวถัดไป",
+    "kioskUpdated": "อัปเดต {time}",
+    "kioskRefresh": "รีเฟรช"
   },
   "stationDrawer": {
     "title": "รายละเอียดทริป",
