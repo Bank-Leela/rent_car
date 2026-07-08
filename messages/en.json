@@ -771,7 +771,10 @@
     "toastKm": "{km} km",
     "toastFuel": "฿{amount} fuel",
     "toastToll": "฿{amount} toll",
-    "fuelLiters": "Fuel (liters)"
+    "fuelLiters": "Fuel (liters)",
+    "fuelType": "Fuel type",
+    "fuelTypePlaceholder": "e.g. diesel / gasoline",
+    "parkingCost": "Parking (฿)"
   },
   "signatureForm": {
     "imageLabel": "Signature image (PNG or JPEG, ≤1 MB)",
@@ -929,7 +932,9 @@
     "you": "You",
     "completedFuelLiters": "Fuel (liters)",
     "completedOvertime": "Overtime",
-    "overtimeValue": "{min} min past {at}"
+    "overtimeValue": "{min} min past {at}",
+    "completedFuelType": "Fuel type",
+    "completedParking": "Parking"
   },
   "approverActions": {
     "backToInbox": "Back to inbox",
@@ -1167,7 +1172,9 @@
     "error_forbidden": "You can't view this trip.",
     "fuelLiters": "Fuel (liters)",
     "overtime": "Overtime",
-    "overtimeValue": "{min} min"
+    "overtimeValue": "{min} min",
+    "fuelType": "Fuel type",
+    "parking": "Parking"
   },
   "toast": {
     "genericError": "Something went wrong. Please try again.",

@@ -686,6 +686,9 @@ model Trip {
   fuelCost       Decimal?  @db.Decimal(10, 2)
   // Liters pumped, alongside the baht cost (diagram: บันทึกน้ำมัน บาท/ลิตร).
   fuelLiters     Decimal?  @db.Decimal(10, 2)
+  // Fuel grade (ประเภทน้ำมัน) + parking cost (ที่จอดรถ) — official form fields.
+  fuelType       String?
+  parkingCost    Decimal?  @db.Decimal(10, 2)
   tollwayCost    Decimal?  @db.Decimal(10, 2)
   usedExpressway Boolean   @default(false)
   driverNotes    String?
