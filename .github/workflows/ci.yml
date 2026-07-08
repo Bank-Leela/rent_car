@@ -29,6 +29,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/rent_car?schema=public
       AUTH_SECRET: ci-secret-not-used
       NEXTAUTH_URL: http://localhost:3000
+      # Scheduling (จัดรอบ / trip-legs) computes day boundaries in server-local
+      # time — pin CI to the production zone so tests match prod, not the UTC runner.
+      TZ: Asia/Bangkok
 
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,32 @@
+# rent_car — systemd unit (Linux server)
+# Copy to /etc/systemd/system/rent-car.service, edit paths + User, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rent-car
+# Logs: journalctl -u rent-car -f   (the TZ warning from instrumentation.ts shows here)
+
+[Unit]
+Description=rent_car vehicle booking (Next.js)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=rentcar
+WorkingDirectory=/opt/rent_car
+
+# CRITICAL: scheduling (จัดรอบ / trip-legs) computes day boundaries in
+# server-local time. Without this the batch assigns the wrong day.
+Environment=TZ=Asia/Bangkok
+Environment=NODE_ENV=production
+
+# Secrets + config live here (chmod 600, owned by the service user). Include:
+#   DATABASE_URL, AUTH_SECRET, NEXTAUTH_URL (or APP_URL), UPLOADS_DIR,
+#   and any optional GOOGLE_MAPS_API_KEY / ADOBE_SIGN_* keys.
+EnvironmentFile=/etc/rent_car.env
+
+# `npm run build` already runs `prisma migrate deploy`; `npm start` = next start.
+ExecStart=/usr/bin/npm run start
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
