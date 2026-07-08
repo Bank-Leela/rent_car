@@ -620,7 +620,8 @@
     "ajarnEmail": "อีเมลผู้ขอใช้รถ",
     "coordinatorName": "ชื่อ-สกุล ผู้ประสานงาน",
     "coordinatorPhone": "โทรศัพท์ผู้ประสานงาน",
-    "outOfHoursReason": "เหตุผลกรณีนอกเวลาทำการ"
+    "outOfHoursReason": "เหตุผลกรณีนอกเวลาทำการ",
+    "downloadQuote": "ดาวน์โหลดใบเสนอราคา"
   },
   "requesterDetail": {
     "tripEvaluation": "ประเมินการเดินทาง",
@@ -715,7 +716,9 @@
     "reference": "หมายเลขอ้างอิง / ยืนยัน",
     "emailRequester": "ส่งอีเมลแจ้งผู้ขอใช้รถ",
     "saving": "กำลังบันทึก…",
-    "markOutsourced": "ระบุว่าเช่าจากภายนอก"
+    "markOutsourced": "ระบุว่าเช่าจากภายนอก",
+    "quoteFile": "ไฟล์ใบเสนอราคา (ถ้ามี)",
+    "quoteHint": "PDF/รูปภาพ ไม่เกิน 10MB"
   },
   "timeChangeForm": {
     "workHoursNotice": "เวลาทำงานของพนักงานขับรถคือ {from}–{to} หากเดินทางนอกช่วงเวลาดังกล่าวต้องระบุเหตุผล",
@@ -1214,5 +1217,14 @@
     "adobeAlreadySent": "ส่งไปเซ็นแล้ว",
     "adobeNoSigner": "ไม่พบอีเมลหัวหน้าภาควิชาสำหรับเซ็น",
     "adobeSendFailed": "ส่งไป Adobe Sign ไม่สำเร็จ"
+  },
+  "maps": {
+    "estimate": "ประเมินระยะทาง (Google Maps)",
+    "reestimate": "ประเมินใหม่",
+    "estimating": "กำลังคำนวณ…",
+    "filled": "อัปเดตระยะทางแล้ว",
+    "mapsNotConfigured": "ยังไม่ได้ตั้งค่า Google Maps",
+    "mapsLookupFailed": "เรียก Google Maps ไม่สำเร็จ",
+    "mapsNoRoute": "หาเส้นทางไม่พบ กรุณากรอกเอง"
   }
 }

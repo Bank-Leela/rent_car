@@ -620,7 +620,8 @@
     "ajarnEmail": "Requester email",
     "coordinatorName": "Coordinator full name",
     "coordinatorPhone": "Coordinator phone",
-    "outOfHoursReason": "Out-of-hours justification"
+    "outOfHoursReason": "Out-of-hours justification",
+    "downloadQuote": "Download quote"
   },
   "requesterDetail": {
     "tripEvaluation": "Trip evaluation",
@@ -715,7 +716,9 @@
     "reference": "Reference / confirmation #",
     "emailRequester": "Email the requester",
     "saving": "Saving…",
-    "markOutsourced": "Mark outsourced"
+    "markOutsourced": "Mark outsourced",
+    "quoteFile": "Quote document (optional)",
+    "quoteHint": "PDF or image, up to 10 MB"
   },
   "timeChangeForm": {
     "workHoursNotice": "Driver work hours are {from}–{to}. Trips outside that window need a written justification.",
@@ -1214,5 +1217,14 @@
     "adobeAlreadySent": "Already sent for signature",
     "adobeNoSigner": "No department-head email to sign",
     "adobeSendFailed": "Failed to send to Adobe Sign"
+  },
+  "maps": {
+    "estimate": "Estimate distance (Google Maps)",
+    "reestimate": "Re-estimate",
+    "estimating": "Calculating…",
+    "filled": "Distance updated",
+    "mapsNotConfigured": "Google Maps is not configured",
+    "mapsLookupFailed": "Google Maps lookup failed",
+    "mapsNoRoute": "No route found — enter it manually"
   }
 }

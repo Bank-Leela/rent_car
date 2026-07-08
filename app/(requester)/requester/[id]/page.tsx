@@ -231,6 +231,16 @@ export default async function RequesterBookingDetail({
             {booking.outsourceReference && (
               <Field label={tr("outsourceReference")} value={booking.outsourceReference} colSpan />
             )}
+            {booking.outsourceQuoteUrl && (
+              <div className="sm:col-span-2">
+                <Link
+                  href={`/api/files/outsource-quote/${booking.id}`}
+                  className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+                >
+                  {t("downloadQuote")}
+                </Link>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

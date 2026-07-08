@@ -27,6 +27,11 @@ export function OutsourceForm({ bookingId }: { bookingId: string }) {
         <Label htmlFor="outsourceReference">{t("reference")}</Label>
         <Input id="outsourceReference" name="outsourceReference" />
       </div>
+      <div className="grid gap-2">
+        <Label htmlFor="quote">{t("quoteFile")}</Label>
+        <Input id="quote" name="quote" type="file" accept="application/pdf,image/png,image/jpeg" />
+        <p className="text-xs text-muted-foreground">{t("quoteHint")}</p>
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="notify" value="true" defaultChecked />
         {t("emailRequester")}

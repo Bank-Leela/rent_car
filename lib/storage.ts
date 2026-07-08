@@ -99,3 +99,24 @@ export async function readBookingAttachment(storedRef: string): Promise<Buffer |
     return null;
   }
 }
+
+// Outsource quote document (ใบเสนอราคา). Distinct "-quote" filename so it never
+// collides with the requester's memo attachment for the same booking.
+export async function writeOutsourceQuote(bookingId: string, ext: string, bytes: Buffer): Promise<string> {
+  await ensureDir(ATTACHMENT_DIR);
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "").slice(0, 10) || "bin";
+  const filename = `${bookingId}-quote.${safeExt}`;
+  await fs.writeFile(path.join(ATTACHMENT_DIR, filename), bytes);
+  return `quote:${filename}`;
+}
+
+export async function readOutsourceQuote(storedRef: string): Promise<Buffer | null> {
+  if (!storedRef.startsWith("quote:")) return null;
+  const filename = storedRef.slice("quote:".length);
+  if (filename.includes("/") || filename.includes("..")) return null;
+  try {
+    return await fs.readFile(path.join(ATTACHMENT_DIR, filename));
+  } catch {
+    return null;
+  }
+}

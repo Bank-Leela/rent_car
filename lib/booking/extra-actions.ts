@@ -8,6 +8,7 @@ import { requireUser, requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
 import { requesterCancelledEmail, requesterOutsourcedEmail, adminBookingCancelledEmail } from "@/lib/email/templates";
+import { writeOutsourceQuote } from "@/lib/storage";
 import type { ActionResult } from "@/lib/booking/actions";
 import { rollbackRotationStampsForBooking } from "@/lib/booking/batch-actions";
 
@@ -272,6 +273,20 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
     return { ok: false, error: te("cannotOutsourceInStatus", { status: ts(booking.status) }) };
   }
 
+  // Optional quote document (ใบเสนอราคา). Same limits as the memo attachment;
+  // validated before the transaction so a bad file fails fast.
+  const quote = formData.get("quote");
+  let quoteRef: string | null = null;
+  let quoteName: string | null = null;
+  if (quote instanceof File && quote.size > 0) {
+    if (quote.size > 10_000_000) return { ok: false, field: "quote", error: te("attachmentTooLarge") };
+    const allowed: Record<string, string> = { "application/pdf": "pdf", "image/png": "png", "image/jpeg": "jpg" };
+    const ext = allowed[quote.type] ?? "";
+    if (!ext) return { ok: false, field: "quote", error: te("attachmentBadFormat") };
+    quoteRef = await writeOutsourceQuote(bookingId, ext, Buffer.from(await quote.arrayBuffer()));
+    quoteName = quote.name;
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
@@ -279,6 +294,7 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
         outsourceVendor,
         outsourceCost,
         outsourceReference,
+        ...(quoteRef ? { outsourceQuoteUrl: quoteRef, outsourceQuoteFilename: quoteName } : {}),
         needsOutsourcing: true,
         // OUTSOURCED is fully off-algorithm — clear the fleet car/drivers so the
         // trip no longer holds a slot or counts in fairness (unified with the

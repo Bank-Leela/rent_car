@@ -20,7 +20,9 @@ import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
 import { CompleteTripForm } from "@/components/forms/complete-trip-form";
 import { SendForSignatureButton } from "@/components/admin/send-for-signature-button";
+import { EstimateDistanceButton } from "@/components/admin/estimate-distance-button";
 import { isAdobeSignConfigured } from "@/lib/adobe-sign/config";
+import { isMapsConfigured } from "@/lib/maps/distance";
 import { DetailField as Field } from "@/components/detail-field";
 
 export default async function AdminBookingDetail({
@@ -33,6 +35,7 @@ export default async function AdminBookingDetail({
   const t = await getTranslations("bookingDetail");
   const tsig = await getTranslations("adobeSign");
   const adobeConfigured = isAdobeSignConfigured();
+  const mapsConfigured = isMapsConfigured();
   const tad = await getTranslations("adminDetail");
   const taf = await getTranslations("assignForm");
   const ta = await getTranslations("approverActions");
@@ -244,6 +247,11 @@ export default async function AdminBookingDetail({
           )}
           {booking.estimatedDistance != null && (
             <Field label={t("estimatedDistance")} value={`${booking.estimatedDistance} km`} />
+          )}
+          {mapsConfigured && booking.jobType !== "SMUS" && (
+            <div className="sm:col-span-2">
+              <EstimateDistanceButton bookingId={booking.id} hasDistance={booking.estimatedDistance != null} />
+            </div>
           )}
           {booking.needsOutsourcing && <Field label={t("flag")} value={t("flaggedForOutsourcing")} />}
           {!booking.waitAtDestination && (
@@ -562,7 +570,15 @@ export default async function AdminBookingDetail({
             <CardHeader>
               <CardTitle>{tad("outsourceTitle")}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              {booking.outsourceQuoteUrl && (
+                <Link
+                  href={`/api/files/outsource-quote/${booking.id}`}
+                  className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+                >
+                  {t("downloadQuote")}
+                </Link>
+              )}
               <OutsourceForm bookingId={booking.id} />
             </CardContent>
           </Card>

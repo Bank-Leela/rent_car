@@ -495,6 +495,9 @@ model Booking {
   outsourceVendor    String?
   outsourceCost      Decimal? @db.Decimal(10, 2)
   outsourceReference String?
+  // The uploaded quote document (ใบเสนอราคา) for an outsourced trip.
+  outsourceQuoteUrl      String?
+  outsourceQuoteFilename String?
 
   pdfUrl String?
   // Adobe Acrobat Sign: agreement id, sub-status (OUT_FOR_SIGNATURE / SIGNED /
