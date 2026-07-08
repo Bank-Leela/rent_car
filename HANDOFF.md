@@ -18,6 +18,35 @@ polish. **Test suite: 332 tests across 35 files** (was 255 / 25).
 
 ---
 
+### Session 2026-07-08 — UX improvement pass A–D (audit-driven)
+
+Spec `docs/superpowers/specs/2026-07-08-ux-improvement-pass-design.md` (from a
+6-area feature audit; deferred items listed at its end). Suite now **331 tests**.
+
+- **A Requester** (`32c6b79`): Upcoming shows pending/waitlist sections; new
+  `requesterCompletedEmail` (evaluate CTA = the eval reminder, no cron) +
+  `requesterCancelledEmail` (admin-cancel only); "Book again"
+  (`/requester/new?from=<id>` → `BookingPrefill` via the template-apply path);
+  history date/status filters; **time edits allowed for APPROVED/ASSIGNED —
+  ASSIGNED reverts to APPROVED** (clears car/driver, recomputes rotation
+  stamps, emails admins via `adminTimeChangedEmail`).
+- **B Admin queue** (`4617016`): card fact row (jobType dot/pax/km/co-driver/
+  submitted); URL-persisted filters + sort (`queue-filter-bar`); pending capped
+  100 (+show more); WAITLIST split w/ banner; **1-click "Assign as OT"**
+  (`ot-assign-button` chains approve + reassign); bulk approve/deny
+  (`queue-bulk` context provider around server-rendered cards).
+- **C Kiosk** (`698bf19`): `today-trips-panel` (leave order, state chips,
+  next-within-60-min ring); `kiosk-refresh` (60 s `router.refresh`, visible-tab
+  only); board size pass (`KIOSK_LANE_PX`, 12px labels — admin board
+  untouched); trip start/end toasts echoing recorded km/fuel/toll.
+- **D Roster/fleet** (`3e892b9`): `lib/admin/roster-alerts.ts` (unit-tested:
+  license 60-day window; retirement Thai-BE due/soon); driver-list badges +
+  notes snippet + CSV export; dashboard "Roster alerts" card; fleet editor now
+  edits vehicle **type + capacity** (`updateVehicleSpecAction`) — enter the
+  real fleet's values there (still seed placeholders).
+
+---
+
 ### Session 2026-06-30 — org change + admin driver mgmt + feedback + UI
 
 - **APPROVER role removed — admins handle approvals.** `Role` enum is now
