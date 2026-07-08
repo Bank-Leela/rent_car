@@ -36,8 +36,8 @@ implementation (or where it would go).
 | แอดมิน: เข้าคิว ตรวจปฏิทิน | ✓ | Admin queue + calendar + `dayCapacity` |
 | รถเต็ม/เกินเพดานต่อวัน? | ✓ | Day-cap → WAITLIST at submit; queue shows over-capacity section + OT recommendation (1-click assign, 2026-07-08) |
 | เต็ม → จ้างภายนอก? (รถบัส/สัมมนา) | ✓ | `OUTSOURCED` status + `AdHocVehicle` rows on the board; BUS_OUTSOURCED auto-flags `needsOutsourcing` |
-| จ้างภายนอก: ขอใบเสนอราคา บันทึกค่าใช้จ่าย | ≈ | `AdHocVehicle.cost` records the price; no quote-request workflow/document |
-| แจ้งผู้ขอ | ≈ | Requester sees OUTSOURCED status; **no dedicated outsourced email** |
+| จ้างภายนอก: ขอใบเสนอราคา บันทึกค่าใช้จ่าย | ≈ | `AdHocVehicle.cost` / `outsourceCost` records the price; no quote-request document workflow (left as-is) |
+| แจ้งผู้ขอ | ✓ (`b95baaa`) | `requesterOutsourcedEmail` — bilingual, sent on outsource |
 
 ## Dispatch & drivers
 
@@ -46,14 +46,14 @@ implementation (or where it would go).
 | ระยะทางเกินเกณฑ์? → จัดคนขับ 2 คน ค้างคืน | ✓ | >400 km co-driver rule (`TWO_DRIVER_DISTANCE_KM`), TJW overnight model |
 | ถ้าคนขับไม่ไปต่างจังหวัด | ✓ | Driver mark-off (`DriverUnavailability`) excludes from auto-assign; P'Top reassigns |
 | จัดคิว แบ่งงานเช้า-บ่าย เพื่อ buffer | ✓ | NORMAL cap = one morning + one afternoon; universal 2h gap; solver |
-| จัดรถและคนขับ แสดงชื่อ-เบอร์-ทะเบียน | ≈ | Requester sees driver **name + plate**; **driver phone not shown** to the requester |
-| เลือกรถอะไร / Admin เพิ่มรถในระบบได้ | ≈ | Fleet page edits type/capacity + pairs drivers (2026-07-08); **no "create new vehicle" UI** (cars come from seed/DB) |
+| จัดรถและคนขับ แสดงชื่อ-เบอร์-ทะเบียน | ✓ (`b95baaa`) | Requester detail shows driver + co-driver **name + phone + plate** |
+| เลือกรถอะไร / Admin เพิ่มรถในระบบได้ | ✓ (`b95baaa`) | Fleet page edits type/capacity, pairs drivers, **and adds vehicles** (`createVehicleAction`) |
 | Noti User ด้วยอีเมล | ✓ | `requesterAssignedEmail` |
-| ลาป่วย → ย้ายเป็นรถเวรแทน + อีเมลแจ้ง user | ≈ | Mark-off + duty-reclaim reco exist, but no automatic "move affected trips to duty car + email requester" flow |
+| ลาป่วย → ย้ายเป็นรถเวรแทน + อีเมลแจ้ง user | ✓ (`b95baaa`) | Marking a driver off **releases their upcoming ASSIGNED trips that day** back to APPROVED + emails requesters (`requesterDriverOffEmail`); P'Top re-dispatches (e.g. duty car). Release, not auto-assign, keeps "P'Top decides" |
 | คนขับ: ดูงานวันนี้ บันทึกไมล์เริ่ม | ✓ | Kiosk today panel (2026-07-08) + `StartTripForm` mileage |
-| ยกเลิก → คืนสล็อตว่าง แจ้งแอดมิน | ≈ | Slot/rotation released ✓; queue/bell reflect it, but **no admin email on cancellation** |
-| เวลาเปลี่ยน/เลิกช้า? → แก้เวลา เซ็นกำกับ flag OT | ≈ | Requester time-change ✓ (with out-of-hours reason = the OT flag); driver-side late-finish flow / countersign ✗ |
-| เดินทาง บันทึกไมล์จบและน้ำมัน (บาท/ลิตร/ทางด่วน) | ≈ | End-trip records mileage + fuel ฿ + toll ฿ + expressway; **liters not captured** |
+| ยกเลิก → คืนสล็อตว่าง แจ้งแอดมิน | ✓ (`b95baaa`) | Slot/rotation released ✓; **requester self-cancel of an approved/assigned booking now emails admins** (`adminBookingCancelledEmail`) |
+| เวลาเปลี่ยน/เลิกช้า? → แก้เวลา เซ็นกำกับ flag OT | ≈ | Requester time-change ✓ (out-of-hours reason = the OT flag); driver-side late-finish countersign ✗ (left — needs the recipient-signature feature) |
+| เดินทาง บันทึกไมล์จบและน้ำมัน (บาท/ลิตร/ทางด่วน) | ✓ (`b95baaa`) | End-trip records mileage + fuel **฿ and liters** + toll ฿ + expressway |
 | เปิด 3 account, คนรถใช้ account เดียว สิทธิ์น้อยลง | ✓ | Exactly the current model: requester/admin/**shared driver-station** login |
 | ผู้รับบริการเซ็นยืนยัน (จบงาน) | ✗ | No recipient signature at trip end — post-trip star evaluation instead |
 | ระบบปริ้น form ได้ | ✓ | Booking-request PDF |
@@ -70,16 +70,24 @@ implementation (or where it would go).
 
 ## Score
 
-~40 diagram elements: **24 ✓ · 11 ≈ · 5 ✗**. Core flow (request → lead time →
-approve → capacity → dispatch → record trip → evaluate → report) is fully
-implemented and mostly richer than the diagram (triage, fairness solver,
-no-double-book DB constraint, kiosk).
+**Original:** ~40 elements → 24 ✓ · 11 ≈ · 5 ✗.
+**After the partial-fix pass (`b95baaa`, 2026-07-08):** **30 ✓ · 5 ≈ · 5 ✗** —
+6 partials closed (driver phone, outsourced email, admin-cancel email,
+add-vehicle UI, fuel liters, sick-leave release).
 
-### Real gaps (not covered by a deliberate past decision)
-1. **Recipient sign-off at trip end** (ผู้รับบริการเซ็นยืนยัน).
-2. **LESS document round-trip** (export → signed in LESS → mark in system) — PDF exists, integration/state doesn't.
-3. **Sick-leave substitution flow** (auto move to duty car + email affected requesters).
-4. Driver **phone** shown to requester; **fuel liters** field; admin email on cancellation; outsourced-notify email; "add vehicle" UI; clerk-authorization/บันทึกข้อความ + ศูนย์/หน่วย levels.
+### Remaining ≈ (deliberately left)
+- Auto distance from Google Maps (no-API-cost decision).
+- LESS export/sign round-trip (PDF + signature exist; no LESS integration).
+- Outsource quote-request document (cost is recorded; no quote workflow).
+- Driver-side late-finish countersign (part of the recipient-signature ✗ below).
+- "ขอรถเสริม" literal button (waitlist + OT + outsource cover it).
+
+### Remaining ✗ (need a decision / bigger build)
+1. **Recipient sign-off at trip end** (ผู้รับบริการเซ็นยืนยัน) — app uses star eval.
+2. **LESS document round-trip.**
+3. **Clerk-authorization records (บันทึกข้อความ) + ศูนย์/หน่วย org levels** — departments only.
+4. **1/2/3-approver chain by zone/time** — conflicts with your APPROVER-removal decision.
+5. **Grab-style saved places** — you removed this on purpose (templates kept).
 
 ### Conflicts with your own standing decisions (diagram older than the decision?)
 - **1/2/3-approver chain by zone/time** vs. "APPROVER role removed — admins approve" (your 2026-06-30 call).
