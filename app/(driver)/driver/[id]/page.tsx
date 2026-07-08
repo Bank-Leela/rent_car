@@ -47,6 +47,12 @@ export default async function DriverBookingDetail({
 
   const tripStarted = !!booking.trip;
   const tripCompleted = !!booking.trip?.endedAt;
+  // Late finish (เลิกช้า → flag OT): actual end past the scheduled return time.
+  // Derived — no stored flag needed. Rounded up to the minute.
+  const overtimeMin =
+    booking.trip?.endedAt && booking.trip.endedAt > booking.endAt
+      ? Math.ceil((booking.trip.endedAt.getTime() - booking.endAt.getTime()) / 60000)
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -168,6 +174,12 @@ export default async function DriverBookingDetail({
             )}
             {booking.trip.tollwayCost != null && (
               <Field label={t("completedTollway")} value={`฿${booking.trip.tollwayCost.toString()}`} />
+            )}
+            {overtimeMin > 0 && (
+              <Field
+                label={t("completedOvertime")}
+                value={t("overtimeValue", { min: overtimeMin, at: format(booking.endAt, "HH:mm") })}
+              />
             )}
           </CardContent>
         </Card>

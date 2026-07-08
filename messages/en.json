@@ -628,7 +628,11 @@
     "cancelTitle": "Cancel",
     "changeTimeTitle": "Change trip time",
     "changeTimeAssignedWarning": "This trip already has a vehicle and driver. Changing the time releases them — the trip returns to the queue and will be re-dispatched for the new time.",
-    "rebook": "Book again"
+    "rebook": "Book again",
+    "outsourceTitle": "Outsourced vehicle",
+    "outsourceVendor": "Vendor",
+    "outsourceCost": "Cost",
+    "outsourceReference": "Reference / quote no."
   },
   "adminDetail": {
     "backToQueue": "Back to queue",
@@ -923,7 +927,9 @@
     "primary": "Primary",
     "secondary": "Co-driver",
     "you": "You",
-    "completedFuelLiters": "Fuel (liters)"
+    "completedFuelLiters": "Fuel (liters)",
+    "completedOvertime": "Overtime",
+    "overtimeValue": "{min} min past {at}"
   },
   "approverActions": {
     "backToInbox": "Back to inbox",
@@ -1159,7 +1165,9 @@
     "viewOnly": "View only.",
     "error_bookingNotFound": "That trip no longer exists.",
     "error_forbidden": "You can't view this trip.",
-    "fuelLiters": "Fuel (liters)"
+    "fuelLiters": "Fuel (liters)",
+    "overtime": "Overtime",
+    "overtimeValue": "{min} min"
   },
   "toast": {
     "genericError": "Something went wrong. Please try again.",

@@ -37,6 +37,8 @@ export type StationTripDetail = {
     driverNotes: string | null;
     startedLabel: string;
     endedLabel: string | null;
+    // Minutes past the scheduled return time (เลิกช้า → OT); 0 if on time.
+    overtimeMin: number;
   } | null;
 };
 
@@ -118,6 +120,10 @@ export async function getStationTripDetailAction(bookingId: string): Promise<Sta
             driverNotes: t.driverNotes,
             startedLabel: format(t.startedAt, "d MMM HH:mm", { locale: dfLocale }),
             endedLabel: t.endedAt ? format(t.endedAt, "d MMM HH:mm", { locale: dfLocale }) : null,
+            overtimeMin:
+              t.endedAt && t.endedAt > booking.endAt
+                ? Math.ceil((t.endedAt.getTime() - booking.endAt.getTime()) / 60000)
+                : 0,
           }
         : null,
     },

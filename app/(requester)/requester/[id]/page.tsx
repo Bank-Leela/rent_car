@@ -218,6 +218,23 @@ export default async function RequesterBookingDetail({
         </Card>
       )}
 
+      {booking.status === "OUTSOURCED" && booking.outsourceVendor && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{tr("outsourceTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
+            <Field label={tr("outsourceVendor")} value={booking.outsourceVendor} />
+            {booking.outsourceCost != null && (
+              <Field label={tr("outsourceCost")} value={`฿${booking.outsourceCost.toString()}`} />
+            )}
+            {booking.outsourceReference && (
+              <Field label={tr("outsourceReference")} value={booking.outsourceReference} colSpan />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {canEditTime && (
         <Card>
           <CardHeader>

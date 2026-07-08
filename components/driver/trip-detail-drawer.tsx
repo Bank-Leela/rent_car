@@ -132,6 +132,9 @@ function DrawerBody({ bookingId }: { bookingId: string }) {
               <Field label={t("fuelLiters")} value={detail.trip.fuelLiters != null ? `${detail.trip.fuelLiters.toFixed(2)} L` : "—"} />
               <Field label={t("toll")} value={detail.trip.tollwayCost != null ? `฿${detail.trip.tollwayCost.toFixed(2)}` : "—"} />
               <Field label={t("expressway")} value={detail.trip.usedExpressway ? t("yes") : t("no")} />
+              {detail.trip.overtimeMin > 0 && (
+                <Field label={t("overtime")} value={t("overtimeValue", { min: detail.trip.overtimeMin })} />
+              )}
             </dl>
             {detail.trip.driverNotes && <p className="mt-2 text-sm text-muted-foreground">{detail.trip.driverNotes}</p>}
             <p className="mt-2 text-xs text-muted-foreground">

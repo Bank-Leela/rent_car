@@ -628,7 +628,11 @@
     "cancelTitle": "ยกเลิก",
     "changeTimeTitle": "แก้ไขเวลาเดินทาง",
     "changeTimeAssignedWarning": "งานนี้จัดรถแล้ว การเปลี่ยนเวลาจะปลดรถ/คนขับออก และงานจะกลับไปรอจัดรถใหม่ตามเวลาใหม่",
-    "rebook": "จองซ้ำ"
+    "rebook": "จองซ้ำ",
+    "outsourceTitle": "จ้างรถภายนอก",
+    "outsourceVendor": "ผู้ให้บริการ",
+    "outsourceCost": "ค่าใช้จ่าย",
+    "outsourceReference": "เลขที่อ้างอิง/ใบเสนอราคา"
   },
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
@@ -923,7 +927,9 @@
     "primary": "คนขับหลัก",
     "secondary": "คนขับผู้ช่วย",
     "you": "คุณ",
-    "completedFuelLiters": "น้ำมัน (ลิตร)"
+    "completedFuelLiters": "น้ำมัน (ลิตร)",
+    "completedOvertime": "เกินเวลา (OT)",
+    "overtimeValue": "{min} นาที (เลยกำหนด {at})"
   },
   "approverActions": {
     "backToInbox": "กลับไปกล่องจดหมาย",
@@ -1159,7 +1165,9 @@
     "viewOnly": "ดูอย่างเดียว",
     "error_bookingNotFound": "ไม่พบทริปนี้แล้ว",
     "error_forbidden": "คุณไม่มีสิทธิ์ดูทริปนี้",
-    "fuelLiters": "น้ำมัน (ลิตร)"
+    "fuelLiters": "น้ำมัน (ลิตร)",
+    "overtime": "เกินเวลา (OT)",
+    "overtimeValue": "{min} นาที"
   },
   "toast": {
     "genericError": "เกิดข้อผิดพลาด กรุณาลองใหม่",

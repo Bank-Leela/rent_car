@@ -36,7 +36,7 @@ implementation (or where it would go).
 | แอดมิน: เข้าคิว ตรวจปฏิทิน | ✓ | Admin queue + calendar + `dayCapacity` |
 | รถเต็ม/เกินเพดานต่อวัน? | ✓ | Day-cap → WAITLIST at submit; queue shows over-capacity section + OT recommendation (1-click assign, 2026-07-08) |
 | เต็ม → จ้างภายนอก? (รถบัส/สัมมนา) | ✓ | `OUTSOURCED` status + `AdHocVehicle` rows on the board; BUS_OUTSOURCED auto-flags `needsOutsourcing` |
-| จ้างภายนอก: ขอใบเสนอราคา บันทึกค่าใช้จ่าย | ≈ | `AdHocVehicle.cost` / `outsourceCost` records the price; no quote-request document workflow (left as-is) |
+| จ้างภายนอก: ขอใบเสนอราคา บันทึกค่าใช้จ่าย | ✓ (`f_partial2`) | Vendor / cost / quote-reference recorded on the outsource form **and now shown on the requester detail** (was admin-only); a separate quote *document* upload is the only piece left, gated on the ✗ recipient-signature work |
 | แจ้งผู้ขอ | ✓ (`b95baaa`) | `requesterOutsourcedEmail` — bilingual, sent on outsource |
 
 ## Dispatch & drivers
@@ -52,7 +52,7 @@ implementation (or where it would go).
 | ลาป่วย → ย้ายเป็นรถเวรแทน + อีเมลแจ้ง user | ✓ (`b95baaa`) | Marking a driver off **releases their upcoming ASSIGNED trips that day** back to APPROVED + emails requesters (`requesterDriverOffEmail`); P'Top re-dispatches (e.g. duty car). Release, not auto-assign, keeps "P'Top decides" |
 | คนขับ: ดูงานวันนี้ บันทึกไมล์เริ่ม | ✓ | Kiosk today panel (2026-07-08) + `StartTripForm` mileage |
 | ยกเลิก → คืนสล็อตว่าง แจ้งแอดมิน | ✓ (`b95baaa`) | Slot/rotation released ✓; **requester self-cancel of an approved/assigned booking now emails admins** (`adminBookingCancelledEmail`) |
-| เวลาเปลี่ยน/เลิกช้า? → แก้เวลา เซ็นกำกับ flag OT | ≈ | Requester time-change ✓ (out-of-hours reason = the OT flag); driver-side late-finish countersign ✗ (left — needs the recipient-signature feature) |
+| เวลาเปลี่ยน/เลิกช้า? → แก้เวลา เซ็นกำกับ flag OT | ✓ (`f_partial2`) | Requester time-change ✓; **late finish now flagged as overtime** (actual end − scheduled end, shown on driver detail + kiosk drawer). Recipient *countersign* is still the ✗ recipient-signature item, tracked separately |
 | เดินทาง บันทึกไมล์จบและน้ำมัน (บาท/ลิตร/ทางด่วน) | ✓ (`b95baaa`) | End-trip records mileage + fuel **฿ and liters** + toll ฿ + expressway |
 | เปิด 3 account, คนรถใช้ account เดียว สิทธิ์น้อยลง | ✓ | Exactly the current model: requester/admin/**shared driver-station** login |
 | ผู้รับบริการเซ็นยืนยัน (จบงาน) | ✗ | No recipient signature at trip end — post-trip star evaluation instead |
@@ -71,16 +71,14 @@ implementation (or where it would go).
 ## Score
 
 **Original:** ~40 elements → 24 ✓ · 11 ≈ · 5 ✗.
-**After the partial-fix pass (`b95baaa`, 2026-07-08):** **30 ✓ · 5 ≈ · 5 ✗** —
-6 partials closed (driver phone, outsourced email, admin-cancel email,
-add-vehicle UI, fuel liters, sick-leave release).
+**Partial-fix pass 1 (`b95baaa`):** 6 closed → 30 ✓ · 5 ≈ · 5 ✗.
+**Partial-fix pass 2 (2026-07-08):** outsource details on requester detail +
+late-finish overtime flag → **32 ✓ · 3 ≈ · 5 ✗**.
 
-### Remaining ≈ (deliberately left)
-- Auto distance from Google Maps (no-API-cost decision).
-- LESS export/sign round-trip (PDF + signature exist; no LESS integration).
-- Outsource quote-request document (cost is recorded; no quote workflow).
-- Driver-side late-finish countersign (part of the recipient-signature ✗ below).
-- "ขอรถเสริม" literal button (waitlist + OT + outsource cover it).
+### Remaining ≈ — blocked on an external system / cost decision (not buildable in-app)
+- **Auto distance from Google Maps** — needs a paid Maps Distance API key + billing opt-in. Conflicts with the no-API-cost decision. *Give me a key + say "accept the cost" and it's ~1 file.*
+- **LESS export/sign round-trip** — needs the LESS system's API/credentials. The PDF + authority signature already exist; only the LESS handshake is missing. *Needs LESS access from IT.*
+- **Outsource quote *document* upload** — cost/vendor/ref are recorded + shown; a file-attachment for the quote itself folds into the recipient-signature/attachment work.
 
 ### Remaining ✗ (need a decision / bigger build)
 1. **Recipient sign-off at trip end** (ผู้รับบริการเซ็นยืนยัน) — app uses star eval.
