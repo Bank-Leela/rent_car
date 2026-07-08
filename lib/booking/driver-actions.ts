@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { isStationEmail } from "@/lib/auth/station";
 import { logTransition } from "@/lib/booking/audit";
+import { sendEmail } from "@/lib/email/client";
+import { requesterCompletedEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const startSchema = z.object({
@@ -180,6 +182,26 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
       tx,
     });
   });
+
+  // Tell the requester their trip is done (the email's evaluate CTA doubles as
+  // the evaluation reminder). Failure never blocks the completion itself.
+  try {
+    const detailed = await prisma.booking.findUniqueOrThrow({
+      where: { id: bookingId },
+      include: {
+        requester: true,
+        department: true,
+        vehicle: true,
+        primaryDriver: { include: { user: true } },
+        secondaryDriver: { include: { user: true } },
+      },
+    });
+    if (detailed.requester.email) {
+      await sendEmail({ to: [detailed.requester.email], ...requesterCompletedEmail(detailed) });
+    }
+  } catch (err) {
+    console.error("[endTrip] requester notify failed", err);
+  }
 
   revalidatePath("/driver");
   revalidatePath(`/driver/${bookingId}`);

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireUser, requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
+import { requesterCancelledEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
 import { rollbackRotationStampsForBooking } from "@/lib/booking/batch-actions";
 
@@ -63,6 +64,28 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
   // CR-07 Update 10: roll back the rotation stamp so the driver keeps
   // their slot for the next batch.
   await rollbackRotationStampsForBooking(bookingId);
+
+  // Someone other than the requester (an admin) cancelled → tell the requester.
+  // Self-cancellation sends nothing. Failure never blocks the cancel.
+  if (booking.requesterId !== userId) {
+    try {
+      const detailed = await prisma.booking.findUniqueOrThrow({
+        where: { id: bookingId },
+        include: {
+          requester: true,
+          department: true,
+          vehicle: true,
+          primaryDriver: { include: { user: true } },
+          secondaryDriver: { include: { user: true } },
+        },
+      });
+      if (detailed.requester.email) {
+        await sendEmail({ to: [detailed.requester.email], ...requesterCancelledEmail(detailed, reason) });
+      }
+    } catch (err) {
+      console.error("[cancel] requester notify failed", err);
+    }
+  }
 
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);

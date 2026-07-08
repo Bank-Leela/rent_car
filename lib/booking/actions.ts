@@ -30,9 +30,11 @@ import {
 import { sendEmail } from "@/lib/email/client";
 import {
   adminNewBookingEmail,
+  adminTimeChangedEmail,
   requesterAssignedEmail,
   requesterDeniedEmail,
 } from "@/lib/email/templates";
+import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
 import { writeBookingAttachment } from "@/lib/storage";
 
@@ -478,9 +480,15 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
   if (booking.requesterId !== userId) {
     return { ok: false, error: te("notYourBooking") };
   }
-  // Time edits are only allowed while the request is still pending approval.
-  if (booking.status !== "PENDING_APPROVAL") {
+  // Time edits are allowed until the trip actually runs. PENDING/APPROVED are
+  // harmless (nothing dispatched yet). ASSIGNED is allowed too, but reverts the
+  // booking to the APPROVED queue below — P'Top decides every assignment, so a
+  // changed time must never keep a stale driver/vehicle.
+  if (!["PENDING_APPROVAL", "APPROVED", "ASSIGNED"].includes(booking.status)) {
     return { ok: false, error: te("cannotEditInStatus", { status: ts(booking.status) }) };
+  }
+  if (booking.startAt.getTime() <= Date.now()) {
+    return { ok: false, field: "startAt", error: te("cannotEditInStatus", { status: ts(booking.status) }) };
   }
 
   const lead = checkLeadTime({
@@ -507,16 +515,39 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
   }
   const outOfHoursReason = inHours ? null : submittedReason!;
 
+  // An ASSIGNED trip loses its dispatch: new times may not suit the driver or
+  // may overlap their other work, so the assignment is released and the trip
+  // returns to the APPROVED queue for P'Top to re-place.
+  const wasAssigned = booking.status === "ASSIGNED";
+  const freedDrivers = wasAssigned
+    ? [booking.primaryDriverId, booking.secondaryDriverId].filter((id): id is string => !!id)
+    : [];
+
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
-      data: { startAt, endAt, outOfHoursReason, timeBucket: bucketFromStart(startAt) },
+      data: {
+        startAt,
+        endAt,
+        outOfHoursReason,
+        timeBucket: bucketFromStart(startAt),
+        ...(wasAssigned
+          ? {
+              vehicleId: null,
+              primaryDriverId: null,
+              secondaryDriverId: null,
+              status: "APPROVED" as const,
+              driverScheduleStatus: "UNCLAIMED" as const,
+              decidedAt: null,
+            }
+          : {}),
+      },
     });
     await logTransition({
       bookingId,
       actorUserId: userId,
       fromStatus: booking.status,
-      toStatus: booking.status,
+      toStatus: wasAssigned ? "APPROVED" : booking.status,
       action: "BOOKING_TIME_UPDATED",
       metadata: {
         previousStartAt: booking.startAt.toISOString(),
@@ -524,13 +555,40 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
         newStartAt: startAt.toISOString(),
         newEndAt: endAt.toISOString(),
         outOfHoursReason: outOfHoursReason ?? null,
+        ...(wasAssigned ? { assignmentReleased: true, freedDrivers } : {}),
       },
       tx,
     });
   });
 
+  // Freed drivers' rotation stamps recompute from their remaining trips (same
+  // rollback the cancel/unassign paths use). Runs on the ids captured BEFORE
+  // the clear — the booking no longer references them.
+  for (const driverId of freedDrivers) {
+    await recomputeRotationStamp(driverId, booking.jobType);
+  }
+
+  // Heads-up so P'Top re-dispatches at the new time. Failure never blocks.
+  if (wasAssigned) {
+    try {
+      const detailed = await prisma.booking.findUniqueOrThrow({
+        where: { id: bookingId },
+        include: bookingDetailInclude,
+      });
+      const admins = await prisma.user.findMany({
+        where: { roles: { some: { role: "ADMIN" } }, isActive: true },
+        select: { email: true },
+      });
+      const to = admins.map((a) => a.email).filter((e): e is string => !!e);
+      if (to.length > 0) await sendEmail({ to, ...adminTimeChangedEmail(detailed) });
+    } catch (err) {
+      console.error("[timeChange] admin notify failed", err);
+    }
+  }
+
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
+  revalidatePath("/admin/schedule");
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);
   return { ok: true };

@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { RequesterBookingList } from "@/components/requester-booking-list";
 
 type Translator = Awaited<ReturnType<typeof getTranslations<"requesterUpcoming">>>;
 type Trip = Prisma.BookingGetPayload<{
@@ -26,34 +27,77 @@ export default async function RequesterUpcoming() {
   const windowStart = startOfDay(now);
   const windowEnd = endOfDay(addDays(now, 1)); // through end of tomorrow
 
-  const trips = await prisma.booking.findMany({
-    where: {
-      requesterId: session.user.id,
-      primaryDriverId: { not: null },
-      status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
-      startAt: { gte: windowStart, lte: windowEnd },
-    },
-    orderBy: { startAt: "asc" },
-    include: {
-      vehicle: true,
-      primaryDriver: { include: { user: true } },
-      secondaryDriver: { include: { user: true } },
-    },
-  });
+  // Confirmed today/tomorrow (driver assigned) + the rest of the pipeline:
+  // requests still awaiting approval and over-capacity waitlist bookings used to
+  // be invisible here, leaving the requester unsure whether a submission was
+  // processing or stuck. Now each state gets its own section.
+  const [trips, pending, waitlisted] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        requesterId: session.user.id,
+        primaryDriverId: { not: null },
+        status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
+        startAt: { gte: windowStart, lte: windowEnd },
+      },
+      orderBy: { startAt: "asc" },
+      include: {
+        vehicle: true,
+        primaryDriver: { include: { user: true } },
+        secondaryDriver: { include: { user: true } },
+      },
+    }),
+    prisma.booking.findMany({
+      where: {
+        requesterId: session.user.id,
+        status: "PENDING_APPROVAL",
+        startAt: { gte: windowStart },
+      },
+      orderBy: { startAt: "asc" },
+      include: { vehicle: true },
+    }),
+    prisma.booking.findMany({
+      where: {
+        requesterId: session.user.id,
+        status: "WAITLIST",
+        startAt: { gte: windowStart },
+      },
+      orderBy: { startAt: "asc" },
+      include: { vehicle: true },
+    }),
+  ]);
 
   const today = trips.filter((b) => isSameDay(b.startAt, now));
   const tomorrow = trips.filter((b) => !isSameDay(b.startAt, now));
+  const nothing = trips.length === 0 && pending.length === 0 && waitlisted.length === 0;
 
   return (
     <div className="space-y-8">
       <PageHeader title={t("title")} description={t("description")} />
 
-      {trips.length === 0 ? (
+      {nothing ? (
         <EmptyState icon={CalendarCheck} title={t("emptyTitle")} description={t("emptyDescription")} />
       ) : (
         <div className="space-y-8">
           {today.length > 0 && <DaySection label={t("today")} trips={today} t={t} />}
           {tomorrow.length > 0 && <DaySection label={t("tomorrow")} trips={tomorrow} t={t} />}
+          {pending.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("sectionPending")}
+              </h2>
+              <p className="text-sm text-muted-foreground">{t("sectionPendingHint")}</p>
+              <RequesterBookingList bookings={pending} />
+            </section>
+          )}
+          {waitlisted.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                {t("sectionWaitlist")}
+              </h2>
+              <p className="text-sm text-muted-foreground">{t("sectionWaitlistHint")}</p>
+              <RequesterBookingList bookings={waitlisted} />
+            </section>
+          )}
         </div>
       )}
     </div>

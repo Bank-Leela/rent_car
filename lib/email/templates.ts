@@ -159,6 +159,62 @@ export function requesterDeniedEmail(b: BookingDetailed, reason: string) {
   };
 }
 
+// Sent when the trip completes. The evaluate CTA doubles as the evaluation
+// reminder (an unevaluated COMPLETED booking blocks the requester's next
+// booking) — there is no job scheduler, so this immediate email is the nudge.
+export function requesterCompletedEmail(b: BookingDetailed) {
+  const subject = `เสร็จสิ้น / Completed · ${b.jobNumber}`;
+  const introTh = `การเดินทางของคุณเสร็จสิ้นแล้ว กรุณาประเมินการเดินทาง (จำเป็นก่อนจองครั้งถัดไป)`;
+  const introEn = `Your trip is complete. Please evaluate it — required before your next booking.`;
+  const url = viewUrl(`/requester/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n${introEn}\n\n${bookingFactsText(b)}${ctaButtonText(url, "ประเมินการเดินทาง", "Evaluate this trip")}`,
+    html: wrapHtml(
+      `${introTh}<br/>${introEn}`,
+      bookingFactsHtml(b),
+      ctaButtonHtml(url, "ประเมินการเดินทาง", "Evaluate this trip"),
+    ),
+  };
+}
+
+// Sent to the requester when someone ELSE (an admin) cancels their booking —
+// a requester cancelling their own booking gets no self-email.
+export function requesterCancelledEmail(b: BookingDetailed, reason: string) {
+  const subject = `ยกเลิกแล้ว / Cancelled · ${b.jobNumber}`;
+  const introTh = `การจองของคุณถูกยกเลิกโดยเจ้าหน้าที่ เหตุผล: ${reason}`;
+  const introEn = `Your booking was cancelled by staff. Reason: ${reason}`;
+  const url = viewUrl(`/requester/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n${introEn}\n\n${bookingFactsText(b)}${ctaButtonText(url, "ดูรายละเอียดการจอง", "View booking")}`,
+    html: wrapHtml(
+      `${introTh}<br/>${introEn}`,
+      bookingFactsHtml(b),
+      ctaButtonHtml(url, "ดูรายละเอียดการจอง", "View booking"),
+    ),
+  };
+}
+
+// Admin heads-up when a requester changes the time of an already-dispatched
+// (ASSIGNED) trip: the assignment was cleared and the trip is back in the
+// APPROVED queue for re-dispatch at the new time.
+export function adminTimeChangedEmail(b: BookingDetailed) {
+  const subject = `[เปลี่ยนเวลา / Time changed ${b.jobNumber}] ต้องจัดรถใหม่ / needs re-dispatch`;
+  const introTh = `ผู้ขอเปลี่ยนเวลาเดินทางของงานที่จัดรถแล้ว ระบบได้ปลดรถ/คนขับออก และย้ายงานกลับคิวรอจัดรถ`;
+  const introEn = `The requester changed the time of an assigned trip. Its vehicle/driver were released and it is back in the assignment queue.`;
+  const url = viewUrl(`/admin/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n${introEn}\n\n${bookingFactsText(b)}${ctaButtonText(url, "จัดรถใหม่", "Re-dispatch")}`,
+    html: wrapHtml(
+      `${introTh}<br/>${introEn}`,
+      bookingFactsHtml(b),
+      ctaButtonHtml(url, "จัดรถใหม่", "Re-dispatch"),
+    ),
+  };
+}
+
 export function requesterApprovedEmail(b: BookingDetailed) {
   const subject = `อนุมัติแล้ว / Approved · ${b.jobNumber}`;
   const introTh = `การจองของคุณได้รับการอนุมัติจากหัวหน้าภาควิชาแล้ว · ผู้ดูแลระบบจะจัดรถให้ในขั้นตอนถัดไป`;

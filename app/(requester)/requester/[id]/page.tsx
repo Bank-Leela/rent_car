@@ -47,7 +47,12 @@ export default async function RequesterBookingDetail({
   });
   if (!booking || booking.requesterId !== session.user.id) notFound();
   const canCancel = !["COMPLETED", "CANCELLED", "DENIED"].includes(booking.status);
-  const canEditTime = booking.status === "PENDING_APPROVAL";
+  // Times are editable until the trip runs. Editing an ASSIGNED trip releases
+  // its vehicle/driver back to the queue (see updateBookingTimeAction) — the
+  // warning below tells the requester before they commit.
+  const canEditTime =
+    ["PENDING_APPROVAL", "APPROVED", "ASSIGNED"].includes(booking.status) &&
+    booking.startAt > new Date();
   // CR-06 follow-up: legacy COMPLETED bookings predate the completeTripAction
   // flow and may have no Trip row. Allow evaluation whenever status=COMPLETED
   // and no Evaluation exists yet; the action will lazy-create the Trip.
@@ -65,12 +70,22 @@ export default async function RequesterBookingDetail({
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{booking.purpose}</h1>
         </div>
+        <div className="flex shrink-0 items-center gap-2">
+        {booking.status === "COMPLETED" && (
+          <Link
+            href={`/requester/new?from=${booking.id}`}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            {tr("rebook")}
+          </Link>
+        )}
         <Link
           href="/requester"
           className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
         >
           {tc("back")}
         </Link>
+        </div>
       </div>
 
       <Card>
@@ -209,6 +224,11 @@ export default async function RequesterBookingDetail({
             <CardTitle>{tr("changeTimeTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
+            {booking.status === "ASSIGNED" && (
+              <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
+                {tr("changeTimeAssignedWarning")}
+              </p>
+            )}
             <TimeChangeForm
               bookingId={booking.id}
               startAt={booking.startAt}

@@ -65,6 +65,35 @@ export type BookingFormDepartment = {
   nameTh: string;
 };
 
+// The trip fields a form pre-fill carries — the exact set applyFields writes.
+// Both saved templates and "book again" (a past booking mapped to this shape)
+// go through the same path; dates/recurrence are always left for the requester.
+export type BookingPrefill = Pick<
+  TripTemplate,
+  | "purpose"
+  | "destination"
+  | "googleMapsUrl"
+  | "pickupLocation"
+  | "pickupReturnTime"
+  | "waitingLocation"
+  | "ajarnName"
+  | "ajarnPhone"
+  | "ajarnEmail"
+  | "coordinatorName"
+  | "coordinatorPhone"
+  | "maleCount"
+  | "femaleCount"
+  | "passengerNotes"
+  | "passengerCount"
+  | "travelWithinChula"
+  | "outOfProvince"
+  | "isEmergency"
+  | "returnTrip"
+  | "waitAtDestination"
+  | "preferredVehicleType"
+  | "needsOutsourcing"
+>;
+
 export function BookingForm({
   departments,
   defaultDepartmentId,
@@ -72,6 +101,8 @@ export function BookingForm({
   defaultAjarnPhone,
   defaultAjarnEmail,
   templates,
+  prefill,
+  prefillLabel,
   locale,
 }: {
   departments: BookingFormDepartment[];
@@ -82,6 +113,10 @@ export function BookingForm({
   defaultAjarnPhone: string;
   defaultAjarnEmail: string;
   templates: TripTemplate[];
+  // "Book again": trip fields of a past booking, applied once on mount.
+  prefill?: BookingPrefill | null;
+  // Shown in the applied-notice (the source booking's job number).
+  prefillLabel?: string;
   locale: string;
 }) {
   const t = useTranslations("bookingForm");
@@ -153,10 +188,11 @@ export function BookingForm({
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [templateBusy, startTemplateTransition] = useTransition();
 
-  // Fill the form from a saved template — everything except the dates, which
-  // the requester still picks. Uncontrolled inputs are set on the DOM; the few
-  // controlled fields go through their setters.
-  const applyTemplate = (tpl: TripTemplate) => {
+  // Fill the form's trip fields — everything except the dates, which the
+  // requester still picks. Uncontrolled inputs are set on the DOM; the few
+  // controlled fields go through their setters. Shared by saved templates and
+  // the "book again" prefill.
+  const applyFields = (tpl: BookingPrefill) => {
     const set = (id: string, v: string | number | null) => {
       const el = document.getElementById(id) as
         | HTMLInputElement
@@ -190,9 +226,24 @@ export function BookingForm({
     setWaitAtDestination(tpl.waitAtDestination);
     setPreferredVehicleType(tpl.preferredVehicleType);
     setNeedsOutsourcing(tpl.needsOutsourcing);
+  };
+
+  const applyTemplate = (tpl: TripTemplate) => {
+    applyFields(tpl);
     setActiveTemplateId(tpl.id);
     setTemplateMsg(t("templateApplied", { name: tpl.name }));
   };
+
+  // "Book again": apply the source booking's trip fields once on mount. Runs
+  // after first render so the uncontrolled inputs exist in the DOM.
+  const prefillApplied = useRef(false);
+  useEffect(() => {
+    if (!prefill || prefillApplied.current) return;
+    prefillApplied.current = true;
+    applyFields(prefill);
+    setTemplateMsg(t("rebookApplied", { job: prefillLabel ?? "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only by design
+  }, []);
 
   const saveTemplate = () => {
     const form = formRef.current;

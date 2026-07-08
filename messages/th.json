@@ -6,7 +6,7 @@
     "invalidInput": "ข้อมูลไม่ถูกต้อง",
     "bookingNotFound": "ไม่พบการจอง",
     "tripNotFound": "ไม่พบทริป",
-    "notYourTrip": "ไม่ใช่ทริปของคุณ",
+    "notYourTrip": "งานนี้ไม่ได้มอบหมายให้คุณ",
     "cannotEvaluateInStatus": "ไม่สามารถประเมินการจองในสถานะ {status} ได้",
     "notYourBooking": "คุณยกเลิกได้เฉพาะการจองของตนเองเท่านั้น",
     "alreadyEvaluated": "ประเมินไปแล้ว",
@@ -39,7 +39,6 @@
     "endTimeRequiredOneWay": "การจองแบบเที่ยวเดียว ต้องกำหนดเวลาสิ้นสุดก่อนอนุมัติ",
     "cannotEditInStatus": "ไม่สามารถแก้ไขการจองในสถานะนี้ได้ ({status})",
     "notADriver": "บัญชีของคุณไม่ใช่พนักงานขับรถที่ใช้งานอยู่",
-    "notYourTrip": "งานนี้ไม่ได้มอบหมายให้คุณ",
     "cannotDeclineInStatus": "ไม่สามารถปฏิเสธงานที่สถานะ {status} ได้",
     "cannotClaimInStatus": "ไม่สามารถรับงานในสถานะนี้ได้ ({status})",
     "claimRoleTaken": "พนักงานขับรถคนอื่นรับตำแหน่งนี้ไปแล้ว",
@@ -214,7 +213,11 @@
     "vehicle": "รถ",
     "pickup": "จุดรับ",
     "passengers": "ผู้โดยสาร {count} คน",
-    "viewDetail": "ดูรายละเอียด"
+    "viewDetail": "ดูรายละเอียด",
+    "sectionPending": "รออนุมัติ",
+    "sectionPendingHint": "คำขอที่ส่งแล้วและกำลังรอหัวหน้าอนุมัติ",
+    "sectionWaitlist": "รายการรอคิว (เกินจำนวนรถ)",
+    "sectionWaitlistHint": "วันดังกล่าวรถเต็ม เจ้าหน้าที่กำลังหาช่องจัดรถให้ (เช่น นอกเวลา)"
   },
   "status": {
     "DRAFT": "ฉบับร่าง",
@@ -580,7 +583,9 @@
     "tripEvaluation": "ประเมินการเดินทาง",
     "evaluationSubmittedNote": "ขอบคุณ — คุณได้ประเมินทริปนี้แล้ว ฟีดแบ็กถูกส่งให้ฝ่ายยานยนต์เรียบร้อย",
     "cancelTitle": "ยกเลิก",
-    "changeTimeTitle": "แก้ไขเวลาเดินทาง"
+    "changeTimeTitle": "แก้ไขเวลาเดินทาง",
+    "changeTimeAssignedWarning": "งานนี้จัดรถแล้ว การเปลี่ยนเวลาจะปลดรถ/คนขับออก และงานจะกลับไปรอจัดรถใหม่ตามเวลาใหม่",
+    "rebook": "จองซ้ำ"
   },
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",
@@ -1044,7 +1049,8 @@
       "fri": "ศ.",
       "sat": "ส.",
       "sun": "อา."
-    }
+    },
+    "rebookApplied": "กรอกข้อมูลจากงาน {job} แล้ว — เลือกวันเวลาใหม่"
   },
   "driver": {
     "todayHeading": "วันนี้",
@@ -1108,5 +1114,13 @@
   "listSearch": {
     "placeholder": "ค้นหา…",
     "noMatches": "ไม่พบรายการ"
+  },
+  "historyFilters": {
+    "from": "ตั้งแต่",
+    "to": "ถึง",
+    "status_COMPLETED": "เสร็จสิ้น",
+    "status_DENIED": "ไม่อนุมัติ",
+    "status_CANCELLED": "ยกเลิก",
+    "clear": "ล้างตัวกรอง"
   }
 }

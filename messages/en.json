@@ -6,7 +6,7 @@
     "invalidInput": "Invalid input.",
     "bookingNotFound": "Booking not found.",
     "tripNotFound": "Trip not found.",
-    "notYourTrip": "Not your trip.",
+    "notYourTrip": "This trip isn't assigned to you.",
     "cannotEvaluateInStatus": "Cannot evaluate a booking in status {status}.",
     "notYourBooking": "You can only cancel your own bookings.",
     "alreadyEvaluated": "Already evaluated.",
@@ -39,7 +39,6 @@
     "endTimeRequiredOneWay": "One-way bookings need an end time set before approval.",
     "cannotEditInStatus": "Cannot edit a booking in this status ({status}).",
     "notADriver": "Your account is not an active driver.",
-    "notYourTrip": "This trip isn't assigned to you.",
     "cannotDeclineInStatus": "Can't decline a trip that is {status}.",
     "cannotClaimInStatus": "Cannot claim a booking in this status ({status}).",
     "claimRoleTaken": "Another driver already holds that role.",
@@ -214,7 +213,11 @@
     "vehicle": "Vehicle",
     "pickup": "Pickup",
     "passengers": "{count} passengers",
-    "viewDetail": "View details"
+    "viewDetail": "View details",
+    "sectionPending": "Awaiting approval",
+    "sectionPendingHint": "Requests you've submitted that are waiting for your department head.",
+    "sectionWaitlist": "Waitlist (over capacity)",
+    "sectionWaitlistHint": "That day is fully booked — the fleet office is looking for a slot (e.g. overtime)."
   },
   "status": {
     "DRAFT": "Draft",
@@ -580,7 +583,9 @@
     "tripEvaluation": "Trip evaluation",
     "evaluationSubmittedNote": "Thanks — you've already rated this trip. Your feedback is shared with the fleet office.",
     "cancelTitle": "Cancel",
-    "changeTimeTitle": "Change trip time"
+    "changeTimeTitle": "Change trip time",
+    "changeTimeAssignedWarning": "This trip already has a vehicle and driver. Changing the time releases them — the trip returns to the queue and will be re-dispatched for the new time.",
+    "rebook": "Book again"
   },
   "adminDetail": {
     "backToQueue": "Back to queue",
@@ -1044,7 +1049,8 @@
       "fri": "Fri",
       "sat": "Sat",
       "sun": "Sun"
-    }
+    },
+    "rebookApplied": "Filled from {job} — just choose new dates."
   },
   "driver": {
     "todayHeading": "Today",
@@ -1108,5 +1114,13 @@
   "listSearch": {
     "placeholder": "Search…",
     "noMatches": "No matches"
+  },
+  "historyFilters": {
+    "from": "From",
+    "to": "To",
+    "status_COMPLETED": "Completed",
+    "status_DENIED": "Denied",
+    "status_CANCELLED": "Cancelled",
+    "clear": "Clear filters"
   }
 }
