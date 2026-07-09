@@ -1,17 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import {
-  findBufferConflicts,
-  shouldWarnAboutCancellations,
-  isWithinWorkHours,
-  checkLeadTime,
-  TWO_DRIVER_DISTANCE_KM,
-} from "@/lib/booking/rules";
-import { SLOT_HOLDING_STATUSES, dayCapacity, dayWindow } from "@/lib/booking/slot-capacity";
+import { loadBookingDetailContext } from "@/lib/booking/detail-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
@@ -68,47 +61,6 @@ export default async function AdminBookingDetail({
   });
   if (!booking) notFound();
 
-  // CR-02: admin only allocates a vehicle. Driver pool is no longer loaded
-  // here — drivers self-claim on the schedule board.
-  const [vehicles, otherBookingsByVehicle, recentCancellations] = await Promise.all([
-    prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { registrationNumber: "asc" } }),
-    prisma.booking.findMany({
-      where: {
-        status: { in: ["APPROVED", "ASSIGNED"] },
-        id: { not: booking.id },
-        vehicleId: { not: null },
-      },
-      select: { id: true, vehicleId: true, startAt: true, endAt: true },
-    }),
-    prisma.cancellation.count({
-      where: {
-        booking: { requesterId: booking.requesterId },
-        cancelledAt: { gte: subDays(new Date(), 90) },
-      },
-    }),
-  ]);
-
-  const conflictsByVehicle = new Map<string, number>();
-  for (const v of vehicles) {
-    const others = otherBookingsByVehicle.filter((o) => o.vehicleId === v.id);
-    const conflicts = findBufferConflicts(
-      { startAt: booking.startAt, endAt: booking.endAt },
-      others,
-    );
-    conflictsByVehicle.set(v.id, conflicts.length);
-  }
-
-  const vehicleOptions = vehicles.map((v) => {
-    const conflictCount = conflictsByVehicle.get(v.id) ?? 0;
-    return {
-      id: v.id,
-      label: `${v.registrationNumber} · ${v.type.toLowerCase()} · ${taf("seatSuffix", { capacity: v.capacity })}`,
-      sublabel: v.isDutyVehicle ? taf("dutyVehicleTag") : undefined,
-      disabled: conflictCount > 0,
-      conflict: conflictCount > 0,
-    };
-  });
-
   const isPendingApproval = booking.status === "PENDING_APPROVAL";
   const isApproved = booking.status === "APPROVED";
   const isAssigned = booking.status === "ASSIGNED";
@@ -116,7 +68,18 @@ export default async function AdminBookingDetail({
   const showAssignForms = isAdmin && isApproved;
   const showApproverForms = isAdmin && isPendingApproval;
   const showCompleteForm = isAdmin && isAssigned;
-  const cancellationWarning = shouldWarnAboutCancellations(recentCancellations);
+
+  // Vehicle-conflict list, repeat-canceller warning, and (when a decision is
+  // pending) the supply/risk decision context — see lib/booking/detail-context.
+  const { vehicleOptions: vehicleData, cancellationWarning, cancellationCount, decisionContext } =
+    await loadBookingDetailContext(booking, showApproverForms);
+  const vehicleOptions = vehicleData.map((v) => ({
+    id: v.id,
+    label: `${v.registrationNumber} · ${v.type.toLowerCase()} · ${taf("seatSuffix", { capacity: v.capacity })}`,
+    sublabel: v.isDutyVehicle ? taf("dutyVehicleTag") : undefined,
+    disabled: v.conflict,
+    conflict: v.conflict,
+  }));
 
   // Approver needs their stored signature to approve; load it only when needed.
   const me = showApproverForms
@@ -125,50 +88,6 @@ export default async function AdminBookingDetail({
         select: { signatureImageUrl: true },
       })
     : null;
-
-  // Decision context for the approver: day load + free cars at this time + risk
-  // flags, so the approve/deny call sees supply and risk, not just demand.
-  // Reuses the already-loaded vehicles + conflictsByVehicle; one extra count.
-  type DecisionFlag = "emergency" | "outOfHours" | "shortLead" | "twoDrivers";
-  let decisionContext: {
-    dayUsed: number;
-    dayCapacity: number;
-    freeCars: string[];
-    totalCars: number;
-    flags: DecisionFlag[];
-  } | null = null;
-  if (showApproverForms) {
-    const { start, end } = dayWindow(booking.startAt);
-    const dayUsed = await prisma.booking.count({
-      where: { status: { in: SLOT_HOLDING_STATUSES }, startAt: { gte: start, lt: end } },
-    });
-    // Capacity counts only DISPATCHABLE cars (paired to an active driver),
-    // matching the submit-time gate; freeCars/totalCars below stay all-active.
-    const dispatchable = await prisma.vehicle.findMany({
-      where: {
-        isActive: true,
-        assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
-      },
-      select: { isDutyVehicle: true },
-    });
-    const cap = dayCapacity(
-      dispatchable.filter((v) => !v.isDutyVehicle).length,
-      dispatchable.filter((v) => v.isDutyVehicle).length,
-    );
-    const freeCars = vehicles
-      .filter((v) => (conflictsByVehicle.get(v.id) ?? 0) === 0)
-      .map((v) => v.registrationNumber);
-    const flags: DecisionFlag[] = [];
-    if (booking.isEmergency) flags.push("emergency");
-    if (!isWithinWorkHours({ startAt: booking.startAt, endAt: booking.endAt })) flags.push("outOfHours");
-    if (!checkLeadTime({ startAt: booking.startAt, province: booking.province, now: new Date() }).ok) {
-      flags.push("shortLead");
-    }
-    if (typeof booking.estimatedDistance === "number" && booking.estimatedDistance > TWO_DRIVER_DISTANCE_KM) {
-      flags.push("twoDrivers");
-    }
-    decisionContext = { dayUsed, dayCapacity: cap, freeCars, totalCars: vehicles.length, flags };
-  }
 
   return (
     <div className="space-y-6">
@@ -198,7 +117,7 @@ export default async function AdminBookingDetail({
 
       {cancellationWarning && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-          {tad("cancellationWarning", { count: recentCancellations })}
+          {tad("cancellationWarning", { count: cancellationCount })}
         </div>
       )}
 
