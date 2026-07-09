@@ -28,7 +28,7 @@ vi.mock("@/lib/line/client", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { createBookingAction } from "@/lib/booking/actions";
+import { createBookingAction } from "@/lib/booking/create-booking-action";
 import { BANGKOK_PROVINCE, LEAD_TIME_BANGKOK_DAYS } from "@/lib/booking/rules";
 
 const REQUESTER_ID = "seed-user-requester";

@@ -16,7 +16,7 @@ import {
   LEAD_TIME_SMUS_DAYS,
   LEAD_TIME_URGENT_DAYS,
 } from "@/lib/booking/rules";
-import { createBookingAction } from "@/lib/booking/actions";
+import { createBookingAction } from "@/lib/booking/create-booking-action";
 import {
   saveTripTemplateAction,
   renameTripTemplateAction,
