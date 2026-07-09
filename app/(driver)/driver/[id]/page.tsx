@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { getTranslations } from "next-intl/server";
+import { th, enUS } from "date-fns/locale";
+import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
@@ -20,6 +21,7 @@ export default async function DriverBookingDetail({
   const t = await getTranslations("driverDetail");
   const tc = await getTranslations("common");
   const ttf = await getTranslations("tripForms");
+  const dfLocale = (await getLocale()).toLowerCase().startsWith("th") ? th : enUS;
 
   const booking = await prisma.booking.findUnique({
     where: { id },
@@ -83,8 +85,8 @@ export default async function DriverBookingDetail({
             label={t("capacity")}
             value={booking.vehicle ? t("capacityValue", { seats: booking.vehicle.capacity }) : "—"}
           />
-          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM HH:mm")} />
-          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM HH:mm")} />
+          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM HH:mm", { locale: dfLocale })} />
+          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM HH:mm", { locale: dfLocale })} />
           <Field label={t("passengers")} value={String(booking.passengerCount)} />
           {booking.estimatedDistance != null && (
             <Field label={t("estDistance")} value={`${booking.estimatedDistance} km`} />

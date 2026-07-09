@@ -158,7 +158,6 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
-  revalidatePath("/admin");
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);
   return { ok: true };
