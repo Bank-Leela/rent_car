@@ -2,7 +2,7 @@
 
 A bilingual (Thai / English) **vehicle booking, approval, and dispatch** system
 for a Chulalongkorn University medical faculty. Staff request a faculty vehicle;
-an approver signs off; the fleet admin (P'Top) assigns a driver + car; the driver
+the fleet admin (P'Top) approves it and assigns a driver + car; the driver
 runs the trip; the requester evaluates it. The hard part — and the bulk of the
 domain logic — is **fair, rule-respecting driver/vehicle assignment**.
 
@@ -18,9 +18,8 @@ This is the high-level map. For depth, follow the links in each section and the
 | Role | Does |
 |------|------|
 | **REQUESTER** | Submits booking requests, tracks their history, evaluates completed trips. |
-| **APPROVER** | Approves / denies pending requests (fleet-section head) — works the same `/admin` queue as the ADMIN (inline Approve/Deny per card, triage badges + SLA banner), with its own `/admin/decisions` audit page. |
-| **ADMIN** ("P'Top") | Runs the daily batch, hand-assigns/overrides on the board, manages users, cars↔drivers, duty roster, reports. |
-| **DRIVER** | Sees today/tomorrow assignments, claims/releases trips on the board, starts + completes trips (mileage). |
+| **ADMIN** ("P'Top") | Approves/denies pending requests (inline Approve/Deny per card, triage badges + SLA banner, `/admin/decisions` audit), runs the daily batch, hand-assigns/overrides on the board, manages users, cars↔drivers, duty roster, reports. |
+| **DRIVER** | Passive, station-only: the shared garage kiosk shows the day's assignments (read-only) and records trip start + end (mileage/fuel/toll/parking). No individual logins, no claim/release. |
 
 Sign-in is **admin-provisioned username/password** (Auth.js v5 Credentials, not
 OAuth). `mustChangePassword` forces a reset on first login; usernames are
@@ -55,13 +54,13 @@ DRAFT → PENDING_APPROVAL → APPROVED → ASSIGNED → COMPLETED
 1. **Request** (`requester/new`) — form (react-hook-form + zod), lead-time +
    work-hours + buffer rules, optional recurrence. Out-of-province is an explicit
    flag, not inferred.
-2. **Approval** (`approver` actions) — approve/deny with a comment; emails the
-   requester. The shared `/admin` queue carries triage badges + an SLA banner
+2. **Approval** (ADMIN) — approve/deny with a comment; emails the
+   requester. The `/admin` queue carries triage badges + an SLA banner
    (`lib/booking/triage.ts`); each pending card has inline Approve/Deny
-   (`components/forms/approver-queue-actions.tsx`) with canned deny-reason chips
-   (`lib/booking/deny-presets.ts`), and the booking detail page adds a
-   decision-context card (day load + free cars + risk flags). Approvers get a
-   personal audit at `/admin/decisions`.
+   (`components/forms/approver-queue-actions.tsx` — historical filename)
+   with canned deny-reason chips (`lib/booking/deny-presets.ts`), and the
+   booking detail page adds a decision-context card (day load + free cars +
+   risk flags). Admins get a personal audit at `/admin/decisions`.
 3. **Assignment** (ADMIN) — three ways:
    - **Batch solver** (`/admin/batch` → Run Batch): solves the whole day at once.
    - **Single matcher** (board auto-assign / `/admin/[id]`): one booking.
@@ -137,12 +136,12 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 
 | Path | What |
 |------|------|
-| `app/(admin)/*` | Shared ADMIN+APPROVER: queue, calendar, dashboard, evaluations, booking detail (all roles); schedule board, batch, fleet, users (ADMIN only); approver decisions + profile (APPROVER). |
-| `app/(driver)/*` | Driver: home, board, calendar, schedule, trip detail. |
+| `app/(admin)/*` | ADMIN (P'Top): queue + approve/deny, calendar, dashboard, evaluations, booking detail, schedule board, batch, fleet, users, drivers, decisions, simulate, profile. |
+| `app/(driver)/*` | Shared station kiosk (read-only): schedule board, calendar, trip detail + record start/end. |
 | `app/(requester)/*` | Requester: new request, upcoming (confirmed driver for today/tomorrow), history, detail. |
 | `app/(login\|forgot\|reset\|account)` | Auth surfaces. |
 | `app/api/*` | NextAuth, dev sign-in, booking PDF, reports CSV, LINE webhook. |
-| `lib/booking/*` (~34 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window, plus approver triage, deny presets, and overlap conflict-resolve. |
+| `lib/booking/*` (~34 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window, plus queue triage, deny presets, and overlap conflict-resolve. |
 | `lib/{auth,email,line,pdf,reporting}/*` | Auth helpers, email, LINE, PDF, reporting. |
 | `components/*` | UI — forms, the scheduler board (split into `scheduler-board` / `-blocks` / `-shared`), shared UI. |
 | `prisma/` | Schema (18 models, 12 enums), 17 migrations, seed. |

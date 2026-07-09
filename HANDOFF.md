@@ -9,12 +9,47 @@ All 5 phases of `claude_code_implementation_plan.md` shipped. Since
 templates, vehicle type, SMUS charter, attachments), two scheduling changes
 (no-wait **split-legs**, **TJW-by-request-order**), an org change (**APPROVER
 role removed**, station-only drivers), an admin **driver-management** section,
-a **QoL** pass (toasts/skeletons/search/empty-states), and header/profile UI
-polish. **Test suite: 332 tests across 35 files** (was 255 / 25).
+a **QoL** pass (toasts/skeletons/search/empty-states), header/profile UI polish,
+and (2026-07-08→09) an audit-driven UX pass, the **official Thai form PDF**,
+gated **Adobe Sign / Google Maps** integrations, a **LESS** submission tracker,
+and the **nginx/Linux deployment kit** (see the two newest sessions).
+**Test suite: 350 tests across 42 files** (was 255 / 25).
 
 > The session entries below are newest-first. Entries under **Earlier sessions**
 > predate 2026-06-22 and are kept for architecture context; where a newer change
 > overrode them it's flagged ⚠️.
+
+---
+
+### Session 2026-07-09 — official form, integrations, deployment kit
+
+Diagram-driven feature pass + go-live prep. Suite now **350 tests / 42 files**.
+Audit of the FigJam workflow diagram: `docs/archive/workflow-diagram-audit-2026-07-08.md`.
+
+- **Official form PDF** (`b6a4023`): the booking-PDF download now fills the real
+  faculty AcroForm (`public/2 แบบฟอร์มขออนุมัติ…e.pdf`, 57 fields) from booking
+  data via **pdf-lib + Noto Sans Thai** (`lib/pdf/official-form.ts`,
+  `bookingToFormFields` unit-tested), rendered LIVE at download; signature fields
+  left blank for e-sign. Retired `booking-pdf.tsx` (react-pdf now unused). Verify
+  a fill with `qlmanage -t`, NOT `sips`. See [[official-form-pdf]].
+- **Adobe Sign** (`5ee5c90`, dormant): `lib/adobe-sign/*` + `/api/adobe-sign/webhook`
+  + admin "Send for signature" — gated on `ADOBE_SIGN_*` env (inert until set).
+  Head signer only. Free alternative (stamp the on-file signature) still parked.
+- **Google Maps distance** (`ab0d0fc`, gated `GOOGLE_MAPS_API_KEY`) + **outsource
+  quote upload** (`Booking.outsourceQuoteUrl`).
+- **LESS** (`35def61`): no API — admin downloads the filled form + submits to LESS
+  himself; `Booking.lessSubmittedAt` tracker on the detail page. `Trip.fuelType`
+  + `parkingCost` added (`dd4ca9e`) for the form's fuel/parking fields.
+- **จัดรอบ manual + daily auto-run** (`bbcf416`): core extracted to
+  `lib/booking/batch-core.ts` `runBatchForDay(dateStr, actorUserId)` (plain fn,
+  not a server action); `/api/cron/run-batch` (secret-gated `CRON_SECRET`,
+  assigns tomorrow) + systemd timer. **Simulator feature-flagged**
+  (`ENABLE_SIMULATION`, off in prod) via `lib/config/features.ts`.
+- **Deployment kit** (`f558610`, `f378285`): `docs/deployment.md` + `deploy/*`
+  (nginx, systemd, backup script). `instrumentation.ts` warns if TZ≠Asia/Bangkok
+  (scheduling-critical). CI pinned to Asia/Bangkok. See [[deployment-target]].
+- **Health scan fixes** (`1e3e04d`): driver/[id] date locale; dup revalidatePath.
+  Full runtime scan (all 7 statuses) came back clean.
 
 ---
 
@@ -272,13 +307,16 @@ Spec `docs/superpowers/specs/2026-06-24-booking-input-classification-design.md`.
 
 ## Open / pending
 
-- **In progress (uncommitted):** `components/ui/time-field.tsx` — themed 15-min
-  time dropdown (Base UI Select + Clock icon) replacing the native `<input type="time">`
-  on the simulate form. Typecheck green; not yet committed.
-- **`docs/PROJECT-OVERVIEW.md` is also stale** — still documents the APPROVER role
-  (lines 21, 58, 140, 145). Refresh it the same way when convenient.
-- **Production DB**: hosted by Chula IT — waiting on connection string. Local dev uses
-  Homebrew Postgres 16 (`localhost:5432`, db `rent_car`).
+- **Signature (parked):** head + recipient sign-off on the official form. The
+  free path (stamp the on-file `signatureImageUrl` into the form's blank
+  signature fields via pdf-lib) is designed, not built. Adobe Sign covers it if
+  configured; otherwise this is the remaining diagram gap.
+- **Deployment**: target decided — self-hosted **nginx + Linux + systemd**
+  (`docs/deployment.md`, [[deployment-target]]). Not yet deployed: provision the
+  box, set `/etc/rent_car.env`, pin `TZ=Asia/Bangkok`. Prod DB still hosted by
+  Chula IT (connection string pending); local dev = Docker/Homebrew Postgres 16.
+- **Gated integrations** (inert until env set): Adobe Sign (`ADOBE_SIGN_*`),
+  Google Maps (`GOOGLE_MAPS_API_KEY`), daily batch cron (`CRON_SECRET`).
 - **LINE notifications**: scope confirmed driver-only. Code paths exist
   (`lib/line/client.ts`, webhook, assign-notify). Live channel needs interview answers
   (ownership, budget, LIFF vs email-in-chat). See `memory/line_scope.md`.
