@@ -1,0 +1,180 @@
+import { format, startOfDay, subDays } from "date-fns";
+import { prisma } from "@/lib/db";
+import { loadWeightedEarnings } from "@/lib/booking/earnings";
+import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
+import { SLOT_HOLDING_STATUSES, dayCapacity } from "@/lib/booking/slot-capacity";
+import { triageFlags, waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
+
+// Derived signals for the admin queue: overtime-placement recommendations for
+// over-capacity WAITLIST bookings, per-booking triage flags, and the SLA-overdue
+// count. Extracted from admin/page.tsx so the page stays a thin view. Pure
+// orchestration over the existing reco/triage rule helpers — no rule change.
+
+export type OvertimeReco = { name: string; reg: string; time: string; vehicleId: string };
+
+type QueueBooking = {
+  id: string;
+  status: string;
+  startAt: Date;
+  endAt: Date;
+  requesterId: string;
+  province: string;
+  isEmergency: boolean;
+  createdAt: Date;
+};
+
+type QueueDriver = {
+  id: string;
+  lastAssignedAt: Date | null;
+  user: { name: string | null; email: string | null };
+};
+
+export type QueueContext = {
+  overtimeReco: Map<string, OvertimeReco>;
+  triageByBooking: Map<string, TriageFlag[]>;
+  slaOverdue: number;
+};
+
+export async function loadQueueContext(opts: {
+  pending: QueueBooking[];
+  allDrivers: QueueDriver[];
+  now: Date;
+}): Promise<QueueContext> {
+  const { pending, allDrivers, now } = opts;
+  const overtimeReco = new Map<string, OvertimeReco>();
+  const triageByBooking = new Map<string, TriageFlag[]>();
+  let slaOverdue = 0;
+
+  // --- Overtime placement recommendations for over-capacity WAITLIST bookings. ---
+  const waitlist = pending.filter((b) => b.status === "WAITLIST");
+  if (waitlist.length > 0) {
+    const dayStartMs = [...new Set(waitlist.map((b) => startOfDay(b.startAt).getTime()))];
+    const rangeStart = new Date(Math.min(...dayStartMs));
+    const rangeEnd = new Date(Math.max(...dayStartMs));
+    rangeEnd.setDate(rangeEnd.getDate() + 1);
+
+    const [vehicles, dayBookings, shifts, earnings, unavailRows] = await Promise.all([
+      prisma.vehicle.findMany({
+        where: { isActive: true },
+        select: { id: true, registrationNumber: true, assignedDriverId: true },
+      }),
+      prisma.booking.findMany({
+        where: { startAt: { lt: rangeEnd }, endAt: { gt: rangeStart }, status: { in: ["APPROVED", "ASSIGNED"] } },
+        select: { primaryDriverId: true, secondaryDriverId: true, vehicleId: true, startAt: true, endAt: true },
+      }),
+      prisma.onCallShift.findMany({ where: { date: { in: dayStartMs.map((t) => new Date(t)) } } }),
+      loadWeightedEarnings(allDrivers.map((d) => d.id)),
+      prisma.driverUnavailability.findMany({
+        where: { date: { gte: rangeStart, lt: rangeEnd } },
+        select: { driverId: true, date: true },
+      }),
+    ]);
+    // Keyed by "driverId|yyyy-MM-dd" so the per-day match is TZ-robust.
+    const offByDay = new Set(unavailRows.map((u) => `${u.driverId}|${format(u.date, "yyyy-MM-dd")}`));
+    const driverName = new Map(allDrivers.map((d) => [d.id, d.user.name ?? d.user.email ?? d.id]));
+    const vehicleReg = new Map(vehicles.map((v) => [v.id, v.registrationNumber]));
+    const dutyByDay = new Map(shifts.map((s) => [startOfDay(s.date).getTime(), s.driverId]));
+    // car=driver: driverId -> their assigned car.
+    const driverCar = new Map<string, string>();
+    for (const v of vehicles) if (v.assignedDriverId) driverCar.set(v.assignedDriverId, v.id);
+
+    for (const b of waitlist) {
+      const dayStart = startOfDay(b.startAt);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+      const driverTrips = new Map<string, { startAt: Date; endAt: Date }[]>();
+      for (const x of dayBookings) {
+        if (!(x.startAt < dayEnd && x.endAt > dayStart)) continue;
+        for (const id of [x.primaryDriverId, x.secondaryDriverId]) {
+          if (!id) continue;
+          const arr = driverTrips.get(id) ?? [];
+          arr.push({ startAt: x.startAt, endAt: x.endAt });
+          driverTrips.set(id, arr);
+        }
+      }
+      const dayKey = format(dayStart, "yyyy-MM-dd");
+      const reco = recommendOvertimePlacement({
+        booking: { startAt: b.startAt, endAt: b.endAt },
+        dutyDriverId: dutyByDay.get(dayStart.getTime()) ?? null,
+        drivers: allDrivers
+          .filter((d) => !offByDay.has(`${d.id}|${dayKey}`))
+          .map((d) => ({
+            driverId: d.id,
+            vehicleId: driverCar.get(d.id) ?? null,
+            earningsScore: earnings.get(d.id) ?? 0,
+            lastAssignedAt: d.lastAssignedAt,
+            trips: driverTrips.get(d.id) ?? [],
+          })),
+      });
+      if (reco.kind === "overtime-fit") {
+        overtimeReco.set(b.id, {
+          name: driverName.get(reco.driverId) ?? reco.driverId,
+          reg: vehicleReg.get(reco.vehicleId) ?? reco.vehicleId,
+          time: format(b.startAt, "HH:mm"),
+          vehicleId: reco.vehicleId,
+        });
+      }
+    }
+  }
+
+  // --- Triage signals for the pending queue + SLA-overdue count. ---
+  if (pending.length > 0) {
+    const dayKeys = pending.map((b) => startOfDay(b.startAt).getTime());
+    const rangeStart = new Date(Math.min(...dayKeys));
+    const rangeEnd = new Date(Math.max(...dayKeys));
+    rangeEnd.setDate(rangeEnd.getDate() + 1);
+    const requesterIds = [...new Set(pending.map((b) => b.requesterId))];
+
+    const [activeVehicles, daySlotBookings, cancellations] = await Promise.all([
+      prisma.vehicle.findMany({
+        where: {
+          isActive: true,
+          assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
+        },
+        select: { isDutyVehicle: true },
+      }),
+      prisma.booking.findMany({
+        where: { status: { in: SLOT_HOLDING_STATUSES }, startAt: { gte: rangeStart, lt: rangeEnd } },
+        select: { startAt: true },
+      }),
+      prisma.cancellation.findMany({
+        where: { booking: { requesterId: { in: requesterIds } }, cancelledAt: { gte: subDays(now, 90) } },
+        select: { booking: { select: { requesterId: true } } },
+      }),
+    ]);
+
+    const cap = dayCapacity(
+      activeVehicles.filter((v) => !v.isDutyVehicle).length,
+      activeVehicles.filter((v) => v.isDutyVehicle).length,
+    );
+    const usedByDay = new Map<number, number>();
+    for (const s of daySlotBookings) {
+      const k = startOfDay(s.startAt).getTime();
+      usedByDay.set(k, (usedByDay.get(k) ?? 0) + 1);
+    }
+    const cancelByRequester = new Map<string, number>();
+    for (const c of cancellations) {
+      const rid = c.booking.requesterId;
+      cancelByRequester.set(rid, (cancelByRequester.get(rid) ?? 0) + 1);
+    }
+
+    for (const b of pending) {
+      triageByBooking.set(
+        b.id,
+        triageFlags({
+          startAt: b.startAt,
+          endAt: b.endAt,
+          province: b.province,
+          isEmergency: b.isEmergency,
+          now,
+          dayUsed: usedByDay.get(startOfDay(b.startAt).getTime()) ?? 0,
+          dayCapacity: cap,
+          cancellations: cancelByRequester.get(b.requesterId) ?? 0,
+        }),
+      );
+      if (waitingHours(b.createdAt, now) >= SLA_WARN_HOURS) slaOverdue++;
+    }
+  }
+
+  return { overtimeReco, triageByBooking, slaOverdue };
+}
