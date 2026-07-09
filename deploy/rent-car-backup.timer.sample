@@ -1,0 +1,14 @@
+# rent_car — nightly backup timer. Copy to
+# /etc/systemd/system/rent-car-backup.timer (see the .service for install steps).
+
+[Unit]
+Description=Run rent_car backup nightly
+
+[Timer]
+# 02:00 daily, server-local time. Persistent=true runs a missed backup on next
+# boot (e.g. if the box was off overnight).
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

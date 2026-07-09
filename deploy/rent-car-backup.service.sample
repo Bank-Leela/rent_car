@@ -1,0 +1,20 @@
+# rent_car — nightly backup (oneshot, triggered by the timer below).
+# Copy to /etc/systemd/system/rent-car-backup.service, then install the timer.
+#
+#   sudo cp deploy/rent-car-backup.service.sample /etc/systemd/system/rent-car-backup.service
+#   sudo cp deploy/rent-car-backup.timer.sample   /etc/systemd/system/rent-car-backup.timer
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rent-car-backup.timer
+#   systemctl list-timers rent-car-backup.timer   # confirm next run
+#   sudo systemctl start rent-car-backup           # test one now, then check BACKUP_DIR
+
+[Unit]
+Description=rent_car backup — Postgres dump + uploads tarball
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=rentcar
+# Reuse the app env (DATABASE_URL, UPLOADS_DIR). Add BACKUP_DIR /
+# BACKUP_RETENTION_DAYS here or in the env file to override the defaults.
+EnvironmentFile=/etc/rent_car.env
+ExecStart=/opt/rent_car/deploy/backup.sh

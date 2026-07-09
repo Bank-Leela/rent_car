@@ -126,6 +126,30 @@ re-run: `POST /api/cron/run-batch?date=YYYY-MM-DD`.
 verify no `[TZ WARNING]` in the logs. After any scheduling change, run `npm test`
 and `npx tsx scripts/simulate-cr07.ts --scenario=mixed` (rule counters must stay 0).
 
+## Backups
+
+`deploy/backup.sh` dumps Postgres **and** tarballs the uploads dir in one run
+(both are needed for a consistent restore — booking rows reference on-disk
+files). It writes timestamped, atomic artifacts and prunes old ones.
+
+Enable the nightly timer:
+```bash
+sudo cp deploy/rent-car-backup.service.sample /etc/systemd/system/rent-car-backup.service
+sudo cp deploy/rent-car-backup.timer.sample   /etc/systemd/system/rent-car-backup.timer
+# set BACKUP_DIR (+ optional BACKUP_RETENTION_DAYS, default 14) in /etc/rent_car.env
+sudo systemctl daemon-reload && sudo systemctl enable --now rent-car-backup.timer
+sudo systemctl start rent-car-backup        # run one now, then check $BACKUP_DIR
+```
+Artifacts: `db-<ts>.sql.gz` + `uploads-<ts>.tar.gz` in `BACKUP_DIR`
+(default `/var/backups/rent_car`). **Copy them off the box** (rsync/object
+storage) — a backup on the same disk doesn't survive a disk loss.
+
+Restore (into an empty DB + the uploads parent):
+```bash
+gunzip -c db-<ts>.sql.gz | psql "$DATABASE_URL"
+tar -xzf uploads-<ts>.tar.gz -C "$(dirname "$UPLOADS_DIR")"
+```
+
 ## Simulation / debug tools
 
 `/admin/simulate` (the what-if placement sandbox) is a debugging tool, **hidden
@@ -139,5 +163,5 @@ repo dev script (never deployed) and always available for debugging.
 - [ ] `UPLOADS_DIR` on a persistent, backed-up path.
 - [ ] HTTPS via nginx; `client_max_body_size 12m`.
 - [ ] `npm run build` clean; migrations applied; seed run once.
-- [ ] Postgres backups scheduled (`pg_dump`) + uploads dir backed up.
+- [ ] Backups: `rent-car-backup.timer` enabled + artifacts copied OFF the box (see Backups).
 - [ ] `ENABLE_DEV_AUTH` NOT set in prod (dev sign-in stays off — it's gated on NODE_ENV).
