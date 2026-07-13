@@ -22,8 +22,18 @@ Environment=NODE_ENV=production
 #   and any optional GOOGLE_MAPS_API_KEY / ADOBE_SIGN_* keys.
 EnvironmentFile=/etc/rent_car.env
 
-# `npm run build` already runs `prisma migrate deploy`; `npm start` = next start.
-ExecStart=/usr/bin/npm run start
+# `npm run build` already runs `prisma migrate deploy`; `npm run start` = next start.
+#
+# `-H 127.0.0.1` binds the app to loopback so it is reachable ONLY through nginx.
+# Without it, `next start` binds 0.0.0.0:3000 and port 3000 is exposed on every
+# interface, bypassing TLS. NOTE: this Next version does NOT read a HOSTNAME env
+# var for `start` (only PORT) — the -H flag is the only way to set the bind host
+# (verified in the next-start CLI).
+#
+# npm path: this assumes npm at /usr/bin/npm (nodesource/apt). With nvm or another
+# Node install that path won't exist and the unit fails to start — run
+# `which npm` and use its absolute path here.
+ExecStart=/usr/bin/npm run start -- -H 127.0.0.1
 
 Restart=on-failure
 RestartSec=5

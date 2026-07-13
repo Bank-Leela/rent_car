@@ -53,6 +53,15 @@ It holds signatures, generated/signed PDFs, and attachments — **back it up**;
 it is not in the database.
 
 ## 4. Database
+
+**Postgres in Docker (optional).** If you run the DB via the shipped
+`docker-compose.yml` instead of a native package: set a real `POSTGRES_PASSWORD`
+first (in a `.env` next to the compose file, or exported), then
+`docker compose up -d`. The compose file binds Postgres to **127.0.0.1** only —
+reachable from the on-box app, never the network. Point `DATABASE_URL` at
+`127.0.0.1:5432` with a **password that matches** `POSTGRES_PASSWORD`. The app
+still runs natively via systemd — only the DB is containerized.
+
 ```bash
 # first deploy: migrate + seed the fleet/roster
 cd /opt/rent_car
@@ -162,6 +171,8 @@ repo dev script (never deployed) and always available for debugging.
 - [ ] `AUTH_SECRET` is a real random value; `NEXTAUTH_URL`/`APP_URL` = the real HTTPS host.
 - [ ] `UPLOADS_DIR` on a persistent, backed-up path.
 - [ ] HTTPS via nginx; `client_max_body_size 12m`.
+- [ ] App bound to loopback (`-H 127.0.0.1` in the systemd unit) — port 3000 NOT reachable off-box.
+- [ ] If Postgres in Docker: real `POSTGRES_PASSWORD` set (matches `DATABASE_URL`), port bound to `127.0.0.1`.
 - [ ] `npm run build` clean; migrations applied; seed run once.
 - [ ] Backups: `rent-car-backup.timer` enabled + artifacts copied OFF the box (see Backups).
 - [ ] `ENABLE_DEV_AUTH` NOT set in prod (dev sign-in stays off — it's gated on NODE_ENV).

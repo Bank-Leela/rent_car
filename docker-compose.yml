@@ -1,3 +1,15 @@
+# Postgres for rent_car.
+#
+# Dev (laptop):  docker compose up -d          → uses the defaults below.
+# Server (prod): set POSTGRES_PASSWORD to a real secret BEFORE `up`. Put it in a
+#                .env file next to this compose file (compose auto-reads .env) or
+#                export it in the shell. The password in the app's DATABASE_URL
+#                MUST match POSTGRES_PASSWORD.
+#
+# SECURITY: the port is bound to 127.0.0.1, so the database is reachable ONLY
+# from the server itself (the native app / psql on-box) — never from the
+# network. Do NOT change this back to "5432:5432" on a server; that publishes
+# Postgres on every interface and exposes it to the internet.
 services:
   postgres:
     image: postgres:16-alpine
@@ -5,10 +17,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: rent_car
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - rent_car_pgdata:/var/lib/postgresql/data
 
