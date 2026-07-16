@@ -96,7 +96,25 @@ sudo ln -s /etc/nginx/sites-available/rent_car /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-## 7. Upgrades (each deploy)
+## 7. Firewall (ufw)
+The loopback binds (app on `127.0.0.1:3000`, Postgres on `127.0.0.1:5432`)
+already keep those ports off the network. A firewall is belt-and-suspenders — it
+closes anything you didn't explicitly open.
+
+**Allow SSH BEFORE enabling, or you lock yourself out of the box.**
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH        # do this FIRST (or `sudo ufw allow 22/tcp`)
+sudo ufw allow 80/tcp         # nginx HTTP (redirects to HTTPS)
+sudo ufw allow 443/tcp        # nginx HTTPS
+sudo ufw enable               # answer 'y' — the existing SSH session survives
+sudo ufw status verbose       # confirm only 22/80/443 allowed, rest denied
+```
+Do **not** open 3000 or 5432 — they must stay loopback-only. If you SSH on a
+non-standard port, `sudo ufw allow <port>/tcp` for it instead of `OpenSSH`.
+
+## 8. Upgrades (each deploy)
 ```bash
 cd /opt/rent_car
 sudo -u rentcar git pull
