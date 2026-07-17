@@ -1054,8 +1054,6 @@
     "destinationMapsLink": "เปิดใน Google Maps",
     "mapsLinkLabel": "ลิงก์ Google Maps",
     "mapsLinkHelper": "วางลิงก์ Maps ของปลายทาง (ใช้ลิงก์แชร์ Maps แบบใดก็ได้)",
-    "outsideChulaLabel": "การเดินทางออกนอกมหาวิทยาลัย (นอกจุฬาฯ)",
-    "outsideChulaHelper": "ติ๊กหากจุดรับหรือปลายทางอยู่นอกพื้นที่จุฬาฯ",
     "province": "จังหวัด",
     "startLabel": "เริ่ม (ออกเดินทาง)",
     "endLabel": "สิ้นสุด (กลับถึงคณะ)",

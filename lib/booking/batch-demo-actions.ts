@@ -39,7 +39,7 @@ type DemoSlot = {
   male: number;
   female: number;
   emergency?: boolean;
-  outsideChula?: boolean;
+  travelWithinChula?: boolean;
   notes?: string;
 };
 
@@ -51,8 +51,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 6, endHour: 18, endDayOffset: 1,
     jobType: "TJW", estimatedDistance: 700, outOfProvince: true,
     ajarn: "ศ.นพ. สมศักดิ์ ใจดี", ajarnEmail: "somsak.j@chula.ac.th",
-    pickup: "อาคาร อปร ชั้น 1", male: 2, female: 1, outsideChula: true,
-    notes: "ต้องการรถตู้สำหรับอุปกรณ์",
+    pickup: "อาคาร อปร ชั้น 1", male: 2, female: 1,    notes: "ต้องการรถตู้สำหรับอุปกรณ์",
   },
   {
     purpose: `${BATCH_DEMO_TAG} TJW Nakhon Pathom outreach (overnight)`,
@@ -61,8 +60,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 7, endHour: 17, endDayOffset: 1,
     jobType: "TJW", estimatedDistance: 110, outOfProvince: true,
     ajarn: "รศ.พญ. วิภา รักเรียน", ajarnEmail: "wipa.r@chula.ac.th",
-    pickup: "หน้าคณะแพทยศาสตร์", male: 1, female: 3, outsideChula: true,
-  },
+    pickup: "หน้าคณะแพทยศาสตร์", male: 1, female: 3,  },
   {
     purpose: `${BATCH_DEMO_TAG} OT early-bird airport run`,
     destination: "Suvarnabhumi Airport",
@@ -71,7 +69,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     jobType: "OT", estimatedDistance: 60, outOfProvince: false,
     ajarn: "อ.ดร. ธนกร พิทักษ์", ajarnEmail: "thanakorn.p@chula.ac.th",
     pickup: "ล็อบบี้ อาคารภูมิสิริ", male: 1, female: 0, emergency: true,
-    outsideChula: true, notes: "เที่ยวบินเช้า ต้องตรงเวลา",
+    notes: "เที่ยวบินเช้า ต้องตรงเวลา",
   },
   {
     purpose: `${BATCH_DEMO_TAG} OT evening seminar pickup`,
@@ -80,8 +78,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 17, endHour: 21,
     jobType: "OT", estimatedDistance: 25, outOfProvince: false,
     ajarn: "ผศ.นพ. กิตติ มานะ", ajarnEmail: "kitti.m@chula.ac.th",
-    pickup: "จามจุรีสแควร์ ทางออก 2", male: 2, female: 2, outsideChula: true,
-  },
+    pickup: "จามจุรีสแควร์ ทางออก 2", male: 2, female: 2,  },
   {
     purpose: `${BATCH_DEMO_TAG} WERN duty round — campus shuttle`,
     destination: "Faculty of Medicine campus",
@@ -89,7 +86,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 8, endHour: 12,
     jobType: "WERN", estimatedDistance: 15, outOfProvince: false,
     ajarn: "อ.พญ. ชนิดา ศรีสุข", ajarnEmail: "chanida.s@chula.ac.th",
-    pickup: "อาคารแพทยพัฒน์", male: 0, female: 1,
+    pickup: "อาคารแพทยพัฒน์", male: 0, female: 1, travelWithinChula: true,
   },
   {
     purpose: `${BATCH_DEMO_TAG} NORMAL morning lab supply`,
@@ -116,8 +113,7 @@ const DEMO_SLOTS: DemoSlot[] = [
     startHour: 14, endHour: 16,
     jobType: "NORMAL", estimatedDistance: 35, outOfProvince: true,
     ajarn: "อ.นพ. ภาคิน วงศ์ไทย", ajarnEmail: "pakin.w@chula.ac.th",
-    pickup: "อาคารบริหาร", male: 1, female: 0, outsideChula: true,
-  },
+    pickup: "อาคารบริหาร", male: 1, female: 0,  },
 ];
 
 function timeBucketFor(hour: number): "BEFORE_08" | "MORNING_08_12" | "AFTERNOON_12_16" | "AFTER_16" {
@@ -210,7 +206,7 @@ async function seedBatchDemoForDate(date: Date): Promise<number> {
         ajarnEmail: s.ajarnEmail,
         isEmergency: s.emergency ?? false,
         emergencyReason: s.emergency ? "ผู้ป่วยฉุกเฉิน ต้องเดินทางด่วน" : null,
-        outsideChula: s.outsideChula ?? false,
+        travelWithinChula: s.travelWithinChula ?? false,
         status: "APPROVED",
         decidedAt: new Date(),
         jobType: s.jobType,

@@ -1054,8 +1054,6 @@
     "destinationMapsLink": "Open in Google Maps",
     "mapsLinkLabel": "Google Maps link",
     "mapsLinkHelper": "Paste a Maps link for the destination (any Maps share link works).",
-    "outsideChulaLabel": "Trip leaves the university (outside Chula)",
-    "outsideChulaHelper": "Tick if the pickup or destination is off the Chula campus.",
     "province": "Province",
     "startLabel": "Start (departure)",
     "endLabel": "End (back at faculty)",

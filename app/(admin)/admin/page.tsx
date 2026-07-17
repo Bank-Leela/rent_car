@@ -219,7 +219,7 @@ export default async function AdminQueue({
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                             <BookingStatusBadge status={b.status} />
-                            <InChulaChip outsideChula={b.outsideChula} />
+                            <InChulaChip travelWithinChula={b.travelWithinChula} />
                             {b.isEmergency && (
                               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
                                 {urgentLabel}
@@ -280,7 +280,7 @@ export default async function AdminQueue({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                         <BookingStatusBadge status={b.status} />
-                        <InChulaChip outsideChula={b.outsideChula} />
+                        <InChulaChip travelWithinChula={b.travelWithinChula} />
                         {b.isEmergency && (
                           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
                             {urgentLabel}

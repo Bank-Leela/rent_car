@@ -16,9 +16,10 @@ export type SchedulerBooking = {
   jobNumber: string;
   purpose: string;
   destination: string;
-  // Sub-project A (presentation only): campus/off-campus bit + stored Maps link.
+  // Presentation only: campus/off-campus bit (derived from travelWithinChula;
+  // badge shows only when explicitly false) + stored Maps link.
   // Optional so non-admin board construction sites needn't set them.
-  outsideChula?: boolean;
+  travelWithinChula?: boolean;
   googleMapsUrl?: string | null;
   // No-wait split: leg 2 (return pickup) rendered as a read-only ghost; the
   // primary block above is clamped to leg 1. null for waiting/single-interval trips.

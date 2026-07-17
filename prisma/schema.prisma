@@ -483,10 +483,6 @@ model Booking {
   // Inverted from the old `outsideChula` (replaces the province dropdown's
   // campus/off-campus signal).
   travelWithinChula Boolean         @default(false)
-  // Sub-project A: separate campus/off-campus hint, kept alongside
-  // travelWithinChula per the "keep both" merge decision. Surfaced as a chip;
-  // does not drive classification. DB column predates this (migration 20260609).
-  outsideChula      Boolean         @default(false)
   // CR-07: why the booking didn't land in the daily batch (if at all).
   // Cleared once a successful match is recorded; NEEDS_WERN_RECLAIM_DECISION
   // requires Khun Top to choose between reclaiming duty or outsourcing.

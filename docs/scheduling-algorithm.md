@@ -15,7 +15,7 @@ and the duty-overlap rule.
 
 | Term | Meaning |
 |------|---------|
-| **Job type** | `TJW`, `OT`, `WERN`, `NORMAL`, `SMUS` (`SMUS` defined but unused). Auto-classified from the trip; `WERN` is duty and comes from `OnCallShift`, never the classifier. |
+| **Job type** | `TJW`, `OT`, `WERN`, `NORMAL`, `SMUS` (`SMUS` defined but unused). Auto-classified from the trip; `WERN` is duty — never produced by the classifier. It's forced at booking creation when `travelWithinChula` is set (in-Chula trip = a request for the duty car), and otherwise attaches via `OnCallShift`. |
 | **Duty / on-call / WERN driver** | The day's driver in `OnCallShift` for that date. Runs campus rounds 08:00–16:00. **Reserved all day** — excluded from every *non-WERN* pick (TJW/OT/NORMAL). A **WERN-typed booking is routed TO them** (matcher, solver, and reco all special-case it); if no duty driver is rostered, or they're away/returning mid-day, WERN falls back to the duty rotation (oldest `lastDutyAt`). |
 | **Long trip** | `estimatedDistance > 400 km` (`LONG_TRIP_KM`). Needs a **secondary** (co-)driver. |
 | **Rotation** | Per-category "who went longest ago" ledger: `lastTjwAt`, `lastOtAt`, `lastDutyAt`. |
@@ -49,7 +49,12 @@ and the duty-overlap rule.
 `overnight` = end falls on a later **local** calendar day. A Bangkok trip that
 crosses midnight is OT, **not** TJW (out-of-province is required for TJW).
 
-`WERN` is never produced here — it's the duty driver, driven by `OnCallShift`.
+`WERN` is never produced here. It's set in two places only: `createBookingAction`
+forces `jobType=WERN` when the booking has `travelWithinChula=true` (bypassing
+`classifyJobType` — an in-Chula trip is a request for the duty car), and the
+duty roster (`OnCallShift`) drives which driver serves it. This resolves the
+old "keep both" merge: the hint-only `outsideChula` path is removed; UI chips
+derive from `travelWithinChula`.
 
 ---
 

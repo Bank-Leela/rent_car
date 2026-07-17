@@ -96,9 +96,9 @@ function TimelineBlock({
         )}
       </div>
       <div className="truncate text-muted-foreground">{b.purpose}</div>
-      {(b.outsideChula || b.googleMapsUrl) && (
+      {(b.travelWithinChula === false || b.googleMapsUrl) && (
         <div className="mt-0.5 flex items-center gap-1">
-          {b.outsideChula && (
+          {b.travelWithinChula === false && (
             <span className="rounded bg-amber-100 px-1 text-[9px] font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
               {tc("outsideChula")}
             </span>
@@ -216,9 +216,9 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
       <div className="truncate text-muted-foreground">
         {b.purpose} → {b.destination}
       </div>
-      {(b.outsideChula || b.googleMapsUrl) && (
+      {(b.travelWithinChula === false || b.googleMapsUrl) && (
         <div className="mt-0.5 flex items-center gap-1">
-          {b.outsideChula && (
+          {b.travelWithinChula === false && (
             <span className="rounded bg-amber-100 px-1 text-[9px] font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
               {tc("outsideChula")}
             </span>
