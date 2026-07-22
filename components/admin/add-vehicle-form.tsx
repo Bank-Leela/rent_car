@@ -11,9 +11,11 @@ import { createVehicleAction } from "@/lib/booking/fleet-actions";
 
 const VEHICLE_TYPES = Object.values(VehicleType);
 
-// "Add a car to the system" (Admin เพิ่มรถในระบบได้). New cars start unpaired;
-// the driver is set from the fleet table below.
-export function AddVehicleForm() {
+export type FleetDriverOption = { id: string; name: string };
+
+// "Add a car to the system" (Admin เพิ่มรถในระบบได้). A driver can be paired
+// right away; leave unpaired and set it later from the fleet table below.
+export function AddVehicleForm({ drivers }: { drivers: FleetDriverOption[] }) {
   const t = useTranslations("fleet");
   const te = useTranslations("errors");
   const router = useRouter();
@@ -21,6 +23,8 @@ export function AddVehicleForm() {
   const [reg, setReg] = useState("");
   const [type, setType] = useState<VehicleType>(VehicleType.SEDAN);
   const [capacity, setCapacity] = useState("4");
+  const [notes, setNotes] = useState("");
+  const [driverId, setDriverId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -32,12 +36,16 @@ export function AddVehicleForm() {
       fd.set("registrationNumber", reg.trim());
       fd.set("type", type);
       fd.set("capacity", capacity);
+      fd.set("notes", notes);
+      fd.set("driverId", driverId);
       const res = await createVehicleAction(fd);
       if (res.ok) {
         toast.success(t("vehicleAdded", { reg: reg.trim() }));
         setReg("");
         setType(VehicleType.SEDAN);
         setCapacity("4");
+        setNotes("");
+        setDriverId("");
         setOpen(false);
         router.refresh();
       } else {
@@ -89,6 +97,23 @@ export function AddVehicleForm() {
           value={capacity}
           onChange={(e) => setCapacity(e.target.value)}
           className="h-9 w-20 rounded-md border border-input bg-background px-2 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+      </label>
+      <label className="grid gap-1 text-xs text-muted-foreground">
+        {t("driver")}
+        <SelectField
+          value={driverId}
+          onValueChange={setDriverId}
+          className="h-9 w-40"
+          options={[{ value: "", label: t("unpaired") }, ...drivers.map((d) => ({ value: d.id, label: d.name }))]}
+        />
+      </label>
+      <label className="grid gap-1 text-xs text-muted-foreground">
+        {t("notes")}
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="h-9 w-40 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       </label>
       <button

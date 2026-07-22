@@ -191,11 +191,11 @@ model User {
   departmentId String?
   department   Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
 
+  // Registered signature: the requester attaches a signature image and labels
+  // whose signature it is. Stamped onto their booking's official PDF; admins
+  // can view it on the users roster.
   signatureImageUrl String?
-
-  delegatedToUserId String?
-  delegatedTo       User?   @relation("Delegation", fields: [delegatedToUserId], references: [id])
-  delegatedBy       User[]  @relation("Delegation")
+  signatureName     String?
 
   // CR-07: admin-managed credentials. Replaces Google OAuth. Users without
   // a passwordHash can't sign in via the credentials form. mustChangePassword
@@ -315,6 +315,10 @@ model Driver {
   position         String?    // ตำแหน่ง (free text, e.g. ลูกจ้างประจำ)
   retirementYear   Int?       // เกษียณ — Thai BE year as shown
   notes            String?    @db.Text // หมายเหตุ
+  // Admin-defined extra fields ("เมนูเพิ่มช่องเก็บข้อมูล"): ordered list of
+  // { label, value } pairs so the roster can hold ad-hoc info without a schema
+  // change per field. Null = none.
+  customFields     Json?
   // CR-05: fairness tie-break. Bumped to the trip's startAt whenever the
   // matcher assigns this driver a primary or secondary role.
   lastAssignedAt   DateTime?
@@ -496,12 +500,6 @@ model Booking {
   outsourceQuoteFilename String?
 
   pdfUrl String?
-  // Adobe Acrobat Sign: agreement id, sub-status (OUT_FOR_SIGNATURE / SIGNED /
-  // CANCELLED), and the stored signed-PDF ref once complete. Sub-status is a
-  // plain string so BookingStatus stays untouched.
-  adobeAgreementId String?
-  adobeSignStatus  String?
-  signedPdfUrl     String?
   // Manual LESS Paper submission: the admin downloads the filled form and
   // uploads it to LESS himself; this stamps when he marked it submitted.
   lessSubmittedAt  DateTime?
@@ -676,7 +674,6 @@ model Approval {
   approverId        String
   approver          User           @relation(fields: [approverId], references: [id])
   status            ApprovalStatus @default(PENDING)
-  signatureImageUrl String?
   comment           String?
   decidedAt         DateTime?
 

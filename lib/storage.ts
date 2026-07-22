@@ -12,7 +12,6 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR
 
 export const SIGNATURE_DIR = path.join(UPLOADS_DIR, "signatures");
 export const PDF_DIR = path.join(UPLOADS_DIR, "booking-pdfs");
-export const SIGNED_PDF_DIR = path.join(UPLOADS_DIR, "signed-pdfs");
 export const ATTACHMENT_DIR = path.join(UPLOADS_DIR, "booking-attachments");
 
 async function ensureDir(dir: string) {
@@ -53,22 +52,6 @@ export async function readBookingPdf(bookingId: string): Promise<Buffer | null> 
   if (bookingId.includes("/") || bookingId.includes("..")) return null;
   try {
     return await fs.readFile(path.join(PDF_DIR, `${bookingId}.pdf`));
-  } catch {
-    return null;
-  }
-}
-
-// The Adobe-Sign–returned, fully-signed PDF for a booking.
-export async function writeSignedPdf(bookingId: string, bytes: Buffer): Promise<string> {
-  await ensureDir(SIGNED_PDF_DIR);
-  await fs.writeFile(path.join(SIGNED_PDF_DIR, `${bookingId}.pdf`), bytes);
-  return `signed:${bookingId}.pdf`;
-}
-
-export async function readSignedPdf(bookingId: string): Promise<Buffer | null> {
-  if (bookingId.includes("/") || bookingId.includes("..")) return null;
-  try {
-    return await fs.readFile(path.join(SIGNED_PDF_DIR, `${bookingId}.pdf`));
   } catch {
     return null;
   }

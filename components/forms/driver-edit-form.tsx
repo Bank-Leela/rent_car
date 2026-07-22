@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { adminUpdateDriverAction } from "@/lib/admin/driver-actions";
 import { useActionToast } from "@/components/hooks/use-action-toast";
+
+interface CustomField {
+  label: string;
+  value: string;
+}
 
 interface FormDriver {
   id: string;
@@ -24,6 +30,7 @@ interface FormDriver {
   notes: string;
   isActive: boolean;
   vehicleId: string;
+  customFields: CustomField[];
 }
 
 export function DriverEditForm({
@@ -37,13 +44,21 @@ export function DriverEditForm({
   const te = useTranslations("errors");
   const { toastResult } = useActionToast();
   const [isActive, setIsActive] = useState(driver.isActive);
+  const [customFields, setCustomFields] = useState<CustomField[]>(driver.customFields);
   const [pending, startTransition] = useTransition();
+
+  const updateField = (i: number, patch: Partial<CustomField>) =>
+    setCustomFields((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addField = () => setCustomFields((rows) => [...rows, { label: "", value: "" }]);
+  const removeField = (i: number) => setCustomFields((rows) => rows.filter((_, idx) => idx !== i));
 
   return (
     <form
       action={(fd) => {
         fd.set("driverId", driver.id);
         fd.set("isActive", isActive ? "true" : "false");
+        // Serialize the dynamic rows; the action drops blank-label rows.
+        fd.set("customFields", JSON.stringify(customFields.filter((r) => r.label.trim() !== "")));
         startTransition(async () => {
           const res = await adminUpdateDriverAction(fd);
           toastResult(res.ok ? res : { ok: false, error: te(res.error) }, { success: t("saved") });
@@ -94,6 +109,47 @@ export function DriverEditForm({
       <div className="grid gap-1.5 sm:col-span-2">
         <Label htmlFor="notes">{t("notes")}</Label>
         <Textarea id="notes" name="notes" rows={3} defaultValue={driver.notes} />
+      </div>
+
+      <div className="grid gap-2 sm:col-span-2">
+        <Label>{t("customFieldsTitle")}</Label>
+        {customFields.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{t("customFieldsEmpty")}</p>
+        ) : (
+          <div className="grid gap-2">
+            {customFields.map((row, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  aria-label={t("customFieldLabel")}
+                  placeholder={t("customFieldLabel")}
+                  value={row.label}
+                  onChange={(e) => updateField(i, { label: e.target.value })}
+                  className="sm:max-w-[38%]"
+                  autoComplete="off"
+                />
+                <Input
+                  aria-label={t("customFieldValue")}
+                  placeholder={t("customFieldValue")}
+                  value={row.value}
+                  onChange={(e) => updateField(i, { value: e.target.value })}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeField(i)}
+                  aria-label={t("customFieldRemove")}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-md border text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <Button type="button" variant="outline" size="sm" onClick={addField} className="w-fit">
+          <Plus className="mr-1 h-4 w-4" aria-hidden />
+          {t("customFieldAdd")}
+        </Button>
       </div>
 
       <div className="grid gap-1.5 sm:col-span-2">

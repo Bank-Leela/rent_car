@@ -7,7 +7,21 @@ import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { DriverEditForm } from "@/components/forms/driver-edit-form";
-import { DriverCredentials } from "@/components/forms/driver-credentials";
+
+// Driver.customFields is stored as JSON; normalise to a typed row list, skipping
+// any malformed entries so a bad row can't break the edit page.
+function parseCustomFields(raw: unknown): { label: string; value: string }[] {
+  if (!Array.isArray(raw)) return [];
+  const rows: { label: string; value: string }[] = [];
+  for (const item of raw) {
+    if (item && typeof item === "object") {
+      const label = String((item as Record<string, unknown>).label ?? "");
+      const value = String((item as Record<string, unknown>).value ?? "");
+      if (label) rows.push({ label, value });
+    }
+  }
+  return rows;
+}
 
 export default async function AdminDriverEditPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole("ADMIN");
@@ -17,7 +31,7 @@ export default async function AdminDriverEditPage({ params }: { params: Promise<
   const driver = await prisma.driver.findUnique({
     where: { id },
     include: {
-      user: { select: { id: true, name: true, thaiName: true, phone: true, username: true } },
+      user: { select: { name: true, thaiName: true, phone: true } },
       assignedVehicle: { select: { id: true } },
     },
   });
@@ -52,6 +66,7 @@ export default async function AdminDriverEditPage({ params }: { params: Promise<
     notes: driver.notes ?? "",
     isActive: driver.isActive,
     vehicleId: driver.assignedVehicle?.id ?? "",
+    customFields: parseCustomFields(driver.customFields),
   };
 
   return (
@@ -71,15 +86,6 @@ export default async function AdminDriverEditPage({ params }: { params: Promise<
         </CardHeader>
         <CardContent>
           <DriverEditForm driver={formDriver} vehicleOptions={vehicleOptions} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("credentialsTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DriverCredentials driverId={driver.id} userId={driver.user.id} username={driver.user.username} />
         </CardContent>
       </Card>
     </div>

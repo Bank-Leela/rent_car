@@ -16,7 +16,8 @@ import { sendEmail } from "@/lib/email/client";
 import { adminNewBookingEmail } from "@/lib/email/templates";
 import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
 import { writeBookingAttachment } from "@/lib/storage";
-import { type ActionResult, bookingDetailInclude } from "@/lib/booking/actions";
+import { type ActionResult } from "@/lib/booking/actions";
+import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
 
 // Requester-facing booking submission: lead-time + evaluation-gate + attachment
 // validation, capacity/waitlist status, recurrence expansion, then notify the
@@ -284,15 +285,12 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     include: bookingDetailInclude,
   });
 
-  // Notify the admins who handle approvals (+ any delegates).
+  // Notify the admins who handle approvals.
   const approverUsers = await prisma.user.findMany({
     where: { roles: { some: { role: "ADMIN" } }, isActive: true },
-    select: { email: true, delegatedTo: { select: { email: true } } },
+    select: { email: true },
   });
-  const approverEmails = [
-    ...approverUsers.map((u) => u.email),
-    ...approverUsers.map((u) => u.delegatedTo?.email),
-  ].filter((e): e is string => !!e);
+  const approverEmails = approverUsers.map((u) => u.email).filter((e): e is string => !!e);
   if (approverEmails.length > 0) {
     await sendEmail({ to: approverEmails, ...adminNewBookingEmail(detailed) });
   }

@@ -12,10 +12,8 @@ import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
 import { CompleteTripForm } from "@/components/forms/complete-trip-form";
-import { SendForSignatureButton } from "@/components/admin/send-for-signature-button";
 import { LessSubmitToggle } from "@/components/admin/less-submit-toggle";
 import { EstimateDistanceButton } from "@/components/admin/estimate-distance-button";
-import { isAdobeSignConfigured } from "@/lib/adobe-sign/config";
 import { isMapsConfigured } from "@/lib/maps/distance";
 import { DetailField as Field } from "@/components/detail-field";
 
@@ -27,9 +25,7 @@ export default async function AdminBookingDetail({
   const session = await requireAnyRole(["ADMIN"]);
   const { id } = await params;
   const t = await getTranslations("bookingDetail");
-  const tsig = await getTranslations("adobeSign");
   const tless = await getTranslations("less");
-  const adobeConfigured = isAdobeSignConfigured();
   const mapsConfigured = isMapsConfigured();
   const tad = await getTranslations("adminDetail");
   const taf = await getTranslations("assignForm");
@@ -80,14 +76,6 @@ export default async function AdminBookingDetail({
     disabled: v.conflict,
     conflict: v.conflict,
   }));
-
-  // Approver needs their stored signature to approve; load it only when needed.
-  const me = showApproverForms
-    ? await prisma.user.findUniqueOrThrow({
-        where: { id: session.user.id },
-        select: { signatureImageUrl: true },
-      })
-    : null;
 
   return (
     <div className="space-y-6">
@@ -315,25 +303,6 @@ export default async function AdminBookingDetail({
                 submittedLabel={booking.lessSubmittedAt ? format(booking.lessSubmittedAt, "d MMM yyyy HH:mm") : null}
               />
             </div>
-            {/* Adobe Sign — only when the integration is configured. */}
-            {adobeConfigured && (
-              <div className="border-t pt-3">
-                {booking.adobeSignStatus === "SIGNED" && booking.signedPdfUrl ? (
-                  <Link
-                    href={`/api/files/signed-pdf/${booking.id}`}
-                    className="inline-flex items-center justify-center rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"
-                  >
-                    {tsig("downloadSigned")}
-                  </Link>
-                ) : booking.adobeAgreementId ? (
-                  <p className="text-sm text-muted-foreground">
-                    {booking.adobeSignStatus === "CANCELLED" ? tsig("statusCancelled") : tsig("statusPending")}
-                  </p>
-                ) : (
-                  <SendForSignatureButton bookingId={booking.id} />
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
@@ -424,7 +393,7 @@ export default async function AdminBookingDetail({
         </Card>
       )}
 
-      {showApproverForms && me && (
+      {showApproverForms && (
         <div className="grid sm:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
@@ -433,7 +402,6 @@ export default async function AdminBookingDetail({
             <CardContent>
               <ApproveForm
                 bookingId={booking.id}
-                hasSignature={!!me.signatureImageUrl}
                 returnTrip={booking.returnTrip}
                 startAt={format(booking.startAt, "yyyy-MM-dd'T'HH:mm")}
               />

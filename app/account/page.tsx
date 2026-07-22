@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { ChangeUsernameForm } from "@/components/forms/change-username-form";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { ChangeDepartmentForm } from "@/components/forms/change-department-form";
+import { SignatureForm } from "@/components/forms/signature-form";
 import { listDepartments } from "@/lib/departments";
 
 export default async function AccountPage({
@@ -30,9 +31,12 @@ export default async function AccountPage({
       mustChangePassword: true,
       usernameChangedAt: true,
       departmentId: true,
+      signatureName: true,
+      signatureImageUrl: true,
     },
   });
   const departments = await listDepartments(locale);
+  const ts = await getTranslations("signatureForm");
 
   // proxy.ts redirects mustChangePassword users here with ?forceChange=1.
   // Surface the stronger banner so they know they can't navigate away.
@@ -93,6 +97,20 @@ export default async function AccountPage({
             departments={departments}
             currentDepartmentId={user.departmentId}
             locale={locale}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{ts("title")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm text-muted-foreground">{ts("description")}</p>
+          <SignatureForm
+            userId={session.user.id}
+            signatureName={user.signatureName}
+            hasSignature={!!user.signatureImageUrl}
           />
         </CardContent>
       </Card>

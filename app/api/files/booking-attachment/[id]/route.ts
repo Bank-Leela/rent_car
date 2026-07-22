@@ -15,19 +15,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       attachmentUrl: true,
       attachmentFilename: true,
       requesterId: true,
-      department: { select: { headUserId: true, head: { select: { delegatedToUserId: true } } } },
+      department: { select: { headUserId: true } },
     },
   });
   if (!booking || !booking.attachmentUrl) return new NextResponse("Not found", { status: 404 });
 
-  // Access: requester, the dept head (or their delegate), or any ADMIN
-  // — same circle as the booking PDF.
+  // Access: the requester, the dept head, or any ADMIN — same circle as the PDF.
   const userId = session.user.id;
   const isStaff = session.user.roles.includes("ADMIN");
   const isOwner = booking.requesterId === userId;
   const isHead = booking.department.headUserId === userId;
-  const isDelegate = booking.department.head?.delegatedToUserId === userId;
-  if (!(isStaff || isOwner || isHead || isDelegate)) {
+  if (!(isStaff || isOwner || isHead)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

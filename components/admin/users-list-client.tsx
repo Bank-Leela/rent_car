@@ -16,6 +16,8 @@ interface AdminUserListRow {
   roles: string[];
   isActive: boolean;
   mustChangePassword: boolean;
+  signatureName: string | null;
+  hasSignature: boolean;
 }
 
 export function UsersListClient({ users }: { users: AdminUserListRow[] }) {

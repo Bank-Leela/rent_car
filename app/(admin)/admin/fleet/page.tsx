@@ -49,7 +49,7 @@ export default async function FleetPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
-        <AddVehicleForm />
+        <AddVehicleForm drivers={driverOpts} />
       </div>
       {missingProfiles > 0 && (
         <div className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/40 dark:bg-amber-950/40">

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { fillVehicleForm } from "@/lib/pdf/official-form";
+import { fillVehicleForm, type SignatureImage } from "@/lib/pdf/official-form";
+import { readSignatureBytes } from "@/lib/storage";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -12,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     include: {
       requester: true,
-      department: { include: { head: { select: { delegatedToUserId: true } } } },
+      department: true,
       vehicle: true,
       primaryDriver: { include: { user: true } },
       trip: true,
@@ -22,23 +23,34 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // pdfUrl is set at approval — the official form is offered once decided.
   if (!booking || !booking.pdfUrl) return new NextResponse("Not found", { status: 404 });
 
-  // Access: requester, the dept head (or their delegate), or any ADMIN.
+  // Access: the requester, the dept head, or any ADMIN.
   const userId = session.user.id;
   const isAdmin = session.user.roles.includes("ADMIN");
   const isOwner = booking.requesterId === userId;
   const isHead = booking.department?.headUserId === userId;
-  const isDelegate = booking.department?.head?.delegatedToUserId === userId;
-  if (!(isAdmin || isOwner || isHead || isDelegate)) {
+  if (!(isAdmin || isOwner || isHead)) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  // The requester's registered signature, stamped onto their own signature box.
+  let signatureImage: SignatureImage | null = null;
+  if (booking.requester.signatureImageUrl) {
+    const sigBytes = await readSignatureBytes(booking.requester.signatureImageUrl);
+    if (sigBytes) {
+      signatureImage = { bytes: sigBytes, isPng: booking.requester.signatureImageUrl.endsWith(".png") };
+    }
   }
 
   // Rendered live so the approval + driver + trip sections reflect current state.
   const decided = booking.approvals.find((a) => a.status === "APPROVED" || a.status === "DENIED");
-  const bytes = await fillVehicleForm({
-    ...booking,
-    approverName: decided?.approver.name ?? null,
-    denialReason: booking.denialReason ?? null,
-  });
+  const bytes = await fillVehicleForm(
+    {
+      ...booking,
+      approverName: decided?.approver.name ?? null,
+      denialReason: booking.denialReason ?? null,
+    },
+    signatureImage,
+  );
 
   return new NextResponse(Buffer.from(bytes) as unknown as BodyInit, {
     headers: {

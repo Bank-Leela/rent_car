@@ -1,14 +1,15 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Car } from "lucide-react";
+import { toast } from "sonner";
+import { Car, Trash2 } from "lucide-react";
 import { VehicleType } from "@prisma/client";
 import { SelectField } from "@/components/ui/select-field";
 import { ListSearch } from "@/components/list-search";
 import { EmptyState } from "@/components/empty-state";
-import { setVehicleDriverAction, updateVehicleSpecAction } from "@/lib/booking/fleet-actions";
+import { setVehicleDriverAction, updateVehicleSpecAction, removeVehicleAction } from "@/lib/booking/fleet-actions";
 
 export type FleetCar = {
   id: string;
@@ -70,6 +71,7 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
                 <th className="py-2 font-medium">{t("type")}</th>
                 <th className="py-2 font-medium">{t("capacity")}</th>
                 <th className="py-2 font-medium">{t("driver")}</th>
+                <th className="py-2 font-medium sr-only">{t("remove")}</th>
               </tr>
             </thead>
             <tbody>
@@ -120,6 +122,9 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
                       ]}
                     />
                   </td>
+                  <td className="py-2 text-right">
+                    <RemoveVehicleButton id={c.id} registrationNumber={c.registrationNumber} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -127,5 +132,62 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
         )
       }
     />
+  );
+}
+
+// Two-step remove so a car is never dropped on a single stray click.
+function RemoveVehicleButton({ id, registrationNumber }: { id: string; registrationNumber: string }) {
+  const t = useTranslations("fleet");
+  const te = useTranslations("errors");
+  const router = useRouter();
+  const [confirm, setConfirm] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function remove() {
+    const fd = new FormData();
+    fd.set("vehicleId", id);
+    startTransition(async () => {
+      const res = await removeVehicleAction(fd);
+      if (res.ok) {
+        toast.success(t("vehicleRemoved"));
+        setConfirm(false);
+        router.refresh();
+      } else {
+        toast.error(te(res.error));
+      }
+    });
+  }
+
+  if (!confirm) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirm(true)}
+        aria-label={t("removeVehicleAria", { reg: registrationNumber })}
+        className="grid h-9 w-9 place-items-center rounded-md border text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Trash2 className="h-4 w-4" aria-hidden />
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={remove}
+        disabled={pending}
+        className="inline-flex h-9 items-center rounded-md border border-destructive/40 bg-destructive/10 px-2 text-xs font-medium text-destructive hover:bg-destructive/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {pending ? "…" : t("confirmRemove")}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirm(false)}
+        disabled={pending}
+        className="inline-flex h-9 items-center rounded-md border px-2 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {t("cancel")}
+      </button>
+    </span>
   );
 }

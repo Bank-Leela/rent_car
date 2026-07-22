@@ -32,8 +32,6 @@
     "leadTimeTooSoonCalendar": "วันที่เริ่มต้นต้องล่วงหน้าอย่างน้อย {days} วัน (นับรวมเสาร์-อาทิตย์)",
     "noDepartment": "กรุณาตั้งหน่วยงานที่หน้าข้อมูลผู้ใช้ก่อนทำการจอง",
     "pendingEvaluation": "คุณมีทริปที่เสร็จสิ้นแล้วแต่ยังไม่ได้ประเมิน กรุณาประเมินก่อนจองใหม่",
-    "delegateNotFound": "ไม่พบผู้ใช้ที่มีอีเมล {email}",
-    "delegateSelf": "ไม่สามารถมอบอำนาจให้ตนเองได้",
     "outOfHoursReasonRequired": "การเดินทางนอกเวลาทำการของพนักงานขับรถต้องระบุเหตุผล",
     "endBeforeStart": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น",
     "endTimeRequiredOneWay": "การจองแบบเที่ยวเดียว ต้องกำหนดเวลาสิ้นสุดก่อนอนุมัติ",
@@ -61,6 +59,7 @@
     "signaturePickFile": "กรุณาเลือกไฟล์รูปภาพ",
     "signatureTooLarge": "ไฟล์ลายเซ็นต้องมีขนาดไม่เกิน 1 MB",
     "signatureBadFormat": "กรุณาใช้ไฟล์ PNG หรือ JPEG",
+    "signatureNameRequired": "กรุณาระบุชื่อเจ้าของลายเซ็นนี้",
     "attachmentTooLarge": "ไฟล์ที่แนบต้องมีขนาดไม่เกิน 10 MB",
     "attachmentBadFormat": "กรุณาใช้ไฟล์ PDF, PNG หรือ JPEG",
     "invalidCredentials": "อีเมล/ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
@@ -72,9 +71,9 @@
     "resetTokenInvalid": "ลิงก์รีเซ็ตนี้ใช้ไม่ได้หรือหมดอายุแล้ว",
     "placeNotFound": "ไม่พบสถานที่ที่บันทึกไว้",
     "driverNotFound": "ไม่พบคนขับ",
-    "invalidUsername": "ชื่อผู้ใช้ต้อง 3–40 ตัว: ตัวอักษร ตัวเลข จุด ขีดล่าง",
     "vehicleAssignedElsewhere": "รถคันนี้ถูกกำหนดให้คนขับอื่นแล้ว ต้องปลดออกจากคนนั้นก่อน",
-    "vehicleRegTaken": "ทะเบียนรถนี้มีอยู่แล้ว"
+    "vehicleRegTaken": "ทะเบียนรถนี้มีอยู่แล้ว",
+    "vehicleNotFound": "ไม่พบยานพาหนะ"
   },
   "common": {
     "back": "ย้อนกลับ",
@@ -127,13 +126,12 @@
     "batch": "จัดรอบ",
     "users": "ผู้ใช้",
     "drivers": "คนขับ",
-    "myBookings": "การจองของฉัน",
+    "myBookings": "ประวัติการจอง",
     "upcoming": "ที่จะมาถึง",
     "history": "ประวัติ",
     "newBooking": "จองใหม่",
     "pendingApprovals": "รออนุมัติ",
     "departmentUsage": "การใช้งานของภาควิชา",
-    "profile": "โปรไฟล์",
     "schedule": "ตารางงาน",
     "scheduleBoard": "กระดานรับงาน",
     "decisions": "การตัดสินใจของฉัน",
@@ -142,8 +140,7 @@
     "scheduling": "การจัดรถ",
     "people": "บุคลากร",
     "insights": "ภาพรวม",
-    "fleet": "ยานพาหนะ",
-    "signature": "ลายเซ็นและผู้รับมอบ"
+    "fleet": "ยานพาหนะ"
   },
   "simulate": {
     "title": "จำลองการจัดรถ",
@@ -200,25 +197,19 @@
   },
   "requesterUpcoming": {
     "title": "ทริปที่จะมาถึง",
-    "description": "คนขับและรายละเอียดที่ยืนยันแล้วสำหรับวันนี้และพรุ่งนี้",
+    "description": "คำขอที่รอดำเนินการและทริปที่ยืนยันแล้วของคุณ เรียงจากใกล้ถึงไกล",
     "today": "วันนี้",
     "tomorrow": "พรุ่งนี้",
-    "statusConfirmed": "ยืนยันแล้ว",
-    "statusCompleted": "เสร็จสิ้น",
     "detailLink": "รายละเอียด",
     "emptyTitle": "ยังไม่มีทริปที่ยืนยัน",
-    "emptyDescription": "ยังไม่มีทริปที่จัดคนขับแล้วสำหรับวันนี้หรือพรุ่งนี้",
+    "emptyDescription": "ยังไม่มีคำขอหรือทริปที่จะมาถึง",
     "driver": "คนขับ",
     "noPhone": "ไม่มีเบอร์โทร",
     "coDriver": "คนขับเสริม",
     "vehicle": "รถ",
     "pickup": "จุดรับ",
     "passengers": "ผู้โดยสาร {count} คน",
-    "viewDetail": "ดูรายละเอียด",
-    "sectionPending": "รออนุมัติ",
-    "sectionPendingHint": "คำขอที่ส่งแล้วและกำลังรอหัวหน้าอนุมัติ",
-    "sectionWaitlist": "รายการรอคิว (เกินจำนวนรถ)",
-    "sectionWaitlistHint": "วันดังกล่าวรถเต็ม เจ้าหน้าที่กำลังหาช่องจัดรถให้ (เช่น นอกเวลา)"
+    "viewDetail": "ดูรายละเอียด"
   },
   "status": {
     "DRAFT": "ฉบับร่าง",
@@ -301,7 +292,12 @@
     "add": "เพิ่ม",
     "adding": "กำลังเพิ่ม…",
     "cancel": "ยกเลิก",
-    "vehicleAdded": "เพิ่มรถ {reg} แล้ว"
+    "vehicleAdded": "เพิ่มรถ {reg} แล้ว",
+    "notes": "หมายเหตุ",
+    "remove": "ลบ",
+    "removeVehicleAria": "ลบยานพาหนะ {reg}",
+    "confirmRemove": "ยืนยันลบ",
+    "vehicleRemoved": "ลบยานพาหนะแล้ว"
   },
   "notifications": {
     "bell": "{count, plural, =0 {ไม่มีคำขอรอดำเนินการ} other {# คำขอรอดำเนินการ}}"
@@ -410,16 +406,15 @@
   },
   "adminDrivers": {
     "title": "คนขับ",
-    "description": "แก้ไขข้อมูลคนขับและบัญชีเข้าสู่ระบบ",
+    "description": "แก้ไขข้อมูลคนขับ",
     "listTitle": "รายชื่อคนขับ",
     "emptyList": "ยังไม่มีคนขับ",
     "inactiveBadge": "ปิดใช้งาน",
     "noPhone": "ไม่มีเบอร์โทร",
     "noVehicle": "ไม่มีรถประจำ",
     "backToList": "กลับไปรายชื่อคนขับ",
-    "editDescription": "แก้ไขข้อมูลและบัญชีของคนขับคนนี้",
+    "editDescription": "แก้ไขข้อมูลคนขับคนนี้",
     "infoTitle": "ข้อมูล",
-    "credentialsTitle": "บัญชีผู้ใช้",
     "name": "ชื่อ-สกุล",
     "thaiName": "ชื่อภาษาไทย",
     "nickname": "ชื่อเล่น",
@@ -440,18 +435,27 @@
     "saving": "กำลังบันทึก…",
     "save": "บันทึกการแก้ไข",
     "saved": "อัปเดตคนขับแล้ว",
-    "username": "ชื่อผู้ใช้",
-    "saveUsername": "บันทึกชื่อผู้ใช้",
-    "usernameSaved": "อัปเดตชื่อผู้ใช้แล้ว",
-    "newInitialPassword": "รหัสผ่านใหม่",
-    "resetPassword": "รีเซ็ตรหัสผ่าน",
-    "passwordReset": "รีเซ็ตรหัสผ่านแล้ว",
-    "passwordResetNote": "คนขับต้องเปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งถัดไป",
     "licenseExpired": "ใบขับขี่หมดอายุ {date}",
     "licenseExpiring": "ใบขับขี่จะหมด {date}",
     "retirementBadge": "เกษียณ {year}",
     "retirementInfo": "เกษียณ {year}",
-    "exportCsv": "ส่งออก CSV"
+    "exportCsv": "ส่งออก CSV",
+    "addDriver": "เพิ่มคนขับ",
+    "created": "เพิ่มคนขับแล้ว",
+    "creating": "กำลังเพิ่ม…",
+    "pool": "กลุ่ม",
+    "poolPublic": "ส่วนกลาง",
+    "poolPrivate": "ส่วนตัว",
+    "removed": "ลบคนขับแล้ว",
+    "removeDriverAria": "ลบคนขับ {name}",
+    "confirmRemove": "ยืนยันลบ",
+    "cancelRemove": "ยกเลิก",
+    "customFieldsTitle": "ข้อมูลเพิ่มเติม",
+    "customFieldsEmpty": "ยังไม่มีช่องข้อมูลเพิ่มเติม",
+    "customFieldLabel": "ชื่อช่อง",
+    "customFieldValue": "ข้อมูล",
+    "customFieldAdd": "เพิ่มช่องข้อมูล",
+    "customFieldRemove": "ลบช่องข้อมูล"
   },
   "adminUsers": {
     "title": "บัญชีผู้ใช้",
@@ -485,7 +489,9 @@
     "confirmDisable": "ยืนยันปิดใช้งาน",
     "enable": "เปิดใช้งาน",
     "inactiveBadge": "ปิดใช้งาน",
-    "mustChangeBadge": "รหัสชั่วคราว"
+    "mustChangeBadge": "รหัสชั่วคราว",
+    "signatureLabel": "ลายเซ็น",
+    "noSignature": "ยังไม่มีลายเซ็นบันทึกไว้"
   },
   "emails": {
     "passwordReset": {
@@ -495,15 +501,11 @@
     }
   },
   "requester": {
-    "title": "การจองของฉัน",
-    "description": "ส่งคำขอและติดตามสถานะการจองรถ",
     "newBooking": "จองใหม่",
     "emptyTitle": "ยังไม่มีการจอง",
     "emptyDescription": "ส่งคำขอแรกของคุณ แล้วการจองจะปรากฏที่นี่ระหว่างรอการอนุมัติ",
-    "activeEmptyTitle": "ไม่มีคำขอที่กำลังดำเนินการ",
-    "activeEmptyDescription": "คำขอที่คุณส่งจะแสดงที่นี่ระหว่างรอดำเนินการ ส่วนคำขอที่ผ่านมาดูได้ในประวัติ",
     "historyTitle": "ประวัติคำขอ",
-    "historyDescription": "คำขอที่เสร็จสิ้น ถูกปฏิเสธ และยกเลิกของคุณ",
+    "historyDescription": "คำขอที่เสร็จสิ้น ถูกปฏิเสธ ยกเลิก หรือผ่านวันเดินทางไปแล้วของคุณ",
     "historyEmptyTitle": "ยังไม่มีคำขอที่ผ่านมา",
     "historyEmptyDescription": "คำขอที่เสร็จสิ้น ถูกปฏิเสธ หรือยกเลิกจะแสดงที่นี่",
     "pendingEvalTitle": "{count, plural, one {กรุณาประเมินทริปล่าสุดของคุณ} other {กรุณาประเมินทริปที่เสร็จสิ้น # รายการ}}",
@@ -780,28 +782,18 @@
     "parkingCost": "ค่าที่จอดรถ (บาท)"
   },
   "signatureForm": {
+    "title": "ลายเซ็น",
+    "description": "แนบรูปลายเซ็นและระบุชื่อเจ้าของลายเซ็น ระบบจะประทับลงใน PDF ทางการของการจองของคุณ",
+    "nameLabel": "ชื่อเจ้าของลายเซ็น",
+    "namePlaceholder": "เช่น นพ. สมชาย ใจดี",
     "imageLabel": "ไฟล์ลายเซ็น (PNG หรือ JPEG, ≤1 MB)",
-    "helperUpload": "เมื่ออัปโหลดแล้ว ภาพนี้จะถูกฝังไว้ใน PDF สำหรับทุกการจองที่คุณอนุมัติ",
-    "helperReplace": "การอัปโหลดจะแทนที่ลายเซ็นที่บันทึกไว้",
-    "uploading": "กำลังอัปโหลด…",
-    "uploadSignature": "อัปโหลดลายเซ็น",
-    "replaceSignature": "แทนที่ลายเซ็น"
-  },
-  "delegateForm": {
-    "emailLabel": "อีเมลผู้รับมอบอำนาจ (เว้นว่างเพื่อยกเลิก)",
-    "emailPlaceholder": "staff@chula.ac.th",
-    "helper": "ผู้รับมอบอำนาจจะเห็นรายการรออนุมัติของคุณ และสามารถลงนามแทนได้โดยใช้บัญชีของตนเอง",
+    "helperUpload": "เมื่ออัปโหลดแล้ว ภาพนี้จะถูกฝังไว้ใน PDF ทางการของการจองของคุณ",
+    "helperReplace": "เลือกไฟล์ใหม่เพื่อแทนที่รูปที่บันทึกไว้ หรือเว้นว่างเพื่อคงรูปเดิม",
+    "currentSignature": "ลายเซ็นปัจจุบัน",
     "saving": "กำลังบันทึก…",
-    "saveDelegation": "บันทึกการมอบอำนาจ"
-  },
-  "profile": {
-    "title": "โปรไฟล์",
-    "description": "ตั้งค่าลายเซ็นและ (ถ้าต้องการ) มอบอำนาจการอนุมัติ",
-    "storedSignatureTitle": "ลายเซ็นที่บันทึกไว้",
-    "signatureOnFile": "มีลายเซ็นบันทึกไว้แล้ว ระบบจะฝังลงใน PDF ทุกการจองที่คุณอนุมัติ",
-    "signatureNoFile": "ยังไม่มีลายเซ็นบันทึกไว้ คุณยังอนุมัติได้แต่ช่องลายเซ็นใน PDF จะว่างเปล่า",
-    "delegationTitle": "การมอบอำนาจ",
-    "delegationDescription": "เลือกเจ้าหน้าที่ที่จะอนุมัติแทนคุณได้"
+    "uploadSignature": "บันทึกลายเซ็น",
+    "replaceSignature": "บันทึกการเปลี่ยนแปลง",
+    "noSignatureYet": "ยังไม่มีลายเซ็นบันทึกไว้"
   },
   "calendar": {
     "title": "ปฏิทิน",
@@ -952,7 +944,6 @@
     "setEndTimeHelper": "การจองนี้เป็นแบบเที่ยวเดียว ผู้จองไม่ได้ระบุเวลากลับ กรุณากำหนดเวลาสิ้นสุดก่อนอนุมัติ",
     "deny": "ไม่อนุมัติ",
     "denying": "กำลังปฏิเสธ…",
-    "noSignatureWarning": "คุณยังไม่มีลายเซ็นที่บันทึกไว้ ระบบจะสร้าง PDF ให้แต่ช่องลายเซ็นจะว่างเปล่า — อัปโหลดได้ในหน้าโปรไฟล์",
     "cancel": "ยกเลิก",
     "denyPresets": {
       "noVehicle": "ไม่มีรถว่างในวันนั้น",
@@ -1202,19 +1193,6 @@
     "status_DENIED": "ไม่อนุมัติ",
     "status_CANCELLED": "ยกเลิก",
     "clear": "ล้างตัวกรอง"
-  },
-  "adobeSign": {
-    "send": "ส่งเซ็นด้วย Adobe Sign",
-    "sending": "กำลังส่ง…",
-    "sent": "ส่งไปเซ็นแล้ว",
-    "statusPending": "รอลายเซ็นจากหัวหน้าภาควิชา (Adobe Sign)",
-    "statusCancelled": "การเซ็นถูกยกเลิก/ปฏิเสธ",
-    "downloadSigned": "ดาวน์โหลดเอกสารที่เซ็นแล้ว",
-    "adobeNotConfigured": "ยังไม่ได้ตั้งค่า Adobe Sign",
-    "adobeBadStatus": "สถานะการจองไม่พร้อมส่งเซ็น",
-    "adobeAlreadySent": "ส่งไปเซ็นแล้ว",
-    "adobeNoSigner": "ไม่พบอีเมลหัวหน้าภาควิชาสำหรับเซ็น",
-    "adobeSendFailed": "ส่งไป Adobe Sign ไม่สำเร็จ"
   },
   "maps": {
     "estimate": "ประเมินระยะทาง (Google Maps)",

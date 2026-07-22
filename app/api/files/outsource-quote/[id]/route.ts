@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       requesterId: true,
       outsourceQuoteUrl: true,
       outsourceQuoteFilename: true,
-      department: { select: { headUserId: true, head: { select: { delegatedToUserId: true } } } },
+      department: { select: { headUserId: true } },
     },
   });
   if (!booking || !booking.outsourceQuoteUrl) return new NextResponse("Not found", { status: 404 });
@@ -23,8 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const isStaff = session.user.roles.includes("ADMIN");
   const isOwner = booking.requesterId === userId;
   const isHead = booking.department?.headUserId === userId;
-  const isDelegate = booking.department?.head?.delegatedToUserId === userId;
-  if (!(isStaff || isOwner || isHead || isDelegate)) {
+  if (!(isStaff || isOwner || isHead)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
