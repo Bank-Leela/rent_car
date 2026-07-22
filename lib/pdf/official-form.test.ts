@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingToFormFields, type OfficialFormBooking } from "./official-form";
+import { bookingToFormFields, fitFontSize, fillVehicleForm, type OfficialFormBooking } from "./official-form";
 
 // Minimal booking factory — only the fields the mapper reads.
 function makeBooking(over: Partial<OfficialFormBooking> = {}): OfficialFormBooking {
@@ -101,5 +101,44 @@ describe("bookingToFormFields", () => {
     expect(text["Signature7_es_:signer:signature"]).toBeUndefined();
     expect(text["Signature8_es_:signer:signature"]).toBeUndefined();
     expect(text["Signature9_es_:signer:signature"]).toBeUndefined();
+  });
+});
+
+describe("fitFontSize (shrink-to-fit so long text doesn't overflow a field)", () => {
+  // Fake measurer: width ≈ chars × size × 0.5 pt.
+  const measure = (t: string, s: number) => t.length * s * 0.5;
+
+  it("keeps the max size when the text already fits", () => {
+    expect(fitFontSize("สั้น", 200, measure)).toBe(9);
+  });
+
+  it("shrinks long text to fit the field width", () => {
+    const long = "x".repeat(30);
+    const size = fitFontSize(long, 100, measure);
+    expect(size).toBeLessThan(9);
+    expect(size).toBeGreaterThanOrEqual(5.5);
+    expect(measure(long, size)).toBeLessThanOrEqual(100 - 4);
+  });
+
+  it("never drops below the min even if it still overflows", () => {
+    expect(fitFontSize("x".repeat(500), 40, measure)).toBe(5.5);
+  });
+
+  it("honors a custom min", () => {
+    expect(fitFontSize("x".repeat(30), 60, measure, { min: 6 })).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe("fillVehicleForm (integration)", () => {
+  it("renders a valid PDF even with very long field values (no overflow crash)", async () => {
+    const bytes = await fillVehicleForm(
+      makeBooking({
+        purpose: "ก".repeat(200),
+        destination: "โรงพยาบาลจุฬาลงกรณ์ ".repeat(20),
+        passengerNotes: "หมายเหตุยาวมาก ".repeat(30),
+      }),
+    );
+    expect(bytes.length).toBeGreaterThan(1000);
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
   });
 });

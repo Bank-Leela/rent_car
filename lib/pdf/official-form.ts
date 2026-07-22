@@ -122,12 +122,61 @@ export function bookingToFormFields(b: OfficialFormBooking): {
   return { text, checks };
 }
 
+const MAX_FONT = 9;
+const MIN_FONT = 5.5;
+const FIELD_INSET = 4; // ~2pt left + right padding inside an AcroForm field box
+
+// Largest size in [min, max] at which `measure(value, size)` fits `widthPts`
+// minus the field insets. Pure + unit-tested. Thai has no inter-word spaces, so
+// wrapping can't help a long single line — shrinking to fit width is the reliable
+// way to stop text overflowing (or clipping) its field box.
+export function fitFontSize(
+  value: string,
+  widthPts: number,
+  measure: (text: string, size: number) => number,
+  opts: { max?: number; min?: number; step?: number } = {},
+): number {
+  const max = opts.max ?? MAX_FONT;
+  const min = opts.min ?? MIN_FONT;
+  const step = opts.step ?? 0.5;
+  const avail = Math.max(1, widthPts - FIELD_INSET);
+  let size = max;
+  while (size > min && measure(value, size) > avail) size -= step;
+  return size;
+}
+
+// The field's widget box (points), or null when it can't be read.
+function fieldBox(f: ReturnType<PDFForm["getTextField"]>): { width: number; height: number } | null {
+  try {
+    const r = f.acroField.getWidgets()[0]?.getRectangle();
+    return r && r.width > 0 && r.height > 0 ? { width: r.width, height: r.height } : null;
+  } catch {
+    return null;
+  }
+}
+
 function setText(form: PDFForm, name: string, value: string, font: PDFFont) {
   if (!value) return;
   try {
     const f = form.getTextField(name);
     f.setText(value);
-    f.setFontSize(9);
+    const measure = (t: string, s: number) => font.widthOfTextAtSize(t, s);
+    let size = MAX_FONT;
+    const box = fieldBox(f);
+    if (box) {
+      const words = value.trim().split(/\s+/);
+      if (box.height > 16 && words.length > 1) {
+        // Tall, space-delimited box (e.g. an English note/reason): let it wrap,
+        // and only shrink if the single widest word still overflows the width.
+        f.enableMultiline();
+        const widest = words.reduce((a, b) => (measure(b, MAX_FONT) > measure(a, MAX_FONT) ? b : a));
+        size = fitFontSize(widest, box.width, measure, { min: 6 });
+      } else {
+        // Single line (Thai has no word breaks): shrink the whole string to fit.
+        size = fitFontSize(value, box.width, measure);
+      }
+    }
+    f.setFontSize(size);
     f.updateAppearances(font);
   } catch {
     /* field renamed / absent — never 500 the download */
