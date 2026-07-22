@@ -101,6 +101,7 @@ export async function runBatchForDay(
     startAt: b.startAt,
     endAt: b.endAt,
     estimatedDistance: b.estimatedDistance,
+    needsSecondaryDriver: b.needsSecondaryDriver,
     outOfProvince: b.outOfProvince,
     submittedAt: b.createdAt,
     waitAtDestination: b.waitAtDestination,

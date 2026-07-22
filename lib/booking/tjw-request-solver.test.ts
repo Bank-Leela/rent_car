@@ -129,6 +129,25 @@ describe("solveTjwByRequest", () => {
     expect(out.overflows).toEqual([{ bookingId: "r1", reason: "NO_PRIMARY_DRIVER" }]);
   });
 
+  it("needsSecondaryDriver flag pairs a co-driver even with null distance", () => {
+    const out = solveTjwByRequest(
+      base({
+        requests: [
+          {
+            bookingId: "flag",
+            createdAt: D("2026-06-25"),
+            startAt: D("2026-07-10T08:00"),
+            endAt: D("2026-07-12T18:00"),
+            estimatedDistance: null,
+            needsSecondaryDriver: true,
+          },
+        ],
+      }),
+    );
+    expect(out.assignments[0]?.primaryDriverId).toBe("A");
+    expect(out.assignments[0]?.secondaryDriverId).toBe("B");
+  });
+
   it(">400km consumes primary + co-driver, so a later overlapping TJW overflows", () => {
     const out = solveTjwByRequest(
       base({

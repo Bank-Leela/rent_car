@@ -366,4 +366,45 @@ describe("match — WERN routes to the on-call duty driver", () => {
   it("NO_PRIMARY_DRIVER when no on-call driver is rostered", () => {
     expect(match(wernInput(null))).toEqual({ ok: false, error: "NO_PRIMARY_DRIVER" });
   });
+
+  it("does NOT double-book the duty car: falls through when the duty driver is busy at the WERN time", () => {
+    // Duty driver A already has a real trip overlapping the WERN window (08–12).
+    const r = match({
+      ...wernInput("A"),
+      onCallExistingTrips: [{ startAt: T("09:00"), endAt: T("13:00"), jobType: "OT" }],
+    });
+    // A's car is busy → the WERN routes to another (non-duty) driver, not a double-book.
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).not.toBe("A");
+  });
+
+  it("still assigns the duty driver when their real trips don't overlap the WERN", () => {
+    const r = match({
+      ...wernInput("A"),
+      onCallExistingTrips: [{ startAt: T("05:00"), endAt: T("06:00"), jobType: "OT" }], // pre-dawn, ≥2h gap
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.result.primaryDriverId).toBe("A");
+  });
+});
+
+describe("match — needsSecondaryDriver flag (distance-independent co-driver)", () => {
+  it("pairs a co-driver when the manual flag is set even though estimatedDistance is null", () => {
+    const r = match({
+      jobType: "TJW",
+      timeBucket: "MORNING_08_12",
+      newTrip: morningTrip,
+      estimatedDistance: null, // Maps not run → distance unset in prod
+      needsSecondaryDriver: true,
+      driverCar,
+      driverMatrix: buildDriverMatrix(drivers, []),
+      driverAvailability: availabilityForAll(),
+      driverRankInputs: rankInputs,
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.result.primaryDriverId).toBe("A");
+      expect(r.result.secondaryDriverId).toBe("B");
+    }
+  });
 });

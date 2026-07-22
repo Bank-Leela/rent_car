@@ -21,6 +21,7 @@ export interface TjwRequestInput {
   startAt: Date;
   endAt: Date;
   estimatedDistance: number | null; // > LONG_TRIP_KM ⇒ needs a co-driver
+  needsSecondaryDriver?: boolean; // admin's manual co-driver flag (distance-independent)
 }
 
 export interface TjwSolveInput {
@@ -97,7 +98,7 @@ export function solveTjwByRequest(input: TjwSolveInput): TjwSolveResult {
     }
 
     let secondary: string | null = null;
-    if ((r.estimatedDistance ?? 0) > LONG_TRIP_KM) {
+    if (r.needsSecondaryDriver || (r.estimatedDistance ?? 0) > LONG_TRIP_KM) {
       const co = ranked.find((id) => id !== primary);
       if (!co) {
         overflows.push({ bookingId: r.bookingId, reason: "NO_SECONDARY_DRIVER" });

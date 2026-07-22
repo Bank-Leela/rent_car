@@ -55,6 +55,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   const tripDay = startOfDay(booking.startAt);
   const dayEnd = new Date(tripDay);
   dayEnd.setDate(dayEnd.getDate() + 1);
+  // For a multi-day trip (TJW), extend the conflict window to the FULL span, not
+  // just day 1 — else a driver already booked on day 2/3 isn't seen and gets
+  // double-booked. max(dayEnd, endAt) keeps day-1 chaining/cap for single-day trips.
+  const spanEnd = booking.endAt > dayEnd ? booking.endAt : dayEnd;
 
   // car=driver: vehicle = chosen driver's car. Load the pairing, no slot search.
   const vehicles = await prisma.vehicle.findMany({
@@ -67,7 +71,8 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       // Overlap, not start-in-day: a multi-day trip that began earlier still
       // occupies the driver today. With a start-in-day window the matcher misses
       // a driver who's still away on a multi-day TJW and assigns them anyway.
-      startAt: { lt: dayEnd },
+      // spanEnd (not dayEnd) so the NEW trip's own day-2/3 overlaps are seen too.
+      startAt: { lt: spanEnd },
       endAt: { gt: tripDay },
       status: { in: COMMITTED_STATUSES },
       id: { not: bookingId },
@@ -155,6 +160,11 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
     }
   }
+  // Snapshot the WERN driver's REAL same-day trips BEFORE the 08:00–16:00 duty
+  // pseudo-trip is pushed below — match()'s WERN branch uses these to verify the
+  // duty car is free before assigning it (the pseudo-trip would overlap every
+  // daytime WERN and defeat the check).
+  const wernExistingTrips = wernDriverId ? [...(tripsByDriver.get(wernDriverId) ?? [])] : [];
   if (onCallDriverId && tripsByDriver.has(onCallDriverId)) {
     const dutyStart = new Date(tripDay);
     dutyStart.setHours(WORK_DAY_START_HOUR, 0, 0, 0);
@@ -192,11 +202,13 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       pickupReturnTime: booking.pickupReturnTime,
     },
     estimatedDistance: booking.estimatedDistance,
+    needsSecondaryDriver: booking.needsSecondaryDriver,
     driverCar,
     driverMatrix,
     driverAvailability,
     driverRankInputs,
     onCallDriverId: wernDriverId,
+    onCallExistingTrips: wernExistingTrips,
   });
   if (!decision.ok) {
     if (decision.error === "NO_SLOT") return { ok: false, error: te("noSlotAvailable") };

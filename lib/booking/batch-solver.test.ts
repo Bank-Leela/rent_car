@@ -29,6 +29,31 @@ function booking(overrides: Partial<SolverBookingInput>): SolverBookingInput {
   };
 }
 
+describe("solveDay — needsSecondaryDriver flag pairs a co-driver (distance-independent)", () => {
+  it("assigns a secondary when the flag is set even with null distance", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [booking({ bookingId: "flag", estimatedDistance: null, needsSecondaryDriver: true })],
+      drivers: [driver({ driverId: "A" }), driver({ driverId: "B" })],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    });
+    expect(out.assignments).toHaveLength(1);
+    expect(out.assignments[0]!.secondaryDriverId).toBe("B");
+  });
+
+  it("overflows NO_SECONDARY_DRIVER when the flag is set but no second driver is free", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [booking({ bookingId: "flag", estimatedDistance: null, needsSecondaryDriver: true })],
+      drivers: [driver({ driverId: "A" })],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    });
+    expect(out.overflows).toEqual([{ bookingId: "flag", reason: "NO_SECONDARY_DRIVER" }]);
+  });
+});
+
 describe("solveDay — phase ordering", () => {
   it("places TJW before NORMAL even when NORMAL was submitted earlier", () => {
     const input: SolverInput = {

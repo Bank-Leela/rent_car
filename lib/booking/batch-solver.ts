@@ -52,6 +52,9 @@ export interface SolverBookingInput {
   startAt: Date;
   endAt: Date;
   estimatedDistance: number | null;
+  /** Admin's manual "needs a co-driver" flag — triggers pairing even when
+   *  estimatedDistance is null (Maps is env-gated, so distance is usually unset). */
+  needsSecondaryDriver?: boolean;
   outOfProvince: boolean;
   /** FCFS key; defaults to createdAt. */
   submittedAt: Date;
@@ -262,7 +265,9 @@ function placeBooking(
     return { kind: "fail", reason: "NO_PRIMARY_DRIVER" };
   }
 
-  const long = booking.estimatedDistance !== null && booking.estimatedDistance > LONG_TRIP_KM;
+  const long =
+    booking.needsSecondaryDriver ||
+    (booking.estimatedDistance !== null && booking.estimatedDistance > LONG_TRIP_KM);
   if (!long) {
     return { kind: "ok", primaryDriverId: primaryId, secondaryDriverId: null };
   }

@@ -32,9 +32,13 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
   const pending = await prisma.booking.findMany({
     where: { jobType: "TJW", status: "APPROVED", primaryDriverId: null },
     orderBy: { createdAt: "asc" },
-    select: { id: true, createdAt: true, startAt: true, endAt: true, estimatedDistance: true },
+    select: { id: true, createdAt: true, startAt: true, endAt: true, estimatedDistance: true, needsSecondaryDriver: true },
   });
   if (pending.length === 0) return { ok: true, assigned: 0, overflows: [] };
+
+  // Span of the pending set — bounds the commitment + duty queries below.
+  const minStart = pending.reduce((m, b) => (b.startAt < m ? b.startAt : m), pending[0]!.startAt);
+  const maxEnd = pending.reduce((m, b) => (b.endAt > m ? b.endAt : m), pending[0]!.endAt);
 
   // Active, car-paired drivers + rotation snapshot (no per-day unavailability
   // filter — a TJW spans days; per-day off-marks are a future refinement).
@@ -59,9 +63,17 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
   });
   const driverCar = driverVehicleMap(vehicles);
 
-  // Already-assigned TJW → fixed commitments (their drivers are locked away).
+  // EVERY committed, driver-assigned trip overlapping the span → fixed commitment.
+  // NOT just TJW: a driver already on a NORMAL/OT/WERN trip must block a TJW placed
+  // over it (the solver's overlap check only sees what we load here). The span
+  // bound keeps the row set small and drops trips that can't overlap any request.
   const committed = await prisma.booking.findMany({
-    where: { jobType: "TJW", status: { in: COMMITTED_STATUSES }, primaryDriverId: { not: null } },
+    where: {
+      status: { in: COMMITTED_STATUSES },
+      primaryDriverId: { not: null },
+      startAt: { lt: maxEnd },
+      endAt: { gt: minStart },
+    },
     select: { primaryDriverId: true, secondaryDriverId: true, startAt: true, endAt: true },
   });
   const existingCommitments: TjwCommitment[] = [];
@@ -71,8 +83,6 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
   }
 
   // Duty driver per day across the requested span (excluded from TJW on that day).
-  const minStart = pending.reduce((m, b) => (b.startAt < m ? b.startAt : m), pending[0]!.startAt);
-  const maxEnd = pending.reduce((m, b) => (b.endAt > m ? b.endAt : m), pending[0]!.endAt);
   const shifts = await prisma.onCallShift.findMany({
     where: { date: { gte: startOfDay(minStart), lte: startOfDay(maxEnd) } },
     select: { date: true, driverId: true },
@@ -85,6 +95,7 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     startAt: b.startAt,
     endAt: b.endAt,
     estimatedDistance: b.estimatedDistance,
+    needsSecondaryDriver: b.needsSecondaryDriver,
   }));
 
   const result = solveTjwByRequest({
