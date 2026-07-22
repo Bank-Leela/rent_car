@@ -77,7 +77,11 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
       where: {
         id: { not: bookingId },
         vehicleId,
-        status: { in: ["APPROVED", "ASSIGNED"] },
+        // Match the DB occupancy trigger (APPROVED|ASSIGNED|COMPLETED). Without
+        // COMPLETED here the pre-check misses a finished trip that still holds an
+        // occupancy row, so the drop is rejected by the EXCLUDE with an UNNAMED
+        // vehicleBusy instead of a named conflict.
+        status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
         startAt: { lt: booking.endAt },
         endAt: { gt: booking.startAt },
       },
@@ -96,6 +100,35 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   }
 
   const driverId = vehicle.assignedDriverId;
+  // A driver can't be in two places at once. The per-vehicle check + DB EXCLUDE
+  // above only guard the TARGET CAR, but this car's assigned driver may already
+  // be riding as a CO-DRIVER in ANOTHER car's trip (a co-driver rides in the
+  // primary's car, so their own car stays free and neither guard catches it —
+  // docs/scheduling-algorithm.md §5). Reject an overlapping commitment on any
+  // OTHER car. Overlap on a driver is never override-relaxable (unlike the 2h gap).
+  {
+    const elsewhere = await prisma.booking.findMany({
+      where: {
+        id: { not: bookingId },
+        vehicleId: { not: vehicleId }, // the target car's own trips are checked above
+        status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
+        OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
+        startAt: { lt: booking.endAt },
+        endAt: { gt: booking.startAt },
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        jobNumber: true, startAt: true, endAt: true,
+        waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      },
+    });
+    const bookingLeg = toLegSrc(booking);
+    const driverConflicts = elsewhere
+      .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
+      .slice(0, 3)
+      .map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt }));
+    if (driverConflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts: driverConflicts };
+  }
   // Re-validate the recommended co-driver: it was picked as free at render time,
   // but could have been booked since. Drop it (place primary only) if it now has
   // an overlapping trip — never silently double-book the co-driver.
@@ -166,7 +199,10 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { id: true, primaryDriverId: true, startAt: true, endAt: true },
+    select: {
+      id: true, primaryDriverId: true, startAt: true, endAt: true,
+      waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+    },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
 
@@ -195,8 +231,11 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
   // A driver can't co-drive their own (or anyone's) trip as both roles.
   if (newSecondary === booking.primaryDriverId) return { ok: false, error: "coDriverSamePrimary" };
 
-  // No overlap — the new co-driver must be free across the trip window.
-  const conflicts = await prisma.booking.findMany({
+  // No overlap — the new co-driver must be free across the trip window. Coarse SQL
+  // window is a superset of leg-overlap; refine per-leg via trip-legs.ts (the single
+  // source of truth) so a co-driver that fits a no-wait trip's freed middle is not
+  // falsely blocked. Matches reassignVehicleAction's per-leg checks.
+  const secCandidates = await prisma.booking.findMany({
     where: {
       id: { not: bookingId },
       status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
@@ -205,9 +244,16 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
       endAt: { gt: booking.startAt },
     },
     orderBy: { startAt: "asc" },
-    take: 3,
-    select: { jobNumber: true, startAt: true, endAt: true },
+    select: {
+      jobNumber: true, startAt: true, endAt: true,
+      waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+    },
   });
+  const bookingLeg = toLegSrc(booking);
+  const conflicts = secCandidates
+    .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
+    .slice(0, 3)
+    .map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt }));
   if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
 
   await prisma.$transaction(async (tx) => {

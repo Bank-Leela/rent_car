@@ -15,11 +15,18 @@ export async function register() {
     /* ignore */
   }
   if (runtimeTz !== EXPECTED_TZ) {
-    console.warn(
-      `\n[TZ WARNING] Server timezone is "${runtimeTz || "unknown"}" (TZ env="${process.env.TZ ?? "unset"}").\n` +
-        `  Scheduling (จัดรอบ / trip-legs) needs TZ=${EXPECTED_TZ}. Day boundaries and no-wait\n` +
-        `  leg splits will be WRONG until you set TZ=${EXPECTED_TZ} in the process environment\n` +
-        `  (systemd Environment=, Docker -e, or the shell) and restart. See docs/deployment.md.\n`,
-    );
+    const detail =
+      `Server timezone is "${runtimeTz || "unknown"}" (TZ env="${process.env.TZ ?? "unset"}"), ` +
+      `but scheduling requires TZ=${EXPECTED_TZ}. Day boundaries (จัดรอบ) and no-wait leg-2 splits ` +
+      `disagree between the app (process-local time in trip-legs.ts) and the DB occupancy constraint ` +
+      `(hardcoded ${EXPECTED_TZ} in booking_leg2_start), producing false conflicts or missed double-books. ` +
+      `Set TZ=${EXPECTED_TZ} in the process environment (systemd Environment=, Docker -e, or the shell) and restart. See docs/deployment.md.`;
+    // Fail loud in production — a wrong TZ silently corrupts scheduling, so refuse
+    // to start rather than serve wrong assignments. In dev, warn so a non-Bangkok
+    // laptop can still run (its scheduling output just won't match prod).
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(`[TZ FATAL] ${detail}`);
+    }
+    console.warn(`\n[TZ WARNING] ${detail}\n`);
   }
 }

@@ -114,4 +114,33 @@ describe("solveTjwByRequest", () => {
     expect(out.overflows).toHaveLength(0);
     expect(out.assignments.every((a) => a.primaryDriverId === "A")).toBe(true);
   });
+
+  it("excludes the duty driver on a MIDDLE spanned day, not only the first", () => {
+    // 3-day span 07-10 → 07-12; duty falls on the MIDDLE day (07-11) only.
+    const midMs = D("2026-07-11T00:00").getTime();
+    const out = solveTjwByRequest(
+      base({
+        drivers: [drv("A")],
+        driverCar: new Map([["A", "carA"]]),
+        dutyByDay: new Map([[midMs, "A"]]),
+        requests: [req("r1", "2026-06-25", "2026-07-10T08:00", "2026-07-12T18:00")],
+      }),
+    );
+    expect(out.overflows).toEqual([{ bookingId: "r1", reason: "NO_PRIMARY_DRIVER" }]);
+  });
+
+  it(">400km consumes primary + co-driver, so a later overlapping TJW overflows", () => {
+    const out = solveTjwByRequest(
+      base({
+        requests: [
+          req("long", "2026-06-25", "2026-07-10T08:00", "2026-07-12T18:00", 700), // takes A + B
+          req("next", "2026-06-26", "2026-07-11T08:00", "2026-07-11T18:00", 100), // overlaps long's span
+        ],
+      }),
+    );
+    const longA = out.assignments.find((a) => a.bookingId === "long");
+    expect(longA?.primaryDriverId).toBe("A");
+    expect(longA?.secondaryDriverId).toBe("B");
+    expect(out.overflows).toContainEqual({ bookingId: "next", reason: "NO_PRIMARY_DRIVER" });
+  });
 });

@@ -135,7 +135,11 @@ Enforced in three places:
   rule can't catch this; the away-exclusion is the only guard.
 - **Drag-drop / assign-reco** (`schedule-actions.ts:reassignVehicleAction`)
   blocks an overlapping drop on **every** car (the 2h gap is not checked here, so
-  it stays overridable). Re-dropping on the same car is the only skip.
+  it stays overridable). Re-dropping on the same car is the only skip. It **also**
+  rejects the drop when the target car's assigned driver is already committed on
+  **another** car at that time (e.g. riding as a co-driver — their own car is free,
+  so the per-vehicle EXCLUDE can't catch it); a driver overlap is never override-
+  relaxable. Per-leg throughout (`trip-legs.ts`).
 - **Board** (`scheduler-board.tsx`) stacks concurrent blocks into lanes; any
   overlap on **any** car (duty included) gets a red conflict ring.
 
@@ -305,17 +309,15 @@ hover tooltip.
   so a multi-day clash on a day that isn't on screen is visible.
 - The unassigned queue carries each booking's placement recommendation (§7b) with
   an inline Assign.
-- **Auto-assign button** (`จัดอัตโนมัติ {n}`) places the queue **and** resolves
-  overlap conflicts among already-assigned trips. For every pair of PRIMARY trips
-  double-booked on a car (the red ring, §5), the **loser** is re-matched to a
-  free legal car via `recommendPlacement` (`fit` only). Loser rule
-  (`conflict-resolve.ts`): **WERN/duty is pinned** — reserved all day (§1/§5), it
-  is never the trip that moves, so a duty-car conflict frees the car by moving the
-  *intruder* off, never by re-homing duty work; otherwise lower category priority
-  (TJW>OT>NORMAL), tie → later-submitted. The duty car is **never** auto-reclaimed
-  as a *destination* either; a loser with no free car is left in place and reported. Non-destructive, one pass (residual conflicts
-  stay red → click again). Server: `resolveScheduleConflictsAction`. The badge
-  count = unassigned/driverless + conflict losers.
+- **Auto-assign button** (`จัดอัตโนมัติ {n}`) places only the **unassigned /
+  driverless** queue: `components/admin/scheduler-board.tsx:autoAssignAll` iterates
+  `[...queue, ...needsDriver]` and calls `matchBookingAction` / `reassignVehicleAction`
+  per booking. The badge count = unassigned/driverless only. It does **not**
+  auto-resolve overlaps among already-assigned trips — any residual double-book keeps
+  its red conflict ring (§5) for **manual** re-drop by P'Top. (An automatic
+  loser-reassignment pass with WERN/duty pinning — `conflict-resolve.ts` /
+  `resolveScheduleConflictsAction` with `findConflictLosers` / `pickConflictLoser` —
+  was specced but is **not implemented**; those symbols exist in no source file.)
 
 ---
 
@@ -350,8 +352,7 @@ hover tooltip.
 | `lib/booking/overtime-reco.ts` | Advisory OT placement |
 | `lib/booking/placement-reco.ts` | `recommendPlacement` — leftover/overflow suggestion, gated by `canChain` (pure) |
 | `lib/booking/placement-reco-data.ts` | Server builder for the recommendation |
-| `lib/booking/conflict-resolve.ts` | `findConflictLosers` / `pickConflictLoser` — which double-booked trip moves (pure) |
-| `lib/booking/schedule-actions.ts` | Drag-drop reassign + `unassignBookingAction` (back to queue) + `resolveScheduleConflictsAction` (auto-resolve overlaps); blocks overlap on every car; co-driver re-validation |
+| `lib/booking/schedule-actions.ts` | Drag-drop reassign (`reassignVehicleAction` / `reassignSecondaryAction`) + `unassignBookingAction` (back to queue); blocks overlap on every car AND on the assigned driver's other-car commitments; per-leg co-driver re-validation |
 | `components/admin/scheduler-board.tsx` | Board container + DnD (collision, queue droppable, unassign) |
 | `components/admin/scheduler-board-blocks.tsx` | `TimelineBlock` / `CoDriverGhost` / `QueueCard` / `CarRow` |
 | `components/admin/scheduler-board-shared.ts` | Board types, job-type theme, axis/lane geometry |

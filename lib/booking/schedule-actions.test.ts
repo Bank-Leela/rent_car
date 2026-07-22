@@ -19,6 +19,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   reassignVehicleAction,
+  reassignSecondaryAction,
   unassignBookingAction,
 } from "@/lib/booking/schedule-actions";
 
@@ -125,6 +126,80 @@ describe("reassignVehicleAction — the no-overlap rule", () => {
     expect(after?.vehicleId).toBe(vB.id);
     expect(after?.primaryDriverId).toBe(vB.driverId);
     expect(after?.status).toBe("ASSIGNED");
+  });
+});
+
+// A separate quiet day so these seeds never collide with the cases above.
+const DAY2 = startOfDay(addDays(new Date(), 120));
+const at2 = (h: number, m = 0) => {
+  const d = new Date(DAY2);
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+
+describe("reassignVehicleAction — driver double-book guard (co-driver on another car)", () => {
+  it("BLOCKS a drop when the target car's driver is already a co-driver on another car at that time", async () => {
+    // vA.driver co-drives a long trip L that RIDES IN car vB (20:00–22:00), so
+    // vA's own car is free and neither the per-vehicle check nor the DB EXCLUDE
+    // can see the clash — only the driver-elsewhere guard can.
+    const L = await mkBooking({
+      startAt: at2(20), endAt: at2(22),
+      vehicleId: vB.id, primaryDriverId: vB.driverId, secondaryDriverId: vA.driverId,
+      status: "ASSIGNED", estimatedDistance: 500,
+    });
+    const mover = await mkBooking({ startAt: at2(20, 30), endAt: at2(21, 30) }); // overlaps L
+    const res = await reassignVehicleAction(fd({ bookingId: mover.id, vehicleId: vA.id }));
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toBe("vehicleBusy");
+      expect(res.conflicts?.map((c) => c.jobNumber)).toContain(L.jobNumber);
+    }
+    const after = await prisma.booking.findUnique({ where: { id: mover.id } });
+    expect(after?.vehicleId).toBeNull();
+    expect(after?.status).toBe("APPROVED");
+  });
+});
+
+describe("reassignVehicleAction — COMPLETED overlap is a NAMED conflict", () => {
+  it("names the conflicting COMPLETED trip instead of a bare unnamed vehicleBusy", async () => {
+    const done = await mkBooking({
+      startAt: at2(9), endAt: at2(11),
+      vehicleId: vA.id, primaryDriverId: vA.driverId, status: "COMPLETED",
+    });
+    const mover = await mkBooking({ startAt: at2(10), endAt: at2(12) }); // overlaps the COMPLETED trip
+
+    const res = await reassignVehicleAction(fd({ bookingId: mover.id, vehicleId: vA.id }));
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toBe("vehicleBusy");
+      expect(res.conflicts?.map((c) => c.jobNumber)).toContain(done.jobNumber);
+    }
+  });
+});
+
+describe("reassignSecondaryAction — per-leg overlap (no-wait freed middle)", () => {
+  it("ALLOWS a co-driver whose only same-time trip is a no-wait split with a freed middle", async () => {
+    // vB.driver runs a no-wait split on car vB: out 06:00, drop-off 07:00,
+    // return-pickup 15:00, back 16:00 → legs [06–07] + [15–16], middle 07–15 free.
+    await mkBooking({
+      startAt: at2(6), endAt: at2(16),
+      vehicleId: vB.id, primaryDriverId: vB.driverId, status: "ASSIGNED",
+      waitAtDestination: false, dropOffDone: at2(7), pickupReturnTime: "15:00",
+    });
+    // A long trip Z (12:00–13:00) sits in vB.driver's freed middle; making vB.driver
+    // its co-driver is legal per-leg and must NOT be blocked as whole-trip overlap.
+    const z = await mkBooking({
+      startAt: at2(12), endAt: at2(13),
+      vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED", estimatedDistance: 500,
+    });
+
+    const res = await reassignSecondaryAction(fd({ bookingId: z.id, vehicleId: vB.id }));
+
+    expect(res.ok).toBe(true);
+    const after = await prisma.booking.findUnique({ where: { id: z.id } });
+    expect(after?.secondaryDriverId).toBe(vB.driverId);
   });
 });
 
