@@ -97,10 +97,12 @@ Summary:
 - **Board** (`scheduler-board*.{tsx,ts}`): cars = rows, time = X-axis, job-type
   colours, lane-stacked, multi-day trips shown on every day they span, drag to
   reassign / drop off the rows to unassign (also a hover ✕). The auto-assign
-  button (จัดอัตโนมัติ) now also resolves overlap conflicts among
-  already-assigned trips (`lib/booking/conflict-resolve.ts` +
-  `resolveScheduleConflictsAction` in `schedule-actions.ts`); WERN/duty is
-  pinned and never the loser.
+  button (จัดอัตโนมัติ) places the unassigned/driverless queue only; residual
+  overlaps among already-assigned trips keep their red conflict ring for manual
+  re-drop. (An automatic loser-reassignment pass with WERN/duty pinning —
+  `conflict-resolve.ts` / `resolveScheduleConflictsAction` — was specced but is
+  **not implemented**; those symbols exist in no source file. See
+  `scheduling-algorithm.md` §8.)
 
 Measurement instrument: the pure **simulation harness** (`simulation.ts`) backs
 the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
@@ -141,7 +143,7 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 | `app/(requester)/*` | Requester: new request, upcoming (confirmed driver for today/tomorrow), history, detail. |
 | `app/(login\|forgot\|reset\|account)` | Auth surfaces. |
 | `app/api/*` | NextAuth, dev sign-in, booking PDF, reports CSV, LINE webhook. |
-| `lib/booking/*` (~34 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window, plus queue triage, deny presets, and overlap conflict-resolve. |
+| `lib/booking/*` (~34 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window, TJW request-order solver, plus queue triage and deny presets. |
 | `lib/{auth,email,line,pdf,reporting}/*` | Auth helpers, email, LINE, PDF, reporting. |
 | `components/*` | UI — forms, the scheduler board (split into `scheduler-board` / `-blocks` / `-shared`), shared UI. |
 | `prisma/` | Schema (18 models, 12 enums), 17 migrations, seed. |

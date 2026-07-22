@@ -243,6 +243,10 @@ Spec `docs/superpowers/specs/2026-06-24-booking-input-classification-design.md`.
   `resolveScheduleConflictsAction` (`schedule-actions.ts`) + pure
   `conflict-resolve.ts` (`pickConflictLoser` / `findConflictLosers`). WERN/duty is
   **pinned** — never the loser; only a free non-duty car auto-resolves.
+  > ⚠️ **2026-07-22:** this auto-resolve pass was **never shipped** (or was later
+  > removed) — `conflict-resolve.ts` / `resolveScheduleConflictsAction` exist in no
+  > source file. Auto-assign places the queue only; residual overlaps are manual.
+  > See `docs/scheduling-algorithm.md` §8.
 - **Bug fixes:** cross-midnight OT detection (`overtime-reco.ts` `isOvernight`),
   sub-minute spill past 16:00 classifies OT (`classification.ts`), `rankCandidates`
   `driverId` `localeCompare` tie-break (`driver-capacity.ts`).
