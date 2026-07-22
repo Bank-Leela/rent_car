@@ -8,7 +8,9 @@ export async function requireUser() {
   // A user deactivated mid-session keeps a live JWT until expiry; the token
   // refreshes isActive from the DB each request (auth.ts), so enforce it at the
   // single choke point every RSC/server action funnels through. /login is public.
-  if (!session.user.isActive) redirect("/login");
+  // `=== false` (not `!isActive`): prod always sets a concrete boolean (auth.ts
+  // `?? false`), so this blocks deactivated users identically while matching proxy.ts.
+  if (session.user.isActive === false) redirect("/login");
   return session;
 }
 
