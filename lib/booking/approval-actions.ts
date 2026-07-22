@@ -18,19 +18,15 @@ import type { ActionResult } from "@/lib/booking/actions";
 
 /**
  * Approval permission. The former APPROVER role was merged into ADMIN, so any
- * ADMIN can approve, as can a delegate of an ADMIN.
+ * ADMIN can approve. (Delegation was removed.)
  */
 async function canApprove(userId: string): Promise<boolean> {
   const me = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      roles: { select: { role: true } },
-      delegatedBy: { select: { roles: { select: { role: true } } } },
-    },
+    select: { roles: { select: { role: true } } },
   });
   if (!me) return false;
-  if (me.roles.some((r) => r.role === "ADMIN")) return true;
-  return me.delegatedBy.some((u) => u.roles.some((r) => r.role === "ADMIN"));
+  return me.roles.some((r) => r.role === "ADMIN");
 }
 
 const approveSchema = z.object({
@@ -94,18 +90,12 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     confirmedEndAt = endAt;
   }
 
-  const approver = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { signatureImageUrl: true },
-  });
-
   await prisma.$transaction(async (tx) => {
     await tx.approval.create({
       data: {
         bookingId,
         approverId: userId,
         status: "APPROVED",
-        signatureImageUrl: approver.signatureImageUrl,
         comment,
         decidedAt: new Date(),
       },
@@ -224,55 +214,41 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
   return { ok: true };
 }
 
-// ---- Profile: signature upload + delegation ----
+// ---- Account: register the requester's signature (image + name label) ----
 
 export async function uploadSignatureAction(formData: FormData): Promise<ActionResult> {
   const session = await requireUser();
   const userId = session.user.id;
   const te = await getTranslations("errors");
 
+  const signatureName = String(formData.get("signatureName") ?? "").trim();
+  if (!signatureName) return { ok: false, error: te("signatureNameRequired") };
+
   const file = formData.get("signature");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: te("signaturePickFile") };
-  }
-  if (file.size > 1_000_000) {
-    return { ok: false, error: te("signatureTooLarge") };
-  }
-  const isPng = file.type === "image/png";
-  const isJpeg = file.type === "image/jpeg" || file.type === "image/jpg";
-  if (!isPng && !isJpeg) {
-    return { ok: false, error: te("signatureBadFormat") };
-  }
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const ref = await writeSignature(userId, bytes, isPng ? "png" : "jpg");
-  await prisma.user.update({ where: { id: userId }, data: { signatureImageUrl: ref } });
-  revalidatePath("/admin/profile");
-  return { ok: true };
-}
+  const hasFile = file instanceof File && file.size > 0;
 
-const delegateSchema = z.object({
-  delegateEmail: z.string().email().optional().or(z.literal("")).transform((v) => v || undefined),
-});
-
-export async function setDelegateAction(formData: FormData): Promise<ActionResult> {
-  const session = await requireUser();
-  const userId = session.user.id;
-  const te = await getTranslations("errors");
-
-  const parsed = delegateSchema.safeParse(Object.fromEntries(formData.entries()));
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
+  // Name-only updates are allowed once a signature is on file; a first-time
+  // registration must include the image.
+  let ref: string | undefined;
+  if (hasFile) {
+    if (file.size > 1_000_000) return { ok: false, error: te("signatureTooLarge") };
+    const isPng = file.type === "image/png";
+    const isJpeg = file.type === "image/jpeg" || file.type === "image/jpg";
+    if (!isPng && !isJpeg) return { ok: false, error: te("signatureBadFormat") };
+    const bytes = Buffer.from(await file.arrayBuffer());
+    ref = await writeSignature(userId, bytes, isPng ? "png" : "jpg");
+  } else {
+    const me = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { signatureImageUrl: true },
+    });
+    if (!me.signatureImageUrl) return { ok: false, error: te("signaturePickFile") };
   }
-  const { delegateEmail } = parsed.data;
 
-  let delegatedToUserId: string | null = null;
-  if (delegateEmail) {
-    const target = await prisma.user.findUnique({ where: { email: delegateEmail } });
-    if (!target) return { ok: false, error: te("delegateNotFound", { email: delegateEmail }) };
-    if (target.id === userId) return { ok: false, error: te("delegateSelf") };
-    delegatedToUserId = target.id;
-  }
-  await prisma.user.update({ where: { id: userId }, data: { delegatedToUserId } });
-  revalidatePath("/admin/profile");
+  await prisma.user.update({
+    where: { id: userId },
+    data: { signatureName, ...(ref ? { signatureImageUrl: ref } : {}) },
+  });
+  revalidatePath("/account");
   return { ok: true };
 }

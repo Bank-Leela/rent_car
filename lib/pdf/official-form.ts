@@ -4,11 +4,17 @@ import { PDFDocument, type PDFForm, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { Booking, Department, Trip, User, Vehicle, VehicleType } from "@prisma/client";
 
-// The official faculty form is a real AcroForm (57 fields) prepared with Adobe
-// Acrobat Sign signer tags. We fill the data fields and leave the three
-// Signature*_es_:signer:signature fields empty + fillable for the e-sign step.
+// The official faculty form is a real AcroForm (57 fields). We fill the data
+// fields and stamp the requester's registered signature image over the first
+// Signature*_es_:signer:signature field (physically positioned right after
+// the request section — the requester's own signature block). The other two
+// signature fields stay blank; the department head and driver still sign the
+// printed copy by hand.
 const TEMPLATE = "2 แบบฟอร์มขออนุมัติใช้ยานพาหนะ คณะแพทยศาส e.pdf";
 const FONT = "NotoSansThai-Regular.ttf";
+const REQUESTER_SIGNATURE_FIELD = "Signature7_es_:signer:signature";
+
+export type SignatureImage = { bytes: Uint8Array; isPng: boolean };
 
 export type OfficialFormBooking = Booking & {
   requester: User;
@@ -197,9 +203,41 @@ function check(form: PDFForm, name: string) {
   }
 }
 
-// Render the filled official form. Signature fields are never touched — they
-// stay live for Adobe Sign.
-export async function fillVehicleForm(b: OfficialFormBooking): Promise<Uint8Array> {
+// Draw the signature image into the requester's signature field's own box,
+// scaled to fit (aspect preserved, centered) so it never spills into
+// neighbouring fields. Silently skipped if the field is missing/renamed —
+// never breaks the download over a template mismatch.
+async function stampRequesterSignature(doc: PDFDocument, form: PDFForm, image: SignatureImage) {
+  let field;
+  try {
+    field = form.getField(REQUESTER_SIGNATURE_FIELD);
+  } catch {
+    return;
+  }
+  const widget = field.acroField.getWidgets()[0];
+  if (!widget) return;
+  const rect = widget.getRectangle();
+  const pageRef = widget.P();
+  const page = doc.getPages().find((p) => p.ref === pageRef) ?? doc.getPage(0);
+
+  const embedded = image.isPng ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
+  const scale = Math.min(rect.width / embedded.width, rect.height / embedded.height);
+  const w = embedded.width * scale;
+  const h = embedded.height * scale;
+  page.drawImage(embedded, {
+    x: rect.x + (rect.width - w) / 2,
+    y: rect.y + (rect.height - h) / 2,
+    width: w,
+    height: h,
+  });
+}
+
+// Render the filled official form, stamping the requester's registered
+// signature image (if any) over their signature field.
+export async function fillVehicleForm(
+  b: OfficialFormBooking,
+  signatureImage?: SignatureImage | null,
+): Promise<Uint8Array> {
   const [tplBytes, fontBytes] = await Promise.all([
     fs.readFile(path.join(process.cwd(), "public", TEMPLATE)),
     fs.readFile(path.join(process.cwd(), "lib", "pdf", "fonts", FONT)),
@@ -212,6 +250,8 @@ export async function fillVehicleForm(b: OfficialFormBooking): Promise<Uint8Arra
   const { text, checks } = bookingToFormFields(b);
   for (const [name, value] of Object.entries(text)) setText(form, name, value, thai);
   for (const name of checks) check(form, name);
+
+  if (signatureImage) await stampRequesterSignature(doc, form, signatureImage);
 
   return doc.save();
 }

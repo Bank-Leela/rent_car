@@ -19,23 +19,16 @@ import {
   requesterDeniedEmail,
 } from "@/lib/email/templates";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
-
-// Shared by every action's post-mutation notify/read-back. Exported for the
-// requester-facing create action, split into ./create-booking-action.
-export const bookingDetailInclude = {
-  requester: true,
-  department: true,
-  vehicle: true,
-  primaryDriver: { include: { user: true } },
-  secondaryDriver: { include: { user: true } },
-} as const;
+import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
 
 export type ActionResult =
   | { ok: true }
   | { ok: false; error: string; field?: string };
 
 // Requester-facing booking submission lives in ./create-booking-action, which
-// imports ActionResult + bookingDetailInclude from here (one-directional).
+// imports ActionResult from here and bookingDetailInclude from
+// ./booking-detail-include (plain data can't be exported from a "use server"
+// file — every export there must be an async function).
 
 // ---- Admin: allow + allocate vehicle (CR-02: drivers are no longer assigned
 // by the admin; they self-claim on the driver schedule board). ----

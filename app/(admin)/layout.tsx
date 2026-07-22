@@ -28,9 +28,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const mobileNav = flatAdminRoutes()
     .filter((r) => showTab(r.href))
     .map((r) => ({ href: r.href, label: t(r.labelKey) }));
-  // Signature + delegation lives in the avatar menu now, not the main nav.
-  const profileExtra = [{ href: "/admin/profile", label: t("signature") }];
-
   // Notification bell: count of cases awaiting a decision (new pending requests
   // + over-capacity waitlist).
   const actionableCount = await prisma.booking.count({
@@ -58,7 +55,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       nav={mobileNav}
       desktopNav={<AdminPrimaryNav sections={sections} />}
       headerActions={bell}
-      profileExtra={profileExtra}
     >
       <AdminSubnav sections={sections} />
       {children}

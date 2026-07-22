@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/forgot", "/reset", "/api/auth", "/api/dev", "/api/line", "/api/adobe-sign", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/forgot", "/reset", "/api/auth", "/api/dev", "/api/line", "/api/cron"];
 // Paths a user on a temp password can reach without being bounced back to
 // /account. They need access to set the new password and to sign out;
 // everything else is blocked until the password is rotated.

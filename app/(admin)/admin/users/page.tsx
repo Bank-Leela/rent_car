@@ -28,6 +28,8 @@ export default async function AdminUsersPage() {
     roles: u.roles.map((r) => r.role),
     isActive: u.isActive,
     mustChangePassword: u.mustChangePassword,
+    signatureName: u.signatureName,
+    hasSignature: !!u.signatureImageUrl,
   }));
 
   return (

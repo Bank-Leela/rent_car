@@ -6,21 +6,22 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import {
-  RequesterBookingList,
   ACTIVE_BOOKING_STATUSES,
   HISTORY_BOOKING_STATUSES,
+  type RequesterBookingCard,
 } from "@/components/requester-booking-list";
 import { RequesterHistoryClient } from "@/components/requester-history-client";
 
+// History log: every request that's run its course — formally COMPLETED/
+// DENIED/CANCELLED, or an active-status booking whose scheduled end has simply
+// passed (e.g. nobody closed it out). Anything still ahead lives on
+// /requester/upcoming instead, so the two pages never show the same booking.
 export default async function RequesterHome() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("requester");
-  const [bookings, pendingEvalBookings, history] = await Promise.all([
-    prisma.booking.findMany({
-      where: { requesterId: session.user.id, status: { in: ACTIVE_BOOKING_STATUSES } },
-      orderBy: { createdAt: "desc" },
-      include: { vehicle: true },
-    }),
+  const now = new Date();
+
+  const [pendingEvalBookings, history] = await Promise.all([
     prisma.booking.findMany({
       where: {
         requesterId: session.user.id,
@@ -30,16 +31,24 @@ export default async function RequesterHome() {
       select: { id: true, jobNumber: true, purpose: true, destination: true },
     }),
     prisma.booking.findMany({
-      where: { requesterId: session.user.id, status: { in: HISTORY_BOOKING_STATUSES } },
-      orderBy: { createdAt: "desc" },
+      where: {
+        requesterId: session.user.id,
+        OR: [
+          { status: { in: HISTORY_BOOKING_STATUSES } },
+          { status: { in: ACTIVE_BOOKING_STATUSES }, endAt: { lt: now } },
+        ],
+      },
+      orderBy: { startAt: "desc" },
       include: { vehicle: true },
     }),
   ]);
 
-  const historyRows = history.map((b) => ({
+  // Past-due bookings that were never formally closed out read as done from
+  // the requester's point of view — show them as completed here.
+  const historyRows: RequesterBookingCard[] = history.map((b) => ({
     id: b.id,
     jobNumber: b.jobNumber,
-    status: b.status,
+    status: (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) ? b.status : "COMPLETED",
     purpose: b.purpose,
     destination: b.destination,
     province: b.province,
@@ -59,7 +68,7 @@ export default async function RequesterHome() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title={t("title")} description={t("description")} actions={newBookingButton} />
+      <PageHeader title={t("historyTitle")} description={t("historyDescription")} actions={newBookingButton} />
 
       {pendingEvalBookings.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
@@ -92,30 +101,11 @@ export default async function RequesterHome() {
         </div>
       )}
 
-      {/* Active bookings */}
-      {bookings.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title={t("activeEmptyTitle")}
-          description={t("activeEmptyDescription")}
-          action={newBookingButton}
-        />
+      {historyRows.length === 0 ? (
+        <EmptyState icon={FileText} title={t("historyEmptyTitle")} description={t("historyEmptyDescription")} />
       ) : (
-        <RequesterBookingList bookings={bookings} />
+        <RequesterHistoryClient bookings={historyRows} />
       )}
-
-      {/* History — same page, below the active bookings (ประวัติ) */}
-      <section className="space-y-4 border-t pt-8">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">{t("historyTitle")}</h2>
-          <p className="text-sm text-muted-foreground">{t("historyDescription")}</p>
-        </div>
-        {historyRows.length === 0 ? (
-          <EmptyState icon={FileText} title={t("historyEmptyTitle")} description={t("historyEmptyDescription")} />
-        ) : (
-          <RequesterHistoryClient bookings={historyRows} />
-        )}
-      </section>
     </div>
   );
 }

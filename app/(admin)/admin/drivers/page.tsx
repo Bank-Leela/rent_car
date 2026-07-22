@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { DriversListClient } from "@/components/admin/drivers-list-client";
 import { RosterCsvButton } from "@/components/admin/roster-csv-button";
+import { CreateDriverForm } from "@/components/forms/create-driver-form";
 import { licenseStatus, retirementStatus } from "@/lib/admin/roster-alerts";
 
 export default async function AdminDriversPage() {
@@ -43,6 +44,14 @@ export default async function AdminDriversPage() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("title")} description={t("description")} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("addDriver")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateDriverForm />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">

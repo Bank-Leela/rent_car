@@ -19,6 +19,8 @@ interface AdminUserRowData {
   roles: string[];
   isActive: boolean;
   mustChangePassword: boolean;
+  signatureName: string | null;
+  hasSignature: boolean;
 }
 
 export function UserRow({ user }: { user: AdminUserRowData }) {
@@ -49,6 +51,20 @@ export function UserRow({ user }: { user: AdminUserRowData }) {
             <span>·</span>
             <span className="font-mono">{user.username ?? "—"}</span>
             {user.department && (<><span>·</span><span>{user.department}</span></>)}
+          </div>
+          <div className="mt-1.5 flex items-center gap-2 text-xs">
+            {user.hasSignature ? (
+              <>
+                <img
+                  src={`/api/files/signature/${user.id}`}
+                  alt={t("signatureLabel")}
+                  className="h-6 max-w-[8rem] rounded border bg-white object-contain"
+                />
+                <span className="text-muted-foreground">{user.signatureName ?? t("signatureLabel")}</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">{t("noSignature")}</span>
+            )}
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
             {user.roles.map((r) => (

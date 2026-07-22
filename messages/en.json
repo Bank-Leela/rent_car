@@ -32,8 +32,6 @@
     "leadTimeTooSoonCalendar": "Start must be at least {days} days from today (weekends included).",
     "noDepartment": "Set your department on your account page before booking.",
     "pendingEvaluation": "You have a completed trip without an evaluation. Submit it before booking again.",
-    "delegateNotFound": "No user with email {email}.",
-    "delegateSelf": "You cannot delegate to yourself.",
     "outOfHoursReasonRequired": "Trips outside driver hours require a written justification.",
     "endBeforeStart": "End time must be after start time.",
     "endTimeRequiredOneWay": "One-way bookings need an end time set before approval.",
@@ -61,6 +59,7 @@
     "signaturePickFile": "Pick an image file.",
     "signatureTooLarge": "Signature image must be under 1 MB.",
     "signatureBadFormat": "Use a PNG or JPEG image.",
+    "signatureNameRequired": "Enter the name this signature belongs to.",
     "attachmentTooLarge": "Attachment must be under 10 MB.",
     "attachmentBadFormat": "Use a PDF, PNG, or JPEG file.",
     "invalidCredentials": "Wrong email/username or password.",
@@ -72,9 +71,9 @@
     "resetTokenInvalid": "This reset link is invalid or has expired.",
     "placeNotFound": "Saved place not found.",
     "driverNotFound": "Driver not found.",
-    "invalidUsername": "Username must be 3–40 chars: letters, numbers, dot, underscore.",
     "vehicleAssignedElsewhere": "That vehicle is already assigned to another driver. Unassign them first.",
-    "vehicleRegTaken": "That registration number already exists."
+    "vehicleRegTaken": "That registration number already exists.",
+    "vehicleNotFound": "Vehicle not found."
   },
   "common": {
     "back": "Back",
@@ -127,13 +126,12 @@
     "batch": "Batch",
     "users": "Users",
     "drivers": "Drivers",
-    "myBookings": "My bookings",
+    "myBookings": "History",
     "upcoming": "Upcoming",
     "history": "History",
     "newBooking": "New booking",
     "pendingApprovals": "Pending approvals",
     "departmentUsage": "Department usage",
-    "profile": "Profile",
     "schedule": "Schedule",
     "scheduleBoard": "Schedule board",
     "decisions": "My decisions",
@@ -142,8 +140,7 @@
     "scheduling": "Scheduling",
     "people": "People",
     "insights": "Insights",
-    "fleet": "Vehicles",
-    "signature": "Signature & delegation"
+    "fleet": "Vehicles"
   },
   "simulate": {
     "title": "Placement simulator",
@@ -200,25 +197,19 @@
   },
   "requesterUpcoming": {
     "title": "Upcoming trips",
-    "description": "Your confirmed driver and details for today and tomorrow.",
+    "description": "Your pending requests and confirmed trips, soonest first.",
     "today": "Today",
     "tomorrow": "Tomorrow",
-    "statusConfirmed": "Confirmed",
-    "statusCompleted": "Completed",
     "detailLink": "Details",
     "emptyTitle": "No confirmed trips",
-    "emptyDescription": "Nothing with a driver assigned for today or tomorrow yet.",
+    "emptyDescription": "No upcoming requests or trips yet.",
     "driver": "Driver",
     "noPhone": "No phone on file",
     "coDriver": "Co-driver",
     "vehicle": "Vehicle",
     "pickup": "Pickup",
     "passengers": "{count} passengers",
-    "viewDetail": "View details",
-    "sectionPending": "Awaiting approval",
-    "sectionPendingHint": "Requests you've submitted that are waiting for your department head.",
-    "sectionWaitlist": "Waitlist (over capacity)",
-    "sectionWaitlistHint": "That day is fully booked — the fleet office is looking for a slot (e.g. overtime)."
+    "viewDetail": "View details"
   },
   "status": {
     "DRAFT": "Draft",
@@ -301,7 +292,12 @@
     "add": "Add",
     "adding": "Adding…",
     "cancel": "Cancel",
-    "vehicleAdded": "Added {reg}"
+    "vehicleAdded": "Added {reg}",
+    "notes": "Notes",
+    "remove": "Remove",
+    "removeVehicleAria": "Remove vehicle {reg}",
+    "confirmRemove": "Confirm remove",
+    "vehicleRemoved": "Vehicle removed."
   },
   "notifications": {
     "bell": "{count, plural, =0 {No cases need attention} one {# case needs attention} other {# cases need attention}}"
@@ -410,16 +406,15 @@
   },
   "adminDrivers": {
     "title": "Drivers",
-    "description": "Edit driver information and login credentials.",
+    "description": "Edit driver information.",
     "listTitle": "Driver roster",
     "emptyList": "No drivers yet.",
     "inactiveBadge": "Inactive",
     "noPhone": "No phone",
     "noVehicle": "No vehicle",
     "backToList": "Back to drivers",
-    "editDescription": "Edit this driver's roster information and credentials.",
+    "editDescription": "Edit this driver's roster information.",
     "infoTitle": "Information",
-    "credentialsTitle": "Credentials",
     "name": "Full name",
     "thaiName": "Thai name",
     "nickname": "Nickname",
@@ -440,18 +435,27 @@
     "saving": "Saving…",
     "save": "Save changes",
     "saved": "Driver updated.",
-    "username": "Username",
-    "saveUsername": "Save username",
-    "usernameSaved": "Username updated.",
-    "newInitialPassword": "New password",
-    "resetPassword": "Reset password",
-    "passwordReset": "Password reset.",
-    "passwordResetNote": "The driver must change it on next login.",
     "licenseExpired": "License expired {date}",
     "licenseExpiring": "License expires {date}",
     "retirementBadge": "Retiring {year}",
     "retirementInfo": "Retires {year}",
-    "exportCsv": "Export CSV"
+    "exportCsv": "Export CSV",
+    "addDriver": "Add driver",
+    "created": "Driver added.",
+    "creating": "Adding…",
+    "pool": "Pool",
+    "poolPublic": "Public",
+    "poolPrivate": "Private",
+    "removed": "Driver removed.",
+    "removeDriverAria": "Remove driver {name}",
+    "confirmRemove": "Confirm remove",
+    "cancelRemove": "Cancel",
+    "customFieldsTitle": "Additional information",
+    "customFieldsEmpty": "No additional fields yet.",
+    "customFieldLabel": "Field name",
+    "customFieldValue": "Value",
+    "customFieldAdd": "Add field",
+    "customFieldRemove": "Remove field"
   },
   "adminUsers": {
     "title": "User accounts",
@@ -485,7 +489,9 @@
     "confirmDisable": "Confirm disable",
     "enable": "Enable",
     "inactiveBadge": "Disabled",
-    "mustChangeBadge": "Temp password"
+    "mustChangeBadge": "Temp password",
+    "signatureLabel": "Signature",
+    "noSignature": "No signature on file"
   },
   "emails": {
     "passwordReset": {
@@ -495,15 +501,11 @@
     }
   },
   "requester": {
-    "title": "My bookings",
-    "description": "Submit and track your vehicle requests.",
     "newBooking": "New booking",
     "emptyTitle": "No bookings yet",
     "emptyDescription": "Submit your first request and it'll show up here while it's in flight.",
-    "activeEmptyTitle": "No active requests",
-    "activeEmptyDescription": "Requests you submit show up here while they're in flight. Past ones are in your history.",
     "historyTitle": "Request history",
-    "historyDescription": "Your completed, denied, and cancelled requests.",
+    "historyDescription": "Your completed, denied, cancelled, or past-due requests.",
     "historyEmptyTitle": "No past requests yet",
     "historyEmptyDescription": "Completed, denied, or cancelled requests will appear here.",
     "pendingEvalTitle": "{count, plural, one {Evaluate your last trip} other {Evaluate your # completed trips}}",
@@ -780,28 +782,18 @@
     "parkingCost": "Parking (฿)"
   },
   "signatureForm": {
+    "title": "Signature",
+    "description": "Attach a signature image and label whose signature it is. It's stamped onto the official PDF for your bookings.",
+    "nameLabel": "Signature name",
+    "namePlaceholder": "e.g. Dr. Somchai Jaidee",
     "imageLabel": "Signature image (PNG or JPEG, ≤1 MB)",
-    "helperUpload": "Once uploaded, this image will be embedded in the PDF for every booking you approve.",
-    "helperReplace": "Uploading replaces your stored signature.",
-    "uploading": "Uploading…",
-    "uploadSignature": "Upload signature",
-    "replaceSignature": "Replace signature"
-  },
-  "delegateForm": {
-    "emailLabel": "Delegate email (leave blank to clear)",
-    "emailPlaceholder": "staff@chula.ac.th",
-    "helper": "The delegate will see your pending approvals and can sign on your behalf using their account.",
+    "helperUpload": "Once uploaded, this image is embedded in the official PDF for your bookings.",
+    "helperReplace": "Choose a new file to replace the stored image, or leave it blank to keep the current one.",
+    "currentSignature": "Current signature",
     "saving": "Saving…",
-    "saveDelegation": "Save delegation"
-  },
-  "profile": {
-    "title": "Profile",
-    "description": "Set up your signature and (optionally) delegate signing authority.",
-    "storedSignatureTitle": "Stored signature",
-    "signatureOnFile": "A signature is on file. It will be embedded in PDFs you approve.",
-    "signatureNoFile": "No signature on file. You can still approve without one — the PDF will leave the signature blank.",
-    "delegationTitle": "Delegation",
-    "delegationDescription": "Pick an administrative staff member who can approve on your behalf."
+    "uploadSignature": "Save signature",
+    "replaceSignature": "Save changes",
+    "noSignatureYet": "No signature on file yet."
   },
   "calendar": {
     "title": "Calendar",
@@ -952,7 +944,6 @@
     "setEndTimeHelper": "This is a one-way booking — the requester left the return time blank. Set the end time before approving.",
     "deny": "Deny",
     "denying": "Denying…",
-    "noSignatureWarning": "You don't have a stored signature. The PDF will still generate but the signature field will be blank — upload one in Profile.",
     "cancel": "Cancel",
     "denyPresets": {
       "noVehicle": "No vehicle available that day",
@@ -1202,19 +1193,6 @@
     "status_DENIED": "Denied",
     "status_CANCELLED": "Cancelled",
     "clear": "Clear filters"
-  },
-  "adobeSign": {
-    "send": "Send for signature (Adobe Sign)",
-    "sending": "Sending…",
-    "sent": "Sent for signature",
-    "statusPending": "Awaiting the department head's signature (Adobe Sign)",
-    "statusCancelled": "Signing was cancelled or declined",
-    "downloadSigned": "Download signed document",
-    "adobeNotConfigured": "Adobe Sign is not configured",
-    "adobeBadStatus": "Booking is not in a state that can be sent",
-    "adobeAlreadySent": "Already sent for signature",
-    "adobeNoSigner": "No department-head email to sign",
-    "adobeSendFailed": "Failed to send to Adobe Sign"
   },
   "maps": {
     "estimate": "Estimate distance (Google Maps)",

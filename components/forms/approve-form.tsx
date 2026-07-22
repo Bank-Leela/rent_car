@@ -14,12 +14,10 @@ import { DenyPresetChips } from "@/components/forms/deny-preset-chips";
 
 export function ApproveForm({
   bookingId,
-  hasSignature,
   returnTrip,
   startAt,
 }: {
   bookingId: string;
-  hasSignature: boolean;
   // One-way ("ไม่เดินทางกลับ") booking → the admin must set the end time before
   // approving. startAt ("yyyy-MM-ddTHH:mm") bounds the picker's minimum.
   returnTrip: boolean;
@@ -48,9 +46,6 @@ export function ApproveForm({
         <Label htmlFor="comment">{t("commentOptional")}</Label>
         <Textarea id="comment" name="comment" rows={2} />
       </div>
-      {!hasSignature && (
-        <p className="text-xs text-muted-foreground">{t("noSignatureWarning")}</p>
-      )}
       <FormError message={error} />
       <Button type="submit" disabled={pending}>
         {pending ? t("approving") : t("approve")}
