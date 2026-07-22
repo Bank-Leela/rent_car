@@ -5,6 +5,10 @@ import { getSession } from "@/lib/session";
 export async function requireUser() {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+  // A user deactivated mid-session keeps a live JWT until expiry; the token
+  // refreshes isActive from the DB each request (auth.ts), so enforce it at the
+  // single choke point every RSC/server action funnels through. /login is public.
+  if (!session.user.isActive) redirect("/login");
   return session;
 }
 

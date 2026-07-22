@@ -406,7 +406,11 @@ export function BookingForm({
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
     { name: "googleMapsUrl", labelKey: "mapsLinkLabel" },
-    { name: "waitingLocation", labelKey: "waitingLocation" },
+    // waitingLocation only renders (and is required) when waiting at the
+    // destination; a no-wait ("ไม่คอย") booking has no such field, so requiring
+    // it unconditionally made no-wait bookings unsubmittable. Server schema
+    // already treats it as conditionally optional.
+    ...(waitAtDestination ? [{ name: "waitingLocation", labelKey: "waitingLocation" }] : []),
     { name: "pickupLocation", labelKey: "pickupLocation" },
     { name: "province", labelKey: "province" },
     { name: "passengerCount", labelKey: "passengerCount" },

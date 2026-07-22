@@ -23,6 +23,14 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
+  // A user deactivated mid-session keeps a live JWT until expiry; the token
+  // refreshes isActive from the DB each request (auth.ts), so bounce them the
+  // moment it flips false — closes any middleware-gated route with no
+  // server-side requireUser call. /login is public → no redirect loop.
+  if (req.auth?.user && req.auth.user.isActive === false) {
+    return NextResponse.redirect(new URL("/login", nextUrl.origin));
+  }
+
   // CR-08: force users on a temp password to /account before they can
   // touch any other surface. Dev-cookie sessions bypass this — they don't
   // carry mustChangePassword, and the impersonation flow is dev-only.

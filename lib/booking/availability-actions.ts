@@ -56,17 +56,19 @@ export async function setDriverUnavailableAction(formData: FormData): Promise<Ac
     update: { reason },
   });
 
-  // Release this driver's still-upcoming ASSIGNED trips on that day — a trip
-  // already finished stays as-is.
+  // Release this driver's still-upcoming trips on that day — a trip already
+  // finished stays as-is. Include APPROVED trips they've CLAIMED via the board
+  // matcher (primaryDriverId set but not yet confirmed to ASSIGNED by the batch),
+  // not just ASSIGNED — the OR[driverId] filter means only their own trips match.
   const now = new Date();
   const affected = await prisma.booking.findMany({
     where: {
-      status: "ASSIGNED",
+      status: { in: ["APPROVED", "ASSIGNED"] },
       startAt: { gte: date, lte: endOfDay(date) },
       endAt: { gte: now },
       OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
     },
-    select: { id: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
+    select: { id: true, status: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
   });
 
   const releasedIds: string[] = [];
@@ -87,7 +89,7 @@ export async function setDriverUnavailableAction(formData: FormData): Promise<Ac
       await logTransition({
         bookingId: b.id,
         actorUserId: adminId,
-        fromStatus: "ASSIGNED",
+        fromStatus: b.status,
         toStatus: "APPROVED",
         action: "DRIVER_OFF_RELEASE",
         metadata: { driverId, reason, freedDrivers: freed },
