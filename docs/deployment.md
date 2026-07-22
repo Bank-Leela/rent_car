@@ -63,11 +63,22 @@ reachable from the on-box app, never the network. Point `DATABASE_URL` at
 still runs natively via systemd — only the DB is containerized.
 
 ```bash
-# first deploy: migrate + seed the fleet/roster
+# first deploy: migrate + seed the fleet/roster.
+# systemd loads /etc/rent_car.env at runtime, but these first-deploy commands run
+# outside systemd — source it so DATABASE_URL is set (else --preserve-env=DATABASE_URL
+# preserves an unset var and migrate/seed fails to connect).
 cd /opt/rent_car
+set -a; source /etc/rent_car.env; set +a
 sudo -u rentcar --preserve-env=DATABASE_URL npx prisma migrate deploy
 sudo -u rentcar --preserve-env=DATABASE_URL npx prisma db seed   # first time only
 ```
+
+> **Docker DB role:** the shipped `docker-compose.yml` creates the **`postgres`**
+> superuser (its default), but the `DATABASE_URL` above uses role **`rentcar`**. If
+> you run the DB via that compose file, either create the role once
+> (`docker compose exec postgres psql -U postgres -c "CREATE ROLE rentcar LOGIN PASSWORD '<pw>' SUPERUSER;"`)
+> or use `postgres` as the role in `DATABASE_URL`. A native Postgres install where
+> you created a `rentcar` role needs neither.
 `npm run build` also runs `prisma migrate deploy`, so subsequent deploys apply
 new migrations automatically. **Never** run `migrate reset` / `db push
 --force-reset` on prod.
@@ -75,6 +86,7 @@ new migrations automatically. **Never** run `migrate reset` / `db push
 ## 5. Build + run
 ```bash
 cd /opt/rent_car
+set -a; source /etc/rent_car.env; set +a   # DATABASE_URL for the migrate step in build
 sudo -u rentcar --preserve-env TZ=Asia/Bangkok npm run build   # migrate deploy + next build
 ```
 Install the service (`deploy/rent-car.service.sample` → `/etc/systemd/system/rent-car.service`):
@@ -164,6 +176,9 @@ Enable the nightly timer:
 sudo cp deploy/rent-car-backup.service.sample /etc/systemd/system/rent-car-backup.service
 sudo cp deploy/rent-car-backup.timer.sample   /etc/systemd/system/rent-car-backup.timer
 # set BACKUP_DIR (+ optional BACKUP_RETENTION_DAYS, default 14) in /etc/rent_car.env
+# Pre-create BACKUP_DIR owned by the service user — backup.sh runs as `rentcar`
+# and can't mkdir under root-owned /var/backups (its first run would abort on set -e):
+sudo mkdir -p /var/backups/rent_car && sudo chown rentcar /var/backups/rent_car
 sudo systemctl daemon-reload && sudo systemctl enable --now rent-car-backup.timer
 sudo systemctl start rent-car-backup        # run one now, then check $BACKUP_DIR
 ```
