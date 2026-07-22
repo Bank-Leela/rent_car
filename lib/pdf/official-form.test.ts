@@ -116,12 +116,19 @@ describe("fitFontSize (shrink-to-fit so long text doesn't overflow a field)", ()
     const long = "x".repeat(30);
     const size = fitFontSize(long, 100, measure);
     expect(size).toBeLessThan(9);
-    expect(size).toBeGreaterThanOrEqual(5.5);
+    expect(size).toBeGreaterThanOrEqual(3.5);
     expect(measure(long, size)).toBeLessThanOrEqual(100 - 4);
   });
 
-  it("never drops below the min even if it still overflows", () => {
-    expect(fitFontSize("x".repeat(500), 40, measure)).toBe(5.5);
+  it("shrinks a narrow field's long text far enough to actually fit (past the old 5.5 floor)", () => {
+    // 60 chars in a 40pt box: the old fixed 5.5 floor overflowed; the exact fit is ~2.5,
+    // clamped to the 3.5 absolute floor.
+    const size = fitFontSize("x".repeat(60), 40, measure);
+    expect(size).toBe(3.5);
+  });
+
+  it("clamps to the absolute min for pathologically long input", () => {
+    expect(fitFontSize("x".repeat(500), 40, measure)).toBe(3.5);
   });
 
   it("honors a custom min", () => {

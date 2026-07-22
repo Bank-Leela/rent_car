@@ -123,26 +123,32 @@ export function bookingToFormFields(b: OfficialFormBooking): {
 }
 
 const MAX_FONT = 9;
-const MIN_FONT = 5.5;
+// Absolute floor — tiny but CONTAINED beats overflowing the box. Only reached by
+// pathologically long input; realistic values land well above it (e.g. an 89-char
+// destination in a 175pt box → ~4pt; a 135-char purpose in 331pt → ~5.5pt).
+const MIN_FONT = 3.5;
 const FIELD_INSET = 4; // ~2pt left + right padding inside an AcroForm field box
 
-// Largest size in [min, max] at which `measure(value, size)` fits `widthPts`
-// minus the field insets. Pure + unit-tested. Thai has no inter-word spaces, so
-// wrapping can't help a long single line — shrinking to fit width is the reliable
-// way to stop text overflowing (or clipping) its field box.
+// Largest size (≤ max) at which `measure(value, size)` fits `widthPts` minus the
+// insets. Pure + unit-tested. Glyph widths scale linearly with font size, so the
+// exact fitting size is `avail / (width-per-1pt)` — computed directly (no floor
+// that would leave text overflowing) and only clamped to an absolute min. Thai has
+// no inter-word spaces, so shrinking a single line to fit width is the reliable
+// way to stop text overflowing its field box.
 export function fitFontSize(
   value: string,
   widthPts: number,
   measure: (text: string, size: number) => number,
-  opts: { max?: number; min?: number; step?: number } = {},
+  opts: { max?: number; min?: number } = {},
 ): number {
   const max = opts.max ?? MAX_FONT;
   const min = opts.min ?? MIN_FONT;
-  const step = opts.step ?? 0.5;
   const avail = Math.max(1, widthPts - FIELD_INSET);
-  let size = max;
-  while (size > min && measure(value, size) > avail) size -= step;
-  return size;
+  const perPt = measure(value, 1);
+  if (perPt <= 0) return max;
+  // Round DOWN to 0.5 so the chosen size definitely fits; clamp to [min, max].
+  const fit = Math.floor(Math.min(max, avail / perPt) * 2) / 2;
+  return Math.max(min, fit);
 }
 
 // The field's widget box (points), or null when it can't be read.
