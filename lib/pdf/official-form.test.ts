@@ -92,7 +92,6 @@ describe("bookingToFormFields", () => {
     expect(text.Text21).toBe("ดีเซล");
     expect(text.Text20).toBe("45.5");
     expect(text.Text25).toBe("60");
-    expect(text.undefined_2).toBe("น้ากอล์ฟ");
     expect(text.fill_14).toContain("10000");
   });
 
@@ -145,6 +144,19 @@ describe("fillVehicleForm (integration)", () => {
         passengerNotes: "หมายเหตุยาวมาก ".repeat(30),
       }),
     );
+    expect(bytes.length).toBeGreaterThan(1000);
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+  });
+
+  it("stamps a valid signature image into the head box (Signature1) and renders", async () => {
+    // A real 1×1 PNG — embedPng + drawImage into Signature1 must succeed.
+    const png = new Uint8Array(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+        "base64",
+      ),
+    );
+    const bytes = await fillVehicleForm(makeBooking(), { bytes: png, isPng: true });
     expect(bytes.length).toBeGreaterThan(1000);
     expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
   });

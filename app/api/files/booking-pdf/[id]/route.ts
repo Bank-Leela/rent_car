@@ -13,7 +13,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     include: {
       requester: true,
-      department: true,
+      department: { include: { head: true } },
       vehicle: true,
       primaryDriver: { include: { user: true } },
       trip: true,
@@ -32,12 +32,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new NextResponse("Forbidden", { status: 403 });
   }
 
-  // The requester's registered signature, stamped onto their own signature box.
+  // The DEPARTMENT HEAD's registered signature, stamped into the head signature
+  // box. The requester + driver sign the printed copy by hand. Null (no head set,
+  // or head hasn't registered a signature) → the box is simply left blank.
   let signatureImage: SignatureImage | null = null;
-  if (booking.requester.signatureImageUrl) {
-    const sigBytes = await readSignatureBytes(booking.requester.signatureImageUrl);
+  const headSigUrl = booking.department?.head?.signatureImageUrl;
+  if (headSigUrl) {
+    const sigBytes = await readSignatureBytes(headSigUrl);
     if (sigBytes) {
-      signatureImage = { bytes: sigBytes, isPng: booking.requester.signatureImageUrl.endsWith(".png") };
+      signatureImage = { bytes: sigBytes, isPng: headSigUrl.endsWith(".png") };
     }
   }
 

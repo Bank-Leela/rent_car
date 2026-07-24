@@ -4,15 +4,13 @@ import { PDFDocument, type PDFForm, type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { Booking, Department, Trip, User, Vehicle, VehicleType } from "@prisma/client";
 
-// The official faculty form is a real AcroForm (57 fields). We fill the data
-// fields and stamp the requester's registered signature image over the first
-// Signature*_es_:signer:signature field (physically positioned right after
-// the request section — the requester's own signature block). The other two
-// signature fields stay blank; the department head and driver still sign the
-// printed copy by hand.
+// The official faculty form is a real AcroForm. We fill the data fields and stamp
+// the DEPARTMENT HEAD's registered signature image into the head signature box
+// (Signature1 — the "ลงชื่อ … หัวหน้าภาควิชา/หน่วยงาน" line). Everyone else — the
+// requester and the driver — signs the printed copy by hand; their boxes stay blank.
 const TEMPLATE = "2 แบบฟอร์มขออนุมัติใช้ยานพาหนะ คณะแพทยศาส e.pdf";
 const FONT = "NotoSansThai-Regular.ttf";
-const REQUESTER_SIGNATURE_FIELD = "Signature7_es_:signer:signature";
+const HEAD_SIGNATURE_FIELD = "Signature1_es_:signer:signature";
 
 export type SignatureImage = { bytes: Uint8Array; isPng: boolean };
 
@@ -117,13 +115,11 @@ export function bookingToFormFields(b: OfficialFormBooking): {
     text.Text23 = dec(trip.fuelCost);
     text.Text24 = dec(trip.tollwayCost);
     text.Text25 = dec(trip.parkingCost);
-    if (b.primaryDriver) text.undefined_2 = b.primaryDriver.user.name ?? "";
     if (trip.endedAt) text.fill_20 = `${pad(trip.endedAt.getDate())}/${pad(trip.endedAt.getMonth() + 1)}/${beYear(trip.endedAt)}`;
     // Recipient (out-of-hours) section: trip window.
     text.Text5 = hhmm(trip.startedAt);
     if (trip.endedAt) text.Text6 = hhmm(trip.endedAt);
   }
-  text.fill_21 = b.requester.name ?? "";
 
   return { text, checks };
 }
@@ -203,14 +199,14 @@ function check(form: PDFForm, name: string) {
   }
 }
 
-// Draw the signature image into the requester's signature field's own box,
-// scaled to fit (aspect preserved, centered) so it never spills into
-// neighbouring fields. Silently skipped if the field is missing/renamed —
-// never breaks the download over a template mismatch.
-async function stampRequesterSignature(doc: PDFDocument, form: PDFForm, image: SignatureImage) {
+// Draw the signature image into the head's signature field box, scaled to fit
+// (aspect preserved, centered) so it never spills into neighbouring fields.
+// Silently skipped if the field is missing/renamed — never breaks the download
+// over a template mismatch.
+async function stampHeadSignature(doc: PDFDocument, form: PDFForm, image: SignatureImage) {
   let field;
   try {
-    field = form.getField(REQUESTER_SIGNATURE_FIELD);
+    field = form.getField(HEAD_SIGNATURE_FIELD);
   } catch {
     return;
   }
@@ -241,8 +237,8 @@ async function stampRequesterSignature(doc: PDFDocument, form: PDFForm, image: S
   }
 }
 
-// Render the filled official form, stamping the requester's registered
-// signature image (if any) over their signature field.
+// Render the filled official form, stamping the department head's registered
+// signature image (if any) into the head signature box.
 export async function fillVehicleForm(
   b: OfficialFormBooking,
   signatureImage?: SignatureImage | null,
@@ -260,7 +256,7 @@ export async function fillVehicleForm(
   for (const [name, value] of Object.entries(text)) setText(form, name, value, thai);
   for (const name of checks) check(form, name);
 
-  if (signatureImage) await stampRequesterSignature(doc, form, signatureImage);
+  if (signatureImage) await stampHeadSignature(doc, form, signatureImage);
 
   return doc.save();
 }
