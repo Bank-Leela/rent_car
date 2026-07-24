@@ -19,7 +19,7 @@ Environment=NODE_ENV=production
 
 # Secrets + config live here (chmod 600, owned by the service user). Include:
 #   DATABASE_URL, AUTH_SECRET, NEXTAUTH_URL (or APP_URL), UPLOADS_DIR,
-#   and any optional GOOGLE_MAPS_API_KEY / ADOBE_SIGN_* keys.
+#   and any optional GOOGLE_MAPS_API_KEY / CRON_SECRET keys.
 EnvironmentFile=/etc/rent_car.env
 
 # `npm run build` already runs `prisma migrate deploy`; `npm run start` = next start.

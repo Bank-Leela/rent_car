@@ -34,6 +34,9 @@ Audit of the FigJam workflow diagram: `docs/archive/workflow-diagram-audit-2026-
   a fill with `qlmanage -t`, NOT `sips`. See [[official-form-pdf]].
 - **Adobe Sign** (`5ee5c90`, dormant): `lib/adobe-sign/*` + `/api/adobe-sign/webhook`
   + admin "Send for signature" — gated on `ADOBE_SIGN_*` env (inert until set).
+  > ⚠️ **2026-07-22 (`d82ca7c`):** Adobe Sign was **removed** — all `lib/adobe-sign/*`,
+  > the webhook route, and the Send-for-signature button are deleted. Replaced by the
+  > requester-owned signature-stamp (`stampRequesterSignature`).
   Head signer only. Free alternative (stamp the on-file signature) still parked.
 - **Google Maps distance** (`ab0d0fc`, gated `GOOGLE_MAPS_API_KEY`) + **outsource
   quote upload** (`Booking.outsourceQuoteUrl`).
@@ -311,16 +314,17 @@ Spec `docs/superpowers/specs/2026-06-24-booking-input-classification-design.md`.
 
 ## Open / pending
 
-- **Signature (parked):** head + recipient sign-off on the official form. The
-  free path (stamp the on-file `signatureImageUrl` into the form's blank
-  signature fields via pdf-lib) is designed, not built. Adobe Sign covers it if
-  configured; otherwise this is the remaining diagram gap.
+- **Signature:** the requester's own signature stamp **SHIPPED** (2026-07-22,
+  `d82ca7c`): `stampRequesterSignature` draws their registered `signatureImageUrl`
+  image into the requester signature field via pdf-lib. **Adobe Sign was removed**
+  in the same commit. The department head + driver still sign the printed copy by hand.
 - **Deployment**: target decided — self-hosted **nginx + Linux + systemd**
   (`docs/deployment.md`, [[deployment-target]]). Not yet deployed: provision the
   box, set `/etc/rent_car.env`, pin `TZ=Asia/Bangkok`. Prod DB still hosted by
   Chula IT (connection string pending); local dev = Docker/Homebrew Postgres 16.
-- **Gated integrations** (inert until env set): Adobe Sign (`ADOBE_SIGN_*`),
-  Google Maps (`GOOGLE_MAPS_API_KEY`), daily batch cron (`CRON_SECRET`).
+- **Gated integrations** (inert until env set): Google Maps
+  (`GOOGLE_MAPS_API_KEY`), daily batch cron (`CRON_SECRET`). (Adobe Sign was
+  removed 2026-07-22 — replaced by the requester signature-stamp.)
 - **LINE notifications**: scope confirmed driver-only. Code paths exist
   (`lib/line/client.ts`, webhook, assign-notify). Live channel needs interview answers
   (ownership, budget, LIFF vs email-in-chat). See `memory/line_scope.md`.

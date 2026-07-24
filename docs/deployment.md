@@ -41,15 +41,11 @@ Optional (features stay dormant without them):
 ```
 CRON_SECRET=<openssl rand -hex 32>  # enables the daily จัดรอบ auto-run route
 GOOGLE_MAPS_API_KEY=...            # enables the "Estimate distance" button
-ADOBE_SIGN_CLIENT_ID=...           # enables Adobe Sign (see docs/adobe-sign-setup.md)
-ADOBE_SIGN_CLIENT_SECRET=...
-ADOBE_SIGN_REFRESH_TOKEN=...
-ADOBE_SIGN_SHARD=...
 FACULTY_ORIGIN=คณะแพทยศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย   # Maps distance origin override
 # ENABLE_SIMULATION=true          # show the /admin/simulate debug tool in prod (default: hidden)
 ```
 Create the uploads dir: `sudo mkdir -p /var/lib/rent_car/uploads && sudo chown rentcar /var/lib/rent_car/uploads`.
-It holds signatures, generated/signed PDFs, and attachments — **back it up**;
+It holds signatures, generated PDFs, and attachments — **back it up**;
 it is not in the database.
 
 ## 4. Database
