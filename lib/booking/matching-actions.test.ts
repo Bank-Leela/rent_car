@@ -104,6 +104,41 @@ describe("matchBookingAction — WERN never lands on an away-on-TJW on-call driv
   });
 });
 
+describe("matchBookingAction — multi-day TJW sees day-2/3 conflicts, not just day 1", () => {
+  it("never matches a driver already booked on day 2 of the new multi-day trip", async () => {
+    const D3 = startOfDay(addDays(new Date(), 177));
+    // `other` is busy on DAY 2 of the new span. Before the fix the conflict window
+    // ended at day-1 midnight, so this clash was invisible and `other` got matched
+    // (a cross-day double-book); the full-span window now excludes them.
+    await mkBooking({
+      jobType: "NORMAL", startAt: at(addDays(D3, 1), 9), endAt: at(addDays(D3, 1), 11),
+      vehicleId: other.id, primaryDriverId: other.driverId, status: "ASSIGNED", estimatedDistance: 20,
+    });
+    // Every OTHER paired driver is busy on DAY 1, so they're excluded and `other`
+    // is the only day-1-free candidate — making the day-2 exclusion the deciding factor.
+    const paired = await prisma.vehicle.findMany({
+      where: { isActive: true, assignedDriverId: { not: null } },
+      select: { id: true, assignedDriverId: true },
+    });
+    for (const v of paired) {
+      if (v.assignedDriverId === other.driverId) continue;
+      await mkBooking({
+        jobType: "NORMAL", startAt: at(D3, 9), endAt: at(D3, 11),
+        vehicleId: v.id, primaryDriverId: v.assignedDriverId!, status: "ASSIGNED", estimatedDistance: 20,
+      });
+    }
+    const trip = await mkBooking({
+      jobType: "TJW", startAt: at(D3, 8), endAt: at(addDays(D3, 2), 18),
+      status: "APPROVED", outOfProvince: true, estimatedDistance: 120,
+    });
+
+    await matchBookingAction(fd({ bookingId: trip.id }));
+    const after = await prisma.booking.findUnique({ where: { id: trip.id }, select: { primaryDriverId: true } });
+    // `other` is busy on day 2 → must never be the match.
+    expect(after?.primaryDriverId).not.toBe(other.driverId);
+  });
+});
+
 describe("setOnCallShiftAction — auto-rotate skips a driver away on a TJW", () => {
   it("never rosters an away-on-TJW driver as the day's duty", async () => {
     const day2 = startOfDay(addDays(new Date(), 176));

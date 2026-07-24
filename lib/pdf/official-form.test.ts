@@ -148,4 +148,15 @@ describe("fillVehicleForm (integration)", () => {
     expect(bytes.length).toBeGreaterThan(1000);
     expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
   });
+
+  it("does NOT 500 the download when the signature image is undecodable (skips the stamp)", async () => {
+    // Bogus bytes flagged as PNG → pdf-lib embedPng throws; the stamp must be
+    // skipped, never fatal to the whole PDF.
+    const bytes = await fillVehicleForm(makeBooking(), {
+      bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]),
+      isPng: true,
+    });
+    expect(bytes.length).toBeGreaterThan(1000);
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+  });
 });

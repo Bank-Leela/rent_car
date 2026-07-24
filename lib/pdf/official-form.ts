@@ -220,16 +220,25 @@ async function stampRequesterSignature(doc: PDFDocument, form: PDFForm, image: S
   const pageRef = widget.P();
   const page = doc.getPages().find((p) => p.ref === pageRef) ?? doc.getPage(0);
 
-  const embedded = image.isPng ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
-  const scale = Math.min(rect.width / embedded.width, rect.height / embedded.height);
-  const w = embedded.width * scale;
-  const h = embedded.height * scale;
-  page.drawImage(embedded, {
-    x: rect.x + (rect.width - w) / 2,
-    y: rect.y + (rect.height - h) / 2,
-    width: w,
-    height: h,
-  });
+  // pdf-lib throws on bytes it can't decode (a mismatched extension, or an
+  // interlaced-PNG / progressive-JPEG it doesn't support). Never let that 500 the
+  // whole download — skip the stamp, matching this fn's "never breaks the download"
+  // contract and the getField/setText/check guards elsewhere.
+  try {
+    const embedded = image.isPng ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
+    if (!(embedded.width > 0 && embedded.height > 0)) return;
+    const scale = Math.min(rect.width / embedded.width, rect.height / embedded.height);
+    const w = embedded.width * scale;
+    const h = embedded.height * scale;
+    page.drawImage(embedded, {
+      x: rect.x + (rect.width - w) / 2,
+      y: rect.y + (rect.height - h) / 2,
+      width: w,
+      height: h,
+    });
+  } catch {
+    /* undecodable / unsupported image — skip the stamp, never fatal to the PDF */
+  }
 }
 
 // Render the filled official form, stamping the requester's registered

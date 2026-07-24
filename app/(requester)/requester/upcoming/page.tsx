@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format, isSameDay, addDays } from "date-fns";
+import { format, isSameDay, addDays, startOfDay } from "date-fns";
 import { th, enUS, type Locale } from "date-fns/locale";
 import { CalendarCheck, ChevronRight, MapPin, ArrowRight, ArrowRightLeft, Car, UserRound, Phone } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -51,9 +51,13 @@ export default async function RequesterUpcoming() {
 
   const dfLocale: Locale = isThai ? th : enUS;
   const tomorrow = addDays(now, 1);
-  const todayTrips = trips.filter((b) => isSameDay(b.startAt, now));
+  const startOfTomorrow = addDays(startOfDay(now), 1);
+  // The query keeps any booking whose endAt is still ahead, so a multi-day trip
+  // that STARTED before today is still in-progress — bucket it (startAt < tomorrow)
+  // into Today rather than letting it fall to a past-dated "later" section.
+  const todayTrips = trips.filter((b) => b.startAt < startOfTomorrow);
   const tomorrowTrips = trips.filter((b) => isSameDay(b.startAt, tomorrow));
-  const laterTrips = trips.filter((b) => !isSameDay(b.startAt, now) && !isSameDay(b.startAt, tomorrow));
+  const laterTrips = trips.filter((b) => b.startAt >= startOfTomorrow && !isSameDay(b.startAt, tomorrow));
 
   // Beyond tomorrow, group by calendar day (already ascending from the query)
   // instead of dumping everything into one flat bucket — each date gets its

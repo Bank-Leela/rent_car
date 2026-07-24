@@ -232,10 +232,15 @@ export async function uploadSignatureAction(formData: FormData): Promise<ActionR
   let ref: string | undefined;
   if (hasFile) {
     if (file.size > 1_000_000) return { ok: false, error: te("signatureTooLarge") };
-    const isPng = file.type === "image/png";
-    const isJpeg = file.type === "image/jpeg" || file.type === "image/jpg";
-    if (!isPng && !isJpeg) return { ok: false, error: te("signatureBadFormat") };
     const bytes = Buffer.from(await file.arrayBuffer());
+    // Validate the ACTUAL bytes, not the client-supplied MIME (which curl/devtools
+    // can spoof). A mismatched/corrupt image stored here would later 500 the
+    // official-form PDF, since pdf-lib throws on undecodable bytes.
+    // Magic: PNG = 89 50 4E 47, JPEG = FF D8 FF.
+    const isPng =
+      bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    const isJpeg = bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if (!isPng && !isJpeg) return { ok: false, error: te("signatureBadFormat") };
     ref = await writeSignature(userId, bytes, isPng ? "png" : "jpg");
   } else {
     const me = await prisma.user.findUniqueOrThrow({

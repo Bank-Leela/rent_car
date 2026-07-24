@@ -166,13 +166,21 @@ export async function adminRemoveDriverAction(formData: FormData): Promise<Drive
       id: true,
       userId: true,
       assignedVehicle: { select: { id: true } },
-      _count: { select: { primaryBookings: true, secondaryBookings: true, claims: true } },
+      // onCallShifts is a required FK with ON DELETE RESTRICT (not in the
+      // User→Driver cascade), so a driver placed on a duty rotation must be
+      // DEACTIVATED, not hard-deleted — else user.delete cascades to Driver and
+      // the RESTRICT rejects it with an unhandled 500.
+      _count: { select: { primaryBookings: true, secondaryBookings: true, claims: true, onCallShifts: true } },
     },
   });
   if (!driver) return { ok: false, error: "driverNotFound" };
 
   const hasHistory =
-    driver._count.primaryBookings + driver._count.secondaryBookings + driver._count.claims > 0;
+    driver._count.primaryBookings +
+      driver._count.secondaryBookings +
+      driver._count.claims +
+      driver._count.onCallShifts >
+    0;
 
   await prisma.$transaction(async (tx) => {
     if (driver.assignedVehicle) {

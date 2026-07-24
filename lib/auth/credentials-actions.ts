@@ -215,7 +215,13 @@ export async function requestPasswordResetAction(formData: FormData): Promise<Ac
     },
   });
 
-  const base = process.env.PUBLIC_BASE_URL ?? "http://localhost:3000";
+  // Reuse the already-documented deploy vars so a prod reset link isn't localhost
+  // when PUBLIC_BASE_URL is unset (deployment.md §3 sets APP_URL + NEXTAUTH_URL).
+  const base =
+    process.env.PUBLIC_BASE_URL ??
+    process.env.APP_URL ??
+    process.env.NEXTAUTH_URL ??
+    "http://localhost:3000";
   const link = `${base}/reset/${rawToken}`;
   await sendEmail({
     to: user.email,

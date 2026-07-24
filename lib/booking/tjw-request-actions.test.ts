@@ -11,7 +11,7 @@ vi.mock("@/lib/session", () => ({
 import { prisma } from "@/lib/db";
 import { assignTjwByRequestOrder } from "@/lib/booking/tjw-request-actions";
 
-const MARKERS = ["TJWReqTest-1", "TJWReqTest-2"];
+const MARKERS = ["TJWReqTest-1", "TJWReqTest-2", "TJWReqTest-3"];
 let deptId = "";
 
 async function cleanup() {
@@ -82,5 +82,61 @@ describe("assignTjwByRequestOrder", () => {
     expect(b!.primaryDriverId).toBeTruthy();
     // Overlapping spans ⇒ they cannot share a driver.
     expect(a!.primaryDriverId).not.toBe(b!.primaryDriverId);
+  });
+
+  it("never places a TJW on a driver already busy on an overlapping NON-TJW trip", async () => {
+    // The commitment loader used to filter jobType="TJW", so a driver on an
+    // overlapping NORMAL/OT looked free and a TJW double-booked over it. Make every
+    // paired, duty-free driver EXCEPT one busy on an overlapping NORMAL; the pending
+    // TJW must land on the remaining free driver, never a busy one.
+    const span = { start: new Date("2026-07-10T08:00:00"), end: new Date("2026-07-12T18:00:00") };
+    const paired = await prisma.vehicle.findMany({
+      where: { isActive: true, assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } } },
+      select: { assignedDriverId: true },
+    });
+    const shifts = await prisma.onCallShift.findMany({
+      where: { date: { gte: new Date("2026-07-09"), lte: new Date("2026-07-13") } },
+      select: { driverId: true },
+    });
+    const dutyIds = new Set(shifts.map((s) => s.driverId));
+    const candidates = paired.map((v) => v.assignedDriverId!).filter((id): id is string => !!id && !dutyIds.has(id));
+    if (candidates.length < 2) {
+      // Not enough duty-free paired drivers in the seed to run this scenario.
+      expect(candidates.length).toBeGreaterThanOrEqual(0);
+      return;
+    }
+    const freeDriver = candidates[candidates.length - 1]!;
+    const busy = candidates.slice(0, -1);
+    for (const d of busy) {
+      await prisma.booking.create({
+        data: {
+          jobNumber: `VB-TJWX-${d}`,
+          requesterId: "seed-user-requester",
+          departmentId: deptId,
+          purpose: "TJWReqTest-3",
+          destination: "BKK",
+          province: "กรุงเทพมหานคร",
+          startAt: new Date("2026-07-11T08:00:00"), // inside the TJW span
+          endAt: new Date("2026-07-11T12:00:00"),
+          passengerCount: 1,
+          jobType: "NORMAL",
+          timeBucket: "MORNING_08_12",
+          status: "ASSIGNED",
+          outOfProvince: false,
+          primaryDriverId: d,
+        },
+      });
+    }
+
+    const r = await tjw("TJWReqTest-3", "2026-06-25T00:00:00", "VB-TJWX-req");
+    void span;
+    const res = await assignTjwByRequestOrder();
+    expect(res.ok).toBe(true);
+
+    const after = await prisma.booking.findUnique({ where: { id: r.id }, select: { primaryDriverId: true } });
+    // The core regression: a busy (overlapping-NORMAL) driver is NEVER chosen.
+    expect(busy).not.toContain(after!.primaryDriverId);
+    // And with everyone else busy, it must land on the one free driver.
+    expect(after!.primaryDriverId).toBe(freeDriver);
   });
 });
