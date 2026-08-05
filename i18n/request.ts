@@ -1,18 +1,9 @@
-import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
-import { defaultLocale, isLocale, LOCALE_COOKIE, type Locale } from "./config";
+import { defaultLocale } from "./config";
 
-async function pickLocale(): Promise<Locale> {
-  const fromCookie = (await cookies()).get(LOCALE_COOKIE)?.value;
-  if (isLocale(fromCookie)) return fromCookie;
-
-  const header = (await headers()).get("accept-language") ?? "";
-  if (header.toLowerCase().startsWith("th")) return "th";
-  return defaultLocale;
-}
-
+// Thai-only: there is no cookie / Accept-Language negotiation left to do — every
+// request resolves the single locale. See i18n/config.ts.
 export default getRequestConfig(async () => {
-  const locale = await pickLocale();
-  const messages = (await import(`@/messages/${locale}.json`)).default;
-  return { locale, messages };
+  const messages = (await import(`@/messages/${defaultLocale}.json`)).default;
+  return { locale: defaultLocale, messages };
 });

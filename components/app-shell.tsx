@@ -4,7 +4,6 @@ import { Car } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Separator } from "@/components/ui/separator";
 import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { NavLinks, MobileNav } from "@/components/nav-links";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ProfileMenu } from "@/components/profile-menu";
@@ -62,7 +61,6 @@ export async function AppShell({
             {headerActions}
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
             <ThemeToggle />
-            <LanguageSwitcher />
             <ProfileMenu
               name={user.name ?? null}
               email={user.email ?? null}

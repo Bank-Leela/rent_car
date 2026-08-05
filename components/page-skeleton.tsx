@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // stays put and only the content area swaps to the skeleton.
 export function PageSkeleton() {
   return (
-    <div className="space-y-8" role="status" aria-busy="true" aria-label="Loading">
+    <div className="space-y-8" role="status" aria-busy="true" aria-label="กำลังโหลด">
       {/* PageHeader: title + description + an action button */}
       <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
         <div className="space-y-2.5">
@@ -31,7 +31,7 @@ export function PageSkeleton() {
         ))}
       </div>
 
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">กำลังโหลด…</span>
     </div>
   );
 }

@@ -25,6 +25,7 @@ interface AdminUserRowData {
 
 export function UserRow({ user }: { user: AdminUserRowData }) {
   const t = useTranslations("adminUsers");
+  const tr = useTranslations("roles");
   const [resetVisible, setResetVisible] = useState(false);
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,9 +71,9 @@ export function UserRow({ user }: { user: AdminUserRowData }) {
             {user.roles.map((r) => (
               <span
                 key={r}
-                className="rounded-full border bg-muted/40 px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                className="rounded-full border bg-muted/40 px-2 py-0.5 text-[10px] tracking-wide"
               >
-                {r}
+                {tr(r)}
               </span>
             ))}
             {!user.isActive && (

@@ -6,7 +6,6 @@ import { homePathFor } from "@/lib/auth-helpers";
 import { getSession } from "@/lib/session";
 import { DEV_ENABLED } from "@/lib/dev-auth";
 import { prisma } from "@/lib/db";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignInForm } from "@/components/forms/sign-in-form";
 
@@ -43,7 +42,6 @@ export default async function LoginPage({
     <div className="min-h-screen grid place-items-center p-4">
       <div className="absolute right-4 top-4 flex items-center gap-1">
         <ThemeToggle />
-        <LanguageSwitcher />
       </div>
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">

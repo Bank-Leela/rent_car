@@ -12,6 +12,7 @@ const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
 // query via router.replace.
 export function QueueFilterBar() {
   const t = useTranslations("admin");
+  const tjt = useTranslations("jobType");
   const router = useRouter();
   const params = useSearchParams();
 
@@ -47,7 +48,7 @@ export function QueueFilterBar() {
     <div className="flex flex-wrap items-center gap-1.5">
       {JOB_TYPES.map((jt) => (
         <button key={jt} type="button" onClick={() => toggleType(jt)} aria-pressed={selectedTypes.includes(jt)} className={chip(selectedTypes.includes(jt))}>
-          {jt}
+          {tjt(jt)}
         </button>
       ))}
       <button

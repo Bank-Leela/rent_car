@@ -21,7 +21,7 @@ export function ReqLabel({
     <Label htmlFor={htmlFor} className={className}>
       {children}
       <span aria-hidden className="ml-0.5 text-destructive">*</span>
-      <span className="sr-only"> (required)</span>
+      <span className="sr-only"> (จำเป็นต้องกรอก)</span>
     </Label>
   );
 }

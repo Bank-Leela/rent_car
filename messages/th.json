@@ -108,11 +108,6 @@
     "notFoundDescription": "ไม่พบหน้าที่คุณต้องการ หรืออาจถูกย้ายไปแล้ว",
     "backHome": "กลับสู่หน้าหลัก"
   },
-  "language": {
-    "label": "ภาษา",
-    "english": "English",
-    "thai": "ไทย"
-  },
   "roles": {
     "REQUESTER": "ผู้ขอใช้รถ",
     "ADMIN": "ผู้ดูแลระบบ",
@@ -1214,5 +1209,12 @@
     "unmarked": "ยกเลิกการทำเครื่องหมาย",
     "submittedOn": "ยื่น LESS แล้วเมื่อ {date}",
     "undo": "ยกเลิก"
+  },
+  "jobType": {
+    "NORMAL": "ทั่วไป",
+    "OT": "ล่วงเวลา",
+    "TJW": "ตจว",
+    "WERN": "เวร",
+    "SMUS": "งานพิเศษ"
   }
 }

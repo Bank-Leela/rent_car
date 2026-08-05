@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Car } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { ResetPasswordForm } from "@/components/forms/reset-password-form";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function ResetPage({
@@ -16,7 +15,6 @@ export default async function ResetPage({
     <div className="min-h-screen grid place-items-center p-4">
       <div className="absolute right-4 top-4 flex items-center gap-1">
         <ThemeToggle />
-        <LanguageSwitcher />
       </div>
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">

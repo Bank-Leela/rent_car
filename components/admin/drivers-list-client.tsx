@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { th } from "date-fns/locale";
 import { useTranslations } from "next-intl";
 import { Users, ChevronRight, IdCard, CalendarClock, Trash2 } from "lucide-react";
 import { ListSearch } from "@/components/list-search";
@@ -64,13 +65,13 @@ export function DriversListClient({ drivers }: { drivers: DriverRow[] }) {
                       {d.licenseState === "expired" && d.licenseExpiresAt && (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${RED}`}>
                           <IdCard className="h-3 w-3" aria-hidden />
-                          {t("licenseExpired", { date: format(new Date(d.licenseExpiresAt), "d MMM yyyy") })}
+                          {t("licenseExpired", { date: format(new Date(d.licenseExpiresAt), "d MMM yyyy", { locale: th }) })}
                         </span>
                       )}
                       {d.licenseState === "expiring" && d.licenseExpiresAt && (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${AMBER}`}>
                           <IdCard className="h-3 w-3" aria-hidden />
-                          {t("licenseExpiring", { date: format(new Date(d.licenseExpiresAt), "d MMM yyyy") })}
+                          {t("licenseExpiring", { date: format(new Date(d.licenseExpiresAt), "d MMM yyyy", { locale: th }) })}
                         </span>
                       )}
                       {(d.retirementState === "due" || d.retirementState === "soon") && (

@@ -295,7 +295,7 @@ export function DateTimePicker({
                         value={String(hour).padStart(2, "0")}
                         onChange={(e) => changeHour(Number(e.target.value))}
                         className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                        aria-label="Hour"
+                        aria-label="ชั่วโมง"
                       />
                       <span className="text-base font-bold text-muted-foreground">:</span>
                       <input
@@ -305,7 +305,7 @@ export function DateTimePicker({
                         value={String(minute).padStart(2, "0")}
                         onChange={(e) => changeMinute(Number(e.target.value))}
                         className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                        aria-label="Minute"
+                        aria-label="นาที"
                       />
                     </div>
                   </div>
@@ -450,7 +450,7 @@ export function DateTimePicker({
                               )
                             }
                             className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                            aria-label="Pickup return hour"
+                            aria-label="ชั่วโมงที่กลับมารับ"
                           />
                           <span className="text-base font-bold text-muted-foreground">:</span>
                           <input
@@ -466,7 +466,7 @@ export function DateTimePicker({
                               )
                             }
                             className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                            aria-label="Pickup return minute"
+                            aria-label="นาทีที่กลับมารับ"
                           />
                         </div>
                       </div>
@@ -488,7 +488,7 @@ export function DateTimePicker({
                         value={String(hour).padStart(2, "0")}
                         onChange={(e) => changeHour(Number(e.target.value))}
                         className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                        aria-label="Hour"
+                        aria-label="ชั่วโมง"
                       />
                       <span className="text-base font-bold text-muted-foreground">:</span>
                       <input
@@ -498,7 +498,7 @@ export function DateTimePicker({
                         value={String(minute).padStart(2, "0")}
                         onChange={(e) => changeMinute(Number(e.target.value))}
                         className="h-9 w-14 rounded-md border border-input bg-background px-2 text-center text-sm font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                        aria-label="Minute"
+                        aria-label="นาที"
                       />
                     </div>
                   </div>
@@ -513,7 +513,7 @@ export function DateTimePicker({
                   type="button"
                   onClick={() => setViewMonth((m) => subMonths(m, 1))}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Previous month"
+                  aria-label="เดือนก่อนหน้า"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -524,7 +524,7 @@ export function DateTimePicker({
                   type="button"
                   onClick={() => setViewMonth((m) => addMonths(m, 1))}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Next month"
+                  aria-label="เดือนถัดไป"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

@@ -31,8 +31,8 @@ const notoThai = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Vehicle Booking",
-  description: "Faculty fleet booking, approvals, and dispatch.",
+  title: "ระบบจองยานพาหนะ",
+  description: "ระบบขออนุมัติใช้ยานพาหนะ อนุมัติ และจัดรอบรถ คณะแพทยศาสตร์",
 };
 
 export default async function RootLayout({
