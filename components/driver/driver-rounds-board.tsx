@@ -54,7 +54,18 @@ export function DriverRoundsBoard({
     <div className="overflow-hidden rounded-xl border bg-card">
       <ul className="divide-y">
         {rows.map((r) => (
-          <li key={r.driverId} className="flex flex-col gap-2 p-3 sm:flex-row sm:gap-4">
+          // The เวร (duty) driver is reserved all day — they run campus rounds and
+          // are excluded from every other auto-assignment. A small badge was easy
+          // to miss when scanning; the whole row is tinted with an edge stripe so
+          // "who is on duty today" is answered at a glance.
+          <li
+            key={r.driverId}
+            className={`flex flex-col gap-2 p-3 sm:flex-row sm:gap-4 ${
+              r.isDuty
+                ? "border-l-4 border-l-emerald-500 bg-emerald-50/60 pl-2 dark:bg-emerald-950/25"
+                : ""
+            }`}
+          >
             {/* Driver identity — fixed-width column, like the whiteboard's name column. */}
             <div className="flex shrink-0 items-center gap-2 sm:w-56">
               <span className="truncate text-sm font-semibold">{r.driverName ?? "—"}</span>

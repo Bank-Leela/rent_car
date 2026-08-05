@@ -133,7 +133,18 @@ async function main() {
     }
   }
 
+  // A real day always has someone on เวร (campus duty). Roster the first car's
+  // driver so the board's duty highlight is exercised; P'Top still overrides it
+  // from the console's per-day picker.
+  const dutyDriverId = cars[0]!.assignedDriverId!;
+  await prisma.onCallShift.upsert({
+    where: { date: dayStart },
+    create: { date: dayStart, driverId: dutyDriverId },
+    update: { driverId: dutyDriverId },
+  });
+
   console.log(`Seeded ${n} rounds — ${BANDS.length} per driver across ${cars.length} cars on ${dateStr}.`);
+  console.log(`  เวร: ${cars[0]!.registrationNumber}`);
   for (const c of cars) console.log(`  ${c.registrationNumber}: ${BANDS.map((b) => `${b.start}:00–${b.end}:00`).join("  ")}`);
   await prisma.$disconnect();
 }
