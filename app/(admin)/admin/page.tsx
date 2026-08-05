@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { JobType, Prisma } from "@prisma/client";
 import { format, startOfDay, subHours } from "date-fns";
-import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Users, Zap, AlertTriangle } from "lucide-react";
+import { th } from "date-fns/locale";
+import { tripWhen } from "@/lib/booking/trip-when";
+import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Zap, AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -15,7 +17,6 @@ import { QueueFilterBar } from "@/components/admin/queue-filter-bar";
 import { parseQueueSort } from "@/lib/admin/queue-sort";
 import { QueueBulkProvider, BulkCheckbox } from "@/components/admin/queue-bulk";
 import { OtAssignButton } from "@/components/admin/ot-assign-button";
-import { JOB_COLOR } from "@/components/admin/scheduler-board-shared";
 import { loadQueueContext } from "@/lib/booking/queue-context";
 import { waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 import { Section } from "@/components/section";
@@ -215,10 +216,19 @@ export default async function AdminQueue({
                         href={`/admin/${b.id}`}
                         className="group -m-1 flex min-w-0 flex-1 items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
+                        {/* Quiet by default: title, one when/where line, who.
+                            The section header already says these are pending, so
+                            the status badge is dropped; job number, department,
+                            pax/distance and the submitted timestamp live on the
+                            detail page. Only EXCEPTION chips stay — they are what
+                            actually decides approve vs deny. */}
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
-                            <BookingStatusBadge status={b.status} />
+                          <div className="font-medium truncate">{b.purpose}</div>
+                          <div className="mt-0.5 text-sm text-muted-foreground truncate">
+                            {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="truncate">{b.requester.name ?? b.requester.email}</span>
                             <InChulaChip travelWithinChula={b.travelWithinChula} />
                             {b.isEmergency && (
                               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
@@ -226,21 +236,6 @@ export default async function AdminQueue({
                               </span>
                             )}
                           </div>
-                          <div className="mt-1 font-medium truncate">{b.purpose}</div>
-                          <div className="mt-0.5 text-sm text-muted-foreground">
-                            {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {b.requester.name ?? b.requester.email} · {b.department.nameTh}
-                          </div>
-                          <QueueInfoRow
-                            jobType={b.jobType}
-                            paxLabel={t("paxCount", { count: b.passengerCount })}
-                            estimatedDistance={b.estimatedDistance}
-                            needsSecondaryDriver={b.needsSecondaryDriver}
-                            submitted={t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
-                            coDriverLabel={t("coDriverNeeded")}
-                          />
                           <TriageChips flags={triageByBooking.get(b.id) ?? []} waitedHours={waitingHours(b.createdAt, now)} t={t} />
                         </div>
                         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -277,9 +272,12 @@ export default async function AdminQueue({
                     className="group -m-1 flex items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
-                        <BookingStatusBadge status={b.status} />
+                      <div className="font-medium truncate">{b.purpose}</div>
+                      <div className="mt-0.5 text-sm text-muted-foreground truncate">
+                        {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="truncate">{b.requester.name ?? b.requester.email}</span>
                         <InChulaChip travelWithinChula={b.travelWithinChula} />
                         {b.isEmergency && (
                           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
@@ -287,21 +285,6 @@ export default async function AdminQueue({
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 font-medium truncate">{b.purpose}</div>
-                      <div className="mt-0.5 text-sm text-muted-foreground">
-                        {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {b.requester.name ?? b.requester.email} · {b.department.nameTh}
-                      </div>
-                      <QueueInfoRow
-                        jobType={b.jobType}
-                        paxLabel={t("paxCount", { count: b.passengerCount })}
-                        estimatedDistance={b.estimatedDistance}
-                        needsSecondaryDriver={b.needsSecondaryDriver}
-                        submitted={t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
-                        coDriverLabel={t("coDriverNeeded")}
-                      />
                       <TriageChips flags={triageByBooking.get(b.id) ?? []} waitedHours={waitingHours(b.createdAt, now)} t={t} />
                     </div>
                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -354,23 +337,22 @@ export default async function AdminQueue({
                   >
                     {i + 1}
                   </span>
+                  {/* Two lines. Every row in this section is approved-awaiting-
+                      dispatch, so a per-card "อนุมัติแล้ว" badge repeats the
+                      section header; job number, requester, department and the
+                      submitted time are detail-page facts. Urgent still shows —
+                      it is the one thing that reorders the work. */}
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
-                      <BookingStatusBadge status={b.status} />
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">{b.purpose}</span>
                       {b.isEmergency && (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                        <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
                           {urgentLabel}
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 font-medium truncate">{b.purpose}</div>
-                    <div className="mt-0.5 text-sm text-muted-foreground">
-                      {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {b.requester.name ?? b.requester.email} · {b.department.nameTh} ·{" "}
-                      {t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
+                    <div className="mt-0.5 truncate text-sm text-muted-foreground">
+                      {b.destination} · {tripWhen(b.startAt, b.endAt)}
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -408,7 +390,7 @@ export default async function AdminQueue({
                     </div>
                     <div className="mt-1 font-medium truncate">{b.purpose}</div>
                     <div className="mt-0.5 text-sm text-muted-foreground">
-                      {format(b.startAt, "EEE d MMM HH:mm")} ·{" "}
+                      {format(b.startAt, "EEE d MMM HH:mm", { locale: th })} ·{" "}
                       {b.vehicle?.registrationNumber ?? "—"} ·{" "}
                       {b.primaryDriver?.user.name ?? b.primaryDriver?.user.email ?? "—"}
                     </div>
@@ -425,45 +407,6 @@ export default async function AdminQueue({
 }
 
 type AdminT = Awaited<ReturnType<typeof getTranslations<"admin">>>;
-
-// Compact fact row so P'Top can triage without opening the detail page:
-// job-type dot, passenger count, distance (when meaningful), a co-driver-needed
-// marker (flagged or >400 km), and when the request was submitted.
-function QueueInfoRow({
-  jobType,
-  paxLabel,
-  estimatedDistance,
-  needsSecondaryDriver,
-  submitted,
-  coDriverLabel,
-}: {
-  jobType: string;
-  paxLabel: string;
-  estimatedDistance: number | null;
-  needsSecondaryDriver: boolean;
-  submitted: string;
-  coDriverLabel: string;
-}) {
-  const color = JOB_COLOR[jobType];
-  const needsCoDriver = needsSecondaryDriver || (estimatedDistance ?? 0) > 400;
-  return (
-    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1 font-medium text-foreground">
-        {color && <span aria-hidden className={`h-2 w-2 rounded-full ${color.dot}`} />}
-        {jobType}
-      </span>
-      <span>{paxLabel}</span>
-      {estimatedDistance != null && <span>~{estimatedDistance} km</span>}
-      {needsCoDriver && (
-        <span className="inline-flex items-center gap-1 font-medium text-violet-700 dark:text-violet-400">
-          <Users className="h-3.5 w-3.5" aria-hidden />
-          {coDriverLabel}
-        </span>
-      )}
-      <span>{submitted}</span>
-    </div>
-  );
-}
 
 function Pill({ tone, children }: { tone: "amber" | "rose"; children: string }) {
   const cls =
