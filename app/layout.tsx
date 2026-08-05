@@ -31,7 +31,8 @@ const notoThai = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "ระบบจองยานพาหนะ",
+  // Matches the brand in the header — the tab and the page said different names.
+  title: "ระบบจองรถ",
   description: "ระบบขออนุมัติใช้ยานพาหนะ อนุมัติ และจัดรอบรถ คณะแพทยศาสตร์",
 };
 
