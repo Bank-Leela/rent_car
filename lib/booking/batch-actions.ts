@@ -10,9 +10,6 @@ import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { runBatchForDay, type BatchStats } from "@/lib/booking/batch-core";
 import type { ActionResult } from "@/lib/booking/actions";
 
-// Re-export so existing importers (batch-demo-actions) keep working.
-export type { BatchStats };
-
 const runBatchSchema = z.object({
   date: z.string().min(8), // YYYY-MM-DD
 });

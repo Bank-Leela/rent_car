@@ -8,6 +8,7 @@ import { SelectField } from "@/components/ui/select-field";
 import {
   matchBookingAction,
   setOnCallShiftAction,
+  fillOnCallRosterAction,
   escalateToKhunTopAction,
 } from "@/lib/booking/matching-actions";
 import { setNeedsSecondaryDriverAction } from "@/lib/booking/extra-actions";
@@ -172,8 +173,42 @@ export function OnCallShiftForm({
         <Button type="submit" disabled={pending} size="sm">
           {pending ? t("saving") : t("save")}
         </Button>
+        <FillRosterButton from={date} />
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </form>
+  );
+}
+
+// The roster should be decided in advance — a driver arriving tomorrow expects
+// to already know whether they are on เวร. This runs the same rotation forward
+// over the coming month, leaving any day that already has a driver untouched, so
+// it is safe to press again and never overwrites a manual choice.
+function FillRosterButton({ from }: { from: string }) {
+  const t = useTranslations("matching");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  return (
+    <span className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={pending}
+        onClick={() => {
+          setMsg(null);
+          startTransition(async () => {
+            const fd = new FormData();
+            fd.set("from", from);
+            fd.set("days", "30");
+            const res = (await fillOnCallRosterAction(fd)) as { ok: boolean; filled?: number; error?: string };
+            setMsg(res.ok ? t("rosterFilled", { count: res.filled ?? 0 }) : (res.error ?? null));
+          });
+        }}
+      >
+        {pending ? t("saving") : t("fillRoster")}
+      </Button>
+      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+    </span>
   );
 }

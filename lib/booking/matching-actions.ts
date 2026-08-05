@@ -391,3 +391,93 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
   revalidatePath("/admin");
   return { ok: true };
 }
+
+/**
+ * Fill the on-call (เวร) roster forward, so the next day's duty driver is always
+ * already decided rather than being set on the morning of.
+ *
+ * Runs the same rotation the single-day picker uses — oldest `lastOnCallAt`
+ * first, skipping anyone away on a multi-day TJW or marked off that day — one
+ * day at a time, feeding each choice back in so the rotation advances across the
+ * whole range instead of picking the same driver every day. Days that already
+ * have a shift are left exactly as they are, so a manual override is never
+ * overwritten and re-running is safe.
+ */
+export async function fillOnCallRosterAction(formData: FormData): Promise<ActionResult> {
+  await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+
+  const days = Math.min(Math.max(parseInt(String(formData.get("days") ?? "30"), 10) || 30, 1), 90);
+  const fromRaw = String(formData.get("from") ?? "");
+  const from = fromRaw ? new Date(`${fromRaw}T00:00:00`) : startOfDay(new Date());
+  if (Number.isNaN(from.getTime())) return { ok: false, error: te("invalidInput") };
+
+  const drivers = await prisma.driver.findMany({
+    where: { isActive: true, user: { is: { isActive: true } } },
+    select: {
+      id: true,
+      onCallShifts: { orderBy: { date: "desc" }, take: 1, select: { date: true } },
+      unavailabilities: { select: { date: true } },
+    },
+  });
+  if (drivers.length === 0) return { ok: false, error: te("noActiveDrivers") };
+
+  // Local rotation state so each day's pick informs the next without re-querying.
+  const lastOnCall = new Map<string, Date | null>(
+    drivers.map((d) => [d.id, d.onCallShifts[0]?.date ?? null]),
+  );
+  const offDays = new Map<string, Set<number>>(
+    drivers.map((d) => [d.id, new Set(d.unavailabilities.map((u) => startOfDay(u.date).getTime()))]),
+  );
+
+  const last = new Date(from);
+  last.setDate(last.getDate() + days);
+  const [existing, tjwSpanning] = await Promise.all([
+    prisma.onCallShift.findMany({
+      where: { date: { gte: from, lt: last } },
+      select: { date: true, driverId: true },
+    }),
+    prisma.booking.findMany({
+      where: { jobType: "TJW", status: { in: COMMITTED_STATUSES }, startAt: { lt: last }, endAt: { gt: from } },
+      select: { primaryDriverId: true, secondaryDriverId: true, startAt: true, endAt: true },
+    }),
+  ]);
+  for (const s of existing) lastOnCall.set(s.driverId, s.date);
+
+  let filled = 0;
+  for (let i = 0; i < days; i++) {
+    const day = new Date(from);
+    day.setDate(day.getDate() + i);
+    const dayMs = day.getTime();
+    // `date` is @db.Date, so a JS-side re-key of the value Prisma returns lands
+    // on the wrong day under a non-UTC zone. Ask with the SAME value the write
+    // and the board's own lookup use, instead of deriving it.
+    const already = await prisma.onCallShift.findUnique({ where: { date: day }, select: { id: true } });
+    if (already) continue; // already rostered — never overwritten
+
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const away = new Set<string>();
+    for (const t of tjwSpanning) {
+      if (t.startAt < dayEnd && t.endAt > day) {
+        if (t.primaryDriverId) away.add(t.primaryDriverId);
+        if (t.secondaryDriverId) away.add(t.secondaryDriverId);
+      }
+    }
+    for (const d of drivers) if (offDays.get(d.id)?.has(dayMs)) away.add(d.id);
+
+    const chosen = pickAutoDutyDriver(
+      drivers.map((d) => ({ driverId: d.id, lastOnCallAt: lastOnCall.get(d.id) ?? null })),
+      away,
+    );
+    if (!chosen) continue;
+    await prisma.onCallShift.create({ data: { date: day, driverId: chosen } });
+    lastOnCall.set(chosen, day);
+    filled++;
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
+  revalidatePath("/driver/schedule");
+  return { ok: true, filled } as ActionResult & { filled: number };
+}

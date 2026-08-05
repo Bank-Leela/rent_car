@@ -26,7 +26,6 @@ export function DriverRoundsBoard({
     free: string;
     coDriver: string;
     empty: string;
-    noCar: string;
     overnight: string;
     nightOf: string;
     backOn: string;
@@ -74,9 +73,6 @@ export function DriverRoundsBoard({
                   {labels.duty}
                 </span>
               )}
-              <span className="ml-auto shrink-0 text-[11px] text-muted-foreground sm:ml-0">
-                {r.registrationNumber ?? labels.noCar}
-              </span>
             </div>
 
             {/* Rounds — flow and wrap as the admin assigns more. */}

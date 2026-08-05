@@ -692,7 +692,9 @@
     "saving": "กำลังบันทึก…",
     "needsSecondaryDriverLabel": "ต้องใช้คนขับ 2 คน",
     "needsSecondaryDriverHelper": "ใช้สำหรับทริปค้างคืนต่างจังหวัด — เลือกเองตามความเหมาะสมของงานนี้",
-    "needsSecondaryDriverSaved": "บันทึกแล้ว"
+    "needsSecondaryDriverSaved": "บันทึกแล้ว",
+    "fillRoster": "จัดเวรล่วงหน้า 30 วัน",
+    "rosterFilled": "จัดเวรเพิ่มแล้ว {count} วัน"
   },
   "assignForm": {
     "vehicle": "รถ",

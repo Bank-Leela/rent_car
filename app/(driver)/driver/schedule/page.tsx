@@ -167,7 +167,6 @@ export default async function DriverSchedule({
           free: t("roundsFree"),
           coDriver: t("coDriver"),
           empty: t("noVehicles"),
-          noCar: t("roundsNoCar"),
           overnight: t("roundsOvernight"),
           nightOf: t("roundsNightOf"),
           backOn: t("roundsBackOn"),

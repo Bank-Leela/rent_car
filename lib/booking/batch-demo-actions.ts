@@ -16,7 +16,8 @@ import { z } from "zod";
 import type { JobType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
-import { runBatchAction, type BatchStats } from "@/lib/booking/batch-actions";
+import { runBatchAction } from "@/lib/booking/batch-actions";
+import type { BatchStats } from "@/lib/booking/batch-core";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const runBatchSchema = z.object({ date: z.string().min(8) });
