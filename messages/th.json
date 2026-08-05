@@ -270,7 +270,12 @@
     "roundsTitle": "รอบการวิ่งรถ",
     "moveRound": "ย้ายรอบนี้",
     "moveRoundTo": "ย้ายไปคนขับ",
-    "unassignRound": "เอาออกจากตาราง"
+    "unassignRound": "เอาออกจากตาราง",
+    "roundsOvernight": "ค้างคืน",
+    "roundsNightOf": "คืนที่ %n%/%total%",
+    "roundsBackOn": "กลับ %date%",
+    "roundsLeftOn": "ออก %date%",
+    "roundsReturnAt": "กลับถึง %time%"
   },
   "fleet": {
     "title": "รถและคนขับ",

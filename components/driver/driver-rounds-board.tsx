@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { Car, CornerDownRight } from "lucide-react";
+import { format } from "date-fns";
+import { th } from "date-fns/locale";
+import { Car, CornerDownRight, Moon } from "lucide-react";
 import type { DriverRoundsRow } from "@/lib/booking/driver-rounds";
 import { RoundReassign, type ReassignTarget } from "@/components/admin/round-reassign";
 
@@ -25,6 +27,11 @@ export function DriverRoundsBoard({
     coDriver: string;
     empty: string;
     noCar: string;
+    overnight: string;
+    nightOf: string;
+    backOn: string;
+    leftOn: string;
+    returnAt: string;
   };
 }) {
   if (rows.length === 0) {
@@ -67,20 +74,57 @@ export function DriverRoundsBoard({
             ) : (
               <div className="flex min-w-0 flex-1 flex-wrap gap-2">
                 {r.rounds.map((round) => {
+                  // An overnight trip says what is true on THIS day: it leaves,
+                  // it's away, or it comes back. A start–end time only makes
+                  // sense on a same-day round.
+                  const d = (x: Date) => format(x, "d MMM", { locale: th });
+                  const headline =
+                    round.phase === "depart" ? (
+                      <>
+                        {round.startLabel} <span className="font-normal">→ {labels.overnight}</span>
+                      </>
+                    ) : round.phase === "away" ? (
+                      <>
+                        {labels.overnight}
+                        {round.nightIndex && round.nightTotal ? (
+                          <span className="font-normal">
+                            {" · "}
+                            {labels.nightOf.replace("%n%", String(round.nightIndex)).replace("%total%", String(round.nightTotal))}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : round.phase === "return" ? (
+                      <>{labels.returnAt.replace("%time%", round.endLabel)}</>
+                    ) : (
+                      <>
+                        {round.startLabel}–{round.endLabel}
+                      </>
+                    );
+                  // Second line pins the other end of the trip, so a driver reading
+                  // a middle day still knows when they get back.
+                  const subline =
+                    round.phase === "depart" || round.phase === "away"
+                      ? labels.backOn.replace("%date%", d(round.returnAt))
+                      : round.phase === "return"
+                        ? labels.leftOn.replace("%date%", d(round.departAt))
+                        : null;
                   const chip = (
                     <span
                       className={`block rounded-lg border px-2.5 py-1.5 ${tint[round.jobType] ?? tint.NORMAL} ${
                         round.state === "done" ? "opacity-60" : ""
-                      } ${round.state === "inProgress" ? "ring-2 ring-primary/50" : ""}`}
+                      } ${round.state === "inProgress" ? "ring-2 ring-primary/50" : ""} ${
+                        round.phase === "away" ? "border-dashed" : ""
+                      }`}
                     >
                       <span className="flex items-center gap-1 text-sm font-semibold tabular-nums">
-                        {round.continuesBefore && <CornerDownRight className="h-3 w-3" aria-hidden />}
-                        {round.startLabel}–{round.endLabel}
-                        {round.continuesAfter && <span aria-hidden>↩</span>}
+                        {round.phase === "return" && <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden />}
+                        {round.phase === "away" && <Moon className="h-3 w-3 shrink-0" aria-hidden />}
+                        {headline}
                       </span>
                       <span className="mt-0.5 flex max-w-52 items-center gap-1 truncate text-xs text-muted-foreground">
                         {round.isCoDriver && <Car className="h-3 w-3 shrink-0" aria-label={labels.coDriver} />}
                         {round.place}
+                        {subline ? ` · ${subline}` : ""}
                       </span>
                     </span>
                   );

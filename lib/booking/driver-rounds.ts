@@ -30,6 +30,17 @@ export interface RoundsDriverInput {
   registrationNumber: string | null;
 }
 
+/**
+ * Which day of a multi-day trip this is, from the viewed day's point of view.
+ *
+ * A trip that spans nights can't be described by a start and end time on every
+ * day it covers — on a middle day there is no departure and no return, the
+ * driver is simply away. Clamping to the day boundary produced "00:00–00:00",
+ * which reads as a zero-length midnight trip rather than "gone". Each day now
+ * states what is true on THAT day.
+ */
+export type RoundPhase = "single" | "depart" | "away" | "return";
+
 export interface DriverRound {
   bookingId: string;
   jobNumber: string;
@@ -44,6 +55,14 @@ export interface DriverRound {
   /** Multi-day trip that started before / ends after the viewed day. */
   continuesBefore: boolean;
   continuesAfter: boolean;
+  phase: RoundPhase;
+  /** Overnight only: which night of the trip this day begins (1-based), and how
+   *  many nights the trip runs in total. */
+  nightIndex: number | null;
+  nightTotal: number | null;
+  /** The trip's real departure / return moments, for the "ออก …" / "กลับ …" line. */
+  departAt: Date;
+  returnAt: Date;
 }
 
 export interface DriverRoundsRow {
@@ -56,6 +75,13 @@ export interface DriverRoundsRow {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+/** Whole calendar days from `a` to `b`, ignoring the time of day. */
+function daysBetween(a: Date, b: Date): number {
+  const da = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+  const db = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((db.getTime() - da.getTime()) / 86_400_000);
+}
 
 function stateOf(b: RoundsBookingInput): RoundState {
   if (b.tripEndedAt) return "done";
@@ -91,6 +117,17 @@ export function buildDriverRounds(input: {
     if (!list) return; // not in the shown pool (inactive / unpaired)
     const continuesBefore = b.startAt < dayStart;
     const continuesAfter = b.endAt > dayEnd;
+    const phase: RoundPhase = continuesBefore
+      ? continuesAfter
+        ? "away" // neither leaves nor returns today — gone the whole day
+        : "return"
+      : continuesAfter
+        ? "depart"
+        : "single";
+    // Nights are counted between calendar days, so a 10 Aug 06:00 → 13 Aug 18:00
+    // trip is 3 nights, and 11 Aug is the start of night 2.
+    const nightTotal = daysBetween(b.startAt, b.endAt);
+    const nightIndex = nightTotal > 0 ? daysBetween(b.startAt, dayStart) + 1 : null;
     list.push({
       bookingId: b.id,
       jobNumber: b.jobNumber,
@@ -102,6 +139,11 @@ export function buildDriverRounds(input: {
       state: stateOf(b),
       continuesBefore,
       continuesAfter,
+      phase,
+      nightIndex: phase === "away" ? nightIndex : null,
+      nightTotal: nightTotal > 0 ? nightTotal : null,
+      departAt: b.startAt,
+      returnAt: b.endAt,
     });
   };
 

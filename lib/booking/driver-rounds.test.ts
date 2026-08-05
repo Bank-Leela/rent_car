@@ -75,6 +75,43 @@ describe("buildDriverRounds", () => {
     expect(rows.find((r) => r.driverId === "A")!.isDuty).toBe(false);
   });
 
+  it("labels each day of an overnight trip by what happens THAT day", () => {
+    // 10 Aug 06:00 → 13 Aug 18:00 = 3 nights.
+    const tjw = bk({
+      id: "tjw", jobType: "TJW", destination: "เชียงใหม่",
+      startAt: D("2026-08-10T06:00:00"), endAt: D("2026-08-13T18:00:00"),
+    });
+    const on = (day: string) => {
+      const ds = D(`${day}T00:00:00`);
+      const de = new Date(ds); de.setDate(de.getDate() + 1);
+      return buildDriverRounds({ drivers, bookings: [tjw], dayStart: ds, dayEnd: de, dutyDriverId: null })
+        .find((r) => r.driverId === "A")!.rounds[0]!;
+    };
+
+    const depart = on("2026-08-10");
+    expect(depart.phase).toBe("depart");
+    expect(depart.startLabel).toBe("06:00"); // real departure time, not a day edge
+    expect(depart.nightTotal).toBe(3);
+
+    const away = on("2026-08-11");
+    expect(away.phase).toBe("away");
+    expect(away.nightIndex).toBe(2); // 10th was night 1
+    expect(away.nightTotal).toBe(3);
+
+    const back = on("2026-08-13");
+    expect(back.phase).toBe("return");
+    expect(back.endLabel).toBe("18:00"); // real return time
+    expect(back.nightIndex).toBeNull();
+  });
+
+  it("a same-day trip stays a plain start–end round", () => {
+    const rows = build([bk({ id: "normal" })]);
+    const r = rows.find((x) => x.driverId === "A")!.rounds[0]!;
+    expect(r.phase).toBe("single");
+    expect(r.nightIndex).toBeNull();
+    expect(r.nightTotal).toBeNull();
+  });
+
   it("ignores trips assigned to a driver outside the shown pool", () => {
     const rows = build([bk({ id: "ghost", primaryDriverId: "ZZZ" })]);
     expect(rows.every((r) => r.rounds.length === 0)).toBe(true);

@@ -185,6 +185,11 @@ export default async function SchedulePage({
           coDriver: t("coDriver"),
           empty: t("noVehicles"),
           noCar: t("roundsNoCar"),
+          overnight: t("roundsOvernight"),
+          nightOf: t("roundsNightOf"),
+          backOn: t("roundsBackOn"),
+          leftOn: t("roundsLeftOn"),
+          returnAt: t("roundsReturnAt"),
         }}
       />
     </div>
