@@ -2,7 +2,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { ChevronRight } from "lucide-react";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, type JobType } from "@prisma/client";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 
 // In-flight requests the requester is still tracking.
@@ -27,6 +27,7 @@ export type RequesterBookingCard = {
   id: string;
   jobNumber: string;
   status: BookingStatus;
+  jobType: JobType;
   purpose: string;
   destination: string;
   province: string;

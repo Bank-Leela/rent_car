@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { FileText } from "lucide-react";
-import type { BookingStatus } from "@prisma/client";
+import type { BookingStatus, JobType } from "@prisma/client";
 import { ListSearch } from "@/components/list-search";
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -22,18 +22,22 @@ const FILTERABLE_STATUSES = [
   ...HISTORY_BOOKING_STATUSES,
 ];
 
-// Pure so it's unit-testable: date-range (on startAt, whole days) + status.
+const FILTERABLE_JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
+
+// Pure so it's unit-testable: date-range (on startAt, whole days) + status + type.
 export function filterHistory(
   rows: RequesterBookingCard[],
-  opts: { fromDate?: string; toDate?: string; statuses?: BookingStatus[] },
+  opts: { fromDate?: string; toDate?: string; statuses?: BookingStatus[]; jobTypes?: JobType[] },
 ): RequesterBookingCard[] {
   const from = opts.fromDate ? new Date(`${opts.fromDate}T00:00:00`) : null;
   const to = opts.toDate ? new Date(`${opts.toDate}T23:59:59.999`) : null;
   const statuses = opts.statuses?.length ? new Set(opts.statuses) : null;
+  const jobTypes = opts.jobTypes?.length ? new Set(opts.jobTypes) : null;
   return rows.filter((b) => {
     if (from && b.startAt < from) return false;
     if (to && b.startAt > to) return false;
     if (statuses && !statuses.has(b.status)) return false;
+    if (jobTypes && !jobTypes.has(b.jobType)) return false;
     return true;
   });
 }
@@ -45,6 +49,7 @@ export function RequesterHistoryClient({
 }) {
   const t = useTranslations("listSearch");
   const th = useTranslations("historyFilters");
+  const tjt = useTranslations("jobType");
   const params = useSearchParams();
   const [fromDate, setFromDate] = useState(params.get("fromDate") ?? "");
   const [toDate, setToDate] = useState(params.get("toDate") ?? "");
@@ -54,15 +59,22 @@ export function RequesterHistoryClient({
     const wanted = raw.split(",");
     return FILTERABLE_STATUSES.filter((s) => wanted.includes(s));
   });
+  const [jobTypes, setJobTypes] = useState<JobType[]>(() => {
+    const raw = params.get("jobType");
+    if (!raw) return [];
+    const wanted = raw.split(",");
+    return FILTERABLE_JOB_TYPES.filter((s) => wanted.includes(s));
+  });
 
   // Persist filters in the URL (shareable/bookmarkable) without an RSC
   // round-trip — filtering happens client-side on the already-loaded rows.
-  const syncUrl = (next: { fromDate: string; toDate: string; statuses: BookingStatus[] }) => {
+  const syncUrl = (next: { fromDate: string; toDate: string; statuses: BookingStatus[]; jobTypes: JobType[] }) => {
     const sp = new URLSearchParams(window.location.search);
     for (const [k, v] of [
       ["fromDate", next.fromDate],
       ["toDate", next.toDate],
       ["status", next.statuses.join(",")],
+      ["jobType", next.jobTypes.join(",")],
     ] as const) {
       if (v) sp.set(k, v);
       else sp.delete(k);
@@ -74,25 +86,31 @@ export function RequesterHistoryClient({
   const toggleStatus = (s: BookingStatus) => {
     const next = statuses.includes(s) ? statuses.filter((x) => x !== s) : [...statuses, s];
     setStatuses(next);
-    syncUrl({ fromDate, toDate, statuses: next });
+    syncUrl({ fromDate, toDate, statuses: next, jobTypes });
+  };
+  const toggleJobType = (j: JobType) => {
+    const next = jobTypes.includes(j) ? jobTypes.filter((x) => x !== j) : [...jobTypes, j];
+    setJobTypes(next);
+    syncUrl({ fromDate, toDate, statuses, jobTypes: next });
   };
   const setDate = (which: "from" | "to", v: string) => {
     if (which === "from") setFromDate(v);
     else setToDate(v);
-    syncUrl({ fromDate: which === "from" ? v : fromDate, toDate: which === "to" ? v : toDate, statuses });
+    syncUrl({ fromDate: which === "from" ? v : fromDate, toDate: which === "to" ? v : toDate, statuses, jobTypes });
   };
   const clear = () => {
     setFromDate("");
     setToDate("");
     setStatuses([]);
-    syncUrl({ fromDate: "", toDate: "", statuses: [] });
+    setJobTypes([]);
+    syncUrl({ fromDate: "", toDate: "", statuses: [], jobTypes: [] });
   };
 
   const filtered = useMemo(
-    () => filterHistory(bookings, { fromDate, toDate, statuses }),
-    [bookings, fromDate, toDate, statuses],
+    () => filterHistory(bookings, { fromDate, toDate, statuses, jobTypes }),
+    [bookings, fromDate, toDate, statuses, jobTypes],
   );
-  const hasFilter = !!(fromDate || toDate || statuses.length);
+  const hasFilter = !!(fromDate || toDate || statuses.length || jobTypes.length);
 
   const dateCls =
     "h-9 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -123,6 +141,29 @@ export function RequesterHistoryClient({
               }`}
             >
               {th(`status_${s}`)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Job type on its own row: two independent questions ("how far along is
+          it?" and "what kind of trip?") read as one long strip otherwise. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTERABLE_JOB_TYPES.map((j) => {
+          const active = jobTypes.includes(j);
+          return (
+            <button
+              key={j}
+              type="button"
+              onClick={() => toggleJobType(j)}
+              aria-pressed={active}
+              className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {tjt(j)}
             </button>
           );
         })}

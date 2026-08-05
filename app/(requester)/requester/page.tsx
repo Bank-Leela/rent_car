@@ -45,6 +45,7 @@ export default async function RequesterHome() {
   const historyRows: RequesterBookingCard[] = history.map((b) => ({
     id: b.id,
     jobNumber: b.jobNumber,
+    jobType: b.jobType,
     status:
       (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) || b.endAt >= now
         ? b.status

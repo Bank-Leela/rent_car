@@ -552,7 +552,7 @@
     "triageWaitingHours": "รอ {hours} ชม.",
     "paxCount": "{count} คน",
     "coDriverNeeded": "ต้องมีคนขับเสริม",
-    "filterOverdue": "เกิน SLA",
+    "filterOverdue": "รอเกิน 24 ชม.",
     "sortLabel": "เรียงตาม",
     "sortStart": "เวลาเดินทาง",
     "sortOldest": "ส่งคำขอก่อน",
@@ -1192,7 +1192,13 @@
     "status_COMPLETED": "เสร็จสิ้น",
     "status_DENIED": "ไม่อนุมัติ",
     "status_CANCELLED": "ยกเลิก",
-    "clear": "ล้างตัวกรอง"
+    "clear": "ล้างตัวกรอง",
+    "status_PENDING_APPROVAL": "รออนุมัติ",
+    "status_WAITLIST": "รอคิว",
+    "status_APPROVED": "อนุมัติแล้ว",
+    "status_ASSIGNED": "จัดรถแล้ว",
+    "status_OUTSOURCED": "รถเช่าภายนอก",
+    "jobTypeAll": "ทุกประเภท"
   },
   "maps": {
     "estimate": "ประเมินระยะทาง (Google Maps)",
@@ -1217,6 +1223,6 @@
     "OT": "โอที",
     "TJW": "ตจว",
     "WERN": "เวร",
-    "SMUS": "งานพิเศษ"
+    "SMUS": "หลักสูตรนิสิตแพทย์"
   }
 }

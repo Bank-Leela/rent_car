@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DriverRoundsBoard } from "@/components/driver/driver-rounds-board";
 import { buildDriverRounds } from "@/lib/booking/driver-rounds";
+import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { TodayTripsPanel, type TodayTripRow } from "@/components/driver/today-trips-panel";
 import { KioskRefresh } from "@/components/driver/kiosk-refresh";
 
@@ -30,6 +31,10 @@ export default async function DriverSchedule({
   const day = date ? parse(date, "yyyy-MM-dd", new Date()) : new Date();
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
+
+  // The เวร roster extends itself: opening a future day tops it up so the board
+  // never shows an unmanned day, and the allocator sees the same stored shifts.
+  await ensureOnCallRosterThrough(dayStart);
 
   const [vehicles, dayBookings, onCall] = await Promise.all([
     prisma.vehicle.findMany({
