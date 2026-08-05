@@ -11,7 +11,6 @@ import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
-import { CompleteTripForm } from "@/components/forms/complete-trip-form";
 import { LessSubmitToggle } from "@/components/admin/less-submit-toggle";
 import { EstimateDistanceButton } from "@/components/admin/estimate-distance-button";
 import { isMapsConfigured } from "@/lib/maps/distance";
@@ -59,11 +58,9 @@ export default async function AdminBookingDetail({
 
   const isPendingApproval = booking.status === "PENDING_APPROVAL";
   const isApproved = booking.status === "APPROVED";
-  const isAssigned = booking.status === "ASSIGNED";
   // Admin's mutation forms only apply once the approver signs off.
   const showAssignForms = isAdmin && isApproved;
   const showApproverForms = isAdmin && isPendingApproval;
-  const showCompleteForm = isAdmin && isAssigned;
 
   // Vehicle-conflict list, repeat-canceller warning, and (when a decision is
   // pending) the supply/risk decision context — see lib/booking/detail-context.
@@ -480,17 +477,6 @@ export default async function AdminBookingDetail({
             </CardContent>
           </Card>
         </>
-      )}
-
-      {showCompleteForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{tad("completeTitle")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CompleteTripForm bookingId={booking.id} />
-          </CardContent>
-        </Card>
       )}
 
       <Card>
