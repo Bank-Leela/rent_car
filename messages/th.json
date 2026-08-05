@@ -919,7 +919,10 @@
     "completedOvertime": "เกินเวลา (OT)",
     "overtimeValue": "{min} นาที (เลยกำหนด {at})",
     "completedFuelType": "ประเภทน้ำมัน",
-    "completedParking": "ค่าที่จอดรถ"
+    "completedParking": "ค่าที่จอดรถ",
+    "formTitle": "แบบฟอร์มขออนุมัติใช้รถ",
+    "formDescription": "เปิดและพิมพ์แบบฟอร์ม ให้ผู้โดยสารลงชื่อยืนยันว่าเดินทางเสร็จสิ้นแล้ว",
+    "formOpen": "เปิดแบบฟอร์ม (PDF)"
   },
   "approverActions": {
     "backToInbox": "กลับไปกล่องจดหมาย",

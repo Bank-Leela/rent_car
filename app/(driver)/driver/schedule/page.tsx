@@ -159,6 +159,9 @@ export default async function DriverSchedule({
 
       <DriverRoundsBoard
         rows={roundRows}
+        // Tapping a round opens that trip, where the driver records the start /
+        // end mileage and can open the official form for the passenger to sign.
+        href={(id) => `/driver/${id}`}
         labels={{
           duty: t("duty"),
           free: t("roundsFree"),

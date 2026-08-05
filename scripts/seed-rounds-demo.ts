@@ -124,6 +124,9 @@ async function main() {
           vehicleId: car.id,
           primaryDriverId: car.assignedDriverId,
           decidedAt: new Date(),
+          // Approval is what normally stamps this; set it here so the demo trips
+          // carry the official form the driver shows the passenger to sign.
+          pdfUrl: "official",
         },
       });
       n++;

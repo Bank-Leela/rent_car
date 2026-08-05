@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { FileText } from "lucide-react";
 import { th, enUS } from "date-fns/locale";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
@@ -127,6 +128,29 @@ export default async function DriverBookingDetail({
                 <Field label={t("coordinatorPhone")} value={booking.coordinatorPhone} />
               </>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* The driver carries the printed form so the passenger can sign that the
+          trip was completed, so it has to be reachable from the station — not
+          just from the requester's and admin's pages. */}
+      {booking.pdfUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">{t("formTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t("formDescription")}</p>
+            <Link
+              href={`/api/files/booking-pdf/${booking.id}`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex h-14 items-center gap-2 rounded-md border bg-background px-5 text-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <FileText className="h-5 w-5" aria-hidden />
+              {t("formOpen")}
+            </Link>
           </CardContent>
         </Card>
       )}
