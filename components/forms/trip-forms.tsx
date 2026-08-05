@@ -49,11 +49,15 @@ export function EndTripForm({
   onSuccess,
 }: {
   bookingId: string;
-  // When known (trip already started), the success toast can show the distance.
+  // Already recorded (trip was started earlier) → the field is not asked for
+  // again and the success toast can show the distance. Null → the driver enters
+  // both readings here, which is the normal case: they fill the whole trip in
+  // one go when they get back, off the same log sheet.
   startMileage?: number | null;
   onSuccess?: () => void;
 }) {
   const t = useTranslations("tripForms");
+  const needsStart = startMileage == null;
   // Values from the submitted FormData, kept so the success toast can echo back
   // exactly what was recorded — the drawer refetches and the form vanishes, so
   // without this a network hiccup leaves the driver guessing.
@@ -82,16 +86,32 @@ export function EndTripForm({
   };
   return (
     <form action={runWithCapture} className="space-y-4">
-      <div className="grid gap-2">
-        <Label htmlFor="endMileage" className="text-base">{t("endingKm")}</Label>
-        <Input
-          id="endMileage"
-          name="endMileage"
-          type="number"
-          inputMode="numeric"
-          required
-          className="h-14 text-lg"
-        />
+      <div className={needsStart ? "grid gap-4 sm:grid-cols-2" : "grid gap-2"}>
+        {needsStart && (
+          <div className="grid gap-2">
+            <Label htmlFor="startMileage" className="text-base">{t("startingKm")}</Label>
+            <Input
+              id="startMileage"
+              name="startMileage"
+              type="number"
+              inputMode="numeric"
+              required
+              className="h-14 text-lg"
+              placeholder={t("startingPlaceholder")}
+            />
+          </div>
+        )}
+        <div className="grid gap-2">
+          <Label htmlFor="endMileage" className="text-base">{t("endingKm")}</Label>
+          <Input
+            id="endMileage"
+            name="endMileage"
+            type="number"
+            inputMode="numeric"
+            required
+            className="h-14 text-lg"
+          />
+        </div>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="grid gap-2">

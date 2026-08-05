@@ -18,6 +18,17 @@ const startSchema = z.object({
 
 const endSchema = z.object({
   bookingId: z.string().min(1),
+  // Drivers record the whole trip in one go at the station — both odometer
+  // readings come off the same log sheet — so the start reading rides along and
+  // the trip row is created here when it doesn't exist yet.
+  startMileage: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(10_000_000)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
   endMileage: z.coerce.number().int().min(0).max(10_000_000),
   fuelCost: z.coerce
     .number()
@@ -152,7 +163,7 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
-  const { bookingId, endMileage, fuelCost, fuelLiters, fuelType, parkingCost, tollwayCost, usedExpressway, driverNotes } = parsed.data;
+  const { bookingId, startMileage, endMileage, fuelCost, fuelLiters, fuelType, parkingCost, tollwayCost, usedExpressway, driverNotes } = parsed.data;
 
   if (!(await canRecordTrip(session, bookingId))) {
     return { ok: false, error: te("notAssignedToTrip") };
@@ -166,19 +177,28 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: te("cannotEndInStatus", { status: ts(booking.status) }) };
   }
 
+  // The trip row may not exist yet: the driver records both readings in one
+  // submit when they get back, rather than tapping "start" before driving off.
   const trip = await prisma.trip.findUnique({ where: { bookingId } });
-  if (!trip) return { ok: false, error: te("tripStartFirst") };
-  if (trip.endedAt) return { ok: false, error: te("tripAlreadyComplete") };
-  if (endMileage < trip.startMileage) {
+  if (trip?.endedAt) return { ok: false, error: te("tripAlreadyComplete") };
+  const effectiveStart = trip ? trip.startMileage : startMileage;
+  if (effectiveStart === undefined) return { ok: false, error: te("tripStartFirst") };
+  if (endMileage < effectiveStart) {
     return { ok: false, error: te("endMileageLow") };
   }
 
   await prisma.$transaction(async (tx) => {
+    const startedAt = trip?.startedAt ?? new Date();
+    await tx.trip.upsert({
+      where: { bookingId },
+      create: { bookingId, startMileage: effectiveStart, startedAt },
+      update: {},
+    });
     await tx.trip.update({
       where: { bookingId },
       data: {
         endMileage,
-        distanceKm: endMileage - trip.startMileage,
+        distanceKm: endMileage - effectiveStart,
         fuelCost,
         fuelLiters,
         fuelType,
@@ -199,7 +219,7 @@ export async function endTripAction(formData: FormData): Promise<ActionResult> {
       fromStatus: "ASSIGNED",
       toStatus: "COMPLETED",
       action: "TRIP_COMPLETED",
-      metadata: { endMileage, distanceKm: endMileage - trip.startMileage },
+      metadata: { startMileage: effectiveStart, endMileage, distanceKm: endMileage - effectiveStart },
       tx,
     });
   });

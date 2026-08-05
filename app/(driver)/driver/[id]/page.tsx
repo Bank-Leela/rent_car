@@ -9,7 +9,7 @@ import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
-import { StartTripForm, EndTripForm } from "@/components/forms/trip-forms";
+import { EndTripForm } from "@/components/forms/trip-forms";
 import { DetailField } from "@/components/detail-field";
 
 export default async function DriverBookingDetail({
@@ -155,29 +155,25 @@ export default async function DriverBookingDetail({
         </Card>
       )}
 
-      {!tripStarted && booking.status === "ASSIGNED" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">{t("startTripTitle")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <StartTripForm bookingId={booking.id} />
-          </CardContent>
-        </Card>
-      )}
-
-      {tripStarted && !tripCompleted && (
+      {/* One form, both odometer readings. Drivers fill the whole trip in when
+          they get back rather than tapping "start" before driving off, so the
+          start field appears here unless the trip was already started. */}
+      {!tripCompleted && booking.status === "ASSIGNED" && (
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">{t("endTripTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {ttf("startedAt", {
-                time: format(booking.trip!.startedAt, "HH:mm"),
-                km: booking.trip!.startMileage.toLocaleString(),
-              })}
-            </p>
+            {/* Only meaningful when the trip was started earlier; when both
+                readings are entered together there is nothing to echo back yet. */}
+            {tripStarted && booking.trip && (
+              <p className="text-sm text-muted-foreground">
+                {ttf("startedAt", {
+                  time: format(booking.trip.startedAt, "HH:mm"),
+                  km: booking.trip.startMileage.toLocaleString(),
+                })}
+              </p>
+            )}
             <EndTripForm bookingId={booking.id} startMileage={booking.trip?.startMileage ?? null} />
           </CardContent>
         </Card>

@@ -103,6 +103,33 @@ describe("shared station — trip recording", () => {
     expect(after?.trip?.distanceKm).toBe(80);
   });
 
+  it("records a whole trip from ONE submit carrying both odometer readings", async () => {
+    // The station form asks for start and end together — the driver fills the
+    // trip in when they get back, so no trip row exists yet at submit time.
+    const b = await mkAssigned(11);
+    asUser(STATION);
+
+    const res = await endTripAction(
+      fd({ bookingId: b.id, startMileage: "2000", endMileage: "2075", fuelCost: "300" }),
+    );
+    expect(res.ok).toBe(true);
+
+    const after = await prisma.booking.findUnique({ where: { id: b.id }, include: { trip: true } });
+    expect(after?.status).toBe("COMPLETED");
+    expect(after?.trip?.startMileage).toBe(2000);
+    expect(after?.trip?.endMileage).toBe(2075);
+    expect(after?.trip?.distanceKm).toBe(75);
+  });
+
+  it("still rejects an end reading below the start when both arrive together", async () => {
+    const b = await mkAssigned(21);
+    asUser(STATION);
+    const res = await endTripAction(fd({ bookingId: b.id, startMileage: "5000", endMileage: "4990" }));
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe("endMileageLow");
+    expect(await prisma.trip.findUnique({ where: { bookingId: b.id } })).toBeNull();
+  });
+
   it("blocks a regular driver from recording a trip they aren't assigned to", async () => {
     const b = await mkAssigned(13);
     asUser(driverBUserId); // a real driver, NOT assigned to b (driverA is)

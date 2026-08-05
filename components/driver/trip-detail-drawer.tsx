@@ -7,7 +7,7 @@ import { Car, Fuel, Gauge, MapPin, Receipt, UserRound } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
-import { StartTripForm, EndTripForm } from "@/components/forms/trip-forms";
+import { EndTripForm } from "@/components/forms/trip-forms";
 import {
   getStationTripDetailAction,
   type StationTripDetail,
@@ -146,13 +146,9 @@ function DrawerBody({ bookingId }: { bookingId: string }) {
           </section>
         )}
 
-        {canStart && (
-          <section className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-            <h3 className="mb-3 text-sm font-semibold">{t("startTitle")}</h3>
-            <StartTripForm bookingId={detail.id} onSuccess={afterRecord} />
-          </section>
-        )}
-        {tripStarted && detail.canRecord && (
+        {/* One form for the whole trip: both odometer readings together, with the
+            start field dropped only when the trip was already started earlier. */}
+        {(canStart || tripStarted) && detail.canRecord && (
           <section className="rounded-lg border border-primary/30 bg-primary/5 p-4">
             <h3 className="mb-3 text-sm font-semibold">{t("endTitle")}</h3>
             <EndTripForm bookingId={detail.id} startMileage={detail.trip?.startMileage ?? null} onSuccess={afterRecord} />
