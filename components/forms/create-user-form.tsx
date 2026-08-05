@@ -37,7 +37,11 @@ export function CreateUserForm({
         });
       }}
       id="create-user-form"
-      className="grid sm:grid-cols-2 gap-3"
+      // A taller neighbour (the password field carries a helper line) stretches
+      // the whole grid row; without `content-start` the shorter field's auto rows
+      // absorb the slack and its label/input drift out of line with the column
+      // beside it.
+      className="grid sm:grid-cols-2 gap-3 [&>div]:content-start"
     >
       <div className="grid gap-1.5">
         <Label htmlFor="email">{t("email")}</Label>

@@ -33,7 +33,9 @@ describe("adminRemoveDriverAction — a driver on a duty rotation is deactivated
     // On a duty rotation — the OnCallShift FK is ON DELETE RESTRICT and NOT in the
     // User→Driver cascade, so a hard-delete would 500. A far-future unique date
     // avoids colliding with the seeded roster.
-    await prisma.onCallShift.create({ data: { date: new Date("2027-03-15T00:00:00"), driverId: driver.id } });
+    // Beyond the roster auto-fill horizon (MAX_LOOKAHEAD_DAYS), so viewing a
+    // future board can never have rostered this date and collided with us.
+    await prisma.onCallShift.create({ data: { date: new Date("2032-06-09T00:00:00"), driverId: driver.id } });
 
     const fd = new FormData();
     fd.append("driverId", driver.id);
