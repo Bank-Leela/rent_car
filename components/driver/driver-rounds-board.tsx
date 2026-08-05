@@ -15,6 +15,7 @@ export function DriverRoundsBoard({
   href,
   reassignTargets,
   labels,
+  legend,
 }: {
   rows: DriverRoundsRow[];
   /** Per-round link target; omit for a non-clickable (kiosk) board. */
@@ -32,6 +33,8 @@ export function DriverRoundsBoard({
     leftOn: string;
     returnAt: string;
   };
+  /** Thai job-type names for the colour key, plus what the tinted row means. */
+  legend: { TJW: string; OT: string; WERN: string; NORMAL: string; dutyRow: string };
 }) {
   if (rows.length === 0) {
     return (
@@ -39,18 +42,44 @@ export function DriverRoundsBoard({
     );
   }
 
-  // Job-type tint, matching the timeline board's palette so the colour language
-  // carries over (TJW blue, OT amber, WERN emerald, NORMAL slate).
+  // Colour means "this trip is not ordinary". ทั่วไป is the common case and gets
+  // no fill at all — an outlined chip — so it can never be mistaken for ตจว; a
+  // slate wash and a dark-blue wash were nearly the same colour in dark theme.
+  // The remaining types keep their established hues, at full strength in dark so
+  // they read as blue/amber/green rather than as five shades of near-black.
+  //
+  // SMUS is an external charter with no internal driver, so it cannot reach this
+  // board; the tint exists only so a mis-assigned one is still legible.
   const tint: Record<string, string> = {
-    TJW: "border-blue-300 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40",
-    OT: "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40",
-    WERN: "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40",
-    NORMAL: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/60",
-    SMUS: "border-violet-300 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/40",
+    TJW: "border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/50",
+    OT: "border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-950/50",
+    WERN: "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/50",
+    NORMAL: "border-border bg-transparent",
+    SMUS: "border-violet-400 bg-violet-50 dark:border-violet-600 dark:bg-violet-950/50",
   };
+  // ตจว / โอที / เวร / ทั่วไป — the four types an internal driver can be given.
+  const legendTypes = ["TJW", "OT", "WERN", "NORMAL"] as const;
+  const dutyRowStyle = "border-l-4 border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25";
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
+      {/* Colour key. The swatches are the chip and row styles themselves, so the
+          key cannot drift from what the board actually paints. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        {legendTypes.map((jt) => (
+          <span key={jt} className="flex items-center gap-1.5">
+            <span className={`h-3.5 w-3.5 shrink-0 rounded border ${tint[jt]}`} aria-hidden />
+            {legend[jt]}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          {/* Wider and square, so it reads as a slice of a row rather than a
+              chip — and no outer border, or the edge stripe becomes a pill. */}
+          <span className={`h-3.5 w-6 shrink-0 ${dutyRowStyle}`} aria-hidden />
+          {legend.dutyRow}
+        </span>
+      </div>
+
       <ul className="divide-y">
         {rows.map((r) => (
           // The เวร (duty) driver is reserved all day — they run campus rounds and
@@ -60,9 +89,7 @@ export function DriverRoundsBoard({
           <li
             key={r.driverId}
             className={`flex flex-col gap-2 p-3 sm:flex-row sm:gap-4 ${
-              r.isDuty
-                ? "border-l-4 border-l-emerald-500 bg-emerald-50/60 pl-2 dark:bg-emerald-950/25"
-                : ""
+              r.isDuty ? `${dutyRowStyle} pl-2` : ""
             }`}
           >
             {/* Driver identity — fixed-width column, like the whiteboard's name column. */}

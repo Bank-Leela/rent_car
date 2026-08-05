@@ -23,6 +23,7 @@ export default async function DriverSchedule({
   await requireRole("DRIVER");
   const t = await getTranslations("scheduler");
   const td = await getTranslations("driver");
+  const tj = await getTranslations("jobType");
   const locale = await getLocale();
   const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
   const isThai = locale.toLowerCase().startsWith("th");
@@ -177,6 +178,13 @@ export default async function DriverSchedule({
           backOn: t("roundsBackOn"),
           leftOn: t("roundsLeftOn"),
           returnAt: t("roundsReturnAt"),
+        }}
+        legend={{
+          TJW: tj("TJW"),
+          OT: tj("OT"),
+          WERN: tj("WERN"),
+          NORMAL: tj("NORMAL"),
+          dutyRow: t("roundsDutyRow"),
         }}
       />
     </div>

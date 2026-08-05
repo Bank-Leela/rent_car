@@ -17,6 +17,7 @@ export default async function SchedulePage({
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("scheduler");
+  const tj = await getTranslations("jobType");
   const locale = await getLocale();
   const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
 
@@ -194,6 +195,13 @@ export default async function SchedulePage({
           backOn: t("roundsBackOn"),
           leftOn: t("roundsLeftOn"),
           returnAt: t("roundsReturnAt"),
+        }}
+        legend={{
+          TJW: tj("TJW"),
+          OT: tj("OT"),
+          WERN: tj("WERN"),
+          NORMAL: tj("NORMAL"),
+          dutyRow: t("roundsDutyRow"),
         }}
       />
     </div>
