@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { approveBookingAction, denyByApproverAction } from "@/lib/booking/approval-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
 import { FormError } from "@/components/forms/form-error";
@@ -20,14 +21,25 @@ import { DenyPresetChips } from "@/components/forms/deny-preset-chips";
 export function ApproverQueueActions({
   bookingId,
   canDeny,
+  returnTrip = true,
+  endAt,
+  startAt,
 }: {
   bookingId: string;
   canDeny: boolean;
+  // One-way ("ไม่เดินทางกลับ"): the requester's time is when they expect to
+  // ARRIVE, so the car is still out afterwards. Approval confirms when it is
+  // back at the faculty — pre-filled with their answer, editable here so the
+  // queue can be cleared without opening every card.
+  returnTrip?: boolean;
+  endAt?: string;
+  startAt?: string;
 }) {
   const t = useTranslations("approverActions");
   const router = useRouter();
   const [denyOpen, setDenyOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [confirmedEnd, setConfirmedEnd] = useState(endAt ?? "");
 
   const approve = useFormAction(approveBookingAction, {
     bookingId,
@@ -85,10 +97,29 @@ export function ApproverQueueActions({
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+      {!returnTrip && (
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {t("confirmEndLabel")}
+          {/* The app's picker, not the browser's — the native control renders
+              its month names and Clear/Today in English. */}
+          <DateTimePicker
+            name=""
+            min={startAt}
+            defaultValue={endAt}
+            placeholder={t("confirmEndLabel")}
+            timeLabel={t("confirmEndLabel")}
+            onChange={setConfirmedEnd}
+          />
+        </span>
+      )}
       <Button
         type="button"
-        disabled={approve.pending}
-        onClick={() => approve.run(new FormData())}
+        disabled={approve.pending || (!returnTrip && !confirmedEnd)}
+        onClick={() => {
+          const fd = new FormData();
+          if (!returnTrip) fd.set("endAt", confirmedEnd);
+          approve.run(fd);
+        }}
       >
         <Check className="h-4 w-4" />
         {approve.pending ? t("approving") : t("approve")}

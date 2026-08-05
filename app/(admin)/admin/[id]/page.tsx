@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
@@ -138,7 +139,10 @@ export default async function AdminBookingDetail({
             <Field label={tf("femaleCount")} value={String(booking.femaleCount)} />
           )}
           <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
-          <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
+          <Field
+            label={booking.returnTrip ? t("endBackAtFaculty") : t("endAtDestination")}
+            value={format(booking.endAt, "EEE d MMM yyyy HH:mm")}
+          />
           <Field
             label={tf("returnTripLabel")}
             value={booking.returnTrip ? tf("returnTripYes") : tf("returnTripNo")}
@@ -315,8 +319,19 @@ export default async function AdminBookingDetail({
 
       {decisionContext && (
         <Card>
+          {/* "2/12 booked, 5 of 6 cars free" invites the obvious next question —
+              which trips those are. The header links to that day's board. */}
           <CardHeader>
-            <CardTitle>{tad("decisionContextTitle")}</CardTitle>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+              {tad("decisionContextTitle")}
+              <Link
+                href={`/admin/schedule?date=${format(booking.startAt, "yyyy-MM-dd")}`}
+                className="inline-flex items-center gap-0.5 text-sm font-medium text-primary hover:underline"
+              >
+                {tad("decisionContextOpenSchedule")}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div>
@@ -390,25 +405,29 @@ export default async function AdminBookingDetail({
         </Card>
       )}
 
+      {/* items-stretch + h-full so the two decision cards match height and each
+          form pushes its submit button to the bottom — otherwise the extra
+          end-time field on Approve leaves the two buttons at different levels. */}
       {showApproverForms && (
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Card>
+        <div className="grid items-stretch gap-4 sm:grid-cols-2">
+          <Card className="flex h-full flex-col">
             <CardHeader>
               <CardTitle>{ta("approveTitle")}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-1 flex-col">
               <ApproveForm
                 bookingId={booking.id}
                 returnTrip={booking.returnTrip}
                 startAt={format(booking.startAt, "yyyy-MM-dd'T'HH:mm")}
+                endAt={format(booking.endAt, "yyyy-MM-dd'T'HH:mm")}
               />
             </CardContent>
           </Card>
-          <Card>
+          <Card className="flex h-full flex-col">
             <CardHeader>
               <CardTitle>{ta("denyTitle")}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-1 flex-col">
               <ApproverDenyForm bookingId={booking.id} />
             </CardContent>
           </Card>

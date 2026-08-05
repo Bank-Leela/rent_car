@@ -3,14 +3,7 @@
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { SelectField } from "@/components/ui/select-field";
-import {
-  matchBookingAction,
-  setOnCallShiftAction,
-  fillOnCallRosterAction,
-  escalateToKhunTopAction,
-} from "@/lib/booking/matching-actions";
+import { matchBookingAction, escalateToKhunTopAction } from "@/lib/booking/matching-actions";
 import { setNeedsSecondaryDriverAction } from "@/lib/booking/extra-actions";
 
 export function MatchingButton({ bookingId }: { bookingId: string }) {
@@ -127,88 +120,5 @@ export function NeedsSecondaryDriverToggle({
         </p>
       )}
     </form>
-  );
-}
-
-export function OnCallShiftForm({
-  date,
-  defaultDriverId,
-  drivers,
-}: {
-  date: string;
-  defaultDriverId: string | null;
-  drivers: Array<{ id: string; name: string }>;
-}) {
-  const t = useTranslations("matching");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-  return (
-    <form
-      action={(formData) => {
-        setError(null);
-        formData.set("date", date);
-        startTransition(async () => {
-          const res = await setOnCallShiftAction(formData);
-          if (res && !res.ok) setError(res.error);
-        });
-      }}
-      className="space-y-2"
-    >
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="grid gap-1">
-          <Label htmlFor="onCallDriverId" className="text-xs">
-            {t("onCallLabel", { date })}
-          </Label>
-          <SelectField
-            id="onCallDriverId"
-            name="driverId"
-            defaultValue={defaultDriverId ?? ""}
-            className="h-9 w-52"
-            options={[
-              { value: "", label: t("autoRotate") },
-              ...drivers.map((d) => ({ value: d.id, label: d.name })),
-            ]}
-          />
-        </div>
-        <Button type="submit" disabled={pending} size="sm">
-          {pending ? t("saving") : t("save")}
-        </Button>
-        <FillRosterButton from={date} />
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </form>
-  );
-}
-
-// The roster should be decided in advance — a driver arriving tomorrow expects
-// to already know whether they are on เวร. This runs the same rotation forward
-// over the coming month, leaving any day that already has a driver untouched, so
-// it is safe to press again and never overwrites a manual choice.
-function FillRosterButton({ from }: { from: string }) {
-  const t = useTranslations("matching");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-  return (
-    <span className="flex items-center gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={pending}
-        onClick={() => {
-          setMsg(null);
-          startTransition(async () => {
-            const fd = new FormData();
-            fd.set("from", from);
-            fd.set("days", "30");
-            const res = (await fillOnCallRosterAction(fd)) as { ok: boolean; filled?: number; error?: string };
-            setMsg(res.ok ? t("rosterFilled", { count: res.filled ?? 0 }) : (res.error ?? null));
-          });
-        }}
-      >
-        {pending ? t("saving") : t("fillRoster")}
-      </Button>
-      {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
-    </span>
   );
 }

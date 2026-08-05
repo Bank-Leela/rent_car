@@ -151,10 +151,10 @@ export function BookingForm({
   // an unchecked native checkbox sends nothing at all, which would fall back
   // to the schema default (true) and silently ignore the uncheck.
   const [waitAtDestination, setWaitAtDestination] = useState(true);
-  // One-way ("ไม่เดินทางกลับ"): the requester only books the outbound leg and
-  // leaves the end time to the admin (set at approval). When false the end
-  // picker is hidden and a provisional endAt rides along so the server schema
-  // (which always wants an endAt) stays happy.
+  // One-way ("ไม่เดินทางกลับ"): the requester books only the outbound leg, but
+  // still gives a time — when they expect to arrive. Only the meaning of the
+  // end field changes (ถึงที่หมาย instead of กลับถึงคณะ); the admin confirms the
+  // real "car is back at the faculty" time at approval.
   const [returnTrip, setReturnTrip] = useState(true);
   // Only meaningful when waitAtDestination is false; cleared on submit
   // otherwise so a stale typed time never lingers once "คอย" is re-selected.
@@ -322,11 +322,6 @@ export function BookingForm({
   // may end on the next day OR any later day — the requester picks it.
   const startDateObj = startValue ? new Date(startValue) : null;
   const startIsValid = !!startDateObj && !Number.isNaN(startDateObj.getTime());
-  // One-way: no end is chosen, but the server still wants an endAt > startAt.
-  // Send a provisional (start + 3h) — the admin overwrites it at approval.
-  const provisionalEndValue = startIsValid
-    ? datetimeLocalValue(new Date(startDateObj!.getTime() + 3 * 60 * 60 * 1000))
-    : "";
   const minEndDay = startIsValid
     ? isOvernight
       ? addDays(startOfDay(startDateObj!), 1)
@@ -682,49 +677,47 @@ export function BookingForm({
                   <option value="no">{t("returnTripNo")}</option>
                 </select>
               </div>
+              {/* One-way still asks for a time — the requester knows roughly when
+                  they expect to arrive, and a guessed placeholder was being shown
+                  back to them as though they had chosen it. Only the meaning
+                  differs: round trip = back at the faculty, one-way = at the
+                  destination. The admin confirms the real "car is back" time at
+                  approval, so the scheduler books the empty return too. */}
               <div className="grid min-w-0 flex-1 gap-2 basis-40">
-                {returnTrip ? (
-                  <ReqLabel htmlFor="endAt">{t("endLabel")}</ReqLabel>
-                ) : (
-                  <Label htmlFor="endAt">{t("endLabel")}</Label>
-                )}
-                {returnTrip ? (
-                  <DateTimePicker
-                    id="endAt"
-                    name="endAt"
-                    required
-                    min={endMinValue}
-                    max={endMaxValue}
-                    defaultValue={endValue}
-                    placeholder={t("endLabel")}
-                    onChange={handleEndChange}
-                    timeLabel={t("endTimeLabel")}
-                    pickupReturn={{
-                      wait: waitAtDestination,
-                      onWaitChange: setWaitAtDestination,
-                      pickupTime: pickupReturnTime,
-                      onPickupTimeChange: setPickupReturnTime,
-                      label: t("waitAtDestinationLabel"),
-                      helper: t("waitAtDestinationHelper"),
-                      waitYesLabel: t("waitYes"),
-                      waitNoLabel: t("waitNo"),
-                      pickupTimeLabel: t("pickupReturnTimeLabel"),
-                    }}
-                  />
-                ) : (
-                  <div
-                    id="endAt"
-                    className="flex h-10 items-center rounded-md border border-dashed bg-muted/30 px-3 text-xs text-muted-foreground"
-                  >
-                    {t("oneWayNote")}
-                  </div>
-                )}
+                <ReqLabel htmlFor="endAt">{returnTrip ? t("endLabel") : t("endLabelOneWay")}</ReqLabel>
+                <DateTimePicker
+                  id="endAt"
+                  name="endAt"
+                  required
+                  min={endMinValue}
+                  max={endMaxValue}
+                  defaultValue={endValue}
+                  placeholder={returnTrip ? t("endLabel") : t("endLabelOneWay")}
+                  onChange={handleEndChange}
+                  timeLabel={returnTrip ? t("endTimeLabel") : t("endTimeLabelOneWay")}
+                  pickupReturn={
+                    returnTrip
+                      ? {
+                          wait: waitAtDestination,
+                          onWaitChange: setWaitAtDestination,
+                          pickupTime: pickupReturnTime,
+                          onPickupTimeChange: setPickupReturnTime,
+                          label: t("waitAtDestinationLabel"),
+                          helper: t("waitAtDestinationHelper"),
+                          waitYesLabel: t("waitYes"),
+                          waitNoLabel: t("waitNo"),
+                          pickupTimeLabel: t("pickupReturnTimeLabel"),
+                        }
+                      : undefined
+                  }
+                />
+                {!returnTrip && <p className="text-xs text-muted-foreground">{t("oneWayNote")}</p>}
               </div>
             </div>
-            {returnTrip && endBeforeStart && (
+            {endBeforeStart && (
               <p className="text-xs font-medium text-destructive">{t("endBeforeStart")}</p>
             )}
-            {returnTrip && startIsValid && !isOvernight && (
+            {startIsValid && !isOvernight && (
               <p className="text-xs text-muted-foreground">{t("endDateAutoSameDay")}</p>
             )}
 
@@ -746,10 +739,9 @@ export function BookingForm({
               value={waitAtDestination ? "" : pickupReturnTime}
             />
             {/* returnTrip rides along ("true"/"" only — z.coerce.boolean treats
-                any non-empty string as true). One-way hides the end picker, so
-                send a provisional endAt the admin overwrites at approval. */}
+                any non-empty string as true). endAt is a real field in both
+                modes now, so there is no provisional value to smuggle. */}
             <input type="hidden" name="returnTrip" value={returnTrip ? "true" : ""} />
-            {!returnTrip && <input type="hidden" name="endAt" value={provisionalEndValue} />}
             {/* No-wait split: drop-off-done time (leg-1 end). Same calendar day
                 as the start; combined into a datetime-local for the hidden field. */}
             {!waitAtDestination && (

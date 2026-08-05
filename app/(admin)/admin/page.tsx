@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { JobType, Prisma } from "@prisma/client";
-import { format, startOfDay, subHours } from "date-fns";
+import { format, subHours } from "date-fns";
 import { th } from "date-fns/locale";
 import { tripWhen } from "@/lib/booking/trip-when";
-import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, UserCheck, Zap, AlertTriangle } from "lucide-react";
+import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, Zap, AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -11,7 +11,6 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { InChulaChip } from "@/components/in-chula-chip";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
-import { OnCallShiftForm } from "@/components/forms/matching-form";
 import { ApproverQueueActions } from "@/components/forms/approver-queue-actions";
 import { QueueFilterBar } from "@/components/admin/queue-filter-bar";
 import { parseQueueSort } from "@/lib/admin/queue-sort";
@@ -33,9 +32,7 @@ export default async function AdminQueue({
   const session = await requireAnyRole(["ADMIN"]);
   const isAdmin = session.user.roles.includes("ADMIN");
   const t = await getTranslations("admin");
-  const tAuto = await getTranslations("matching");
   const now = new Date();
-  const today = startOfDay(now);
   const urgentLabel = (await getTranslations("bookingForm"))("urgentBadge");
 
   // Free-text filter across the three lists (job number / purpose / destination
@@ -68,7 +65,7 @@ export default async function AdminQueue({
 
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
   // detail page surfaces role-appropriate action forms.
-  const [pending, approved, upcoming, todayShift, allDrivers] = await Promise.all([
+  const [pending, approved, upcoming, allDrivers] = await Promise.all([
     prisma.booking.findMany({
       // P'Top's decision queue: normal pending plus over-capacity WAITLIST
       // cases (the 11th+ booking of a day) for him to fit or deny.
@@ -89,24 +86,12 @@ export default async function AdminQueue({
       take: 20,
       include: { vehicle: true, primaryDriver: { include: { user: true } } },
     }),
-    prisma.onCallShift.findUnique({
-      where: { date: today },
-      include: { driver: { include: { user: true } } },
-    }),
     prisma.driver.findMany({
       where: { isActive: true },
       include: { user: true },
       orderBy: { user: { name: "asc" } },
     }),
   ]);
-
-  const driversForPicker = allDrivers.map((d) => ({
-    id: d.id,
-    name: d.user.name ?? d.user.email ?? d.id,
-  }));
-  const todayIso = format(today, "yyyy-MM-dd");
-  const todayOnCallName =
-    todayShift?.driver.user.name ?? todayShift?.driver.user.email ?? null;
 
   // Overtime placement recos (over-capacity WAITLIST), per-booking triage flags,
   // and the SLA-overdue count — see lib/booking/queue-context.
@@ -177,27 +162,13 @@ export default async function AdminQueue({
         </div>
       )}
 
-      {isAdmin && (
-        <Section title={tAuto("onCallSectionHeading")} icon={<UserCheck className="h-4 w-4" />}>
-          <div className="rounded-xl border bg-card p-4 space-y-2">
-            <p className="text-sm text-muted-foreground">
-              {todayOnCallName
-                ? tAuto("todayIs", { name: todayOnCallName, date: todayIso })
-                : tAuto("notSetForToday", { date: todayIso })}
-            </p>
-            <OnCallShiftForm
-              date={todayIso}
-              defaultDriverId={todayShift?.driverId ?? null}
-              drivers={driversForPicker}
-            />
-          </div>
-        </Section>
-      )}
+      {/* The คนขับเวรประจำวัน picker and its "fill 30 days ahead" button lived
+          here. The roster now extends itself (`duty-roster.ts`) whenever a day is
+          opened, so there was nothing left to press; who is on เวร reads off the
+          board's tinted row. */}
 
       <Section title={t("pendingHeading")} icon={<ClipboardCheck className="h-4 w-4" />}>
-        <div className="mb-3">
-          <QueueFilterBar />
-        </div>
+        <QueueBulkProvider filters={<QueueFilterBar />} showToolbar={pendingRows.length > 0}>
         {pendingRows.length === 0 ? (
           <EmptyState
             icon={ClipboardCheck}
@@ -205,7 +176,6 @@ export default async function AdminQueue({
             description={t("pendingEmptyDescription")}
           />
         ) : (
-          <QueueBulkProvider>
             <ul className="space-y-2">
               {pendingRows.map((b) => (
                 <li key={b.id}>
@@ -251,12 +221,17 @@ export default async function AdminQueue({
                         (ApproverDenyForm) — it needs a reason anyway, and a second
                         button repeated down the whole queue is the cognitive load
                         a card layout is supposed to avoid. */}
-                    {isAdmin && <ApproverQueueActions bookingId={b.id} canDeny={false} />}
+                    {isAdmin && <ApproverQueueActions
+                        bookingId={b.id}
+                        canDeny={false}
+                        returnTrip={b.returnTrip}
+                        startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
+                        endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}
+                      />}
                   </div>
                 </li>
               ))}
             </ul>
-          </QueueBulkProvider>
         )}
         {pending.length >= pendingLimit && pendingLimit < PENDING_MAX_LIMIT && (
           <div className="mt-3">
@@ -265,6 +240,7 @@ export default async function AdminQueue({
             </Link>
           </div>
         )}
+        </QueueBulkProvider>
       </Section>
 
       {waitlistRows.length > 0 && (
@@ -320,7 +296,13 @@ export default async function AdminQueue({
                       )}
                     </div>
                   )}
-                  {isAdmin && <ApproverQueueActions bookingId={b.id} canDeny={false} />}
+                  {isAdmin && <ApproverQueueActions
+                        bookingId={b.id}
+                        canDeny={false}
+                        returnTrip={b.returnTrip}
+                        startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
+                        endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}
+                      />}
                 </div>
               </li>
             ))}
