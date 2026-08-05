@@ -106,6 +106,7 @@ export default async function AdminBatchPage({
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("adminBatch");
+  const tjt = await getTranslations("jobType");
   const tf = await getTranslations("bookingForm");
   const td = await getTranslations("bookingDetail");
   const L = {
@@ -216,7 +217,7 @@ export default async function AdminBatchPage({
                   </Link>
                   <span className="mx-2 text-muted-foreground">{b.purpose}</span>
                   <span className="text-xs text-muted-foreground">
-                    {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
+                    {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {tjt(b.jobType)}
                     {b.outOfProvince ? " · ตจว" : ""}
                   </span>
                   <BookingInputs b={b} labels={L} />
@@ -318,7 +319,7 @@ export default async function AdminBatchPage({
                       </Link>
                       <span className="ml-2">{b.purpose}</span>
                       <div className="text-xs text-muted-foreground">
-                        {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {b.jobType}
+                        {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {tjt(b.jobType)}
                       </div>
                     </div>
                     <div className="shrink-0 text-right text-xs">

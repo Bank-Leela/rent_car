@@ -63,7 +63,7 @@ export function SimulateForm({ today }: { today: string }) {
               name="jobType"
               defaultValue="NORMAL"
               className="h-10"
-              options={JOB_TYPES.map((jt) => ({ value: jt, label: `${jt} — ${t(`jt_${jt}`)}` }))}
+              options={JOB_TYPES.map((jt) => ({ value: jt, label: t(`jt_${jt}`) }))}
             />
           </div>
           <div>
@@ -145,6 +145,7 @@ function ResultCard({
   booked: string | null;
   bookError: string | null;
 }) {
+  const tjt = useTranslations("jobType");
   if (!result.ok) {
     return (
       <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive" role="alert">
@@ -175,7 +176,7 @@ function ResultCard({
         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${reclaim ? "bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100" : "bg-emerald-200 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"}`}>
           {reclaim ? t("kindReclaim") : t("kindFit")}
         </span>
-        <span className="text-xs text-muted-foreground">{result.jobType}</span>
+        <span className="text-xs text-muted-foreground">{tjt(result.jobType)}</span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
         <span className="flex items-center gap-2 text-lg font-semibold">

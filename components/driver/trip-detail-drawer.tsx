@@ -42,6 +42,7 @@ export function TripDetailDrawer({
 
 function DrawerBody({ bookingId }: { bookingId: string }) {
   const t = useTranslations("stationDrawer");
+  const tjt = useTranslations("jobType");
   const router = useRouter();
   const [detail, setDetail] = useState<StationTripDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +94,7 @@ function DrawerBody({ bookingId }: { bookingId: string }) {
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">{detail.jobNumber}</span>
           <BookingStatusBadge status={detail.status} />
-          <span className="text-[11px] text-muted-foreground">{detail.jobType}</span>
+          <span className="text-[11px] text-muted-foreground">{tjt(detail.jobType)}</span>
         </div>
         <h2 className="mt-1 pr-8 text-lg font-semibold leading-tight">{detail.purpose}</h2>
       </header>

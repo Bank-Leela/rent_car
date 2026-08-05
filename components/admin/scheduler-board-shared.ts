@@ -64,22 +64,22 @@ export const JOB_COLOR: Record<string, { block: string; dot: string; label: stri
   TJW: {
     block: "bg-blue-50 border-blue-300 dark:bg-blue-950/50 dark:border-blue-700",
     dot: "bg-blue-500",
-    label: "ค้างคืน · TJW",
+    label: "ตจว",
   },
   OT: {
     block: "bg-amber-50 border-amber-300 dark:bg-amber-950/50 dark:border-amber-700",
     dot: "bg-amber-500",
-    label: "ล่วงเวลา · OT",
+    label: "โอที",
   },
   WERN: {
     block: "bg-emerald-50 border-emerald-300 dark:bg-emerald-950/50 dark:border-emerald-700",
     dot: "bg-emerald-500",
-    label: "เวร · WERN",
+    label: "เวร",
   },
   NORMAL: {
     block: "bg-slate-100 border-slate-300 dark:bg-slate-800/70 dark:border-slate-600",
     dot: "bg-slate-400",
-    label: "ทั่วไป · NORMAL",
+    label: "ทั่วไป",
   },
 };
 export const jobStyle = (jt: string) => JOB_COLOR[jt] ?? JOB_COLOR.NORMAL!;
