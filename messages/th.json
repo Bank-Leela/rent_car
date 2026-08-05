@@ -269,7 +269,10 @@
     "resultSummary": "จัดได้ {assigned} รายการ, จับคู่ไม่ได้ {failed} รายการ",
     "prevDay": "วันก่อนหน้า",
     "nextDay": "วันถัดไป",
-    "assignReco": "จัดให้"
+    "assignReco": "จัดให้",
+    "roundsFree": "ว่าง",
+    "roundsNoCar": "ไม่มีรถ",
+    "roundsTitle": "รอบการวิ่งรถ"
   },
   "fleet": {
     "title": "รถและคนขับ",

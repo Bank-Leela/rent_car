@@ -269,7 +269,10 @@
     "resultSummary": "{assigned} assigned, {failed} could not be matched",
     "prevDay": "Previous day",
     "nextDay": "Next day",
-    "assignReco": "Assign"
+    "assignReco": "Assign",
+    "roundsFree": "free",
+    "roundsNoCar": "no car",
+    "roundsTitle": "Rounds of driving"
   },
   "fleet": {
     "title": "Cars & drivers",

@@ -5,14 +5,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { daySpan, daySuperscript } from "@/lib/booking/day-window";
 import { PageHeader } from "@/components/page-header";
-import { DriverScheduleBoard } from "@/components/driver/driver-schedule-board";
+import { DriverRoundsBoard } from "@/components/driver/driver-rounds-board";
+import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { TodayTripsPanel, type TodayTripRow } from "@/components/driver/today-trips-panel";
 import { KioskRefresh } from "@/components/driver/kiosk-refresh";
-import type { SchedulerBooking } from "@/components/admin/scheduler-board-shared";
-
-const hm = (d: Date) => (d.getMinutes() === 0 ? format(d, "HH") : format(d, "HH:mm"));
 
 // Driver-side board. The shared "driverstation" login lands here. Read-only:
 // P'Top's official schedule. Drivers no longer self-schedule — P'Top decides
@@ -62,9 +59,6 @@ export default async function DriverSchedule({
   ]);
 
   const dutyDriverId = onCall?.driverId ?? null;
-  const dutyVehicleId = dutyDriverId ? vehicles.find((v) => v.assignedDriverId === dutyDriverId)?.id ?? null : null;
-  const carByDriver = new Map<string, string>();
-  for (const v of vehicles) if (v.assignedDriverId) carByDriver.set(v.assignedDriverId, v.id);
   const nameOf = (u: { name: string | null; thaiName: string | null } | null | undefined) =>
     u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
 
@@ -74,33 +68,31 @@ export default async function DriverSchedule({
     driverName: nameOf(v.assignedDriver?.user),
   }));
 
-  const bookings: SchedulerBooking[] = dayBookings.map((b) => {
-    const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
-    return {
+  // Whiteboard-style rounds: one row per car-paired driver, their day's trips as
+  // chips (depart–return · place). Pure view mapping — assignment is unchanged.
+  const roundRows = buildDriverRounds({
+    drivers: vehicles
+      .filter((v) => v.assignedDriverId)
+      .map((v) => ({
+        driverId: v.assignedDriverId!,
+        driverName: nameOf(v.assignedDriver?.user),
+        registrationNumber: v.registrationNumber,
+      })),
+    bookings: dayBookings.map((b) => ({
       id: b.id,
       jobNumber: b.jobNumber,
-      purpose: b.purpose,
       destination: b.destination,
-      timeLabel: span.continuesBefore ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.startAt),
-      endLabel: span.continuesAfter
-        ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}`
-        : hm(b.endAt),
-      departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),
-      arriveLabel: hm(b.endAt) + daySuperscript(b.endAt, dayStart),
-      startHour: span.startHour,
-      endHour: span.endHour,
-      continuesBefore: span.continuesBefore,
-      continuesAfter: span.continuesAfter,
-      vehicleId: b.vehicleId,
+      startAt: b.startAt,
+      endAt: b.endAt,
       jobType: b.jobType,
-      hasDriver: b.primaryDriverId != null,
-      driverName: nameOf(b.primaryDriver?.user),
-      secondaryDriverName: nameOf(b.secondaryDriver?.user),
+      primaryDriverId: b.primaryDriverId,
       secondaryDriverId: b.secondaryDriverId,
-      secondaryVehicleId: b.secondaryDriverId ? carByDriver.get(b.secondaryDriverId) ?? null : null,
-      needsCoDriver: false,
-      reco: null,
-    };
+      tripStartedAt: b.trip?.startedAt ?? null,
+      tripEndedAt: b.trip?.endedAt ?? null,
+    })),
+    dayStart,
+    dayEnd,
+    dutyDriverId,
   });
 
   const isoOf = (d: Date) => format(d, "yyyy-MM-dd");
@@ -165,16 +157,14 @@ export default async function DriverSchedule({
         />
       )}
 
-      <DriverScheduleBoard
-        vehicles={vehicleRows}
-        bookings={bookings}
-        dutyVehicleId={dutyVehicleId}
+      <DriverRoundsBoard
+        rows={roundRows}
         labels={{
           duty: t("duty"),
-          noDriver: t("noDriver"),
+          free: t("roundsFree"),
           coDriver: t("coDriver"),
-          arrives: t("arrives"),
           empty: t("noVehicles"),
+          noCar: t("roundsNoCar"),
         }}
       />
     </div>
