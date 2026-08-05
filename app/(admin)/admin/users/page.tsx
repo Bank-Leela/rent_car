@@ -15,7 +15,7 @@ export default async function AdminUsersPage() {
       orderBy: { createdAt: "desc" },
       include: { roles: true, department: true },
     }),
-    prisma.department.findMany({ orderBy: { nameEn: "asc" } }),
+    prisma.department.findMany({ orderBy: { nameTh: "asc" } }),
   ]);
 
   const userRows = users.map((u) => ({
@@ -24,7 +24,7 @@ export default async function AdminUsersPage() {
     username: u.username,
     name: u.name,
     thaiName: u.thaiName,
-    department: u.department?.nameEn ?? null,
+    department: u.department?.nameTh ?? null,
     roles: u.roles.map((r) => r.role),
     isActive: u.isActive,
     mustChangePassword: u.mustChangePassword,

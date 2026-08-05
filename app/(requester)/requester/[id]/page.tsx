@@ -115,7 +115,7 @@ export default async function RequesterBookingDetail({
           {booking.waitingLocation && (
             <Field label={t("waitingLocation")} value={booking.waitingLocation} />
           )}
-          <Field label={t("department")} value={booking.department.nameEn} />
+          <Field label={t("department")} value={booking.department.nameTh} />
           <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
           <Field label={t("endBackAtFaculty")} value={format(booking.endAt, "EEE d MMM yyyy HH:mm")} />
           <Field

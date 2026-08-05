@@ -1069,7 +1069,7 @@ export function BookingForm({
                   defaultDepartment
                     ? isThai
                       ? defaultDepartment.nameTh
-                      : defaultDepartment.nameEn
+                      : defaultDepartment.nameTh
                     : t("departmentNotSet")
                 }
                 readOnly

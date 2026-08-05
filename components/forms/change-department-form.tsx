@@ -7,20 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { changeDepartmentAction } from "@/lib/auth/credentials-actions";
-import { isThaiLocale } from "@/i18n/config";
 
 export function ChangeDepartmentForm({
   departments,
   currentDepartmentId,
-  locale,
 }: {
   departments: { id: string; nameEn: string; nameTh: string }[];
   currentDepartmentId: string | null;
-  locale: string;
 }) {
   const t = useTranslations("account");
   const router = useRouter();
-  const isThai = isThaiLocale(locale);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -54,7 +50,7 @@ export function ChangeDepartmentForm({
           ariaLabel={t("departmentLabel")}
           options={departments.map((d) => ({
             value: d.id,
-            label: isThai ? d.nameTh : d.nameEn,
+            label: d.nameTh,
           }))}
         />
         <p className="text-xs text-muted-foreground">{t("departmentHelper")}</p>

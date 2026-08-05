@@ -48,7 +48,7 @@ export default async function AdminQueue({
           { purpose: { contains: term, mode: "insensitive" } },
           { destination: { contains: term, mode: "insensitive" } },
           { requester: { name: { contains: term, mode: "insensitive" } } },
-          { department: { nameEn: { contains: term, mode: "insensitive" } } },
+          { department: { nameTh: { contains: term, mode: "insensitive" } } },
         ],
       }
     : {};
@@ -231,7 +231,7 @@ export default async function AdminQueue({
                             {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
                           </div>
                           <div className="mt-1 text-xs text-muted-foreground">
-                            {b.requester.name ?? b.requester.email} · {b.department.nameEn}
+                            {b.requester.name ?? b.requester.email} · {b.department.nameTh}
                           </div>
                           <QueueInfoRow
                             jobType={b.jobType}
@@ -292,7 +292,7 @@ export default async function AdminQueue({
                         {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {b.requester.name ?? b.requester.email} · {b.department.nameEn}
+                        {b.requester.name ?? b.requester.email} · {b.department.nameTh}
                       </div>
                       <QueueInfoRow
                         jobType={b.jobType}
@@ -369,7 +369,7 @@ export default async function AdminQueue({
                       {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")} → {format(b.endAt, "EEE d MMM HH:mm")}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {b.requester.name ?? b.requester.email} · {b.department.nameEn} ·{" "}
+                      {b.requester.name ?? b.requester.email} · {b.department.nameTh} ·{" "}
                       {t("submittedAt", { date: format(b.createdAt, "d MMM HH:mm") })}
                     </div>
                   </div>

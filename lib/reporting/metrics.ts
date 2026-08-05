@@ -79,9 +79,9 @@ export async function requestVolumeByDepartment(range: DateRange) {
   if (rows.length === 0) return [];
   const depts = await prisma.department.findMany({
     where: { id: { in: rows.map((r) => r.departmentId) } },
-    select: { id: true, nameEn: true },
+    select: { id: true, nameTh: true },
   });
-  const nameById = new Map(depts.map((d) => [d.id, d.nameEn]));
+  const nameById = new Map(depts.map((d) => [d.id, d.nameTh]));
   return rows
     .map((r) => ({ department: nameById.get(r.departmentId) ?? r.departmentId, count: r._count._all }))
     .sort((a, b) => b.count - a.count);

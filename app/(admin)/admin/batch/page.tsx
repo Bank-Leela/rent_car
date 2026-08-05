@@ -256,7 +256,7 @@ export default async function AdminBatchPage({
                     </div>
                     <div className="text-xs opacity-80">
                       {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} ·{" "}
-                      {b.requester.name ?? b.requester.email} · {b.department.nameEn}
+                      {b.requester.name ?? b.requester.email} · {b.department.nameTh}
                     </div>
                     <BookingInputs b={b} labels={L} />
                     {(() => {

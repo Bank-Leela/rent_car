@@ -64,7 +64,7 @@ export function CreateUserForm({
           className="h-10"
           options={[
             { value: "", label: t("noDepartment") },
-            ...departments.map((d) => ({ value: d.id, label: d.nameEn })),
+            ...departments.map((d) => ({ value: d.id, label: d.nameTh })),
           ]}
         />
       </div>

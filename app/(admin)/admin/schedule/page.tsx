@@ -168,6 +168,17 @@ export default async function SchedulePage({
       <DriverRoundsBoard
         rows={roundRows}
         href={(id) => `/admin/${id}`}
+        reassignTargets={vehicles
+          .filter((v) => v.assignedDriverId)
+          .map((v) => {
+            const du = v.assignedDriver?.user;
+            return {
+              vehicleId: v.id,
+              driverId: v.assignedDriverId!,
+              driverName: du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null,
+              registrationNumber: v.registrationNumber,
+            };
+          })}
         labels={{
           duty: t("duty"),
           free: t("roundsFree"),

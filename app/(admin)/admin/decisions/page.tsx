@@ -96,7 +96,7 @@ export default async function ApproverDecisions({
                       {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {b.requester.name ?? b.requester.email} · {b.department.nameEn}
+                      {b.requester.name ?? b.requester.email} · {b.department.nameTh}
                     </div>
                     {d.comment && (
                       <p className="mt-1.5 rounded-md bg-muted/60 px-2 py-1 text-sm text-muted-foreground">

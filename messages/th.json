@@ -267,7 +267,10 @@
     "assignReco": "จัดให้",
     "roundsFree": "ว่าง",
     "roundsNoCar": "ไม่มีรถ",
-    "roundsTitle": "รอบการวิ่งรถ"
+    "roundsTitle": "รอบการวิ่งรถ",
+    "moveRound": "ย้ายรอบนี้",
+    "moveRoundTo": "ย้ายไปคนขับ",
+    "unassignRound": "เอาออกจากตาราง"
   },
   "fleet": {
     "title": "รถและคนขับ",

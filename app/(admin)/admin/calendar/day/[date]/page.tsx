@@ -52,7 +52,7 @@ export default async function CalendarDay({
     include: {
       vehicle: { select: { registrationNumber: true } },
       requester: { select: { name: true, email: true } },
-      department: { select: { nameEn: true } },
+      department: { select: { nameTh: true } },
       primaryDriver: { include: { user: { select: { name: true, email: true } } } },
     },
   });
@@ -121,7 +121,7 @@ type Booking = Prisma.BookingGetPayload<{
   include: {
     vehicle: { select: { registrationNumber: true } };
     requester: { select: { name: true; email: true } };
-    department: { select: { nameEn: true } };
+    department: { select: { nameTh: true } };
     primaryDriver: { include: { user: { select: { name: true; email: true } } } };
   };
 }>;

@@ -104,7 +104,7 @@ export async function getStationTripDetailAction(bookingId: string): Promise<Sta
       startLabel: format(booking.startAt, "EEE d MMM yyyy HH:mm", { locale: dfLocale }),
       endLabel: format(booking.endAt, "EEE d MMM yyyy HH:mm", { locale: dfLocale }),
       estimatedDistance: booking.estimatedDistance,
-      departmentName: booking.department ? (isThai ? booking.department.nameTh : booking.department.nameEn) : null,
+      departmentName: booking.department?.nameTh ?? null,
       requesterName: nameOf(booking.requester),
       registrationNumber: booking.vehicle?.registrationNumber ?? null,
       primaryDriverName: nameOf(booking.primaryDriver?.user),

@@ -95,7 +95,8 @@ describe("approveBookingAction email", () => {
     );
     const toRequester = calls.find((c) => c.to === requester.email);
     expect(toRequester, "should email requester").toBeDefined();
-    expect(toRequester!.subject).toMatch(/approved/i);
+    // Emails are Thai-only (the "/ Approved" half was removed with the EN locale).
+    expect(toRequester!.subject).toMatch(/อนุมัติแล้ว/);
 
     const updated = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
     expect(updated.status).toBe("APPROVED");

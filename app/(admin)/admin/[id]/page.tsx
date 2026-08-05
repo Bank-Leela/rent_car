@@ -92,7 +92,7 @@ export default async function AdminBookingDetail({
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{booking.purpose}</h1>
           <p className="text-sm text-muted-foreground">
-            {booking.requester.name ?? booking.requester.email} · {booking.department.nameEn}
+            {booking.requester.name ?? booking.requester.email} · {booking.department.nameTh}
           </p>
         </div>
         <Link

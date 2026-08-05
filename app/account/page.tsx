@@ -96,7 +96,6 @@ export default async function AccountPage({
           <ChangeDepartmentForm
             departments={departments}
             currentDepartmentId={user.departmentId}
-            locale={locale}
           />
         </CardContent>
       </Card>

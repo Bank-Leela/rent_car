@@ -1,18 +1,24 @@
 import Link from "next/link";
 import { Car, CornerDownRight } from "lucide-react";
 import type { DriverRoundsRow } from "@/lib/booking/driver-rounds";
+import { RoundReassign, type ReassignTarget } from "@/components/admin/round-reassign";
 
 // Whiteboard-style board: one row per driver, their day's rounds flowing
 // left→right as chips (depart–return · place) that wrap as more are added.
-// Read-only on both the admin and the kiosk — assignment stays on /admin/batch.
+// The kiosk renders it read-only; the admin additionally gets a per-round move
+// control (`reassignTargets`) so a single trip can be re-homed without re-running
+// the batch. Bulk assignment still lives on /admin/batch.
 export function DriverRoundsBoard({
   rows,
   href,
+  reassignTargets,
   labels,
 }: {
   rows: DriverRoundsRow[];
   /** Per-round link target; omit for a non-clickable (kiosk) board. */
   href?: (bookingId: string) => string;
+  /** Admin only: the cars a round can be moved to. Omit for the read-only kiosk. */
+  reassignTargets?: ReassignTarget[];
   labels: {
     duty: string;
     free: string;
@@ -78,16 +84,29 @@ export function DriverRoundsBoard({
                       </span>
                     </span>
                   );
-                  return href ? (
+                  const key = `${round.bookingId}-${round.isCoDriver ? "co" : "p"}`;
+                  const body = href ? (
                     <Link
-                      key={`${round.bookingId}-${round.isCoDriver ? "co" : "p"}`}
                       href={href(round.bookingId)}
                       className="rounded-lg transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {chip}
                     </Link>
                   ) : (
-                    <span key={`${round.bookingId}-${round.isCoDriver ? "co" : "p"}`}>{chip}</span>
+                    chip
+                  );
+                  // The move control targets the PRIMARY assignment; a co-driver
+                  // ghost is moved by moving its own (primary) trip.
+                  return reassignTargets && !round.isCoDriver ? (
+                    <span key={key} className="group relative inline-flex items-start gap-0.5">
+                      {body}
+                      <RoundReassign
+                        bookingId={round.bookingId}
+                        targets={reassignTargets.filter((tg) => tg.driverId !== r.driverId)}
+                      />
+                    </span>
+                  ) : (
+                    <span key={key}>{body}</span>
                   );
                 })}
               </div>
