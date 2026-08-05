@@ -69,6 +69,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       ...booking,
       approverName: decided?.approver.name ?? null,
       denialReason: booking.denialReason ?? null,
+      headName: booking.department?.head?.signatureName ?? booking.department?.head?.name ?? null,
     },
     signatureImage,
   );

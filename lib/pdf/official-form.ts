@@ -22,6 +22,8 @@ export type OfficialFormBooking = Booking & {
   trip: Trip | null;
   approverName?: string | null;
   denialReason?: string | null;
+  /** Department head's printed name, for the "(………)" under their signature. */
+  headName?: string | null;
 };
 
 // Thai Buddhist-era year (พ.ศ. = ค.ศ. + 543).
@@ -64,10 +66,14 @@ export function bookingToFormFields(b: OfficialFormBooking): {
   text["Date12_es_:signer:date"] = String(beYear(b.startAt));
   text["Date13_es_:signer:date"] = hhmm(b.startAt);
   text["Date14_es_:signer:date"] = hhmm(b.endAt);
-  text.Text18 = b.pickupLocation ?? "";
-  text.Text22 = b.pickupReturnTime ?? "";
+  // "ให้รถจอดรอรับที่ [where] เวลา [when]" — where the car waits and from when.
+  // waitingLocation is the answer to that question; pickupLocation (จุดขึ้นรถ) is
+  // the fallback when the requester only gave one of the two.
+  text.Text18 = b.waitingLocation ?? b.pickupLocation ?? "";
+  text.Text22 = hhmm(b.startAt);
   if (b.waitAtDestination) checks.push("toggle_1");
   else checks.push("toggle_2");
+  // "ให้รถกลับมารับ เวลา […]" — only when the car leaves and comes back for them.
   if (b.returnTrip && b.pickupReturnTime) {
     checks.push("toggle_3");
     text.Text19 = b.pickupReturnTime;
@@ -93,6 +99,9 @@ export function bookingToFormFields(b: OfficialFormBooking): {
       text.undefined = reason;
     }
   }
+  // The printed name under the head's signature line — the signature image alone
+  // does not say who signed.
+  if (b.headName) text["name_12312131_es_:signer"] = b.headName;
   if (b.approverName) text.fill_17 = b.approverName;
   if (b.decidedAt) text.fill_18 = `${pad(b.decidedAt.getDate())}/${pad(b.decidedAt.getMonth() + 1)}/${beYear(b.decidedAt)}`;
 
@@ -106,6 +115,9 @@ export function bookingToFormFields(b: OfficialFormBooking): {
     const toggle = TYPE_TOGGLE[b.vehicle.type];
     if (toggle) checks.push(toggle);
   }
+  // The "(………) พนักงานขับรถ" line — printed, so the driver signs above their own
+  // name rather than the passenger having to work out who drove.
+  if (b.primaryDriver) text["nasnmdasd_es_:signer"] = b.primaryDriver.user.name ?? "";
   const trip = b.trip;
   if (trip) {
     text.fill_14 = `${trip.startMileage} · ${hhmm(trip.startedAt)}`;
