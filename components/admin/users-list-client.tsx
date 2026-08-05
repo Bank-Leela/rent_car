@@ -75,21 +75,21 @@ export function UsersListClient({ users }: { users: AdminUserListRow[] }) {
         </span>
       </div>
 
-    <ListSearch
-      items={visible}
-      keys={["name", "email"]}
-      render={(rows) =>
-        rows.length === 0 ? (
-          <EmptyState icon={Users} title={t("noMatches")} />
-        ) : (
-          <ul className="divide-y">
-            {rows.map((u) => (
-              <UserRow key={u.id} user={u} />
-            ))}
-          </ul>
-        )
-      }
-    />
+      <ListSearch
+        items={visible}
+        keys={["name", "email"]}
+        render={(rows) =>
+          rows.length === 0 ? (
+            <EmptyState icon={Users} title={t("noMatches")} />
+          ) : (
+            <ul className="divide-y">
+              {rows.map((u) => (
+                <UserRow key={u.id} user={u} />
+              ))}
+            </ul>
+          )
+        }
+      />
     </div>
   );
 }
