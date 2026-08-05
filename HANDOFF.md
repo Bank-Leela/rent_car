@@ -160,10 +160,9 @@ logic touched.
   + solver (`batch-actions`, `matching-actions`, `batch-solver`, `driver-capacity`),
   and manual reassign/conflict-resolve (`conflict-resolve`, `schedule-actions`) are all
   leg-aware. Zod requires `startAt < dropOffDone < pickupReturnTime < endAt`, same day.
-  Board renders leg-1 block + a read-only dashed **return-leg ghost** (same booking
-  `id` → DnD moves the whole trip; `scheduler-board-blocks.tsx`). Docs:
-  `scheduling-algorithm.md` §4–5. *(Board renders both legs; the other same-day
-  day-views render one entry per booking — unchanged.)*
+  Docs: `scheduling-algorithm.md` §4–5. *(The timeline board that drew a dashed
+  return-leg ghost has since been deleted; the rounds board and the other same-day
+  day-views render one entry per booking.)*
 - **TJW assigned by request order** (spec
   `docs/superpowers/specs/2026-06-26-tjw-request-order-assignment-design.md`). TJW
   no longer flows through the daily `solveDay` priority cascade. A separate global
@@ -272,8 +271,11 @@ Spec `docs/superpowers/specs/2026-06-24-booking-input-classification-design.md`.
   (overlap + 2h gap + NORMAL cap).
 - **Board UX:** drag a block to the Unassigned queue or hover-✕ to unassign
   (`unassignBookingAction`); compact times; `pointerWithin` → `rectIntersection` DnD.
+  *(Superseded — the timeline board was deleted; unassign now lives on the rounds
+  board's per-round control.)*
 - **Refactors:** audit-log writes in `lib/booking/audit.ts` (`logTransition`);
-  `scheduler-board.tsx` split into board / `-blocks` / `-shared`.
+  `scheduler-board.tsx` split into board / `-blocks` / `-shared` *(all three since
+  deleted with the board)*.
 
 ### Multi-day calendar rendering + error boundaries
 

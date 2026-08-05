@@ -14,8 +14,8 @@ car; a manual override may relax only the 2h gap), the placement recommendation
 obeying `canChain`, and the >400 km co-driver pairing.
 
 Before changing any of `lib/booking/{rotations,batch-solver,batch-actions,matching,matching-actions,overtime-reco,driver-capacity,placement-reco,earnings,schedule-actions,tjw-request-solver}.ts`
-or `components/admin/scheduler-board*.{tsx,ts}` (split into board / -blocks / -shared),
-the hotspots, read that doc first — this subsystem has churned because the rule
+or `lib/booking/driver-rounds.ts` / `components/driver/driver-rounds-board.tsx`
+(the board that replaced the deleted drag-and-drop timeline), the hotspots, read that doc first — this subsystem has churned because the rule
 kept being re-derived.
 
 Verify scheduling changes: `npm test` (the `canChain`, `solver-invariants`, and

@@ -140,8 +140,8 @@ Enforced in three places:
   **another** car at that time (e.g. riding as a co-driver — their own car is free,
   so the per-vehicle EXCLUDE can't catch it); a driver overlap is never override-
   relaxable. Per-leg throughout (`trip-legs.ts`).
-- **Board** (`scheduler-board.tsx`) stacks concurrent blocks into lanes; any
-  overlap on **any** car (duty included) gets a red conflict ring.
+- No board paints a conflict ring any more (§8): an overlap on **any** car (duty
+  included) is refused by the action, not drawn after the fact.
 
 ---
 
@@ -270,54 +270,59 @@ legally take it (rides in the primary's car), or null when none.
 `recommendForBookings` (`placement-reco-data.ts`) builds the pool — drivers +
 their assigned car + same-day trips (incl. their `jobType`, and **APPROVED**
 claimed trips via `COMMITTED_STATUSES`) + 30-day earnings + duty driver — and is
-consumed by **both** the batch overflow list (`admin/batch/page.tsx`) and the
-board queue (`scheduler-board.tsx`). Assign = `AssignRecoButton` →
+consumed by the batch overflow list (`admin/batch/page.tsx`) — the board queue
+that also consumed it went with the timeline board (§8). Assign = `AssignRecoButton` →
 `reassignVehicleAction`, which sets primary + optional co-driver, **blocks overlap
 on every car** (no duty exception; the 2h gap stays overridable), and re-validates
 the co-driver at assign time.
 
 ---
 
-## 8. Board rendering (`scheduler-board.tsx` + `-blocks.tsx` + `-shared.ts`)
+## 8. Board rendering (`driver-rounds-board.tsx` + `driver-rounds.ts`)
 
-Split into three: `scheduler-board.tsx` (the `SchedulerBoard` container + DnD),
-`scheduler-board-blocks.tsx` (`TimelineBlock` / `CoDriverGhost` / `QueueCard` /
-`CarRow`), `scheduler-board-shared.ts` (types, job-type theme, axis/lane geometry).
+**The drag-and-drop timeline board is gone.** `scheduler-board.tsx`,
+`-blocks.tsx`, `-shared.ts` and `driver-schedule-board.tsx` were deleted once
+nothing imported them; the whiteboard-style **rounds board** replaced them on
+both `/admin/schedule` and `/driver/schedule`. If you are looking for lanes, an
+X-axis, conflict rings or dragging, that code no longer exists.
 
-Cars = rows, time = X-axis (00:00–24:00, auto-fit). Each car's trips are
-**lane-packed** greedily: a trip joins the first lane whose previous trip ends at
-or before it starts, else opens a new lane; row height = `lanes × 64px`. Blocks
-are **tinted by job type** (TJW blue, OT amber, WERN emerald, NORMAL slate, both
-themes) and show a **compact start–end** time (`08:00–12:00` → `08–12`; minutes
-shown only when non-zero) that truncates inside the bar; the full time is in the
-hover tooltip.
+`lib/booking/driver-rounds.ts` is a **pure** view-model builder: drivers + the
+viewed day's bookings → one row per car-paired driver, each holding that day's
+rounds in start order. It decides nothing — assignment is unchanged.
+`components/driver/driver-rounds-board.tsx` renders it; the kiosk gets it
+read-only, the admin additionally gets a per-round move control.
 
-- **Multi-day trips** (`day-window.ts`): each trip is projected onto the *viewed*
-  day with `daySpan` — clamped to the 0/24 axis, flagged `continuesBefore` /
-  `continuesAfter`. A trip shows on **every** day it spans (overlap query, not
-  start-in-day), with `↪ <departure date>` / `↩ <return date>` labels and a flush
-  clipped edge. Month grids bucket via `daysSpanned`.
-- **Overlap** on **any** car (duty included) gets a red conflict ring; co-driver =
-  violet ring + a linked ghost on the co-driver's own car row.
-- **DnD**: drag a queue card onto a car to assign; drag a scheduled block onto
-  another car to reassign, or up to the **Unassigned** zone (a droppable) to
-  unassign. Each block also has a hover **✕** (drag-free unassign →
-  `unassignBookingAction`). Collision = `pointerWithin` → `rectIntersection`
-  fallback with `MeasuringStrategy.Always` (the timeline scrolls horizontally).
-  A rejected drop (overlap) returns the conflicting trip(s) (`ReassignConflict`)
-  and the banner names each **with its date** (e.g. `VB-… · 18 Jun 09:00–11:00`),
-  so a multi-day clash on a day that isn't on screen is visible.
-- The unassigned queue carries each booking's placement recommendation (§7b) with
-  an inline Assign.
-- **Auto-assign button** (`จัดอัตโนมัติ {n}`) places only the **unassigned /
-  driverless** queue: `components/admin/scheduler-board.tsx:autoAssignAll` iterates
-  `[...queue, ...needsDriver]` and calls `matchBookingAction` / `reassignVehicleAction`
-  per booking. The badge count = unassigned/driverless only. It does **not**
-  auto-resolve overlaps among already-assigned trips — any residual double-book keeps
-  its red conflict ring (§5) for **manual** re-drop by P'Top. (An automatic
-  loser-reassignment pass with WERN/duty pinning — `conflict-resolve.ts` /
-  `resolveScheduleConflictsAction` with `findConflictLosers` / `pickConflictLoser` —
-  was specced but is **not implemented**; those symbols exist in no source file.)
+One row per driver (car = driver), rounds flowing left→right as chips that wrap
+as more are assigned. A same-day chip reads `start–end · place`.
+
+- **Multi-day trips** carry a `phase`: `depart` (leaves today — `08:00 → ค้างคืน`),
+  `away` (a middle night, dashed border, `คืนที่ 2/3`), `return` (comes back today
+  — `กลับ 17:00`). Each says what is true on **this** day and pins the other end on
+  the second line (`กลับ 13 ส.ค.` / `ออก 10 ส.ค.`). A trip appears on **every** day
+  it spans (overlap query, not start-in-day). Month grids still bucket via
+  `daysSpanned` (`day-window.ts`), which the calendar pages use.
+- **Job-type tint**, both themes: ตจว blue, โอที amber, เวร emerald,
+  หลักสูตรนิสิตแพทย์ violet, and **ทั่วไป no fill at all** — colour means "not
+  ordinary", and an outlined chip cannot be confused with dark-theme blue. A
+  legend strip above the rows names each; its swatches reuse the chip and row
+  classes, so the key cannot drift from what is painted.
+- The **เวร driver's whole row** is tinted with a green edge stripe. The roster
+  extends itself (`duty-roster.ts`), so a future day is already decided.
+- **Moving one round**: admin-only per-chip control (`round-reassign.tsx`) →
+  `reassignVehicleAction` / `unassignBookingAction`. The same server-side rules
+  apply as before — overlap blocked on every car (no duty exception; the 2h gap
+  stays overridable), per-leg co-driver re-validation — and a rejected move
+  returns the conflicting trip(s) (`ReassignConflict`) **with their dates**, so a
+  multi-day clash on a day that isn't on screen is still named. The board paints
+  no conflict ring: a double-book is refused at the action, not drawn.
+- **Bulk assignment lives on `/admin/batch`** (`BatchRunForm` → `solveDay`), whose
+  overflow list carries each booking's placement recommendation (§7b) with an
+  inline `AssignRecoButton`. The old board's `autoAssignAll` button went with the
+  board. Neither path auto-resolves an overlap among already-assigned trips — that
+  stays **manual** for P'Top. (An automatic loser-reassignment pass with WERN/duty
+  pinning — `conflict-resolve.ts` / `resolveScheduleConflictsAction` with
+  `findConflictLosers` / `pickConflictLoser` — was specced but is **not
+  implemented**; those symbols exist in no source file.)
 
 ---
 
@@ -353,9 +358,10 @@ hover tooltip.
 | `lib/booking/placement-reco.ts` | `recommendPlacement` — leftover/overflow suggestion, gated by `canChain` (pure) |
 | `lib/booking/placement-reco-data.ts` | Server builder for the recommendation |
 | `lib/booking/schedule-actions.ts` | Drag-drop reassign (`reassignVehicleAction` / `reassignSecondaryAction`) + `unassignBookingAction` (back to queue); blocks overlap on every car AND on the assigned driver's other-car commitments; per-leg co-driver re-validation |
-| `components/admin/scheduler-board.tsx` | Board container + DnD (collision, queue droppable, unassign) |
-| `components/admin/scheduler-board-blocks.tsx` | `TimelineBlock` / `CoDriverGhost` / `QueueCard` / `CarRow` |
-| `components/admin/scheduler-board-shared.ts` | Board types, job-type theme, axis/lane geometry |
+| `lib/booking/driver-rounds.ts` | `buildDriverRounds` — pure day → per-driver rounds view-model (overnight phases) |
+| `lib/booking/duty-roster.ts` | `ensureOnCallRosterThrough` — self-extending เวร rotation |
+| `components/driver/driver-rounds-board.tsx` | Rounds board + job-type legend (both admin and kiosk) |
+| `components/admin/round-reassign.tsx` | Per-round move / unassign control (admin only) |
 | `components/forms/assign-reco-button.tsx` | One-click assign-to-recommendation |
 
 See also: `docs/superpowers/specs/2026-06-15-duty-car-overlap-rule-design.md`,

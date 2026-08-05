@@ -92,14 +92,15 @@ Summary:
   with a driver; the solver counts those (`COMMITTED_STATUSES`) so a still-away
   driver isn't re-assigned or treated as idle.
 - **Leftovers** the solver can't place get a **placement recommendation** (the
-  fairest *legal* car, then a duty reclaim) on the batch overflow list + board
-  queue, with one-click assign.
-- **Board** (`scheduler-board*.{tsx,ts}`): cars = rows, time = X-axis, job-type
-  colours, lane-stacked, multi-day trips shown on every day they span, drag to
-  reassign / drop off the rows to unassign (also a hover ✕). The auto-assign
-  button (จัดอัตโนมัติ) places the unassigned/driverless queue only; residual
-  overlaps among already-assigned trips keep their red conflict ring for manual
-  re-drop. (An automatic loser-reassignment pass with WERN/duty pinning —
+  fairest *legal* car, then a duty reclaim) on the batch overflow list, with
+  one-click assign.
+- **Board** (`driver-rounds-board.tsx`): one row per driver (car = driver), that
+  day's rounds as chips reading `start–end · place`, job-type colours with a
+  legend, the เวร driver's row edge-striped, multi-day trips shown on every day
+  they span as depart / away / return. Admin gets a per-round move control; the
+  kiosk is read-only. Bulk assignment is `/admin/batch`; an overlap among
+  already-assigned trips is refused at the action rather than drawn, and stays
+  manual. (An automatic loser-reassignment pass with WERN/duty pinning —
   `conflict-resolve.ts` / `resolveScheduleConflictsAction` — was specced but is
   **not implemented**; those symbols exist in no source file. See
   `scheduling-algorithm.md` §8.)
@@ -145,7 +146,7 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 | `app/api/*` | NextAuth, dev sign-in, booking PDF, reports CSV, LINE webhook. |
 | `lib/booking/*` (~34 files) | Scheduling/assignment domain — solver, matcher, rules, recommendations, audit, fairness, day-window, TJW request-order solver, plus queue triage and deny presets. |
 | `lib/{auth,email,line,pdf,reporting}/*` | Auth helpers, email, LINE, PDF, reporting. |
-| `components/*` | UI — forms, the scheduler board (split into `scheduler-board` / `-blocks` / `-shared`), shared UI. |
+| `components/*` | UI — forms, the rounds board (`driver/driver-rounds-board.tsx`), shared UI. |
 | `prisma/` | Schema (18 models, 12 enums), 17 migrations, seed. |
 | `scripts/` | One-off dev tools — simulation, demo seeding, data maintenance; indexed in [`scripts/README.md`](../scripts/README.md). |
 
