@@ -9,9 +9,18 @@ import { ListSearch } from "@/components/list-search";
 import { EmptyState } from "@/components/empty-state";
 import {
   RequesterBookingList,
+  ACTIVE_BOOKING_STATUSES,
   HISTORY_BOOKING_STATUSES,
   type RequesterBookingCard,
 } from "@/components/requester-booking-list";
+
+// The log lists every request, so the status filter has to offer the live
+// statuses too — otherwise a requester can't narrow to the ones still waiting.
+// DRAFT is omitted: a draft was never submitted, so it isn't a request yet.
+const FILTERABLE_STATUSES = [
+  ...ACTIVE_BOOKING_STATUSES.filter((s) => s !== "DRAFT"),
+  ...HISTORY_BOOKING_STATUSES,
+];
 
 // Pure so it's unit-testable: date-range (on startAt, whole days) + status.
 export function filterHistory(
@@ -43,7 +52,7 @@ export function RequesterHistoryClient({
     const raw = params.get("status");
     if (!raw) return [];
     const wanted = raw.split(",");
-    return HISTORY_BOOKING_STATUSES.filter((s) => wanted.includes(s));
+    return FILTERABLE_STATUSES.filter((s) => wanted.includes(s));
   });
 
   // Persist filters in the URL (shareable/bookmarkable) without an RSC
@@ -99,7 +108,7 @@ export function RequesterHistoryClient({
           {th("to")}
           <input type="date" value={toDate} onChange={(e) => setDate("to", e.target.value)} className={dateCls} aria-label={th("to")} />
         </label>
-        {HISTORY_BOOKING_STATUSES.map((s) => {
+        {FILTERABLE_STATUSES.map((s) => {
           const active = statuses.includes(s);
           return (
             <button

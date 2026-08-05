@@ -6,16 +6,18 @@ import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import {
-  ACTIVE_BOOKING_STATUSES,
   HISTORY_BOOKING_STATUSES,
   type RequesterBookingCard,
 } from "@/components/requester-booking-list";
 import { RequesterHistoryClient } from "@/components/requester-history-client";
 
-// History log: every request that's run its course — formally COMPLETED/
-// DENIED/CANCELLED, or an active-status booking whose scheduled end has simply
-// passed (e.g. nobody closed it out). Anything still ahead lives on
-// /requester/upcoming instead, so the two pages never show the same booking.
+// The requester's full request log: everything they have ever asked for, newest
+// first — still waiting for approval, approved, out on the road, and finished.
+//
+// It deliberately overlaps /requester/upcoming, which answers a different
+// question ("what is happening next?"). Splitting them by status meant a request
+// submitted minutes ago was absent here, so an empty log read as "my request
+// vanished". A log that omits the newest entry isn't a log.
 export default async function RequesterHome() {
   const session = await requireRole("REQUESTER");
   const t = await getTranslations("requester");
@@ -31,24 +33,22 @@ export default async function RequesterHome() {
       select: { id: true, jobNumber: true, purpose: true, destination: true },
     }),
     prisma.booking.findMany({
-      where: {
-        requesterId: session.user.id,
-        OR: [
-          { status: { in: HISTORY_BOOKING_STATUSES } },
-          { status: { in: ACTIVE_BOOKING_STATUSES }, endAt: { lt: now } },
-        ],
-      },
+      where: { requesterId: session.user.id },
       orderBy: { startAt: "desc" },
       include: { vehicle: true },
     }),
   ]);
 
-  // Past-due bookings that were never formally closed out read as done from
-  // the requester's point of view — show them as completed here.
+  // A past-due booking nobody formally closed out reads as done from the
+  // requester's point of view; anything still ahead keeps its real status so a
+  // waiting request is plainly still waiting.
   const historyRows: RequesterBookingCard[] = history.map((b) => ({
     id: b.id,
     jobNumber: b.jobNumber,
-    status: (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) ? b.status : "COMPLETED",
+    status:
+      (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) || b.endAt >= now
+        ? b.status
+        : "COMPLETED",
     purpose: b.purpose,
     destination: b.destination,
     province: b.province,

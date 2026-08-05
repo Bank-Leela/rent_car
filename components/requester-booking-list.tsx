@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { th } from "date-fns/locale";
 import { ChevronRight } from "lucide-react";
 import { BookingStatus } from "@prisma/client";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
@@ -49,7 +50,7 @@ export function RequesterBookingList({ bookings }: { bookings: RequesterBookingC
               </div>
               <div className="mt-1 font-medium truncate">{b.purpose}</div>
               <div className="mt-0.5 text-sm text-muted-foreground">
-                {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM yyyy HH:mm")}
+                {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM yyyy HH:mm", { locale: th })}
                 {b.vehicle ? ` · ${b.vehicle.registrationNumber}` : ""}
               </div>
             </div>
