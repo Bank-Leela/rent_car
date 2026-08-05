@@ -52,7 +52,7 @@ export default async function AdminEvaluations() {
           <Link
             key={c.id}
             href={`/admin/evaluations/${c.id}`}
-            className="group flex items-center justify-between gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/30"
+            className="group flex items-center justify-between gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-muted/30"
           >
             <div className="min-w-0">
               <div className="truncate font-medium">{c.name}</div>

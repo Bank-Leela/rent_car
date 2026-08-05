@@ -29,7 +29,7 @@ export function TodayTripsPanel({
     done: "bg-muted text-muted-foreground",
   };
   return (
-    <section className="rounded-xl border bg-card p-4 shadow-sm">
+    <section className="rounded-xl border bg-card p-4">
       <h2 className="flex items-center gap-2 text-base font-semibold">
         <Clock className="h-4 w-4 text-muted-foreground" aria-hidden />
         {labels.title}

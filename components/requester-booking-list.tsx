@@ -40,7 +40,7 @@ export function RequesterBookingList({ bookings }: { bookings: RequesterBookingC
         <li key={b.id}>
           <Link
             href={`/requester/${b.id}`}
-            className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">

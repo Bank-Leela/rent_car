@@ -57,7 +57,7 @@ export default async function DriverReviews({ params }: { params: Promise<{ driv
       ) : (
         <ul className="space-y-3">
           {reviews.map((r) => (
-            <li key={r.id} className="rounded-xl border bg-card p-4 shadow-sm">
+            <li key={r.id} className="rounded-xl border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <StarRatingDisplay value={r.rating} />
                 <span className="text-xs text-muted-foreground">{format(r.submittedAt, "d MMM yyyy")}</span>

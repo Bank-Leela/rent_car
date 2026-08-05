@@ -179,7 +179,7 @@ export default async function AdminQueue({
 
       {isAdmin && (
         <Section title={tAuto("onCallSectionHeading")} icon={<UserCheck className="h-4 w-4" />}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm space-y-2">
+          <div className="rounded-xl border bg-card p-4 space-y-2">
             <p className="text-sm text-muted-foreground">
               {todayOnCallName
                 ? tAuto("todayIs", { name: todayOnCallName, date: todayIso })
@@ -209,7 +209,7 @@ export default async function AdminQueue({
             <ul className="space-y-2">
               {pendingRows.map((b) => (
                 <li key={b.id}>
-                  <div className="rounded-xl border bg-card p-4 shadow-sm">
+                  <div className="rounded-xl border bg-card p-4">
                     <div className="flex items-start gap-2">
                       <BulkCheckbox bookingId={b.id} />
                       <Link
@@ -222,26 +222,36 @@ export default async function AdminQueue({
                             pax/distance and the submitted timestamp live on the
                             detail page. Only EXCEPTION chips stay — they are what
                             actually decides approve vs deny. */}
+                        {/* Gestalt proximity: the trip's identity (what/where/when
+                            /who) sits as one tight block, then a wider gap before
+                            the exception chips — so "is anything wrong with this
+                            one?" reads as a separate glance, not a fifth text row. */}
                         <div className="min-w-0">
-                          <div className="font-medium truncate">{b.purpose}</div>
-                          <div className="mt-0.5 text-sm text-muted-foreground truncate">
-                            {b.destination} · {tripWhen(b.startAt, b.endAt)}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <span className="truncate">{b.requester.name ?? b.requester.email}</span>
-                            <InChulaChip travelWithinChula={b.travelWithinChula} />
-                            {b.isEmergency && (
-                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-                                {urgentLabel}
-                              </span>
-                            )}
+                          <div className="space-y-0.5">
+                            <div className="truncate font-medium">{b.purpose}</div>
+                            <div className="truncate text-sm text-muted-foreground">
+                              {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                              <InChulaChip travelWithinChula={b.travelWithinChula} />
+                              {b.isEmergency && (
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
+                                  {urgentLabel}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <TriageChips flags={triageByBooking.get(b.id) ?? []} waitedHours={waitingHours(b.createdAt, now)} t={t} />
                         </div>
                         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </div>
-                    {isAdmin && <ApproverQueueActions bookingId={b.id} canDeny />}
+                    {/* One primary action per card. Deny lives on the detail page
+                        (ApproverDenyForm) — it needs a reason anyway, and a second
+                        button repeated down the whole queue is the cognitive load
+                        a card layout is supposed to avoid. */}
+                    {isAdmin && <ApproverQueueActions bookingId={b.id} canDeny={false} />}
                   </div>
                 </li>
               ))}
@@ -266,17 +276,18 @@ export default async function AdminQueue({
           <ul className="space-y-2">
             {waitlistRows.map((b) => (
               <li key={b.id}>
-                <div className="rounded-xl border border-amber-200 bg-card p-4 shadow-sm dark:border-amber-900/40">
+                <div className="rounded-xl border border-amber-200 bg-card p-4 dark:border-amber-900/40">
                   <Link
                     href={`/admin/${b.id}`}
                     className="group -m-1 flex items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{b.purpose}</div>
-                      <div className="mt-0.5 text-sm text-muted-foreground truncate">
+                      <div className="space-y-0.5">
+                      <div className="truncate font-medium">{b.purpose}</div>
+                      <div className="truncate text-sm text-muted-foreground">
                         {b.destination} · {tripWhen(b.startAt, b.endAt)}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="truncate">{b.requester.name ?? b.requester.email}</span>
                         <InChulaChip travelWithinChula={b.travelWithinChula} />
                         {b.isEmergency && (
@@ -284,6 +295,7 @@ export default async function AdminQueue({
                             {urgentLabel}
                           </span>
                         )}
+                      </div>
                       </div>
                       <TriageChips flags={triageByBooking.get(b.id) ?? []} waitedHours={waitingHours(b.createdAt, now)} t={t} />
                     </div>
@@ -329,7 +341,7 @@ export default async function AdminQueue({
               <li key={b.id}>
                 <Link
                   href={`/admin/${b.id}`}
-                  className="group flex items-start gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="group flex items-start gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <span
                     aria-hidden
@@ -376,7 +388,7 @@ export default async function AdminQueue({
               <li key={b.id}>
                 <Link
                   href={`/admin/${b.id}`}
-                  className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

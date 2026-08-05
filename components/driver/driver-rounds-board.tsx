@@ -44,7 +44,7 @@ export function DriverRoundsBoard({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <ul className="divide-y">
         {rows.map((r) => (
           <li key={r.driverId} className="flex flex-col gap-2 p-3 sm:flex-row sm:gap-4">
