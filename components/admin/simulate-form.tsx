@@ -7,7 +7,7 @@ import { SelectField } from "@/components/ui/select-field";
 import { TimeField } from "@/components/ui/time-field";
 import { simulatePlacementAction, bookSimulatedSlotAction, type SimResult } from "@/lib/booking/simulate-actions";
 
-const JOB_TYPES = ["NORMAL", "OT", "TJW", "WERN", "SMUS"] as const;
+const JOB_TYPES = ["NORMAL", "OT", "TJW", "WERN"] as const;
 
 export function SimulateForm({ today }: { today: string }) {
   const t = useTranslations("simulate");

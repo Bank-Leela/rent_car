@@ -11,7 +11,6 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR
     : path.join(process.cwd(), "uploads");
 
 export const SIGNATURE_DIR = path.join(UPLOADS_DIR, "signatures");
-export const PDF_DIR = path.join(UPLOADS_DIR, "booking-pdfs");
 export const ATTACHMENT_DIR = path.join(UPLOADS_DIR, "booking-attachments");
 
 async function ensureDir(dir: string) {

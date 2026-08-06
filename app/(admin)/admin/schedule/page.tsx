@@ -70,9 +70,6 @@ export default async function SchedulePage({
         createdAt: true,
         primaryDriverId: true,
         secondaryDriverId: true,
-        // External charter (SMUS): outside buses/vans, shown in a dedicated row.
-        externalBusCount: true,
-        externalVanCount: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
         secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },

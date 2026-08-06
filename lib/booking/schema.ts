@@ -129,24 +129,6 @@ export const newBookingSchema = z
       .transform((v) => (v ? new Date(v) : undefined))
       .refine((d) => d === undefined || !Number.isNaN(d.getTime()), "Invalid drop-off time"),
     preferredVehicleType,
-    // External charter (SMUS) vehicle counts — outside buses/vans. Optional in
-    // general; the SMUS refinement below requires a non-zero total.
-    externalBusCount: z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(99)
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
-    externalVanCount: z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(99)
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     recurringWeekdays: z
       .string()
       .optional()
