@@ -41,22 +41,6 @@ export async function readSignatureBytes(storedRef: string): Promise<Buffer | nu
   }
 }
 
-export async function writeBookingPdf(bookingId: string, bytes: Buffer): Promise<string> {
-  await ensureDir(PDF_DIR);
-  const filename = `${bookingId}.pdf`;
-  await fs.writeFile(path.join(PDF_DIR, filename), bytes);
-  return `pdf:${filename}`;
-}
-
-export async function readBookingPdf(bookingId: string): Promise<Buffer | null> {
-  if (bookingId.includes("/") || bookingId.includes("..")) return null;
-  try {
-    return await fs.readFile(path.join(PDF_DIR, `${bookingId}.pdf`));
-  } catch {
-    return null;
-  }
-}
-
 // Supporting-document attachment alongside a booking's remark (e.g. an
 // official memo). One file per booking; re-attaching overwrites the prior one.
 export async function writeBookingAttachment(

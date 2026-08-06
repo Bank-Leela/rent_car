@@ -21,10 +21,4 @@ export const createPlaceSchema = z.object({
   googleMapsUrl: mapsField,
 });
 
-export const updatePlaceSchema = createPlaceSchema.extend({
-  id: z.string().min(1),
-});
-
-export const deletePlaceSchema = z.object({ id: z.string().min(1) });
-
 export type NewPlaceInput = z.infer<typeof createPlaceSchema>;

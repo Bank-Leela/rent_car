@@ -18,7 +18,6 @@ import {
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
 import { resolveWernDriver, pickAutoDutyDriver } from "@/lib/booking/duty-assignment";
-import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "@/lib/booking/classification";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
@@ -393,29 +392,3 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
   return { ok: true };
 }
 
-/**
- * Fill the on-call (เวร) roster forward from the console button.
- *
- * The roster also extends itself whenever a future day is opened
- * (ensureOnCallRosterThrough), so this is the deliberate "do it now for the next
- * month" control rather than the only way days get decided. Idempotent: days
- * that already have a driver — including manual overrides — are left alone.
- */
-export async function fillOnCallRosterAction(formData: FormData): Promise<ActionResult> {
-  await requireRole("ADMIN");
-  const te = await getTranslations("errors");
-
-  const days = Math.min(Math.max(parseInt(String(formData.get("days") ?? "30"), 10) || 30, 1), 90);
-  const fromRaw = String(formData.get("from") ?? "");
-  const from = fromRaw ? new Date(`${fromRaw}T00:00:00`) : startOfDay(new Date());
-  if (Number.isNaN(from.getTime())) return { ok: false, error: te("invalidInput") };
-
-  const through = new Date(from);
-  through.setDate(through.getDate() + days - 1);
-  const filled = await ensureOnCallRosterThrough(through);
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/driver/schedule");
-  return { ok: true, filled } as ActionResult & { filled: number };
-}

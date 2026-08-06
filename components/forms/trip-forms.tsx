@@ -7,41 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { startTripAction, endTripAction } from "@/lib/booking/driver-actions";
+import { endTripAction } from "@/lib/booking/driver-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
 import { FormError } from "@/components/forms/form-error";
-
-export function StartTripForm({ bookingId, onSuccess }: { bookingId: string; onSuccess?: () => void }) {
-  const t = useTranslations("tripForms");
-  const { error, pending, run } = useFormAction(startTripAction, {
-    bookingId,
-    onSuccess: () => {
-      // Explicit confirmation so a kiosk driver knows the submit landed.
-      toast.success(t("tripStartedToast"));
-      onSuccess?.();
-    },
-  });
-  return (
-    <form action={run} className="space-y-4">
-      <div className="grid gap-2">
-        <Label htmlFor="startMileage" className="text-base">{t("startingKm")}</Label>
-        <Input
-          id="startMileage"
-          name="startMileage"
-          type="number"
-          inputMode="numeric"
-          required
-          className="h-14 text-lg"
-          placeholder={t("startingPlaceholder")}
-        />
-      </div>
-      <FormError message={error} size="base" />
-      <Button type="submit" disabled={pending} className="w-full h-14 text-lg">
-        {pending ? t("starting") : t("startTrip")}
-      </Button>
-    </form>
-  );
-}
 
 export function EndTripForm({
   bookingId,
