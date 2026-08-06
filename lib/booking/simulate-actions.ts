@@ -12,7 +12,7 @@ import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import type { DriverRotationState, ScheduledTrip } from "@/lib/booking/rotations";
 
-const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
+const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN"];
 
 export type SimResult =
   | {

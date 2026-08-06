@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { JobType } from "@prisma/client";
 import { parseQueueSort } from "@/lib/admin/queue-sort";
 
-const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
+const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN"];
 
 // Filter/sort bar for the pending queue. All state lives in URL params so a
 // filtered view is shareable and survives refresh; changes re-run the server

@@ -13,7 +13,6 @@ import {
   BANGKOK_PROVINCE,
   LEAD_TIME_BANGKOK_DAYS,
   LEAD_TIME_OUTSIDE_DAYS,
-  LEAD_TIME_SMUS_DAYS,
   LEAD_TIME_URGENT_DAYS,
 } from "@/lib/booking/rules";
 import { createBookingAction } from "@/lib/booking/create-booking-action";
@@ -51,12 +50,11 @@ const datetimeLocalValue = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 // Where the trip goes. Drives lead time (within Chula / Bangkok metro = 3
 // business days, upcountry = 7), รถเวร routing (within Chula), and whether the
 // overnight option is offered (upcountry only).
-type TripArea = "WITHIN_CHULA" | "BANGKOK_METRO" | "UPCOUNTRY" | "SMUS_CURRICULUM";
+type TripArea = "WITHIN_CHULA" | "BANGKOK_METRO" | "UPCOUNTRY";
 const TRIP_AREAS: ReadonlyArray<{ value: TripArea; key: string; helperKey: string }> = [
   { value: "WITHIN_CHULA", key: "tripAreaWithinChula", helperKey: "tripAreaWithinChulaHelper" },
   { value: "BANGKOK_METRO", key: "tripAreaBangkokMetro", helperKey: "tripAreaBangkokMetroHelper" },
   { value: "UPCOUNTRY", key: "tripAreaUpcountry", helperKey: "tripAreaUpcountryHelper" },
-  { value: "SMUS_CURRICULUM", key: "tripAreaSmus", helperKey: "tripAreaSmusHelper" },
 ];
 
 export type BookingFormDepartment = {
@@ -130,12 +128,7 @@ export function BookingForm({
   const [overnight, setOvernight] = useState(false);
   const isUpcountry = tripArea === "UPCOUNTRY";
   const isWithinChula = tripArea === "WITHIN_CHULA";
-  // External charter ("หลักสูตรนิสิตแพทย์"): outside buses/vans, booked off the
-  // internal fleet — no vehicle-type pick, no driver/slot allocation.
-  const isExternalCharter = tripArea === "SMUS_CURRICULUM";
   const isOvernight = isUpcountry && overnight;
-  const [externalBusCount, setExternalBusCount] = useState("0");
-  const [externalVanCount, setExternalVanCount] = useState("0");
   const selectTripArea = (next: TripArea) => {
     setTripArea(next);
     // Overnight only applies upcountry; leaving it must clear the choice so the
@@ -297,18 +290,11 @@ export function BookingForm({
   // The trip area's base lead time (ignoring the urgent waiver) — shown in the
   // area helper text so requesters see "3 / 7 business days" (or "30 days" for
   // external charter) up front.
-  const areaLeadDays = isExternalCharter
-    ? LEAD_TIME_SMUS_DAYS
-    : isUpcountry
-      ? LEAD_TIME_OUTSIDE_DAYS
-      : LEAD_TIME_BANGKOK_DAYS;
+  const areaLeadDays = isUpcountry ? LEAD_TIME_OUTSIDE_DAYS : LEAD_TIME_BANGKOK_DAYS;
   const requiredDays = isEmergency ? LEAD_TIME_URGENT_DAYS : areaLeadDays;
-  // Earliest start = midnight on (today + N days). External charter (SMUS)
-  // counts every calendar day, including weekends; the other tiers skip
-  // Saturdays and Sundays. Any time on that day is fine.
-  const earliestStart = startOfDay(
-    isExternalCharter && !isEmergency ? addDays(now, requiredDays) : addBusinessDays(now, requiredDays),
-  );
+  // Earliest start = midnight on (today + N business days), skipping Sat/Sun.
+  // Any time on that day is fine.
+  const earliestStart = startOfDay(addBusinessDays(now, requiredDays));
   const minStart = datetimeLocalValue(earliestStart);
   // Cap typed year so the browser can't accept "20251" or longer.
   const maxStart = datetimeLocalValue(addYears(now, 5));
@@ -868,10 +854,6 @@ export function BookingForm({
             />
             <input type="hidden" name="outOfProvince" value={isUpcountry ? "true" : ""} />
             <input type="hidden" name="travelWithinChula" value={isWithinChula ? "true" : ""} />
-            {/* External charter forces jobType=SMUS so the server skips internal
-                vehicle/driver/slot allocation; other areas leave it unset and
-                let the classifier derive it. */}
-            {isExternalCharter && <input type="hidden" name="jobType" value="SMUS" />}
           </fieldset>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
@@ -909,88 +891,47 @@ export function BookingForm({
                 />
               </div>
             </div>
-            {isExternalCharter ? (
-              // External charter: specify how many outside buses/vans instead of
-              // picking an internal vehicle category.
-              <div className="grid gap-2">
-                <Label>{t("externalVehicleCounts")}</Label>
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="grid gap-2 min-w-0">
-                    <Label htmlFor="externalBusCount" className="text-xs text-muted-foreground">
-                      {t("externalBusCount")}
-                    </Label>
-                    <Input
-                      id="externalBusCount"
-                      name="externalBusCount"
-                      type="number"
-                      min={0}
-                      max={99}
-                      value={externalBusCount}
-                      onChange={(e) => setExternalBusCount(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2 min-w-0">
-                    <Label htmlFor="externalVanCount" className="text-xs text-muted-foreground">
-                      {t("externalVanCount")}
-                    </Label>
-                    <Input
-                      id="externalVanCount"
-                      name="externalVanCount"
-                      type="number"
-                      min={0}
-                      max={99}
-                      value={externalVanCount}
-                      onChange={(e) => setExternalVanCount(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">{t("externalVehicleHelper")}</p>
-                {/* External charter is always an outside rental. */}
-                <input type="hidden" name="needsOutsourcing" value="true" />
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <ReqLabel htmlFor="preferredVehicleType">{t("preferredVehicle")}</ReqLabel>
-                <select
-                  id="preferredVehicleType"
-                  name="preferredVehicleType"
-                  required
-                  value={preferredVehicleType}
-                  onChange={(e) => setPreferredVehicleType(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value="VAN">{t("preferredVehicleVan")}</option>
-                  <option value="TRUCK_6_WHEEL">{t("preferredVehicleTruck6Wheel")}</option>
-                  <option value="PICKUP">{t("preferredVehiclePickup")}</option>
-                  <option value="SEDAN_DEAN">{t("preferredVehicleSedanDean")}</option>
-                  <option value="BUS_OUTSOURCED">{t("preferredVehicleBusOutsourced")}</option>
-                </select>
-                {/* Bus is always an outsourced rental — backend forces
-                    needsOutsourcing regardless of this checkbox, so reflect
-                    that truth here instead of leaving it editable. */}
-                <label className="flex items-start gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isBus || needsOutsourcing}
-                    disabled={isBus}
-                    onChange={(e) => setNeedsOutsourcing(e.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                  />
-                  <span>
-                    <span className="font-medium">{t("flagOutsourcing")}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {isBus ? t("flagOutsourcingBusNotice") : t("flagOutsourcingHelper")}
-                    </span>
-                  </span>
-                </label>
-                <p className="text-xs text-muted-foreground">{t("flagOutsourcingDenyNotice")}</p>
+            <div className="grid gap-2">
+              <ReqLabel htmlFor="preferredVehicleType">{t("preferredVehicle")}</ReqLabel>
+              <select
+                id="preferredVehicleType"
+                name="preferredVehicleType"
+                required
+                value={preferredVehicleType}
+                onChange={(e) => setPreferredVehicleType(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="VAN">{t("preferredVehicleVan")}</option>
+                <option value="TRUCK_6_WHEEL">{t("preferredVehicleTruck6Wheel")}</option>
+                <option value="PICKUP">{t("preferredVehiclePickup")}</option>
+                <option value="SEDAN_DEAN">{t("preferredVehicleSedanDean")}</option>
+                <option value="BUS_OUTSOURCED">{t("preferredVehicleBusOutsourced")}</option>
+              </select>
+              {/* Bus is always an outsourced rental — backend forces
+                  needsOutsourcing regardless of this checkbox, so reflect
+                  that truth here instead of leaving it editable. */}
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
                 <input
-                  type="hidden"
-                  name="needsOutsourcing"
-                  value={isBus || needsOutsourcing ? "true" : ""}
+                  type="checkbox"
+                  checked={isBus || needsOutsourcing}
+                  disabled={isBus}
+                  onChange={(e) => setNeedsOutsourcing(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
                 />
-              </div>
-            )}
+                <span>
+                  <span className="font-medium">{t("flagOutsourcing")}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {isBus ? t("flagOutsourcingBusNotice") : t("flagOutsourcingHelper")}
+                  </span>
+                </span>
+              </label>
+              <p className="text-xs text-muted-foreground">{t("flagOutsourcingDenyNotice")}</p>
+              <input
+                type="hidden"
+                name="needsOutsourcing"
+                value={isBus || needsOutsourcing ? "true" : ""}
+              />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="passengerNotes">{t("passengerNotes")}</Label>
               <Textarea id="passengerNotes" name="passengerNotes" rows={3} />

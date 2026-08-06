@@ -168,13 +168,7 @@ export function solveDay(input: SolverInput): SolverOutput {
       [...input.bookings.filter((b) => b.jobType === cat)].sort(
         (a, b) => a.submittedAt.getTime() - b.submittedAt.getTime(),
       );
-    order = [
-      ...fc("TJW"),
-      ...fc("OT"),
-      ...fc("WERN"),
-      ...fc("NORMAL"),
-      ...fc("SMUS"),
-    ];
+    order = [...fc("TJW"), ...fc("OT"), ...fc("WERN"), ...fc("NORMAL")];
   }
 
   const assignments: SolverAssignment[] = [];
@@ -350,7 +344,7 @@ function rankForCategory(
   if (jobType === "TJW") return rankForRotation(pool, (d) => d.lastTjwAt);
   if (jobType === "OT") return rankForRotation(pool, (d) => d.lastOtAt);
   if (jobType === "WERN") return pickDutyRotation(pool) ? rankForRotation(pool, (d) => d.lastDutyAt) : [];
-  // NORMAL / SMUS: coverage rule (everyone ≥1 before any gets 2). Count NORMAL
+  // NORMAL: coverage rule (everyone ≥1 before any gets 2). Count NORMAL
   // day-jobs only — OT is extra hours on top and must not push a driver out of
   // the NORMAL pick (matches the NORMAL-only cap pre-filter in eligibleForPrimary).
   const normalCount = (id: string) =>

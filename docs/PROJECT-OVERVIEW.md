@@ -35,7 +35,7 @@ changeable once. Dev mode has role "preview-as" buttons.
 - **Job types** (`JobType`, auto-classified from the trip): **TJW** (out-of-province
   + overnight, long-haul), **OT** (overtime / out-of-hours / overnight-in-area),
   **WERN** (on-call duty, from the `OnCallShift` roster — never auto-classified),
-  **NORMAL** (everything else). `SMUS` exists in the enum but is unused.
+  **NORMAL** (everything else). `SMUS` (external charter) is retired — the enum value survives for historical bookings only.
 - **Long trip** = `estimatedDistance > 400 km` → needs a relief **co-driver**.
 - **Fairness** is duration-weighted over a rolling 30-day window
   (`earningsScore`); rotation timestamps per category break ties.

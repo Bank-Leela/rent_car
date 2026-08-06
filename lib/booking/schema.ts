@@ -175,15 +175,6 @@ export const newBookingSchema = z
     path: ["endAt"],
     message: "End time must be after start time",
   })
-  .refine(
-    (data) =>
-      data.jobType !== "SMUS" ||
-      (data.externalBusCount ?? 0) + (data.externalVanCount ?? 0) >= 1,
-    {
-      path: ["externalBusCount"],
-      message: "Specify at least one bus or van",
-    },
-  )
   // No-wait split must be a same-day, well-ordered pair of legs:
   // startAt < dropOffDone < pickupReturnTime < endAt.
   .refine(

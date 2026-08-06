@@ -15,7 +15,7 @@ and the duty-overlap rule.
 
 | Term | Meaning |
 |------|---------|
-| **Job type** | `TJW`, `OT`, `WERN`, `NORMAL`, `SMUS` (`SMUS` defined but unused). Auto-classified from the trip; `WERN` is duty — never produced by the classifier. It's forced at booking creation when `travelWithinChula` is set (in-Chula trip = a request for the duty car), and otherwise attaches via `OnCallShift`. |
+| **Job type** | `TJW`, `OT`, `WERN`, `NORMAL` (`SMUS` retired — see §2). Auto-classified from the trip; `WERN` is duty — never produced by the classifier. It's forced at booking creation when `travelWithinChula` is set (in-Chula trip = a request for the duty car), and otherwise attaches via `OnCallShift`. |
 | **Duty / on-call / WERN driver** | The day's driver in `OnCallShift` for that date. Runs campus rounds 08:00–16:00. **Reserved all day** — excluded from every *non-WERN* pick (TJW/OT/NORMAL). A **WERN-typed booking is routed TO them** (matcher, solver, and reco all special-case it); if no duty driver is rostered, or they're away/returning mid-day, WERN falls back to the duty rotation (oldest `lastDutyAt`). |
 | **Long trip** | `estimatedDistance > 400 km` (`LONG_TRIP_KM`) **or** the admin's manual `needsSecondaryDriver` flag. Needs a **secondary** (co-)driver. Distance is usually unset in prod (Maps is env-gated), so the flag is the practical trigger — all three solvers (matcher, batch, TJW-request) OR the flag into the pairing condition. |
 | **Rotation** | Per-category "who went longest ago" ledger: `lastTjwAt`, `lastOtAt`, `lastDutyAt`. |
@@ -55,6 +55,25 @@ forces `jobType=WERN` when the booking has `travelWithinChula=true` (bypassing
 duty roster (`OnCallShift`) drives which driver serves it. This resolves the
 old "keep both" merge: the hint-only `outsideChula` path is removed; UI chips
 derive from `travelWithinChula`.
+
+**`SMUS` (external charter) is retired.** The หลักสูตรนิสิตแพทย์ trip area is gone
+from the booking form, so nothing produces the value any more — no classifier
+branch, no forced assignment, no filter chip, no board tint.
+
+The enum value and the `externalBusCount` / `externalVanCount` columns are
+**deliberately kept**, and so are the guards that hold such a booking off an
+internal car:
+
+| Guard | File | Why it stays |
+|-------|------|--------------|
+| `jobType: { notIn: ["SMUS", "TJW"] }` | `batch-core.ts` | keeps an old charter out of the daily batch |
+| `jobType === "SMUS"` → refuse | `matching-actions.ts`, `schedule-actions.ts` | refuses to place one on an internal car |
+| `filter(b => b.jobType !== "SMUS")` | `admin/schedule/page.tsx` | keeps one off the rounds board |
+| `checkLeadTime` SMUS tier | `rules.ts` | still applies if an existing charter is rescheduled |
+
+Removing those would make a booking created while the option existed suddenly
+eligible for a car and a driver. A future migration that drops the enum value
+must first move any surviving `SMUS` row to another job type.
 
 ---
 
@@ -185,7 +204,7 @@ Solves the whole day's APPROVED-unassigned bookings at once.
 **Order** — strict category priority (FCFS within each, by `submittedAt`):
 
 ```
-TJW → OT → WERN → NORMAL → SMUS
+TJW → OT → WERN → NORMAL
 ```
 
 (or pure global FCFS when `fcfsOverridesCategoryPriority` is set).

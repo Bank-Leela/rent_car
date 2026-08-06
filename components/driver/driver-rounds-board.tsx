@@ -46,16 +46,12 @@ export function DriverRoundsBoard({
   // no fill at all — an outlined chip — so it can never be mistaken for ตจว; a
   // slate wash and a dark-blue wash were nearly the same colour in dark theme.
   // The remaining types keep their established hues, at full strength in dark so
-  // they read as blue/amber/green rather than as five shades of near-black.
-  //
-  // SMUS is an external charter with no internal driver, so it cannot reach this
-  // board; the tint exists only so a mis-assigned one is still legible.
+  // they read as blue/amber/green rather than as shades of near-black.
   const tint: Record<string, string> = {
     TJW: "border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/50",
     OT: "border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-950/50",
     WERN: "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/50",
     NORMAL: "border-border bg-transparent",
-    SMUS: "border-violet-400 bg-violet-50 dark:border-violet-600 dark:bg-violet-950/50",
   };
   // ตจว / โอที / เวร / ทั่วไป — the four types an internal driver can be given.
   const legendTypes = ["TJW", "OT", "WERN", "NORMAL"] as const;
