@@ -16,7 +16,12 @@
 import type { JobType } from "@prisma/client";
 import { legsOverlap, minLegGapMinutes, type LegSource } from "./trip-legs";
 
-export const TWO_HOUR_BUFFER_MS = 2 * 60 * 60 * 1000;
+// The universal 2h gap between any two of a driver's trips. Kept in minutes
+// because that is the unit `minLegGapMinutes` returns — the previous
+// `TWO_HOUR_BUFFER_MS` was never referenced, and the rule was enforced by a bare
+// `120` below, so the documented constant and the actual rule could drift apart
+// on the single most rule-critical line in the codebase.
+export const MIN_GAP_MINUTES = 120;
 export const MAX_JOBS_PER_DAY = 2;
 export const MORNING_END_HOUR = 12;
 
@@ -101,7 +106,7 @@ export function canChain(next: TimedJob, existing: TimedJob[]): boolean {
   // See docs/scheduling-algorithm.md §4–5.
   for (const e of existing) {
     if (legsOverlap(legSrc(next), legSrc(e))) return false; // overlap on any leg
-    if (minLegGapMinutes(legSrc(next), legSrc(e)) < 120) return false; // <2h to any leg
+    if (minLegGapMinutes(legSrc(next), legSrc(e)) < MIN_GAP_MINUTES) return false;
   }
 
   // Cap applies to NORMAL only — OT is extra hours on top.

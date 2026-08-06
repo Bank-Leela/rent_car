@@ -29,7 +29,7 @@ and the duty-overlap rule.
 | `WORK_DAY_END_HOUR` | 16:00 | `classification.ts` |
 | `MAX_JOBS_PER_DAY` | 2 | `rotations.ts` |
 | `MORNING_END_HOUR` | 12:00 | `rotations.ts` |
-| `TWO_HOUR_BUFFER_MS` | 2 h | `rotations.ts` |
+| `MIN_GAP_MINUTES` | 120 | `rotations.ts` — enforced in `canChain` against `minLegGapMinutes` |
 | `LONG_TRIP_KM` | 400 | `classification.ts` (re-exported by matching/batch-solver) |
 | `TJW_DAY_HOURS` | 12 | `classification.ts` |
 | `FAIRNESS_WINDOW_DAYS` | 30 | `earnings.ts` |

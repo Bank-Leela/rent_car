@@ -28,8 +28,6 @@ export const JOB_TYPES = [
   "NORMAL",
 ] as const satisfies readonly JobType[];
 
-export const MORNING_AFTERNOON_GAP_HOURS = 2;
-
 export interface DriverInput {
   driverId: string;
   joinedAt: Date;
