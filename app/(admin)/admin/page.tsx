@@ -373,8 +373,9 @@ export default async function AdminQueue({
                   className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <div className="min-w-0">
+                    {/* The job number means nothing to anyone reading the list —
+                        it is on the detail page for when it is actually needed. */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                       <BookingStatusBadge status={b.status} />
                       {b.isEmergency && (
                         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">

@@ -93,7 +93,7 @@ export async function vehicleUtilisation(range: DateRange) {
     include: { booking: { select: { vehicleId: true } } },
   });
   const vehicles = await prisma.vehicle.findMany({
-    select: { id: true, registrationNumber: true },
+    select: { id: true, registrationNumber: true, type: true },
   });
   const byVehicle = new Map<
     string,
@@ -115,6 +115,9 @@ export async function vehicleUtilisation(range: DateRange) {
   return vehicles
     .map((v) => ({
       registrationNumber: v.registrationNumber,
+      // Type leads, plate follows — "รถตู้ · สธ-831" reads as a kind of vehicle,
+      // where a bare plate is only meaningful to someone who memorised the fleet.
+      type: v.type,
       ...(byVehicle.get(v.id) ?? { trips: 0, km: 0, fuel: 0, tollway: 0, hours: 0 }),
     }))
     .sort((a, b) => b.trips - a.trips);

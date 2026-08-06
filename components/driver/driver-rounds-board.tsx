@@ -24,6 +24,7 @@ export function DriverRoundsBoard({
   reassignTargets?: ReassignTarget[];
   labels: {
     duty: string;
+    off: string;
     free: string;
     coDriver: string;
     empty: string;
@@ -33,8 +34,8 @@ export function DriverRoundsBoard({
     leftOn: string;
     returnAt: string;
   };
-  /** Thai job-type names for the colour key, plus what the tinted row means. */
-  legend: { TJW: string; OT: string; WERN: string; NORMAL: string; dutyRow: string };
+  /** Thai job-type names for the colour key, plus what the tinted rows mean. */
+  legend: { TJW: string; OT: string; WERN: string; NORMAL: string; dutyRow: string; offRow: string };
 }) {
   if (rows.length === 0) {
     return (
@@ -56,6 +57,9 @@ export function DriverRoundsBoard({
   // ตจว / โอที / เวร / ทั่วไป — the four types an internal driver can be given.
   const legendTypes = ["TJW", "OT", "WERN", "NORMAL"] as const;
   const dutyRowStyle = "border-l-4 border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/25";
+  // Off sick/on leave: struck out of the day rather than tinted like a job type —
+  // this row is a person who is NOT available, the opposite of a เวร row.
+  const offRowStyle = "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20";
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
@@ -74,6 +78,10 @@ export function DriverRoundsBoard({
           <span className={`h-3.5 w-6 shrink-0 ${dutyRowStyle}`} aria-hidden />
           {legend.dutyRow}
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className={`h-3.5 w-6 shrink-0 ${offRowStyle}`} aria-hidden />
+          {legend.offRow}
+        </span>
       </div>
 
       <ul className="divide-y">
@@ -85,13 +93,22 @@ export function DriverRoundsBoard({
           <li
             key={r.driverId}
             className={`flex flex-col gap-2 p-3 sm:flex-row sm:gap-4 ${
-              r.isDuty ? `${dutyRowStyle} pl-2` : ""
+              r.isOff ? `${offRowStyle} pl-2` : r.isDuty ? `${dutyRowStyle} pl-2` : ""
             }`}
           >
             {/* Driver identity — fixed-width column, like the whiteboard's name column. */}
             <div className="flex shrink-0 items-center gap-2 sm:w-56">
-              <span className="truncate text-sm font-semibold">{r.driverName ?? "—"}</span>
-              {r.isDuty && (
+              <span
+                className={`truncate text-sm font-semibold ${r.isOff ? "text-muted-foreground line-through" : ""}`}
+              >
+                {r.driverName ?? "—"}
+              </span>
+              {r.isOff && (
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                  {labels.off}
+                </span>
+              )}
+              {!r.isOff && r.isDuty && (
                 <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
                   {labels.duty}
                 </span>

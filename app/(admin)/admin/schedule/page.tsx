@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { addDays, format, parse, startOfDay } from "date-fns";
-import { th, enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { DriverRoundsBoard } from "@/components/driver/driver-rounds-board";
+import { BoardDatePicker } from "@/components/admin/board-date-picker";
 import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
@@ -19,7 +19,6 @@ export default async function SchedulePage({
   const t = await getTranslations("scheduler");
   const tj = await getTranslations("jobType");
   const locale = await getLocale();
-  const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
 
   const { date } = await searchParams;
   const day = date ? parse(date, "yyyy-MM-dd", new Date()) : new Date();
@@ -136,6 +135,7 @@ export default async function SchedulePage({
     dayStart,
     dayEnd,
     dutyDriverId: onCall?.driverId ?? null,
+    offDriverIds: roster.filter((r) => r.off).map((r) => r.driverId),
   });
 
   return (
@@ -153,9 +153,7 @@ export default async function SchedulePage({
           >
             <ChevronLeft className="h-4 w-4" />
           </Link>
-          <span className="min-w-40 text-center text-sm font-medium">
-            {format(day, "EEE d MMM yyyy", { locale: dfLocale })}
-          </span>
+          <BoardDatePicker basePath="/admin/schedule" date={isoOf(dayStart)} />
           <Link
             href={`/admin/schedule?date=${isoOf(addDays(dayStart, 1))}`}
             className={navBtn}
@@ -184,6 +182,7 @@ export default async function SchedulePage({
           })}
         labels={{
           duty: t("duty"),
+          off: t("roundsOff"),
           free: t("roundsFree"),
           coDriver: t("coDriver"),
           empty: t("noVehicles"),
@@ -199,6 +198,7 @@ export default async function SchedulePage({
           WERN: tj("WERN"),
           NORMAL: tj("NORMAL"),
           dutyRow: t("roundsDutyRow"),
+          offRow: t("roundsOffRow"),
         }}
       />
     </div>

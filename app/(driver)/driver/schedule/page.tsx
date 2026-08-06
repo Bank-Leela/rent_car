@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { addDays, format, parse, startOfDay } from "date-fns";
-import { th, enUS } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { DriverRoundsBoard } from "@/components/driver/driver-rounds-board";
+import { BoardDatePicker } from "@/components/admin/board-date-picker";
 import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { TodayTripsPanel, type TodayTripRow } from "@/components/driver/today-trips-panel";
@@ -25,7 +25,6 @@ export default async function DriverSchedule({
   const td = await getTranslations("driver");
   const tj = await getTranslations("jobType");
   const locale = await getLocale();
-  const dfLocale = locale.toLowerCase().startsWith("th") ? th : enUS;
   const isThai = locale.toLowerCase().startsWith("th");
 
   const { date } = await searchParams;
@@ -37,7 +36,7 @@ export default async function DriverSchedule({
   // never shows an unmanned day, and the allocator sees the same stored shifts.
   await ensureOnCallRosterThrough(dayStart);
 
-  const [vehicles, dayBookings, onCall] = await Promise.all([
+  const [vehicles, dayBookings, onCall, offToday] = await Promise.all([
     prisma.vehicle.findMany({
       where: { isActive: true },
       orderBy: { registrationNumber: "asc" },
@@ -62,6 +61,9 @@ export default async function DriverSchedule({
       },
     }),
     prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } }),
+    // Who is off sick / on leave today — the kiosk should show it, not just the
+    // admin board: a driver arriving to an empty row needs to know why.
+    prisma.driverUnavailability.findMany({ where: { date: dayStart }, select: { driverId: true } }),
   ]);
 
   const dutyDriverId = onCall?.driverId ?? null;
@@ -99,6 +101,7 @@ export default async function DriverSchedule({
     dayStart,
     dayEnd,
     dutyDriverId,
+    offDriverIds: offToday.map((o) => o.driverId),
   });
 
   const isoOf = (d: Date) => format(d, "yyyy-MM-dd");
@@ -140,9 +143,7 @@ export default async function DriverSchedule({
           <Link href={`/driver/schedule?date=${isoOf(addDays(dayStart, -1))}`} className={navBtn} aria-label={t("prevDay")}>
             <ChevronLeft className="h-4 w-4" />
           </Link>
-          <span className="min-w-40 text-center text-sm font-medium">
-            {format(day, "EEE d MMM yyyy", { locale: dfLocale })}
-          </span>
+          <BoardDatePicker basePath="/driver/schedule" date={isoOf(dayStart)} />
           <Link href={`/driver/schedule?date=${isoOf(addDays(dayStart, 1))}`} className={navBtn} aria-label={t("nextDay")}>
             <ChevronRight className="h-4 w-4" />
           </Link>
@@ -170,6 +171,7 @@ export default async function DriverSchedule({
         href={(id) => `/driver/${id}`}
         labels={{
           duty: t("duty"),
+          off: t("roundsOff"),
           free: t("roundsFree"),
           coDriver: t("coDriver"),
           empty: t("noVehicles"),
@@ -185,6 +187,7 @@ export default async function DriverSchedule({
           WERN: tj("WERN"),
           NORMAL: tj("NORMAL"),
           dutyRow: t("roundsDutyRow"),
+          offRow: t("roundsOffRow"),
         }}
       />
     </div>

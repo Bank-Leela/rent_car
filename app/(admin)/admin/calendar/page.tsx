@@ -81,12 +81,23 @@ export default async function AdminCalendar({
   const tc = await getTranslations("common");
   const localeCode = await getLocale();
   const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
+  const isThaiUi = localeCode.toLowerCase().startsWith("th");
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
   const vehicleFilter = qs.vehicle && qs.vehicle !== "all" ? qs.vehicle : null;
 
   const gridStart = startOfWeek(startOfMonth(monthAnchor), { weekStartsOn: 0 });
   const gridEnd = endOfWeek(endOfMonth(monthAnchor), { weekStartsOn: 0 });
+
+  // car = driver, so the filter reads better as a person. Falls back to the
+  // plate for a car with nobody assigned to it.
+  const driverNameOf = (v: {
+    assignedDriver: { user: { name: string | null; thaiName: string | null } } | null;
+  }) => {
+    const u = v.assignedDriver?.user;
+    if (!u) return null;
+    return (isThaiUi ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null;
+  };
 
   const [bookings, allVehicles] = await Promise.all([
     prisma.booking.findMany({
@@ -107,7 +118,11 @@ export default async function AdminCalendar({
     prisma.vehicle.findMany({
       where: { isActive: true },
       orderBy: { registrationNumber: "asc" },
-      select: { id: true, registrationNumber: true },
+      select: {
+        id: true,
+        registrationNumber: true,
+        assignedDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+      },
     }),
   ]);
 
@@ -158,7 +173,11 @@ export default async function AdminCalendar({
               aria-label={t("vehicleFilter")}
               options={[
                 { value: "all", label: t("allVehicles") },
-                ...allVehicles.map((v) => ({ value: v.id, label: v.registrationNumber })),
+                ...allVehicles.map((v) => ({
+                  value: v.id,
+                  // car = driver: the dispatcher thinks in people, not plates.
+                  label: driverNameOf(v) ?? v.registrationNumber,
+                })),
               ]}
             />
             <button

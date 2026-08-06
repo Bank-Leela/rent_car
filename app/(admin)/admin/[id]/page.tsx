@@ -220,8 +220,19 @@ export default async function AdminBookingDetail({
 
       {booking.vehicle && (
         <Card>
+          {/* Which car, on which day — the next question is always "what else is
+              that car doing", so the header opens that day's board. */}
           <CardHeader>
-            <CardTitle>{t("currentAssignment")}</CardTitle>
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+              {t("currentAssignment")}
+              <Link
+                href={`/admin/schedule?date=${format(booking.startAt, "yyyy-MM-dd")}`}
+                className="inline-flex items-center gap-0.5 text-sm font-medium text-primary hover:underline"
+              >
+                {tad("decisionContextOpenSchedule")}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
             <Field label={t("vehicle")} value={booking.vehicle.registrationNumber} />

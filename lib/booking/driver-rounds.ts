@@ -70,6 +70,8 @@ export interface DriverRoundsRow {
   driverName: string | null;
   registrationNumber: string | null;
   isDuty: boolean;
+  /** Marked off sick/leave for this day — excluded from the day's auto-assign. */
+  isOff: boolean;
   rounds: DriverRound[];
 }
 
@@ -105,8 +107,10 @@ export function buildDriverRounds(input: {
   dayStart: Date;
   dayEnd: Date;
   dutyDriverId: string | null;
+  /** Drivers marked off (sick/leave) for this day. */
+  offDriverIds?: string[];
 }): DriverRoundsRow[] {
-  const { drivers, bookings, dayStart, dayEnd, dutyDriverId } = input;
+  const { drivers, bookings, dayStart, dayEnd, dutyDriverId, offDriverIds = [] } = input;
 
   const byDriver = new Map<string, DriverRound[]>();
   for (const d of drivers) byDriver.set(d.driverId, []);
@@ -157,6 +161,7 @@ export function buildDriverRounds(input: {
     driverName: d.driverName,
     registrationNumber: d.registrationNumber,
     isDuty: d.driverId === dutyDriverId,
+    isOff: offDriverIds.includes(d.driverId),
     rounds: (byDriver.get(d.driverId) ?? []).sort(
       (a, z) => a.startLabel.localeCompare(z.startLabel) || a.jobNumber.localeCompare(z.jobNumber),
     ),

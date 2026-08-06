@@ -68,7 +68,6 @@ export function DriverRosterControl({
               <UserCheck className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
             )}
             <span>
-              {d.carReg ? `${d.carReg} · ` : ""}
               {d.name}
             </span>
             {d.off && <span className="text-xs">({t("off")})</span>}

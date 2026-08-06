@@ -274,7 +274,9 @@
     "roundsNightOf": "คืนที่ %n%/%total%",
     "roundsBackOn": "กลับ %date%",
     "roundsLeftOn": "ออก %date%",
-    "roundsReturnAt": "กลับถึง %time%"
+    "roundsReturnAt": "กลับถึง %time%",
+    "roundsOff": "ลา",
+    "roundsOffRow": "ลาวันนี้"
   },
   "fleet": {
     "title": "รถและคนขับ",

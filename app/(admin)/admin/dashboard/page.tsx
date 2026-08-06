@@ -27,6 +27,7 @@ export default async function AdminDashboard({
 }) {
   await requireAnyRole(["ADMIN"]);
   const t = await getTranslations("dashboard");
+  const tv = await getTranslations("fleet");
   const locale = await getLocale();
   const qs = await searchParams;
   const range = rangeFromQuery(qs);
@@ -220,7 +221,7 @@ export default async function AdminDashboard({
             <TableBody>
               {vehicle.map((v) => (
                 <TableRow key={v.registrationNumber}>
-                  <TableCell>{v.registrationNumber}</TableCell>
+                  <TableCell>{`${tv(`type_${v.type}`)} · ${v.registrationNumber}`}</TableCell>
                   <TableCell className="text-right">{v.trips}</TableCell>
                   <TableCell className="text-right">{v.hours.toFixed(1)}</TableCell>
                   <TableCell className="text-right">{v.km}</TableCell>
