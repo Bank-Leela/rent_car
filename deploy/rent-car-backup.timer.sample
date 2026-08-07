@@ -5,9 +5,11 @@
 Description=Run rent_car backup nightly
 
 [Timer]
-# 02:00 daily, server-local time. Persistent=true runs a missed backup on next
+# 02:00 daily, Asia/Bangkok (pinned below, not host-local). Persistent=true runs a missed backup on next
 # boot (e.g. if the box was off overnight).
-OnCalendar=*-*-* 02:00:00
+# Timezone pinned explicitly: OnCalendar resolves against the HOST zone,
+# which is UTC by default and would shift this by 7 hours.
+OnCalendar=*-*-* 02:00:00 Asia/Bangkok
 Persistent=true
 
 [Install]

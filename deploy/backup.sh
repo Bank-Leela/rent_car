@@ -14,7 +14,7 @@
 #   BACKUP_RETENTION_DAYS   default 14
 #
 # Restore (into an EMPTY db + the uploads parent dir):
-#   gunzip -c db-<ts>.sql.gz | psql "$DATABASE_URL"
+#   gunzip -c db-<ts>.sql.gz | psql "${DATABASE_URL%%\?*}"   # strip Prisma's ?schema=
 #   tar -xzf uploads-<ts>.tar.gz -C "$(dirname "$UPLOADS_DIR")"
 
 set -euo pipefail
@@ -45,7 +45,12 @@ if [ -d "$UPLOADS_DIR" ]; then
   mv "$up_tmp" "$BACKUP_DIR/uploads-$ts.tar.gz"
   uploads_note=", uploads-$ts.tar.gz"
 else
-  echo "WARN: UPLOADS_DIR '$UPLOADS_DIR' not found — skipping uploads" >&2
+  # Hard failure, not a warning: booking rows reference files on disk, so a dump
+  # without them is not a restorable backup. Exiting 0 here made the nightly unit
+  # report success while silently backing up nothing — the worst possible outcome
+  # for a backup. If UPLOADS_DIR is genuinely unset, set it in /etc/rent_car.env.
+  echo "FATAL: UPLOADS_DIR '$UPLOADS_DIR' not found — refusing to report a partial backup as success" >&2
+  exit 1
   uploads_note=" (no uploads dir)"
 fi
 

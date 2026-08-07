@@ -6,9 +6,11 @@
 Description=Run rent_car daily batch (จัดรอบ) every evening
 
 [Timer]
-# 20:00 daily, server-local time. The app must run TZ=Asia/Bangkok (see the
+# 20:00 daily, Asia/Bangkok (pinned below, not host-local). The app must run TZ=Asia/Bangkok (see the
 # main service unit + docs/deployment.md) so "tomorrow" is the right day.
-OnCalendar=*-*-* 20:00:00
+# Timezone pinned explicitly: OnCalendar resolves against the HOST zone,
+# which is UTC by default and would shift this by 7 hours.
+OnCalendar=*-*-* 20:00:00 Asia/Bangkok
 Persistent=true
 
 [Install]
