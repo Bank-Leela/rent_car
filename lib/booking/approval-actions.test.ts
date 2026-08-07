@@ -98,8 +98,18 @@ describe("approveBookingAction email", () => {
     // Emails are Thai-only (the "/ Approved" half was removed with the EN locale).
     expect(toRequester!.subject).toMatch(/อนุมัติแล้ว/);
 
+    // จัด runs on approval: a booking that fits leaves this call already on a
+    // car. It stays APPROVED only when the solver could not place it, in which
+    // case it carries an overflowReason for the schedule board's bar. Either way
+    // it is never left APPROVED *and* unexplained.
     const updated = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
-    expect(updated.status).toBe("APPROVED");
+    if (updated.status === "ASSIGNED") {
+      expect(updated.primaryDriverId, "an assigned booking has a driver").not.toBeNull();
+      expect(updated.vehicleId, "an assigned booking has a car").not.toBeNull();
+    } else {
+      expect(updated.status).toBe("APPROVED");
+      expect(updated.primaryDriverId).toBeNull();
+    }
   });
 
   it("notifies admins", async () => {

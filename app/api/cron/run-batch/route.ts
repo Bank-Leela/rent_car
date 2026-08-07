@@ -5,7 +5,11 @@ import { getCronSecret, isValidCronAuth } from "@/lib/config/cron";
 import { runBatchForDay } from "@/lib/booking/batch-core";
 
 // Daily round-scheduling (จัดรอบ) auto-run. A systemd timer / crontab POSTs here
-// each evening with `Authorization: Bearer <CRON_SECRET>`; it assigns TOMORROW's
+// each evening with `Authorization: Bearer <CRON_SECRET>`. Since จัด now runs on
+// approval, this is the SAFETY NET: it sweeps every day that still has
+// approved-but-unassigned bookings (plus tomorrow), so anything that became
+// placeable later gets picked up. `?date=` still targets exactly one day.
+// It previously assigned TOMORROW's
 // OT/WERN/NORMAL rounds so the board is set the night before. The manual
 // /admin/batch button still works and is idempotent, so both paths coexist.
 //
@@ -31,6 +35,30 @@ export async function POST(req: Request) {
   });
   if (!admin) return NextResponse.json({ ok: false, error: "no admin to attribute the run" }, { status: 500 });
 
-  const result = await runBatchForDay(dateStr, admin.id);
-  return NextResponse.json({ date: dateStr, ...result });
+  // An explicit ?date= still does exactly that one day.
+  if (override) {
+    const result = await runBatchForDay(dateStr, admin.id);
+    return NextResponse.json({ date: dateStr, ...result });
+  }
+
+  // Otherwise sweep EVERY day that still has approved-but-unassigned bookings,
+  // not just tomorrow. จัด now runs on approval, so this is the safety net: it
+  // catches trips that became placeable only later — a driver came back from
+  // leave, a cancellation freed a car — and anything approved while the solver
+  // was failing. Idempotent, so re-running over already-assigned days is free.
+  const outstanding = await prisma.booking.findMany({
+    where: { status: "APPROVED", primaryDriverId: null, startAt: { gte: startOfDay(new Date()) } },
+    select: { startAt: true },
+    orderBy: { startAt: "asc" },
+  });
+  const days = [...new Set(outstanding.map((b) => format(b.startAt, "yyyy-MM-dd")))];
+  // Always include tomorrow, so a day with nothing outstanding is still solved
+  // ahead of time exactly as before.
+  if (!days.includes(dateStr)) days.push(dateStr);
+
+  const runs = [];
+  for (const day of days) {
+    runs.push({ date: day, ...(await runBatchForDay(day, admin.id)) });
+  }
+  return NextResponse.json({ days: days.length, runs });
 }

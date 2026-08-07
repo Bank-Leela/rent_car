@@ -276,7 +276,13 @@
     "roundsLeftOn": "ออก %date%",
     "roundsReturnAt": "กลับถึง %time%",
     "roundsOff": "ลา",
-    "roundsOffRow": "ลาวันนี้"
+    "roundsOffRow": "ลาวันนี้",
+    "unassignedTitle": "ยังไม่ได้จัดรถ",
+    "unassignedEmpty": "จัดรถครบทุกคำขอของวันนี้แล้ว",
+    "unassignedOpen": "เปิดคำขอ",
+    "reasonManualTjw": "ตจว–ค้างคืน (จัดตามลำดับคำขอ)",
+    "reasonManualUrgent": "จองเร่งด่วน (จัดเอง)",
+    "reasonManualBus": "รถบัสเช่า (ไม่ใช้รถคณะ)"
   },
   "fleet": {
     "title": "รถและคนขับ",
@@ -576,7 +582,8 @@
     "otAssigning": "กำลังจัด…",
     "otAssignConfirm": "อนุมัติและจัดรถเป็นงานล่วงเวลา: {summary}?",
     "otAssigned": "จัดแล้ว: {summary}",
-    "otAssignPlaceFailed": "อนุมัติแล้ว แต่จัดรถไม่สำเร็จ (รถอาจไม่ว่างแล้ว) — งานอยู่ในคิวรอจัดรถ"
+    "otAssignPlaceFailed": "อนุมัติแล้ว แต่จัดรถไม่สำเร็จ (รถอาจไม่ว่างแล้ว) — งานอยู่ในคิวรอจัดรถ",
+    "unassignedCount": "ยังไม่ได้จัดรถ %n% รายการ"
   },
   "bookingDetail": {
     "trip": "การเดินทาง",

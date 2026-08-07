@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
+import { format } from "date-fns";
 import { prisma } from "@/lib/db";
+import { runBatchForDay } from "@/lib/booking/batch-core";
 import { requireUser } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
@@ -147,7 +149,26 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
   }
 
   revalidatePath("/admin");
+  // จัด runs the moment the booking is approved: if a car and driver fit the
+  // day's rules it is assigned here and now, and if not it is left APPROVED with
+  // an overflowReason for P'Top to place by hand from the schedule board.
+  //
+  // runBatchForDay is the SAME solver the manual button and the nightly sweep
+  // use, and it only touches APPROVED bookings with no primary driver — so it is
+  // idempotent and cannot disturb an assignment that already exists. Nothing
+  // about the allocation rules changes here; only when they run.
+  //
+  // Wrapped like the PDF step above: assigning is a consequence of approving, and
+  // a consequence must never be able to undo its cause. If the solver throws, the
+  // booking stays APPROVED and simply shows up as unassigned.
+  try {
+    await runBatchForDay(format(detailed.startAt, "yyyy-MM-dd"), userId);
+  } catch (err) {
+    console.error("[approve] auto-assign failed; booking stays unassigned", err);
+  }
+
   revalidatePath(`/admin/${bookingId}`);
+  revalidatePath("/admin/schedule");
   revalidatePath("/requester");
   revalidatePath(`/requester/${bookingId}`);
   return { ok: true };

@@ -3,7 +3,7 @@ import type { JobType, Prisma } from "@prisma/client";
 import { format, subHours } from "date-fns";
 import { th } from "date-fns/locale";
 import { tripWhen } from "@/lib/booking/trip-when";
-import { ClipboardCheck, ListOrdered, CalendarClock, ChevronRight, Zap, AlertTriangle } from "lucide-react";
+import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -75,10 +75,12 @@ export default async function AdminQueue({
       include: { requester: true, department: true },
     }),
     prisma.booking.findMany({
-      where: { status: "APPROVED", ...searchFilter },
-      orderBy: { createdAt: "asc" },
-      take: 50, // bounded — the awaiting-assignment log shouldn't grow without limit
-      include: { requester: true, department: true },
+      // Only the COUNT and the earliest day are used now (the รอจัดรถ list moved
+      // to each day's board), so order by startAt and select just what that needs.
+      where: { status: "APPROVED", primaryDriverId: null, ...searchFilter },
+      orderBy: { startAt: "asc" },
+      take: 200,
+      select: { id: true, startAt: true },
     }),
     prisma.booking.findMany({
       where: { status: "ASSIGNED", endAt: { gte: new Date() }, ...searchFilter },
@@ -310,52 +312,20 @@ export default async function AdminQueue({
         </Section>
       )}
 
-      <Section title={t("queueLogHeading")} icon={<ListOrdered className="h-4 w-4" />}>
-        {approved.length === 0 ? (
-          <EmptyState
-            icon={ListOrdered}
-            title={t("queueEmptyTitle")}
-            description={t("queueEmptyDescription")}
-          />
-        ) : (
-          <ol className="space-y-2">
-            {approved.map((b, i) => (
-              <li key={b.id}>
-                <Link
-                  href={`/admin/${b.id}`}
-                  className="group flex items-start gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  <span
-                    aria-hidden
-                    className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-muted text-xs font-mono text-muted-foreground"
-                  >
-                    {i + 1}
-                  </span>
-                  {/* Two lines. Every row in this section is approved-awaiting-
-                      dispatch, so a per-card "อนุมัติแล้ว" badge repeats the
-                      section header; job number, requester, department and the
-                      submitted time are detail-page facts. Urgent still shows —
-                      it is the one thing that reorders the work. */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">{b.purpose}</span>
-                      {b.isEmergency && (
-                        <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
-                          {urgentLabel}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 truncate text-sm text-muted-foreground">
-                      {b.destination} · {tripWhen(b.startAt, b.endAt)}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Section>
+      {/* The รอจัดรถ list is gone: จัด now runs the moment a booking is approved,
+          so nothing should sit here. What cannot be placed shows on that day's
+          board instead (components/admin/unassigned-bar.tsx) — per-day, next to
+          the cars, which is where it gets resolved. This count is all that is
+          left of the cross-day view: one number, and where to start. */}
+      {approved.length > 0 && (
+        <Link
+          href={`/admin/schedule?date=${format(approved[0].startAt, "yyyy-MM-dd")}`}
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
+        >
+          <span>{t("unassignedCount").replace("%n%", String(approved.length))}</span>
+          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+        </Link>
+      )}
 
       <Section title={t("upcomingTrips")} icon={<CalendarClock className="h-4 w-4" />}>
         {upcoming.length === 0 ? (

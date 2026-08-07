@@ -9,6 +9,9 @@ import { BoardDatePicker } from "@/components/admin/board-date-picker";
 import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
+import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
+import { recommendForBookings } from "@/lib/booking/placement-reco-data";
+import { formatTh } from "@/lib/format-date";
 
 export default async function SchedulePage({
   searchParams,
@@ -17,6 +20,7 @@ export default async function SchedulePage({
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("scheduler");
+  const tsim = await getTranslations("simulate");
   const tj = await getTranslations("jobType");
   const locale = await getLocale();
 
@@ -138,6 +142,47 @@ export default async function SchedulePage({
     offDriverIds: roster.filter((r) => r.off).map((r) => r.driverId),
   });
 
+  // Everything still needing a car on this day. Deliberately NOT filtered on
+  // overflowReason: TJW / urgent / hired-bus never reach the solver, so they
+  // never carry one, and keying on it would hide them entirely now that the
+  // /admin รอจัดรถ list is gone.
+  const unassigned = await prisma.booking.findMany({
+    where: {
+      status: "APPROVED",
+      primaryDriverId: null,
+      startAt: { gte: dayStart, lt: dayEnd },
+    },
+    orderBy: { startAt: "asc" },
+    select: {
+      id: true, jobNumber: true, destination: true, startAt: true, endAt: true,
+      jobType: true, isEmergency: true, preferredVehicleType: true, overflowReason: true,
+      estimatedDistance: true,
+    },
+  });
+
+  // A recommendation only exists for bookings the solver actually considered.
+  const recoInputs = unassigned.filter(
+    (b) => b.jobType !== "TJW" && !b.isEmergency && b.preferredVehicleType !== "BUS_OUTSOURCED",
+  );
+  const recos = recoInputs.length ? await recommendForBookings(dayStart, recoInputs, isThai) : new Map();
+
+  const unassignedRows: UnassignedRow[] = unassigned.map((b) => {
+    const reason =
+      b.jobType === "TJW" ? t("reasonManualTjw")
+      : b.isEmergency ? t("reasonManualUrgent")
+      : b.preferredVehicleType === "BUS_OUTSOURCED" ? t("reasonManualBus")
+      : tsim(`reason_${b.overflowReason ?? "NO_PRIMARY_DRIVER"}`);
+    const r = recos.get(b.id);
+    return {
+      id: b.id,
+      jobNumber: b.jobNumber,
+      destination: b.destination,
+      timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
+      reasonLabel: reason,
+      reco: r ? { vehicleId: r.vehicleId, secondaryDriverId: r.secondaryDriverId ?? null, label: r.assignLabel ?? r.label } : null,
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -165,6 +210,15 @@ export default async function SchedulePage({
       </div>
 
       <DriverRosterControl drivers={roster} date={isoOf(dayStart)} />
+
+      <UnassignedBar
+        rows={unassignedRows}
+        labels={{
+          title: t("unassignedTitle"),
+          empty: t("unassignedEmpty"),
+          open: t("unassignedOpen"),
+        }}
+      />
 
       <DriverRoundsBoard
         rows={roundRows}
