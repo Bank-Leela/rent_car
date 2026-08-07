@@ -74,7 +74,8 @@
     "vehicleAssignedElsewhere": "รถคันนี้ถูกกำหนดให้คนขับอื่นแล้ว ต้องปลดออกจากคนนั้นก่อน",
     "vehicleRegTaken": "ทะเบียนรถนี้มีอยู่แล้ว",
     "vehicleNotFound": "ไม่พบยานพาหนะ",
-    "leaveRangeInverted": "วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม"
+    "leaveRangeInverted": "วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม",
+    "onlyWernTimeEditable": "แก้เวลาได้เฉพาะงานเวร"
   },
   "common": {
     "back": "ย้อนกลับ",
@@ -293,7 +294,14 @@
     "unassignedOpen": "เปิดคำขอ",
     "reasonManualTjw": "ตจว–ค้างคืน (จัดตามลำดับคำขอ)",
     "reasonManualUrgent": "จองเร่งด่วน (จัดเอง)",
-    "reasonManualBus": "รถบัสเช่า (ไม่ใช้รถคณะ)"
+    "reasonManualBus": "รถบัสเช่า (ไม่ใช้รถคณะ)",
+    "viewRounds": "กระดานรอบวิ่ง",
+    "viewTimeline": "เส้นเวลา (ลากจัดรถ)",
+    "wernEditTime": "แก้เวลางานเวร",
+    "wernFrom": "เริ่ม",
+    "wernTo": "สิ้นสุด",
+    "wernSave": "บันทึก",
+    "wernStripTitle": "งานเวรวันนี้ (แก้เวลาได้)"
   },
   "fleet": {
     "title": "รถและคนขับ",

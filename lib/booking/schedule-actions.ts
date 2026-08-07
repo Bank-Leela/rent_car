@@ -7,6 +7,7 @@ import { logTransition } from "@/lib/booking/audit";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 
 // Adapt a booking row to the leg helper (no-wait trips free their middle).
 type LegRow = { startAt: Date; endAt: Date; waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null };
@@ -318,5 +319,88 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
   }
 
   revalidatePath("/admin/schedule");
+  return { ok: true };
+}
+
+/**
+ * Move a เวร job's hours.
+ *
+ * เวร work is campus errands run by the duty driver — the hour is negotiable in
+ * a way a meeting pickup is not, so P'Top routinely needs to slide one to make
+ * room. Every other trip's time is the requester's booking and is not the
+ * dispatcher's to change; this action therefore refuses anything that is not
+ * WERN rather than becoming a general-purpose time editor.
+ *
+ * The car keeps its existing occupancy rules: moving a เวร into another trip's
+ * window is refused by the same per-leg overlap check a drag uses, and the DB
+ * exclusion constraint is the backstop if two admins move at once.
+ */
+export async function setWernTimeAction(formData: FormData): Promise<ReassignResult> {
+  const session = await requireRole("ADMIN");
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const startRaw = String(formData.get("startAt") ?? "");
+  const endRaw = String(formData.get("endAt") ?? "");
+  if (!bookingId || !startRaw || !endRaw) return { ok: false, error: "invalidInput" };
+
+  const startAt = new Date(startRaw);
+  const endAt = new Date(endRaw);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+    return { ok: false, error: "invalidInput" };
+  }
+  if (endAt <= startAt) return { ok: false, error: "endBeforeStart" };
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { id: true, jobType: true, vehicleId: true, status: true, startAt: true, endAt: true },
+  });
+  if (!booking) return { ok: false, error: "bookingNotFound" };
+  if (booking.jobType !== "WERN") return { ok: false, error: "onlyWernTimeEditable" };
+
+  // Same car, new window: refuse if it would collide with anything else on it.
+  if (booking.vehicleId) {
+    const clashes = await prisma.booking.findMany({
+      where: {
+        id: { not: bookingId },
+        vehicleId: booking.vehicleId,
+        status: { in: COMMITTED_STATUSES },
+        startAt: { lt: endAt },
+        endAt: { gt: startAt },
+      },
+      select: { jobNumber: true, startAt: true, endAt: true },
+    });
+    if (clashes.length > 0) {
+      return {
+        ok: false,
+        error: "vehicleBusy",
+        conflicts: clashes.map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt })),
+      };
+    }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({ where: { id: bookingId }, data: { startAt, endAt } });
+      await logTransition({
+        bookingId,
+        actorUserId: session.user.id,
+        fromStatus: booking.status,
+        toStatus: booking.status,
+        action: "WERN_TIME_CHANGED",
+        metadata: {
+          from: { startAt: booking.startAt.toISOString(), endAt: booking.endAt.toISOString() },
+          to: { startAt: startAt.toISOString(), endAt: endAt.toISOString() },
+        },
+        tx,
+      });
+    });
+  } catch (err) {
+    // The per-vehicle GiST constraint is the backstop against a concurrent move.
+    if (isExclusionViolation(err)) return { ok: false, error: "vehicleBusy" };
+    throw err;
+  }
+
+  revalidatePath("/admin/schedule");
+  revalidatePath(`/admin/${bookingId}`);
+  revalidatePath("/driver/schedule");
   return { ok: true };
 }

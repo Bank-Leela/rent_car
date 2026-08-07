@@ -12,13 +12,16 @@ import { DriverRosterControl } from "@/components/admin/driver-roster-control";
 import { LeaveRangeForm } from "@/components/admin/leave-range-form";
 import { UpcomingLeave, type LeaveBlock } from "@/components/admin/upcoming-leave";
 import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
+import { SchedulerBoard } from "@/components/admin/scheduler-board";
+import { WernStrip, type WernJob } from "@/components/admin/wern-strip";
+import { loadTimelineBoard } from "@/lib/booking/timeline-board-data";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { formatTh } from "@/lib/format-date";
 
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; view?: string }>;
 }) {
   await requireRole("ADMIN");
   const t = await getTranslations("scheduler");
@@ -26,7 +29,9 @@ export default async function SchedulePage({
   const tj = await getTranslations("jobType");
   const locale = await getLocale();
 
-  const { date } = await searchParams;
+  const { date, view } = await searchParams;
+  // The whiteboard is for reading the day; the timeline is for changing it.
+  const timeline = view === "timeline";
   const day = date ? parse(date, "yyyy-MM-dd", new Date()) : new Date();
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
@@ -185,6 +190,22 @@ export default async function SchedulePage({
     b.label = b.from === b.to ? formatTh(f, "d MMM") : `${formatTh(f, "d MMM")}–${formatTh(tt, "d MMM")}`;
   }
 
+  // Only pay for the timeline's ~270 lines of mapping when it is the view.
+  const timelineData = timeline ? await loadTimelineBoard(dayStart, isThai) : null;
+
+  // เวร jobs for this day, whose hours P'Top may move (see WernStrip).
+  const wernJobs: WernJob[] = internalDayBookings
+    .filter((b) => b.jobType === "WERN")
+    .map((b) => ({
+      id: b.id,
+      destination: b.destination,
+      driverName: b.primaryDriver?.user
+        ? (isThai ? b.primaryDriver.user.thaiName ?? b.primaryDriver.user.name : b.primaryDriver.user.name) ?? null
+        : null,
+      startHHmm: formatTh(b.startAt, "HH:mm"),
+      endHHmm: formatTh(b.endAt, "HH:mm"),
+    }));
+
   // Everything still needing a car on this day. Deliberately NOT filtered on
   // overflowReason: TJW / urgent / hired-bus never reach the solver, so they
   // never carry one, and keying on it would hide them entirely now that the
@@ -257,6 +278,9 @@ export default async function SchedulePage({
       <LeaveRangeForm drivers={roster.map((r) => ({ driverId: r.driverId, name: r.name }))} defaultFrom={isoOf(dayStart)} />
       <UpcomingLeave blocks={leaveBlocks} />
 
+      {/* The timeline carries its own unassigned queue — the thing you drag FROM —
+          so showing this bar as well would be the same list twice. */}
+      {!timeline && (
       <UnassignedBar
         rows={unassignedRows}
         labels={{
@@ -265,7 +289,41 @@ export default async function SchedulePage({
           open: t("unassignedOpen"),
         }}
       />
+      )}
 
+      <WernStrip
+        jobs={wernJobs}
+        date={isoOf(dayStart)}
+        labels={{ title: t("wernStripTitle"), empty: "" }}
+      />
+
+      {/* Two views of the same day. The whiteboard answers "what is happening",
+          the timeline lets P'Top change it by dragging — including moving a เวร
+          job's hours, which only makes sense against an hour axis. */}
+      <div className="flex gap-1 rounded-md border bg-muted/30 p-1 text-sm">
+        <Link
+          href={`/admin/schedule?date=${isoOf(dayStart)}`}
+          className={`rounded px-3 py-1 ${!timeline ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          {t("viewRounds")}
+        </Link>
+        <Link
+          href={`/admin/schedule?date=${isoOf(dayStart)}&view=timeline`}
+          className={`rounded px-3 py-1 ${timeline ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:bg-muted"}`}
+        >
+          {t("viewTimeline")}
+        </Link>
+      </div>
+
+      {timelineData ? (
+        <SchedulerBoard
+          vehicles={timelineData.vehicles}
+          bookings={timelineData.bookings}
+          dutyVehicleId={timelineData.dutyVehicleId}
+          date={isoOf(dayStart)}
+          adHocRows={timelineData.adHocRows}
+        />
+      ) : (
       <DriverRoundsBoard
         rows={roundRows}
         href={(id) => `/admin/${id}`}
@@ -301,6 +359,7 @@ export default async function SchedulePage({
           offRow: t("roundsOffRow"),
         }}
       />
+      )}
     </div>
   );
 }
