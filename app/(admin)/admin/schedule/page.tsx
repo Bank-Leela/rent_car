@@ -9,6 +9,8 @@ import { BoardDatePicker } from "@/components/admin/board-date-picker";
 import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
+import { LeaveRangeForm } from "@/components/admin/leave-range-form";
+import { UpcomingLeave, type LeaveBlock } from "@/components/admin/upcoming-leave";
 import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { formatTh } from "@/lib/format-date";
@@ -149,6 +151,40 @@ export default async function SchedulePage({
     offDriverIds: roster.filter((r) => r.off).map((r) => r.driverId),
   });
 
+  // Leave for the next 30 days, collapsed into blocks of consecutive days so a
+  // week off reads as one entry instead of seven. Nothing showed leave beyond
+  // the viewed day before this.
+  const horizon = addDays(dayStart, 30);
+  const leaveRows = await prisma.driverUnavailability.findMany({
+    where: { date: { gte: dayStart, lte: horizon } },
+    orderBy: [{ driverId: "asc" }, { date: "asc" }],
+    select: { driverId: true, date: true },
+  });
+  const nameByDriver = new Map(roster.map((r) => [r.driverId, r.name]));
+  const leaveBlocks: LeaveBlock[] = [];
+  for (const row of leaveRows) {
+    const iso = format(row.date, "yyyy-MM-dd");
+    const last = leaveBlocks[leaveBlocks.length - 1];
+    const isNextDay =
+      last &&
+      last.driverId === row.driverId &&
+      format(addDays(parse(last.to, "yyyy-MM-dd", new Date()), 1), "yyyy-MM-dd") === iso;
+    if (isNextDay) last.to = iso;
+    else
+      leaveBlocks.push({
+        driverId: row.driverId,
+        name: nameByDriver.get(row.driverId) ?? row.driverId,
+        from: iso,
+        to: iso,
+        label: "",
+      });
+  }
+  for (const b of leaveBlocks) {
+    const f = parse(b.from, "yyyy-MM-dd", new Date());
+    const tt = parse(b.to, "yyyy-MM-dd", new Date());
+    b.label = b.from === b.to ? formatTh(f, "d MMM") : `${formatTh(f, "d MMM")}–${formatTh(tt, "d MMM")}`;
+  }
+
   // Everything still needing a car on this day. Deliberately NOT filtered on
   // overflowReason: TJW / urgent / hired-bus never reach the solver, so they
   // never carry one, and keying on it would hide them entirely now that the
@@ -217,6 +253,9 @@ export default async function SchedulePage({
       </div>
 
       <DriverRosterControl drivers={roster} date={isoOf(dayStart)} />
+
+      <LeaveRangeForm drivers={roster.map((r) => ({ driverId: r.driverId, name: r.name }))} defaultFrom={isoOf(dayStart)} />
+      <UpcomingLeave blocks={leaveBlocks} />
 
       <UnassignedBar
         rows={unassignedRows}

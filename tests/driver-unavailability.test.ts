@@ -135,15 +135,30 @@ describe("setDriverUnavailableAction releases claimed (APPROVED) trips, not only
     const res = await setDriverUnavailableAction(fd);
     expect(res.ok).toBe(true);
 
+    // The trip must leave the driver going off, either way. The agreed rule is
+    // that it goes to the day's เวร driver; only when nobody can take it does it
+    // fall back to APPROVED/unassigned for the overflow bar. What must NEVER
+    // happen is it staying on the absent driver.
     const after = await prisma.booking.findUnique({ where: { id: booking.id } });
-    expect(after?.primaryDriverId).toBeNull();
-    expect(after?.status).toBe("APPROVED");
-    expect(after?.driverScheduleStatus).toBe("UNCLAIMED");
+    expect(after?.primaryDriverId, "must not stay with the absent driver").not.toBe(driver.id);
+
+    const handedOff = after?.primaryDriverId != null;
+    if (handedOff) {
+      expect(after?.status).toBe("ASSIGNED");
+      expect(after?.vehicleId, "handed-off trip rides the เวร driver's car").not.toBeNull();
+    } else {
+      expect(after?.status).toBe("APPROVED");
+      expect(after?.driverScheduleStatus).toBe("UNCLAIMED");
+    }
 
     const audit = await prisma.auditLog.findFirst({
-      where: { bookingId: booking.id, action: "DRIVER_OFF_RELEASE" },
-      select: { fromStatus: true },
+      where: {
+        bookingId: booking.id,
+        action: { in: ["DRIVER_OFF_RELEASE", "DRIVER_OFF_HANDOFF_WERN"] },
+      },
+      select: { fromStatus: true, action: true },
     });
     expect(audit?.fromStatus).toBe("APPROVED");
+    expect(audit?.action).toBe(handedOff ? "DRIVER_OFF_HANDOFF_WERN" : "DRIVER_OFF_RELEASE");
   });
 });
