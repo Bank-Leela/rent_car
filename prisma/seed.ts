@@ -1,11 +1,26 @@
 import { PrismaClient, Role, VehicleType, DriverPool } from "@prisma/client";
 import { hash } from "bcryptjs";
+import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
 
-// CR-08 seed defaults. Every seeded account gets the same temporary
-// password and is flagged for forced rotation on first sign-in.
-const SEED_PASSWORD = "changeme";
+// Every seeded account gets ONE temporary password and is flagged for forced
+// rotation on first sign-in.
+//
+// It used to be the literal "changeme", hardcoded here and printed in tracked
+// SETUP.md — i.e. published. The deploy runbook tells the operator to run
+// `prisma db seed` on the production box, so a fresh install shipped with a
+// world-readable admin password and nothing in the go-live checklist telling
+// anyone to change it.
+//
+// Now: SEED_PASSWORD from the environment if set (so a scripted install can
+// choose one), otherwise a random 24-char secret generated per run and printed
+// ONCE at the end. Nothing that reaches the repo is a credential.
+const SEED_PASSWORD =
+  process.env.SEED_PASSWORD && process.env.SEED_PASSWORD.length >= 8
+    ? process.env.SEED_PASSWORD
+    : randomBytes(18).toString("base64url");
+const SEED_PASSWORD_GENERATED = !process.env.SEED_PASSWORD;
 let SEED_PASSWORD_HASH: string | null = null;
 async function getSeedPasswordHash(): Promise<string> {
   if (!SEED_PASSWORD_HASH) SEED_PASSWORD_HASH = await hash(SEED_PASSWORD, 12);
@@ -232,6 +247,26 @@ async function main() {
     drivers: await prisma.driver.count(),
     vehicles: await prisma.vehicle.count(),
   });
+
+  // Printed once, here, and nowhere else — not committed, not in SETUP.md, not
+  // recoverable later. Every seeded account has mustChangePassword set, so this
+  // only has to survive long enough for the first sign-in.
+  if (SEED_PASSWORD_GENERATED) {
+    console.log(
+      [
+        "",
+        "  ┌────────────────────────────────────────────────────────────┐",
+        "  │  TEMPORARY PASSWORD for every seeded account                │",
+        "  └────────────────────────────────────────────────────────────┘",
+        `      ${SEED_PASSWORD}`,
+        "",
+        "  Shown once. Sign in, change it, then change the other seeded",
+        "  accounts from /admin/users. Set SEED_PASSWORD in the environment",
+        "  to choose your own instead.",
+        "",
+      ].join("\n"),
+    );
+  }
 }
 
 main()

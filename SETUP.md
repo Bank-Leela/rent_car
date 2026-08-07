@@ -57,9 +57,13 @@ Open http://localhost:3000.
 ## Demo logins
 
 Sign in at `/login` with **username or email + password** (the field is labeled
-"Email or username"). **All seeded accounts share the password `changeme`**
-(`SEED_PASSWORD` in `prisma/seed.ts`) and are flagged `mustChangePassword` — you
-set a new one on first sign-in.
+"Email or username"). All seeded accounts share one temporary password that
+`prisma db seed` **prints once when it finishes** — it is generated per run and
+is not stored anywhere, so copy it from that output. Every account is flagged
+`mustChangePassword`, so you set a real one on first sign-in.
+
+To choose the password yourself (scripted installs), set `SEED_PASSWORD` in the
+environment before seeding.
 
 | Role | Username | Email |
 |------|----------|-------|

@@ -123,11 +123,12 @@ sudo -u rentcar --preserve-env=DATABASE_URL npx prisma db seed   # first time on
 > (`docker compose exec postgres psql -U postgres -c "CREATE ROLE rentcar LOGIN PASSWORD '<pw>' SUPERUSER;"`)
 > or use `postgres` as the role in `DATABASE_URL`. A native Postgres install where
 > you created a `rentcar` role needs neither.
-> **Rotate the seeded passwords immediately.** `prisma db seed` creates the
-> admin, requester and driver-kiosk accounts with the password `changeme`, which
-> is hardcoded in `prisma/seed.ts` and printed in `SETUP.md` — i.e. it is public.
-> Sign in as the admin, change it, then change every other seeded account from
-> `/admin/users`, **before** the box is reachable from the network.
+> **Capture the seeded password — it is shown once.** `prisma db seed` generates
+> a random temporary password for the admin, requester, kiosk and driver
+> accounts and prints it when it finishes. It is not stored anywhere and cannot
+> be recovered afterwards; if you lose it, re-run the seed. Every account is
+> flagged `mustChangePassword`, so the first sign-in forces a real one. Set
+> `SEED_PASSWORD` in the environment first if you would rather choose it.
 
 `npm run build` also runs `prisma migrate deploy`, so subsequent deploys apply
 new migrations automatically. **Never** run `migrate reset` / `db push
@@ -257,7 +258,7 @@ repo dev script (never deployed) and always available for debugging.
 ## Checklist before go-live
 - [ ] `TZ=Asia/Bangkok` in the unit **and** `timedatectl` on the host (timers use the host zone).
 - [ ] Service reaches "ready" — a wrong TZ aborts the boot with `[TZ FATAL]`.
-- [ ] Seeded `changeme` passwords rotated on every account (admin, requester, kiosk, drivers).
+- [ ] Seeded temporary password captured from the seed output, and rotated on every account (admin, requester, kiosk, drivers).
 - [ ] `RESEND_API_KEY` set — without it password-reset links go to the journal, not to the user.
 - [ ] `AUTH_SECRET` is a real random value; `NEXTAUTH_URL`/`APP_URL` = the real HTTPS host.
 - [ ] `UPLOADS_DIR` on a persistent, backed-up path.
