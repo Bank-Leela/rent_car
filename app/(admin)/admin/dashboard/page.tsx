@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { VolumeBarChart, FunnelPieChart } from "@/components/dashboard/charts";
 import { RangeFilter } from "@/components/dashboard/range-filter";
 import { AnimatedNumber } from "@/components/animated-number";
+import { formatTh } from "@/lib/format-date";
 
 export default async function AdminDashboard({
   searchParams,
@@ -79,7 +80,7 @@ export default async function AdminDashboard({
         <div>
           <h1 className="text-3xl sm:text-4xl font-semibold display-heading">{t("title")}</h1>
           <p className="text-muted-foreground mt-1">
-            {format(range.from, "d MMM yyyy")} – {format(range.to, "d MMM yyyy")}
+            {formatTh(range.from, "d MMM yyyy")} – {formatTh(range.to, "d MMM yyyy")}
           </p>
         </div>
         <div className="flex items-end gap-3">
@@ -114,8 +115,8 @@ export default async function AdminDashboard({
                       >
                         <IdCard className="h-3 w-3" aria-hidden />
                         {d.license === "expired"
-                          ? t("rosterLicenseExpired", { date: format(d.licenseDate, "d MMM yyyy") })
-                          : t("rosterLicenseExpiring", { date: format(d.licenseDate, "d MMM yyyy") })}
+                          ? t("rosterLicenseExpired", { date: formatTh(d.licenseDate, "d MMM yyyy") })
+                          : t("rosterLicenseExpiring", { date: formatTh(d.licenseDate, "d MMM yyyy") })}
                       </span>
                     )}
                     {(d.retirement === "soon" || d.retirement === "due") && (

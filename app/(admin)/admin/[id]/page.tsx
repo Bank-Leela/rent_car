@@ -16,6 +16,7 @@ import { LessSubmitToggle } from "@/components/admin/less-submit-toggle";
 import { EstimateDistanceButton } from "@/components/admin/estimate-distance-button";
 import { isMapsConfigured } from "@/lib/maps/distance";
 import { DetailField as Field } from "@/components/detail-field";
+import { formatTh } from "@/lib/format-date";
 
 export default async function AdminBookingDetail({
   params,
@@ -138,10 +139,10 @@ export default async function AdminBookingDetail({
           {booking.femaleCount != null && (
             <Field label={tf("femaleCount")} value={String(booking.femaleCount)} />
           )}
-          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("start")} value={formatTh(booking.startAt, "EEE d MMM yyyy HH:mm")} />
           <Field
             label={booking.returnTrip ? t("endBackAtFaculty") : t("endAtDestination")}
-            value={format(booking.endAt, "EEE d MMM yyyy HH:mm")}
+            value={formatTh(booking.endAt, "EEE d MMM yyyy HH:mm")}
           />
           <Field
             label={tf("returnTripLabel")}
@@ -256,12 +257,12 @@ export default async function AdminBookingDetail({
             <CardTitle>{t("tripRecordTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-            <Field label={t("tripStarted")} value={format(booking.trip.startedAt, "EEE d MMM HH:mm")} />
+            <Field label={t("tripStarted")} value={formatTh(booking.trip.startedAt, "EEE d MMM HH:mm")} />
             <Field
               label={t("tripEnded")}
               value={
                 booking.trip.endedAt
-                  ? format(booking.trip.endedAt, "EEE d MMM HH:mm")
+                  ? formatTh(booking.trip.endedAt, "EEE d MMM HH:mm")
                   : t("tripInProgress")
               }
             />
@@ -312,7 +313,7 @@ export default async function AdminBookingDetail({
               <p className="mb-2 text-xs text-muted-foreground">{tless("hint")}</p>
               <LessSubmitToggle
                 bookingId={booking.id}
-                submittedLabel={booking.lessSubmittedAt ? format(booking.lessSubmittedAt, "d MMM yyyy HH:mm") : null}
+                submittedLabel={booking.lessSubmittedAt ? formatTh(booking.lessSubmittedAt, "d MMM yyyy HH:mm") : null}
               />
             </div>
           </CardContent>
@@ -518,7 +519,7 @@ export default async function AdminBookingDetail({
             {booking.auditLogs.map((log) => (
               <li key={log.id} className="flex gap-3">
                 <span className="text-muted-foreground tabular-nums">
-                  {format(log.createdAt, "d MMM HH:mm")}
+                  {formatTh(log.createdAt, "d MMM HH:mm")}
                 </span>
                 <span>
                   <span className="font-medium">{log.action.replace(/_/g, " ").toLowerCase()}</span>

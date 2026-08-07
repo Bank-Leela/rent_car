@@ -10,6 +10,7 @@ import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
 import { daySpan, type DaySpan } from "@/lib/booking/day-window";
 import type { Prisma } from "@prisma/client";
+import { formatTh } from "@/lib/format-date";
 
 const BAR_COLOR: Record<string, string> = {
   PENDING_APPROVAL: "bg-amber-200 border-amber-400 text-amber-950 dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-400/40",
@@ -67,7 +68,7 @@ export default async function CalendarDay({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {format(day, "EEEE d MMMM yyyy")}
+            {formatTh(day, "EEEE d MMMM yyyy")}
           </h1>
           <p className="text-muted-foreground">{t("bookingCount", { count: bookings.length })}</p>
         </div>
@@ -336,7 +337,7 @@ function TimelineView({
                     <Link
                       key={b.id}
                       href={`/admin/${b.id}`}
-                      title={`${b.jobNumber} · ${format(b.startAt, "EEE HH:mm")}–${format(
+                      title={`${b.jobNumber} · ${formatTh(b.startAt, "EEE HH:mm")}–${format(
                         b.endAt,
                         "EEE HH:mm",
                       )} · ${b.purpose} · ${b.destination}`}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format } from "date-fns";
+
 import { CheckCircle2, XCircle, ClipboardList, ChevronRight } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import type { ApprovalStatus } from "@prisma/client";
@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { formatTh } from "@/lib/format-date";
 
 const FILTERS = ["all", "approved", "denied"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -87,13 +88,13 @@ export default async function ApproverDecisions({
                       </span>
                       {d.decidedAt && (
                         <span className="text-xs text-muted-foreground">
-                          {t("decidedOn", { date: format(d.decidedAt, "d MMM yyyy HH:mm") })}
+                          {t("decidedOn", { date: formatTh(d.decidedAt, "d MMM yyyy HH:mm") })}
                         </span>
                       )}
                     </div>
                     <div className="mt-1 font-medium truncate">{b.purpose}</div>
                     <div className="mt-0.5 text-sm text-muted-foreground">
-                      {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM HH:mm")}
+                      {b.destination}, {b.province} · {formatTh(b.startAt, "EEE d MMM HH:mm")}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {b.requester.name ?? b.requester.email} · {b.department.nameTh}

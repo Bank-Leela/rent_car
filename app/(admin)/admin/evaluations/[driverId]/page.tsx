@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Star } from "lucide-react";
-import { format } from "date-fns";
+
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StarRatingDisplay } from "@/components/ui/star-rating";
+import { formatTh } from "@/lib/format-date";
 
 export default async function DriverReviews({ params }: { params: Promise<{ driverId: string }> }) {
   await requireRole("ADMIN");
@@ -60,7 +61,7 @@ export default async function DriverReviews({ params }: { params: Promise<{ driv
             <li key={r.id} className="rounded-xl border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <StarRatingDisplay value={r.rating} />
-                <span className="text-xs text-muted-foreground">{format(r.submittedAt, "d MMM yyyy")}</span>
+                <span className="text-xs text-muted-foreground">{formatTh(r.submittedAt, "d MMM yyyy")}</span>
               </div>
               {r.comment && <p className="mt-2 whitespace-pre-wrap text-sm">{r.comment}</p>}
               <p className="mt-2 text-xs text-muted-foreground">

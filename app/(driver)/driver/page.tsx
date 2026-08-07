@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { daySpan } from "@/lib/booking/day-window";
+import { formatTh } from "@/lib/format-date";
 
 export default async function DriverHome() {
   const session = await requireRole("DRIVER");
@@ -69,7 +70,7 @@ export default async function DriverHome() {
     <div className="space-y-10">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">{t("todayHeading")}</h1>
-        <p className="mt-1 text-base text-muted-foreground">{format(now, "EEEE d MMMM yyyy")}</p>
+        <p className="mt-1 text-base text-muted-foreground">{formatTh(now, "EEEE d MMMM yyyy")}</p>
       </div>
 
       <Section title={t("todayHeading")}>

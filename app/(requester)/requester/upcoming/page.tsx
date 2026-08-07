@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { ACTIVE_BOOKING_STATUSES } from "@/components/requester-booking-list";
+import { formatTh } from "@/lib/format-date";
 
 type Translator = Awaited<ReturnType<typeof getTranslations<"requesterUpcoming">>>;
 type FormTranslator = Awaited<ReturnType<typeof getTranslations<"bookingForm">>>;
@@ -193,7 +194,7 @@ function TripCard({
           <span className="min-w-0 truncate font-medium">{b.destination}</span>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{format(b.startAt, "EEE d MMM · HH:mm")}–{format(b.endAt, "HH:mm")}</span>
+          <span>{formatTh(b.startAt, "EEE d MMM · HH:mm")}–{format(b.endAt, "HH:mm")}</span>
           <span>·</span>
           <span>{b.returnTrip ? tf("returnTripYes") : tf("returnTripNo")}</span>
         </div>

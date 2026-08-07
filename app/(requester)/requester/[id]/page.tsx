@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
+
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -11,6 +11,7 @@ import { EvaluationForm } from "@/components/forms/evaluation-form";
 import { TimeChangeForm } from "@/components/forms/time-change-form";
 import { DetailField as Field } from "@/components/detail-field";
 import { InChulaChip } from "@/components/in-chula-chip";
+import { formatTh } from "@/lib/format-date";
 
 export default async function RequesterBookingDetail({
   params,
@@ -116,10 +117,10 @@ export default async function RequesterBookingDetail({
             <Field label={t("waitingLocation")} value={booking.waitingLocation} />
           )}
           <Field label={t("department")} value={booking.department.nameTh} />
-          <Field label={t("start")} value={format(booking.startAt, "EEE d MMM yyyy HH:mm")} />
+          <Field label={t("start")} value={formatTh(booking.startAt, "EEE d MMM yyyy HH:mm")} />
           <Field
             label={booking.returnTrip ? t("endBackAtFaculty") : t("endAtDestination")}
-            value={format(booking.endAt, "EEE d MMM yyyy HH:mm")}
+            value={formatTh(booking.endAt, "EEE d MMM yyyy HH:mm")}
           />
           <Field
             label={tf("returnTripLabel")}
@@ -325,7 +326,7 @@ export default async function RequesterBookingDetail({
             {booking.auditLogs.map((log) => (
               <li key={log.id} className="flex gap-3">
                 <span className="text-muted-foreground tabular-nums">
-                  {format(log.createdAt, "d MMM HH:mm")}
+                  {formatTh(log.createdAt, "d MMM HH:mm")}
                 </span>
                 <span>
                   <span className="font-medium">{log.action.replace(/_/g, " ").toLowerCase()}</span>
