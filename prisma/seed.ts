@@ -255,14 +255,15 @@ async function main() {
     console.log(
       [
         "",
-        "  ┌────────────────────────────────────────────────────────────┐",
-        "  │  TEMPORARY PASSWORD for every seeded account                │",
-        "  └────────────────────────────────────────────────────────────┘",
+        `  ┌${"─".repeat(60)}┐`,
+        `  │${" TEMPORARY PASSWORD for every seeded account".padEnd(60)}│`,
+        `  └${"─".repeat(60)}┘`,
+        "",
         `      ${SEED_PASSWORD}`,
         "",
-        "  Shown once. Sign in, change it, then change the other seeded",
-        "  accounts from /admin/users. Set SEED_PASSWORD in the environment",
-        "  to choose your own instead.",
+        "  Shown once, here only — it is not stored and cannot be recovered.",
+        "  Sign in, change it, then change the other seeded accounts from",
+        "  /admin/users. Set SEED_PASSWORD in the environment to choose your own.",
         "",
       ].join("\n"),
     );
