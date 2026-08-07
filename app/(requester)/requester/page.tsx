@@ -89,7 +89,6 @@ export default async function RequesterHome() {
                       href={`/requester/${b.id}`}
                       className="inline-flex min-h-9 items-center gap-1 rounded-sm text-sm font-medium text-amber-900 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:text-amber-200"
                     >
-                      <span className="font-mono text-xs">{b.jobNumber}</span>
                       <span>·</span>
                       <span>{b.purpose}</span>
                       <span className="text-amber-800/80 dark:text-amber-300/80">→ {b.destination}</span>

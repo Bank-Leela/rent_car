@@ -65,7 +65,6 @@ export default async function RequesterBookingDetail({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm text-muted-foreground">{booking.jobNumber}</span>
             <BookingStatusBadge status={booking.status} />
             <InChulaChip travelWithinChula={booking.travelWithinChula} />
           </div>

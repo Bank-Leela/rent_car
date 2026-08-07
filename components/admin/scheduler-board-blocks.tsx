@@ -211,7 +211,6 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
       <div className="flex items-center gap-1">
         <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
         <span className={`h-2 w-2 shrink-0 rounded-full ${jobStyle(b.jobType).dot}`} aria-hidden />
-        <span className="font-mono text-[10px] text-muted-foreground">{b.jobNumber}</span>
         <span className="font-medium">{b.timeLabel}–{b.endLabel}</span>
       </div>
       <div className="truncate text-muted-foreground">
@@ -276,7 +275,6 @@ export function CoDriverQueueCard({ b, label }: { b: SchedulerBooking; label: st
     >
       <div className="flex items-center gap-1 font-medium text-violet-800 dark:text-violet-200">
         <Link2 className="h-3 w-3 shrink-0" aria-hidden />
-        <span className="font-mono text-[10px] opacity-70">{b.jobNumber}</span>
         <span>
           {b.timeLabel}–{b.endLabel}
         </span>

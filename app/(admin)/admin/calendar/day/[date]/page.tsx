@@ -162,7 +162,6 @@ function AgendaRow({
       </time>
       <BookingStatusBadge status={b.status} />
       <span className="font-mono text-xs text-muted-foreground shrink-0 hidden sm:inline">
-        {b.jobNumber}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{b.purpose}</span>
       <span className="hidden min-w-0 max-w-[14rem] truncate text-sm text-muted-foreground md:inline">

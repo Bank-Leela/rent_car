@@ -65,7 +65,7 @@ export default async function DriverReviews({ params }: { params: Promise<{ driv
               </div>
               {r.comment && <p className="mt-2 whitespace-pre-wrap text-sm">{r.comment}</p>}
               <p className="mt-2 text-xs text-muted-foreground">
-                <span className="font-mono">{r.trip.booking.jobNumber}</span> · {r.trip.booking.destination}
+                {r.trip.booking.destination}
               </p>
             </li>
           ))}

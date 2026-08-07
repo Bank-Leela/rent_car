@@ -213,7 +213,6 @@ export default async function AdminBatchPage({
               {pending.map((b) => (
                 <li key={b.id} className="py-3 text-sm">
                   <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
-                    {b.jobNumber}
                   </Link>
                   <span className="mx-2 text-muted-foreground">{b.purpose}</span>
                   <span className="text-xs text-muted-foreground">
@@ -247,7 +246,6 @@ export default async function AdminBatchPage({
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
-                          {b.jobNumber}
                         </Link>
                         <span className="ml-2">{b.purpose}</span>
                       </div>
@@ -315,7 +313,6 @@ export default async function AdminBatchPage({
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
                       <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
-                        {b.jobNumber}
                       </Link>
                       <span className="ml-2">{b.purpose}</span>
                       <div className="text-xs text-muted-foreground">

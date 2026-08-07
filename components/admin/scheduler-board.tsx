@@ -525,7 +525,6 @@ export function SchedulerBoard({
           >
             <div className="flex items-center gap-1">
               <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
-              <span className="font-mono text-[10px] text-muted-foreground">{activeBooking.jobNumber}</span>
               <span className="font-medium">{activeBooking.timeLabel}–{activeBooking.endLabel}</span>
             </div>
             <div className="truncate text-muted-foreground">

@@ -137,7 +137,6 @@ function AssignmentCard({
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs text-muted-foreground">{booking.jobNumber}</span>
           <BookingStatusBadge status={booking.status} />
         </div>
         <div className="mt-2 flex items-baseline gap-3">

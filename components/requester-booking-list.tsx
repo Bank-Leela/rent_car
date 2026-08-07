@@ -46,7 +46,6 @@ export function RequesterBookingList({ bookings }: { bookings: RequesterBookingC
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                 <BookingStatusBadge status={b.status} />
               </div>
               <div className="mt-1 font-medium truncate">{b.purpose}</div>

@@ -62,7 +62,6 @@ export default async function DriverBookingDetail({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm text-muted-foreground">{booking.jobNumber}</span>
             <BookingStatusBadge status={booking.status} />
           </div>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">{booking.destination}</h1>

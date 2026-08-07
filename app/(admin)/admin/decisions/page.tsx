@@ -71,7 +71,6 @@ export default async function ApproverDecisions({
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${
                           approved

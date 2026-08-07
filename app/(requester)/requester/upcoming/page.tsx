@@ -169,7 +169,6 @@ function TripCard({
       {/* Header: job number + status, detail link */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="font-mono text-xs text-muted-foreground">{b.jobNumber}</span>
           <BookingStatusBadge status={b.status} />
         </div>
         <Link

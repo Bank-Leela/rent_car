@@ -81,7 +81,6 @@ export default async function AdminBookingDetail({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm text-muted-foreground">{booking.jobNumber}</span>
             <BookingStatusBadge status={booking.status} />
             {booking.isEmergency && (
               <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
