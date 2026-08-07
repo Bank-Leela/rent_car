@@ -162,3 +162,32 @@ describe("newBookingSchema no-wait split", () => {
     expect(newBookingSchema.safeParse({ ...baseInput, waitAtDestination: "true" }).success).toBe(true);
   });
 });
+
+// A blank / unparseable end time used to throw a TypeError straight out of
+// safeParse: the field-level `.min(1)` failed, so `endAt` was still the raw
+// string when the object-level refinement called `.getTime()` on it. The
+// requester got an HTTP 500 instead of "this field is required". Zod runs
+// object-level refinements even after a field-level failure, so every
+// refinement touching startAt/endAt must confirm they are really Dates.
+describe("newBookingSchema — a bad end time is a validation error, never a crash", () => {
+  const cases: Array<[string, string, string]> = [
+    ["blank", "", "Required"],
+    ["unparseable", "not-a-date", "Invalid date"],
+    ["before the start", "2026-06-10T07:00", "End time must be after start time"],
+  ];
+
+  for (const [label, endAt, expected] of cases) {
+    it(`reports "${expected}" when the end time is ${label}`, () => {
+      // safeParse must RETURN, not throw — that is the whole point.
+      const res = newBookingSchema.safeParse({ ...baseInput, endAt });
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.issues.some((i) => i.message === expected)).toBe(true);
+      }
+    });
+  }
+
+  it("still accepts a well-formed end time", () => {
+    expect(newBookingSchema.safeParse(baseInput).success).toBe(true);
+  });
+});

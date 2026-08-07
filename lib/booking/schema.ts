@@ -17,6 +17,10 @@ const datetimeLocal = z
   .transform((v) => new Date(v))
   .refine((d) => !Number.isNaN(d.getTime()), "Invalid date");
 
+// True only when both timestamps survived their field-level parse as real Dates.
+const bothDates = (d: { startAt: unknown; endAt: unknown }): d is { startAt: Date; endAt: Date } =>
+  d.startAt instanceof Date && d.endAt instanceof Date;
+
 export const newBookingSchema = z
   .object({
     // departmentId is no longer submitted by the form: it is locked to the
@@ -153,7 +157,13 @@ export const newBookingSchema = z
         return new Date(s);
       }),
   })
-  .refine((data) => data.endAt.getTime() > data.startAt.getTime(), {
+  // Zod still runs object-level refinements when a FIELD-level check failed, so
+  // startAt/endAt can still be the raw submitted string here (a blank end time
+  // fails `.min(1)` and never reaches the Date transform). Calling .getTime() on
+  // a string threw a TypeError out of safeParse, turning "you left the time
+  // blank" into an HTTP 500. Every refinement below that touches these two must
+  // therefore check they really are Dates, and defer to the field-level error.
+  .refine((data) => !bothDates(data) || data.endAt.getTime() > data.startAt.getTime(), {
     path: ["endAt"],
     message: "End time must be after start time",
   })
@@ -161,6 +171,7 @@ export const newBookingSchema = z
   // startAt < dropOffDone < pickupReturnTime < endAt.
   .refine(
     (d) => {
+      if (!bothDates(d)) return true; // field-level error already reported
       if (d.waitAtDestination) return true;
       if (!d.dropOffDone || !d.pickupReturnTime) return false;
       const [h, m] = d.pickupReturnTime.split(":").map(Number);
