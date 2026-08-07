@@ -90,8 +90,12 @@ describe("assignTjwByRequestOrder", () => {
     // paired, duty-free driver EXCEPT one busy on an overlapping NORMAL; the pending
     // TJW must land on the remaining free driver, never a busy one.
     const span = { start: new Date("2026-07-10T08:00:00"), end: new Date("2026-07-12T18:00:00") };
+    // orderBy is load-bearing: without it Postgres returns rows in physical
+    // order, which shifts whenever the table is updated (a re-seed is enough).
+    // "the last candidate" then silently became a different driver between runs.
     const paired = await prisma.vehicle.findMany({
       where: { isActive: true, assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } } },
+      orderBy: { registrationNumber: "asc" },
       select: { assignedDriverId: true },
     });
     const shifts = await prisma.onCallShift.findMany({
@@ -99,7 +103,26 @@ describe("assignTjwByRequestOrder", () => {
       select: { driverId: true },
     });
     const dutyIds = new Set(shifts.map((s) => s.driverId));
-    const candidates = paired.map((v) => v.assignedDriverId!).filter((id): id is string => !!id && !dutyIds.has(id));
+
+    // Anyone ALREADY committed across the span is not a candidate either — this
+    // file cleans up only in afterAll, so the previous test's assigned TJW is
+    // still live right now, and picking its driver as "the free one" made this
+    // test fail for a reason that had nothing to do with the rule it guards.
+    const committed = await prisma.booking.findMany({
+      where: {
+        status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
+        startAt: { lt: span.end },
+        endAt: { gt: span.start },
+      },
+      select: { primaryDriverId: true, secondaryDriverId: true },
+    });
+    const busyAlready = new Set(
+      committed.flatMap((b) => [b.primaryDriverId, b.secondaryDriverId]).filter((x): x is string => !!x),
+    );
+
+    const candidates = paired
+      .map((v) => v.assignedDriverId!)
+      .filter((id): id is string => !!id && !dutyIds.has(id) && !busyAlready.has(id));
     if (candidates.length < 2) {
       // Not enough duty-free paired drivers in the seed to run this scenario.
       expect(candidates.length).toBeGreaterThanOrEqual(0);
