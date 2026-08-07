@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
-import { Car, CornerDownRight, Moon } from "lucide-react";
+import { Car, CornerDownRight, Moon, UserRound } from "lucide-react";
 import type { DriverRoundsRow } from "@/lib/booking/driver-rounds";
 import { RoundReassign, type ReassignTarget } from "@/components/admin/round-reassign";
 
@@ -173,6 +173,17 @@ export function DriverRoundsBoard({
                         {round.place}
                         {subline ? ` · ${subline}` : ""}
                       </span>
+                      {/* Who to collect, and the number to ring when the pickup
+                          point is wrong or nobody is there. The driver had the
+                          trip on the board but no way to reach the passenger
+                          without opening the booking. */}
+                      {round.contactName && (
+                        <span className="mt-0.5 flex max-w-52 items-center gap-1 truncate text-xs text-muted-foreground">
+                          <UserRound className="h-3 w-3 shrink-0" aria-hidden />
+                          {round.contactName}
+                          {round.contactPhone ? ` · ${round.contactPhone}` : ""}
+                        </span>
+                      )}
                     </span>
                   );
                   const key = `${round.bookingId}-${round.isCoDriver ? "co" : "p"}`;

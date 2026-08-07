@@ -19,6 +19,8 @@ export interface RoundsBookingInput {
   jobType: JobType;
   primaryDriverId: string | null;
   secondaryDriverId: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
   /** Trip actuals, when the driver has started/finished. */
   tripStartedAt?: Date | null;
   tripEndedAt?: Date | null;
@@ -63,6 +65,11 @@ export interface DriverRound {
   /** The trip's real departure / return moments, for the "ออก …" / "กลับ …" line. */
   departAt: Date;
   returnAt: Date;
+  /** Who the driver is actually collecting, and the number to ring if the pickup
+   *  point is wrong or nobody is there. The driver has the trip on the board but
+   *  had no way to reach the passenger without opening the booking. */
+  contactName: string | null;
+  contactPhone: string | null;
 }
 
 export interface DriverRoundsRow {
@@ -148,6 +155,8 @@ export function buildDriverRounds(input: {
       nightTotal: nightTotal > 0 ? nightTotal : null,
       departAt: b.startAt,
       returnAt: b.endAt,
+      contactName: b.contactName ?? null,
+      contactPhone: b.contactPhone ?? null,
     });
   };
 

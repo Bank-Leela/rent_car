@@ -54,6 +54,7 @@ export default async function DriverSchedule({
         id: true, jobNumber: true, purpose: true, destination: true, startAt: true, endAt: true,
         vehicleId: true, jobType: true, estimatedDistance: true,
         primaryDriverId: true, secondaryDriverId: true,
+        coordinatorName: true, coordinatorPhone: true, ajarnName: true, ajarnPhone: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
         secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
         status: true,
@@ -95,6 +96,9 @@ export default async function DriverSchedule({
       jobType: b.jobType,
       primaryDriverId: b.primaryDriverId,
       secondaryDriverId: b.secondaryDriverId,
+      // The coordinator is the person meeting the car; the requester is the fallback.
+      contactName: b.coordinatorName || b.ajarnName,
+      contactPhone: b.coordinatorPhone || b.ajarnPhone,
       tripStartedAt: b.trip?.startedAt ?? null,
       tripEndedAt: b.trip?.endedAt ?? null,
     })),
