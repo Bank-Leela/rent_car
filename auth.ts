@@ -14,6 +14,15 @@ import type { Role } from "@prisma/client";
 // can gate access without an extra DB hop on every request.
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Self-hosted behind nginx, so the request Host is a reverse-proxy header
+  // rather than a platform-provided origin Auth.js recognises. Without this it
+  // resolves trustHost=false under NODE_ENV=production and answers EVERY
+  // /api/auth/* request with UntrustedHost — nobody can sign in at all. The
+  // alternative is making the operator set AUTH_TRUST_HOST, which the deploy
+  // kit never mentioned; pinning it here cannot be forgotten on a new box.
+  // Safe because nginx is the only thing that can reach the app (127.0.0.1:3000)
+  // and it sets Host itself.
+  trustHost: true,
   session: { strategy: "jwt" },
   providers: [
     Credentials({
