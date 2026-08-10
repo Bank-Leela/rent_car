@@ -133,6 +133,24 @@ export const newBookingSchema = z
       .transform((v) => (v ? new Date(v) : undefined))
       .refine((d) => d === undefined || !Number.isNaN(d.getTime()), "Invalid drop-off time"),
     preferredVehicleType,
+    // External charter (SMUS) vehicle counts — outside buses/vans. Optional in
+    // general; the SMUS refinement below requires a non-zero total.
+    externalBusCount: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(99)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    externalVanCount: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(99)
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
     recurringWeekdays: z
       .string()
       .optional()
@@ -167,6 +185,17 @@ export const newBookingSchema = z
     path: ["endAt"],
     message: "End time must be after start time",
   })
+  // External charter books outside vehicles by count, so "zero of each" is not
+  // a bookable request.
+  .refine(
+    (data) =>
+      data.jobType !== "SMUS" ||
+      (data.externalBusCount ?? 0) + (data.externalVanCount ?? 0) >= 1,
+    {
+      path: ["externalBusCount"],
+      message: "Specify at least one bus or van",
+    },
+  )
   // No-wait split must be a same-day, well-ordered pair of legs:
   // startAt < dropOffDone < pickupReturnTime < endAt.
   .refine(

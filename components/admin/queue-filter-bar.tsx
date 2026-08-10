@@ -6,7 +6,7 @@ import type { JobType } from "@prisma/client";
 import { parseQueueSort } from "@/lib/admin/queue-sort";
 import { SelectField } from "@/components/ui/select-field";
 
-const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN"];
+const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
 
 // Filter/sort bar for the pending queue. All state lives in URL params so a
 // filtered view is shareable and survives refresh; changes re-run the server

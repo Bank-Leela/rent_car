@@ -15,7 +15,7 @@ and the duty-overlap rule.
 
 | Term | Meaning |
 |------|---------|
-| **Job type** | `TJW`, `OT`, `WERN`, `NORMAL` (`SMUS` retired — see §2). Auto-classified from the trip; `WERN` is duty — never produced by the classifier. It's forced at booking creation when `travelWithinChula` is set (in-Chula trip = a request for the duty car), and otherwise attaches via `OnCallShift`. |
+| **Job type** | `TJW`, `OT`, `WERN`, `NORMAL` (`SMUS` = external charter — see §2). Auto-classified from the trip; `WERN` is duty — never produced by the classifier. It's forced at booking creation when `travelWithinChula` is set (in-Chula trip = a request for the duty car), and otherwise attaches via `OnCallShift`. |
 | **Duty / on-call / WERN driver** | The day's driver in `OnCallShift` for that date. Runs campus rounds 08:00–16:00. **Reserved all day** — excluded from every *non-WERN* pick (TJW/OT/NORMAL). A **WERN-typed booking is routed TO them** (matcher, solver, and reco all special-case it); if no duty driver is rostered, or they're away/returning mid-day, WERN falls back to the duty rotation (oldest `lastDutyAt`). |
 | **Long trip** | `estimatedDistance > 400 km` (`LONG_TRIP_KM`) **or** the admin's manual `needsSecondaryDriver` flag. Needs a **secondary** (co-)driver. Distance is usually unset in prod (Maps is env-gated), so the flag is the practical trigger — all three solvers (matcher, batch, TJW-request) OR the flag into the pairing condition. |
 | **Rotation** | Per-category "who went longest ago" ledger: `lastTjwAt`, `lastOtAt`, `lastDutyAt`. |
@@ -56,24 +56,31 @@ duty roster (`OnCallShift`) drives which driver serves it. This resolves the
 old "keep both" merge: the hint-only `outsideChula` path is removed; UI chips
 derive from `travelWithinChula`.
 
-**`SMUS` (external charter) is retired.** The หลักสูตรนิสิตแพทย์ trip area is gone
-from the booking form, so nothing produces the value any more — no classifier
-branch, no forced assignment, no filter chip, no board tint.
+**`SMUS` (external charter) is LIVE again.** It was retired in `9ccc55a` and
+restored in the commit that follows this doc change: the หลักสูตรนิสิตแพทย์ trip
+area is back on the booking form as the fourth `พื้นที่เดินทาง` option, with its
+`รถบัส (คัน)` / `รถตู้ (คัน)` counts, its 30-**calendar**-day lead-time tier
+(weekends counted, unlike every other tier), and its filter chips.
 
-The enum value and the `externalBusCount` / `externalVanCount` columns are
-**deliberately kept**, and so are the guards that hold such a booking off an
-internal car:
+It is still never produced by the classifier — the form sets `jobType=SMUS`
+directly via a hidden input when that area is chosen, because the choice is the
+requester's, not something derivable from the trip.
+
+The `externalBusCount` / `externalVanCount` columns were never dropped, so the
+restore needed no migration. The guards that hold a charter off an internal car
+are load-bearing and always were — a charter is booked from an outside vendor
+and must never be given a faculty car or driver:
 
 | Guard | File | Why it stays |
 |-------|------|--------------|
 | `jobType: { notIn: ["SMUS", "TJW"] }` | `batch-core.ts` | keeps an old charter out of the daily batch |
 | `jobType === "SMUS"` → refuse | `matching-actions.ts`, `schedule-actions.ts` | refuses to place one on an internal car |
 | `filter(b => b.jobType !== "SMUS")` | `admin/schedule/page.tsx` | keeps one off the rounds board |
-| `checkLeadTime` SMUS tier | `rules.ts` | still applies if an existing charter is rescheduled |
+| `checkLeadTime` SMUS tier | `rules.ts` | the 30-calendar-day floor |
 
-Removing those would make a booking created while the option existed suddenly
-eligible for a car and a driver. A future migration that drops the enum value
-must first move any surviving `SMUS` row to another job type.
+Removing any of them would make a charter eligible for a car and a driver.
+`batch-solver.ts` deliberately has NO `SMUS` entry in its fill order: `batch-core`
+filters the type out upstream, so an entry there would be dead code.
 
 ---
 

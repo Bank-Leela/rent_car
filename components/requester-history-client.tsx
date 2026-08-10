@@ -22,7 +22,7 @@ const FILTERABLE_STATUSES = [
   ...HISTORY_BOOKING_STATUSES,
 ];
 
-const FILTERABLE_JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN"];
+const FILTERABLE_JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
 
 // Pure so it's unit-testable: date-range (on startAt, whole days) + status + type.
 export function filterHistory(

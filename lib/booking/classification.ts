@@ -7,9 +7,10 @@
 // Output is one of TJW | OT | NORMAL. The WERN row in the supervisor's
 // matrix is reserved for the daily duty driver and is never auto-emitted
 // by this classifier — it's driven by the OnCallShift table instead.
-// SMUS (external charter) is retired: it was never returned here either, and
-// nothing produces it any more. The enum value is kept so bookings made while
-// the option existed still load.
+// SMUS (external charter) is never returned here either, though it is very much
+// live: the booking form sets it directly via a hidden input when the
+// หลักสูตรนิสิตแพทย์ trip area is chosen. That is a requester's declaration about
+// who supplies the vehicle, not something derivable from the trip itself.
 
 import type { JobType } from "@prisma/client";
 

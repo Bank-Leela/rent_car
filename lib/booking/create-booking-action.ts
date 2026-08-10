@@ -45,7 +45,12 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     return {
       ok: false,
       field: "startAt",
-      error: te("leadTimeTooSoon", { days: lead.minimumDays }),
+      // SMUS counts calendar days, every other tier counts business days — the
+      // message has to match the tier or the requester reads the wrong rule.
+      error:
+        data.jobType === "SMUS"
+          ? te("leadTimeTooSoonCalendar", { days: lead.minimumDays })
+          : te("leadTimeTooSoon", { days: lead.minimumDays }),
     };
   }
 
@@ -171,10 +176,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       waitingLocation: data.waitingLocation,
       dropOffDone: data.dropOffDone ?? null,
       preferredVehicleType: data.preferredVehicleType,
-      // External charter is retired; the columns stay for bookings made while it
-      // existed, and a new booking never writes them.
-      externalBusCount: null,
-      externalVanCount: null,
+      // External charter (SMUS) only — null otherwise.
+      externalBusCount: data.jobType === "SMUS" ? data.externalBusCount ?? 0 : null,
+      externalVanCount: data.jobType === "SMUS" ? data.externalVanCount ?? 0 : null,
     };
 
     const parent = await tx.booking.create({
