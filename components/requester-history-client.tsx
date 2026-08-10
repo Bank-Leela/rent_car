@@ -50,6 +50,7 @@ export function RequesterHistoryClient({
   const t = useTranslations("listSearch");
   const th = useTranslations("historyFilters");
   const tjt = useTranslations("jobType");
+  const tdoc = useTranslations("requesterUpcoming");
   const params = useSearchParams();
   const [fromDate, setFromDate] = useState(params.get("fromDate") ?? "");
   const [toDate, setToDate] = useState(params.get("toDate") ?? "");
@@ -185,7 +186,7 @@ export function RequesterHistoryClient({
           rows.length === 0 ? (
             <EmptyState icon={FileText} title={t("noMatches")} />
           ) : (
-            <RequesterBookingList bookings={rows} />
+            <RequesterBookingList bookings={rows} documentLabel={tdoc("downloadDocument")} />
           )
         }
       />

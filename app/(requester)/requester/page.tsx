@@ -55,6 +55,7 @@ export default async function RequesterHome() {
     province: b.province,
     startAt: b.startAt,
     vehicle: b.vehicle ? { registrationNumber: b.vehicle.registrationNumber } : null,
+    hasPdf: !!b.pdfUrl,
   }));
 
   const newBookingButton = (
