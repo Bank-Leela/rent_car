@@ -145,3 +145,100 @@ describe("approveBookingAction email", () => {
     expect(adminCall, "should email admins").toBeDefined();
   });
 });
+
+// The capacity gate at approval. "Full" is forced deterministically by marking
+// every active driver off for the day, so recommendForBookings finds no pool and
+// returns kind:"none" — the same verdict a genuinely saturated day produces,
+// without having to fabricate a full fleet's worth of trips.
+describe("approval capacity gate", () => {
+  const offDay = new Date("2027-03-17T00:00:00");
+  let driverIds: string[] = [];
+
+  beforeAll(async () => {
+    const drivers = await prisma.driver.findMany({
+      where: { isActive: true, user: { is: { isActive: true } } },
+      select: { id: true },
+    });
+    driverIds = drivers.map((d) => d.id);
+    for (const id of driverIds) {
+      await prisma.driverUnavailability.upsert({
+        where: { driverId_date: { driverId: id, date: offDay } },
+        create: { driverId: id, date: offDay, reason: "capacity-gate test" },
+        update: {},
+      });
+    }
+  });
+
+  afterAll(async () => {
+    await prisma.driverUnavailability.deleteMany({ where: { date: offDay } });
+  });
+
+  async function bookingOn(day: Date, extra: Record<string, unknown> = {}) {
+    const requester = await prisma.user.findUniqueOrThrow({
+      where: { id: REQUESTER_ID },
+      select: { departmentId: true },
+    });
+    const start = new Date(day);
+    start.setHours(9, 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(11, 0, 0, 0);
+    const b = await prisma.booking.create({
+      data: {
+        requesterId: REQUESTER_ID,
+        departmentId: requester.departmentId!,
+        purpose: "capacity gate",
+        destination: "Test",
+        province: "กรุงเทพมหานคร",
+        startAt: start,
+        endAt: end,
+        passengerCount: 1,
+        status: "PENDING_APPROVAL",
+        jobType: "NORMAL",
+        timeBucket: "MORNING_08_12",
+        ...extra,
+      },
+      select: { id: true },
+    });
+    cleanup.push(b.id);
+    return b.id;
+  }
+
+  it("refuses approval when no car can serve the day and no outside rental was accepted", async () => {
+    const id = await bookingOn(offDay, { needsOutsourcing: false });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    const res = (await approveBookingAction(fd)) as { ok: boolean; dayFull?: boolean };
+
+    expect(res.ok).toBe(false);
+    expect(res.dayFull, "the queue needs this flag to reveal its Deny button").toBe(true);
+
+    // Must stay PENDING_APPROVAL — the only status denyByApproverAction accepts,
+    // so the refusal leaves the approver able to act on it.
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("PENDING_APPROVAL");
+  });
+
+  it("sends it to ส่งรถนอก instead of refusing when the requester accepted an outside rental", async () => {
+    const id = await bookingOn(offDay, { needsOutsourcing: true });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    expect((await approveBookingAction(fd)).ok).toBe(true);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("OUTSOURCED");
+    expect(after.needsOutsourcing).toBe(true);
+  });
+
+  it("does not gate a เวร booking — the duty car serves it, so the recommender always says none", async () => {
+    // Without the jobType exemption this would refuse EVERY in-Chula booking as
+    // "day full", because recommendPlacement returns none for WERN by design.
+    const id = await bookingOn(offDay, { jobType: "WERN", travelWithinChula: true });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    const res = await approveBookingAction(fd);
+    expect(res.ok, "WERN must pass the gate untouched").toBe(true);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("AWAITING_DOCUMENT");
+  });
+});

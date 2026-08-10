@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { prisma } from "@/lib/db";
 import { runBatchForDay } from "@/lib/booking/batch-core";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
+import { dayHasRoomFor } from "@/lib/booking/approval-capacity";
 import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
 import {
@@ -92,6 +93,27 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     confirmedEndAt = endAt;
   }
 
+  // Is there a car for this trip at all? Asked here, at the decision point,
+  // because the submit-time slot count is stale by now — see approval-capacity.
+  const room = await dayHasRoomFor(booking);
+  const dayFull = room.gated && !room.fits;
+
+  // A full day with no outside-rental option is not something to approve: the
+  // fleet cannot serve it, so refuse and let P'Top deny from the queue. The
+  // booking stays PENDING_APPROVAL, which is the only status denyByApproverAction
+  // accepts.
+  if (dayFull && !booking.needsOutsourcing) {
+    // `dayFull` rides along so the queue can reveal its Deny button — the fleet
+    // being full is the one refusal the approver is expected to act on, not
+    // just read.
+    return {
+      ok: false,
+      field: "startAt",
+      error: te("dayFullCannotApprove"),
+      dayFull: true,
+    } as ActionResult & { dayFull: true };
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.approval.create({
       data: {
@@ -105,10 +127,17 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     await tx.booking.update({
       where: { id: bookingId },
       data: {
-        // Approving no longer hands out a car. The booking waits here until the
-        // signed official form is back and an ADMIN confirms it
-        // (approveDocumentAction), which is what runs จัด.
-        status: "AWAITING_DOCUMENT",
+        // Approving no longer hands out a car. The booking waits at
+        // AWAITING_DOCUMENT until the signed official form is back and an ADMIN
+        // confirms it (approveDocumentAction), which is what runs จัด.
+        //
+        // Unless the fleet is full AND the requester accepted an outside rental:
+        // then there is no internal car to wait for, so it goes straight to
+        // OUTSOURCED and leaves the internal pipeline for the timeline board's
+        // per-day outside-vehicle row. Staff may still deny it later if no
+        // vendor can be found — which is exactly what the form's notice says.
+        status: dayFull ? "OUTSOURCED" : "AWAITING_DOCUMENT",
+        ...(dayFull ? { needsOutsourcing: true } : {}),
         decidedAt: new Date(),
         // One-way: replace the provisional end with the admin-set time.
         ...(confirmedEndAt ? { endAt: confirmedEndAt } : {}),
@@ -118,9 +147,12 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       bookingId,
       actorUserId: userId,
       fromStatus: booking.status,
-      toStatus: "AWAITING_DOCUMENT",
-      action: "BOOKING_APPROVED",
-      metadata: comment ? { comment } : undefined,
+      toStatus: dayFull ? "OUTSOURCED" : "AWAITING_DOCUMENT",
+      action: dayFull ? "BOOKING_APPROVED_OUTSOURCED_DAY_FULL" : "BOOKING_APPROVED",
+      metadata: {
+        ...(comment ? { comment } : {}),
+        ...(dayFull ? { reason: "no legal car on the day; requester accepted an outside rental" } : {}),
+      },
       tx,
     });
   });

@@ -12,6 +12,7 @@
     "alreadyEvaluated": "ประเมินไปแล้ว",
     "cannotAssignInStatus": "ไม่สามารถจัดรถในสถานะนี้ได้ ({status})",
     "cannotDenyInStatus": "ไม่สามารถปฏิเสธในสถานะนี้ได้ ({status})",
+    "dayFullCannotApprove": "วันนี้ไม่มีรถที่จัดให้งานนี้ได้แล้ว (เต็ม) — ผู้ขอไม่ได้เลือกให้จัดหารถเช่าจากภายนอก จึงอนุมัติไม่ได้ กด “ไม่อนุมัติ” เพื่อปฏิเสธคำขอ",
     "cannotApproveInStatus": "ไม่สามารถอนุมัติในสถานะนี้ได้ ({status})",
     "cannotCancelInStatus": "ไม่สามารถยกเลิกในสถานะนี้ได้ ({status})",
     "cannotOutsourceInStatus": "ไม่สามารถเช่าจากภายนอกในสถานะนี้ได้ ({status})",

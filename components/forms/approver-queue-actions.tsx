@@ -40,10 +40,16 @@ export function ApproverQueueActions({
   const [denyOpen, setDenyOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [confirmedEnd, setConfirmedEnd] = useState(endAt ?? "");
+  // Set when approve is refused because no car can serve the day. The fleet
+  // being full is the one refusal the approver has to ACT on, so Deny appears
+  // here rather than making them open the detail page to find it.
+  const [dayFull, setDayFull] = useState(false);
 
   const approve = useFormAction(approveBookingAction, {
     bookingId,
     onSuccess: () => router.refresh(),
+    onResult: (res) =>
+      setDayFull(!!(res && !res.ok && (res as { dayFull?: boolean }).dayFull)),
   });
   const deny = useFormAction(denyByApproverAction, {
     bookingId,
@@ -124,7 +130,7 @@ export function ApproverQueueActions({
         <Check className="h-4 w-4" />
         {approve.pending ? t("approving") : t("approve")}
       </Button>
-      {canDeny && (
+      {(canDeny || dayFull) && (
         <Button
           type="button"
           variant="destructive"
