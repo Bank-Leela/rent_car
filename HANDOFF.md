@@ -12,14 +12,59 @@ role removed**, station-only drivers), an admin **driver-management** section,
 a **QoL** pass (toasts/skeletons/search/empty-states), header/profile UI polish,
 and (2026-07-08→09) an audit-driven UX pass, the **official Thai form PDF**,
 gated **Adobe Sign / Google Maps** integrations, a **LESS** submission tracker,
-and the **nginx/Linux deployment kit** (see the two newest sessions).
-**Test suite: 350 tests across 42 files** (was 255 / 25).
+and the **nginx/Linux deployment kit**, then (2026-07-17→08-10) a pre-deployment
+audit and the go-live pass it triggered: a **driver leave/sick-day** rework, the
+**drag-and-drop timeline restored** alongside the rounds board, a **รอเอกสาร**
+stage between approval and dispatch, and the **VB job number deleted** outright.
+**Test suite: 389 tests across 43 files** (was 350 / 42).
 
 > The session entries below are newest-first. Entries under **Earlier sessions**
 > predate 2026-06-22 and are kept for architecture context; where a newer change
 > overrode them it's flagged ⚠️.
 
 ---
+
+### Session 2026-08-10 — leave rework, รอเอกสาร stage, job number deleted
+
+Go-live pass. Suite now **389 tests / 43 files**. Two schema migrations, both
+applied: `20260810120000_audit_non_booking_events`,
+`20260810140000_awaiting_document_status`, `20260810150000_drop_job_number`.
+
+- **Driver leave is seat-aware** (`9861a48`): `handOffToDuty` used to write
+  `primaryDriverId = เวร, secondaryDriverId = null` whatever seat the absent
+  driver held, so marking the **co-driver** of a >400 km trip sick threw the
+  primary off their own trip and dropped the second driver the rule requires.
+  Now the sick co-driver costs only that seat, and a primary hand-off KEEPS the
+  existing co-driver. A trip that started on an earlier day or has already
+  departed is flagged `DRIVER_OFF_NEEDS_REVIEW`, never re-dispatched. The
+  affected-trip scan is an overlap query, not start-in-day. Full rule:
+  `docs/scheduling-algorithm.md` **§9b**.
+- **Audit log widened past bookings** (`9861a48`): `AuditLog.bookingId` is
+  nullable with `entityType`/`entityId`, and `logEvent()` records the three
+  decisions that previously left no trace — leave marked/cleared, a เวร day
+  swapped by hand, a car re-paired or removed.
+- **Overflow lifecycle fixed** (`233c835`): placing a trip by hand now clears
+  `overflowReason` (it did not, so a resolved trip returned to the bar with no
+  way to dismiss it), `/admin/batch` requires `primaryDriverId: null` so a frozen
+  trip can't be one-click re-dispatched, and `clearLeaveDay` decides per trip
+  instead of wiping flags another off-day still justifies.
+- **รอเอกสาร stage** (`7661d73`): `AWAITING_DOCUMENT` sits BEFORE `APPROVED` in
+  the enum on purpose — everything keyed on APPROVED is untouched; only *when*
+  จัด runs moved. `approve → รอเอกสาร → [เอกสารเรียบร้อย, ADMIN only] → APPROVED
+  + จัด`. `ดาวน์โหลดเอกสาร` on every card that has a generated form.
+- **VB job number deleted** (`1eff538`): gone from schema, database and 45 files.
+  Email subjects and the PDF download filename now use ชื่อการจอง / destination;
+  seed and test teardowns re-keyed from job-number prefixes onto tag-scoped
+  `purpose` prefixes (a naive removal would have widened those WHEREs to every
+  booking). Dropped a Postgres advisory lock + count that ran on every insert.
+- **SMUS restored** (`37df786`): `9ccc55a` had retired it, taking the 4th
+  `พื้นที่เดินทาง` button (`หลักสูตรนิสิตแพทย์`) and leaving a hole in a 2×2 grid
+  built for four. Back with its bus/van counts and 30-**calendar**-day lead tier.
+  ⚠️ §2 of the algorithm doc previously said SMUS was retired — it is live.
+- **UI** (`bb0dfcc`, `68ae907`): all three native `<select>` elements converted to
+  `SelectField` (an open `<select>` is OS-drawn and ignores the theme),
+  วัตถุประสงค์ → **ชื่อการจอง**, คอนโซล → รายการคำขอ, and the timeline's unplaced
+  cards no longer print a recommended plate/driver as though already assigned.
 
 ### Session 2026-07-09 — official form, integrations, deployment kit
 
