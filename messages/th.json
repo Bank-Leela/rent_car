@@ -99,7 +99,9 @@
     "theme": "ธีม",
     "apply": "ใช้",
     "inChula": "ในจุฬาฯ",
-    "outsideChula": "นอกจุฬาฯ"
+    "outsideChula": "นอกจุฬาฯ",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน"
   },
   "errorPage": {
     "title": "เกิดข้อผิดพลาด",
