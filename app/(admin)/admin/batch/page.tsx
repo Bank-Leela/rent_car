@@ -158,6 +158,12 @@ export default async function AdminBatchPage({
     prisma.booking.findMany({
       where: {
         overflowReason: { not: null },
+        // An overflow is something the solver could NOT place. Without this a
+        // booking that already has a driver but a stale reason shows up here
+        // with a one-click assign — including the trips leave-core deliberately
+        // froze (DRIVER_OFF_NEEDS_REVIEW), which would let one click undo the
+        // "never re-dispatch an in-flight trip" decision.
+        primaryDriverId: null,
         startAt: { gte: dayStart, lt: dayEnd },
       },
       orderBy: { createdAt: "asc" },

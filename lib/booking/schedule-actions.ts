@@ -170,6 +170,11 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
           status: "ASSIGNED",
           driverScheduleStatus: "CONFIRMED",
           decidedAt: new Date(),
+          // Placing it by hand IS the resolution — the reason it could not be
+          // placed, or was frozen for review, stops being true here. Without
+          // this the trip returns to the day's overflow bar the moment the page
+          // refreshes, with no way left to dismiss it but unassigning again.
+          overflowReason: null,
         },
       });
       await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
@@ -203,6 +208,7 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
     select: {
       id: true, primaryDriverId: true, startAt: true, endAt: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      overflowReason: true,
     },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
@@ -258,7 +264,15 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
   if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
 
   await prisma.$transaction(async (tx) => {
-    await tx.booking.update({ where: { id: bookingId }, data: { secondaryDriverId: newSecondary } });
+    await tx.booking.update({
+      where: { id: bookingId },
+      // Filling the co-driver seat resolves NO_SECONDARY_DRIVER — the only
+      // reason this action can be the answer to. Leave any other reason alone.
+      data: {
+        secondaryDriverId: newSecondary,
+        ...(booking.overflowReason === "NO_SECONDARY_DRIVER" ? { overflowReason: null } : {}),
+      },
+    });
     await tx.driver.update({ where: { id: newSecondary }, data: { lastAssignedAt: booking.startAt } });
   });
   revalidatePath("/admin/schedule");

@@ -225,6 +225,9 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
         secondaryDriverId,
         driverScheduleStatus: "CLAIMED",
         decidedAt: new Date(),
+        // Matched by hand — whatever reason it carried for not being placed is
+        // no longer true, and a stale one keeps it in the overflow bar for good.
+        overflowReason: null,
       },
     });
     await tx.bookingClaim.create({

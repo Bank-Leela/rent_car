@@ -401,15 +401,48 @@ export async function clearLeaveDay(driverId: string, date: Date, adminId: strin
   const { count } = await prisma.driverUnavailability.deleteMany({ where: { driverId, date: day } });
   if (count === 0) return; // nothing was marked — no flag of ours to clear, nothing to log
 
-  await prisma.booking.updateMany({
+  // Per trip, not in bulk: one day of a five-day range being cleared does not
+  // mean the trip is unblocked, and a trip can be flagged because of a DIFFERENT
+  // driver's leave entirely. Clear only when no remaining off-day of any driver
+  // on the trip still overlaps it.
+  const flagged = await prisma.booking.findMany({
     where: {
       overflowReason: "DRIVER_OFF_NEEDS_REVIEW",
       startAt: { lt: endOfDay(day) },
       endAt: { gt: day },
       OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
     },
-    data: { overflowReason: null },
+    select: {
+      id: true, startAt: true, endAt: true,
+      primaryDriverId: true, secondaryDriverId: true,
+      needsSecondaryDriver: true, estimatedDistance: true,
+    },
   });
+
+  for (const b of flagged) {
+    const crew = [b.primaryDriverId, b.secondaryDriverId].filter((x): x is string => !!x);
+    const stillAway = crew.length
+      ? await prisma.driverUnavailability.count({
+          where: {
+            driverId: { in: crew },
+            date: { gte: startOfDay(b.startAt), lte: startOfDay(b.endAt) },
+          },
+        })
+      : 0;
+    if (stillAway > 0) continue; // another off-day still justifies the flag
+
+    // The flag overwrote whatever reason was there before, so restoring null
+    // blindly would hide a >400 km trip that is genuinely short a co-driver.
+    const needsCoDriver =
+      b.needsSecondaryDriver || (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
+    await prisma.booking.update({
+      where: { id: b.id },
+      data: {
+        overflowReason:
+          needsCoDriver && !b.secondaryDriverId ? "NO_SECONDARY_DRIVER" : null,
+      },
+    });
+  }
 
   await logEvent({
     actorUserId: adminId,
