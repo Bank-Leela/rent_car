@@ -12,6 +12,15 @@ type BookingDetailed = Booking & {
 
 const fmt = (d: Date) => format(d, "EEE d MMM yyyy HH:mm", { locale: th });
 
+// What names the trip in a subject line: its ชื่อการจอง, falling back to the
+// destination for the schemas that allow an empty one. `purpose` is free text
+// with no upper bound, so it is collapsed and clipped — a subject only has to
+// be distinguishable from its neighbours in an inbox list.
+function tripName(b: BookingDetailed): string {
+  const name = (b.purpose.trim() || b.destination).replace(/\s+/g, " ").trim();
+  return name.length > 60 ? `${name.slice(0, 59)}…` : name;
+}
+
 function appBaseUrl(): string {
   return process.env.APP_URL ?? process.env.NEXTAUTH_URL ?? "";
 }
@@ -38,9 +47,8 @@ function ctaButtonText(url: string, label: string): string {
 
 function bookingFactsText(b: BookingDetailed): string {
   return [
-    `เลขที่งาน: ${b.jobNumber}`,
     `ผู้ขอใช้รถ: ${b.requester.name ?? b.requester.email} (${b.department.nameTh})`,
-    `วัตถุประสงค์: ${b.purpose}`,
+    `ชื่อการจอง: ${b.purpose}`,
     `ปลายทาง: ${b.destination} (${b.province})`,
     `เริ่ม: ${fmt(b.startAt)}`,
     `สิ้นสุด (กลับถึงคณะ): ${fmt(b.endAt)}`,
@@ -62,12 +70,11 @@ function bookingFactsText(b: BookingDetailed): string {
 
 function bookingFactsHtml(b: BookingDetailed): string {
   const rows: Array<[string, string]> = [
-    ["เลขที่งาน", b.jobNumber],
     [
       "ผู้ขอใช้รถ",
       `${b.requester.name ?? b.requester.email} (${b.department.nameTh})`,
     ],
-    ["วัตถุประสงค์", b.purpose],
+    ["ชื่อการจอง", b.purpose],
     ["ปลายทาง", `${b.destination} (${b.province})`],
     ["เริ่ม", fmt(b.startAt)],
     ["สิ้นสุด (กลับถึงคณะ)", fmt(b.endAt)],
@@ -113,7 +120,7 @@ function wrapHtml(intro: string, body: string, cta: string): string {
 // ---- Templates ----
 
 export function adminNewBookingEmail(b: BookingDetailed) {
-  const subject = `[ใหม่ ${b.jobNumber}] ${b.requester.name ?? b.requester.email}`;
+  const subject = `[ใหม่ ${tripName(b)}] ${b.requester.name ?? b.requester.email}`;
   const introTh = `มีการจองใหม่รออนุมัติ`;
   const url = viewUrl(`/admin/${b.id}`);
   return {
@@ -128,7 +135,7 @@ export function adminNewBookingEmail(b: BookingDetailed) {
 }
 
 export function requesterAssignedEmail(b: BookingDetailed) {
-  const subject = `จัดรถแล้ว · ${b.jobNumber}`;
+  const subject = `จัดรถแล้ว · ${tripName(b)}`;
   const introTh = `การจองของคุณได้รับการจัดรถและพนักงานขับรถแล้ว`;
   const url = viewUrl(`/requester/${b.id}`);
   return {
@@ -143,7 +150,7 @@ export function requesterAssignedEmail(b: BookingDetailed) {
 }
 
 export function requesterDeniedEmail(b: BookingDetailed, reason: string) {
-  const subject = `ไม่อนุมัติ · ${b.jobNumber}`;
+  const subject = `ไม่อนุมัติ · ${tripName(b)}`;
   const introTh = `คำขอใช้รถของคุณไม่ได้รับอนุมัติ เหตุผล: ${reason}`;
   const url = viewUrl(`/requester/${b.id}`);
   return {
@@ -161,7 +168,7 @@ export function requesterDeniedEmail(b: BookingDetailed, reason: string) {
 // reminder (an unevaluated COMPLETED booking blocks the requester's next
 // booking) — there is no job scheduler, so this immediate email is the nudge.
 export function requesterCompletedEmail(b: BookingDetailed) {
-  const subject = `เสร็จสิ้น · ${b.jobNumber}`;
+  const subject = `เสร็จสิ้น · ${tripName(b)}`;
   const introTh = `การเดินทางของคุณเสร็จสิ้นแล้ว กรุณาประเมินการเดินทาง (จำเป็นก่อนจองครั้งถัดไป)`;
   const url = viewUrl(`/requester/${b.id}`);
   return {
@@ -178,7 +185,7 @@ export function requesterCompletedEmail(b: BookingDetailed) {
 // Sent to the requester when someone ELSE (an admin) cancels their booking —
 // a requester cancelling their own booking gets no self-email.
 export function requesterCancelledEmail(b: BookingDetailed, reason: string) {
-  const subject = `ยกเลิกแล้ว · ${b.jobNumber}`;
+  const subject = `ยกเลิกแล้ว · ${tripName(b)}`;
   const introTh = `การจองของคุณถูกยกเลิกโดยเจ้าหน้าที่ เหตุผล: ${reason}`;
   const url = viewUrl(`/requester/${b.id}`);
   return {
@@ -195,7 +202,7 @@ export function requesterCancelledEmail(b: BookingDetailed, reason: string) {
 // Sent to the requester when their booking is handed to an outside vendor
 // (bus/charter or over-capacity overflow) instead of a fleet car.
 export function requesterOutsourcedEmail(b: BookingDetailed, vendor: string) {
-  const subject = `จ้างรถภายนอก · ${b.jobNumber}`;
+  const subject = `จ้างรถภายนอก · ${tripName(b)}`;
   const introTh = `การจองของคุณถูกจัดเป็นการจ้างรถภายนอก โดย: ${vendor}`;
   const url = viewUrl(`/requester/${b.id}`);
   return {
@@ -213,7 +220,7 @@ export function requesterOutsourcedEmail(b: BookingDetailed, vendor: string) {
 // acted on (approved / assigned) — the slot is freed and P'Top may want to
 // re-fill it or clear the board.
 export function adminBookingCancelledEmail(b: BookingDetailed, reason: string) {
-  const subject = `[ยกเลิก ${b.jobNumber}] คืนสล็อตว่าง`;
+  const subject = `[ยกเลิก ${tripName(b)}] คืนสล็อตว่าง`;
   const introTh = `ผู้ขอยกเลิกการจองที่จัดรถ/อนุมัติแล้ว สล็อตถูกคืนคิว เหตุผล: ${reason}`;
   const url = viewUrl(`/admin/${b.id}`);
   return {
@@ -231,7 +238,7 @@ export function adminBookingCancelledEmail(b: BookingDetailed, reason: string) {
 // was marked off (sick/leave). The trip is back in the APPROVED queue for
 // P'Top to re-dispatch (e.g. onto the duty car).
 export function requesterDriverOffEmail(b: BookingDetailed) {
-  const subject = `ต้องจัดรถใหม่ needed · ${b.jobNumber}`;
+  const subject = `ต้องจัดรถใหม่ needed · ${tripName(b)}`;
   const introTh = `พนักงานขับรถที่ได้รับมอบหมายลางาน การจองของคุณกำลังถูกจัดรถใหม่ เวลาเดินทางเดิมไม่เปลี่ยน`;
   const url = viewUrl(`/requester/${b.id}`);
   return {
@@ -249,7 +256,7 @@ export function requesterDriverOffEmail(b: BookingDetailed) {
 // (ASSIGNED) trip: the assignment was cleared and the trip is back in the
 // APPROVED queue for re-dispatch at the new time.
 export function adminTimeChangedEmail(b: BookingDetailed) {
-  const subject = `[เปลี่ยนเวลา ${b.jobNumber}] ต้องจัดรถใหม่`;
+  const subject = `[เปลี่ยนเวลา ${tripName(b)}] ต้องจัดรถใหม่`;
   const introTh = `ผู้ขอเปลี่ยนเวลาเดินทางของงานที่จัดรถแล้ว ระบบได้ปลดรถ/คนขับออก และย้ายงานกลับคิวรอจัดรถ`;
   const url = viewUrl(`/admin/${b.id}`);
   return {
@@ -264,7 +271,7 @@ export function adminTimeChangedEmail(b: BookingDetailed) {
 }
 
 export function requesterApprovedEmail(b: BookingDetailed) {
-  const subject = `อนุมัติแล้ว · ${b.jobNumber}`;
+  const subject = `อนุมัติแล้ว · ${tripName(b)}`;
   const introTh = `การจองของคุณได้รับการอนุมัติจากหัวหน้าภาควิชาแล้ว · ผู้ดูแลระบบจะจัดรถให้ในขั้นตอนถัดไป`;
   const url = viewUrl(`/requester/${b.id}`);
   return {

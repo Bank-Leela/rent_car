@@ -70,11 +70,6 @@ async function main() {
     update: { driverId: dutyDriver.id },
   });
 
-  // 3. Job-number sequence.
-  const ym = `VB-${dayStart.getFullYear()}${String(dayStart.getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({ where: { jobNumber: { startsWith: ym } }, select: { jobNumber: true } });
-  let next = peers.map((p) => Number(p.jobNumber.split("-").pop() ?? 0)).reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
-
   const base = {
     requesterId: requester.id,
     departmentId: requester.departmentId!,
@@ -88,11 +83,10 @@ async function main() {
     estimatedDistance: 10,
   };
 
-  // 4a. One ASSIGNED booking (car + driver) so a car shows occupied — realism.
+  // 3a. One ASSIGNED booking (car + driver) so a car shows occupied — realism.
   await prisma.booking.create({
     data: {
       ...base,
-      jobNumber: `${ym}-${next++}`,
       purpose: "FreeDayDemo: assigned campus run",
       destination: "Faculty of Medicine",
       startAt: at(8),
@@ -105,12 +99,11 @@ async function main() {
     },
   });
 
-  // 4a-2. An ASSIGNED block at a NON-round time (08:15–09:45) so you can see the
+  // 3a-2. An ASSIGNED block at a NON-round time (08:15–09:45) so you can see the
   //       timeline render minutes precisely (block starts a quarter past 08:00).
   await prisma.booking.create({
     data: {
       ...base,
-      jobNumber: `${ym}-${next++}`,
       purpose: "FreeDayDemo: 08:15 quarter-past pickup",
       destination: "Main gate",
       startAt: at(8, 15),
@@ -123,13 +116,12 @@ async function main() {
     },
   });
 
-  // 4b. Two UNASSIGNED queue jobs (no car, no driver) — drag these onto an open
+  // 3b. Two UNASSIGNED queue jobs (no car, no driver) — drag these onto an open
   //     car; a free driver will be assigned (green block).
   for (const [h, label] of [[9, "morning lab supply"], [13, "afternoon ajarn ride"]] as const) {
     await prisma.booking.create({
       data: {
         ...base,
-        jobNumber: `${ym}-${next++}`,
         purpose: `FreeDayDemo: queue ${label}`,
         destination: label,
         startAt: at(h),

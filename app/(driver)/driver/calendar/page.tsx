@@ -216,7 +216,7 @@ export default async function DriverCalendar({
                       className={`block rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${formatTh(b.startAt, "EEE HH:mm")}–${formatTh(b.endAt, "EEE HH:mm")} · ${b.destination}`}
+                      title={`${formatTh(b.startAt, "EEE HH:mm")}–${formatTh(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
                       <div className="font-medium truncate">
                         {cellTime(b.startAt, b.endAt, span)} {b.vehicle?.registrationNumber ?? "—"}

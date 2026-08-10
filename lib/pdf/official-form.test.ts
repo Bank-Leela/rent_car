@@ -5,7 +5,6 @@ import { bookingToFormFields, fitFontSize, fillVehicleForm, type OfficialFormBoo
 function makeBooking(over: Partial<OfficialFormBooking> = {}): OfficialFormBooking {
   const base = {
     id: "b1",
-    jobNumber: "J-001",
     status: "APPROVED",
     destination: "โรงพยาบาลจุฬาลงกรณ์",
     province: "กรุงเทพมหานคร",

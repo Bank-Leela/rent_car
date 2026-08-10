@@ -52,7 +52,7 @@ function TimelineBlock({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
+      title={`${b.timeLabel} · ${b.purpose} → ${b.destination}`}
       className={`group absolute cursor-grab touch-none overflow-hidden rounded-md border px-2 py-1 text-left text-[11px] shadow-sm transition-shadow hover:z-10 hover:shadow-md active:cursor-grabbing ${
         jobStyle(b.jobType).block
       } ${
@@ -170,7 +170,7 @@ function CoDriverGhost({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      title={`${b.jobNumber} · ${b.timeLabel} · ${coDriverLabel}${b.driverName ? " → " + b.driverName : ""} · ${b.purpose}`}
+      title={`${b.timeLabel} · ${coDriverLabel}${b.driverName ? " → " + b.driverName : ""} · ${b.purpose}`}
       className={`absolute cursor-grab touch-none overflow-hidden rounded-md border border-dashed border-violet-400/70 bg-violet-50 px-2 py-1 text-left text-[11px] text-violet-900 hover:z-10 active:cursor-grabbing dark:bg-violet-950/30 dark:text-violet-200 ${
         b.continuesBefore ? "rounded-l-none border-l-4" : ""
       } ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}
@@ -204,7 +204,7 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose}`}
+      title={`${b.timeLabel} · ${b.purpose}`}
       className={`w-56 cursor-grab touch-none rounded-md border p-2 text-left text-xs shadow-sm active:cursor-grabbing ${jobStyle(b.jobType).block}`}
       style={{ opacity: isDragging ? 0.4 : 1 }}
     >
@@ -274,7 +274,7 @@ export function CoDriverQueueCard({ b, label }: { b: SchedulerBooking; label: st
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      title={`${b.jobNumber} · ${b.timeLabel} · ${label}${b.driverName ? " → " + b.driverName : ""}`}
+      title={`${b.timeLabel} · ${b.purpose} · ${label}${b.driverName ? " → " + b.driverName : ""}`}
       className="w-56 cursor-grab touch-none rounded-md border border-dashed border-violet-400/70 bg-violet-50 p-2 text-left text-xs shadow-sm active:cursor-grabbing dark:bg-violet-950/30 dark:text-violet-200"
       style={{ opacity: isDragging ? 0.4 : 1 }}
     >
@@ -315,7 +315,7 @@ function ReturnLegGhost({
   const width = Math.max(pctOf(leg.endHour, dayStart, dayHours) - left, 1.2);
   return (
     <div
-      title={`${b.jobNumber} · ${returnLegLabel} · ${leg.timeLabel}–${leg.endLabel}`}
+      title={`${b.destination} · ${returnLegLabel} · ${leg.timeLabel}–${leg.endLabel}`}
       className={`absolute overflow-hidden rounded-md border border-dashed px-2 py-1 text-left text-[11px] opacity-80 ${jobStyle(b.jobType).block}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
     >
@@ -521,7 +521,7 @@ function ExtBlock({
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      title={`${b.jobNumber} · ${b.timeLabel} · ${b.purpose} → ${b.destination}`}
+      title={`${b.timeLabel} · ${b.purpose} → ${b.destination}`}
       className={`absolute cursor-grab touch-none overflow-hidden rounded-md border border-dashed border-zinc-400 bg-zinc-100 px-2 py-1 text-left text-[11px] text-zinc-800 active:cursor-grabbing dark:border-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-200 ${
         b.continuesBefore ? "rounded-l-none border-l-4" : ""
       } ${b.continuesAfter ? "rounded-r-none border-r-4" : ""}`}

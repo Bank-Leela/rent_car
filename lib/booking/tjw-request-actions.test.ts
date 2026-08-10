@@ -41,10 +41,9 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-function tjw(purpose: string, createdAt: string, jobNumber: string) {
+function tjw(purpose: string, createdAt: string) {
   return prisma.booking.create({
     data: {
-      jobNumber,
       requesterId: "seed-user-requester",
       departmentId: deptId,
       purpose,
@@ -66,8 +65,8 @@ function tjw(purpose: string, createdAt: string, jobNumber: string) {
 describe("assignTjwByRequestOrder", () => {
   it("assigns overlapping TJW in request order to distinct drivers", async () => {
     // r1 requested earlier (25 Jun); r2 later (26 Jun). Same span ⇒ distinct drivers.
-    const r1 = await tjw("TJWReqTest-1", "2026-06-25T00:00:00", "VB-TJWREQ-1");
-    const r2 = await tjw("TJWReqTest-2", "2026-06-26T00:00:00", "VB-TJWREQ-2");
+    const r1 = await tjw("TJWReqTest-1", "2026-06-25T00:00:00");
+    const r2 = await tjw("TJWReqTest-2", "2026-06-26T00:00:00");
 
     const res = await assignTjwByRequestOrder();
     expect(res.ok).toBe(true);
@@ -133,7 +132,6 @@ describe("assignTjwByRequestOrder", () => {
     for (const d of busy) {
       await prisma.booking.create({
         data: {
-          jobNumber: `VB-TJWX-${d}`,
           requesterId: "seed-user-requester",
           departmentId: deptId,
           purpose: "TJWReqTest-3",
@@ -151,7 +149,7 @@ describe("assignTjwByRequestOrder", () => {
       });
     }
 
-    const r = await tjw("TJWReqTest-3", "2026-06-25T00:00:00", "VB-TJWX-req");
+    const r = await tjw("TJWReqTest-3", "2026-06-25T00:00:00");
     void span;
     const res = await assignTjwByRequestOrder();
     expect(res.ok).toBe(true);

@@ -336,7 +336,7 @@ function TimelineView({
                     <Link
                       key={b.id}
                       href={`/admin/${b.id}`}
-                      title={`${b.jobNumber} · ${formatTh(b.startAt, "EEE HH:mm")}–${format(
+                      title={`${formatTh(b.startAt, "EEE HH:mm")}–${format(
                         b.endAt,
                         "EEE HH:mm",
                       )} · ${b.purpose} · ${b.destination}`}

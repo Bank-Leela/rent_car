@@ -109,7 +109,6 @@ describe("setDriverUnavailableAction releases claimed (APPROVED) trips, not only
     // A CLAIMED-but-not-confirmed trip: status APPROVED, primaryDriverId set.
     const booking = await prisma.booking.create({
       data: {
-        jobNumber: `REL-${relStamp}`,
         requesterId: "seed-user-requester",
         departmentId: "seed-dept-medicine",
         purpose: "release-test",
@@ -208,7 +207,6 @@ describe("a sick CO-DRIVER does not cost the trip its primary driver", () => {
     // >400 km ⇒ the co-driver is required, not decorative.
     const booking = await prisma.booking.create({
       data: {
-        jobNumber: `CODRV-${s}`,
         requesterId: "seed-user-requester",
         departmentId: "seed-dept-medicine",
         purpose: "co-driver-test",
@@ -295,7 +293,6 @@ describe("a multi-day trip spanning the leave day is flagged, never re-dispatche
 
     const booking = await prisma.booking.create({
       data: {
-        jobNumber: `SPAN-${s}`,
         requesterId: "seed-user-requester",
         departmentId: "seed-dept-medicine",
         purpose: "span-test",

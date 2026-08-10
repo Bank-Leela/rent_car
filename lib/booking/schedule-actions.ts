@@ -24,7 +24,8 @@ const toLegSrc = (b: LegRow): LegSource => ({
 // no assigned driver. The board maps the error code to a message.
 // On a `vehicleBusy` block, the conflicting trip(s) ride back so the board can
 // name them — vital for a multi-day trip whose clash is on a day not on screen.
-export type ReassignConflict = { jobNumber: string; startAt: Date; endAt: Date };
+// A trip is named to the dispatcher by where it goes plus its hours.
+export type ReassignConflict = { destination: string; startAt: Date; endAt: Date };
 type ReassignResult =
   | { ok: false; error: string; conflicts?: ReassignConflict[] }
   | { ok: true };
@@ -88,7 +89,7 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
       },
       orderBy: { startAt: "asc" },
       select: {
-        jobNumber: true, startAt: true, endAt: true,
+        destination: true, startAt: true, endAt: true,
         waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
       },
     });
@@ -96,7 +97,7 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
     const conflicts = candidates
       .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
       .slice(0, 3)
-      .map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt }));
+      .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));
     if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
   }
 
@@ -119,7 +120,7 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
       },
       orderBy: { startAt: "asc" },
       select: {
-        jobNumber: true, startAt: true, endAt: true,
+        destination: true, startAt: true, endAt: true,
         waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
       },
     });
@@ -127,7 +128,7 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
     const driverConflicts = elsewhere
       .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
       .slice(0, 3)
-      .map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt }));
+      .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));
     if (driverConflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts: driverConflicts };
   }
   // Re-validate the recommended co-driver: it was picked as free at render time,
@@ -252,7 +253,7 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
     },
     orderBy: { startAt: "asc" },
     select: {
-      jobNumber: true, startAt: true, endAt: true,
+      destination: true, startAt: true, endAt: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
     },
   });
@@ -260,7 +261,7 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
   const conflicts = secCandidates
     .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
     .slice(0, 3)
-    .map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt }));
+    .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));
   if (conflicts.length > 0) return { ok: false, error: "vehicleBusy", conflicts };
 
   await prisma.$transaction(async (tx) => {
@@ -380,13 +381,13 @@ export async function setWernTimeAction(formData: FormData): Promise<ReassignRes
         startAt: { lt: endAt },
         endAt: { gt: startAt },
       },
-      select: { jobNumber: true, startAt: true, endAt: true },
+      select: { destination: true, startAt: true, endAt: true },
     });
     if (clashes.length > 0) {
       return {
         ok: false,
         error: "vehicleBusy",
-        conflicts: clashes.map((c) => ({ jobNumber: c.jobNumber, startAt: c.startAt, endAt: c.endAt })),
+        conflicts: clashes.map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt })),
       };
     }
   }

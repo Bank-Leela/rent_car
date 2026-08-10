@@ -30,7 +30,7 @@ export default async function RequesterHome() {
         status: "COMPLETED",
         trip: { is: { evaluation: null } },
       },
-      select: { id: true, jobNumber: true, purpose: true, destination: true },
+      select: { id: true, purpose: true, destination: true },
     }),
     prisma.booking.findMany({
       where: { requesterId: session.user.id },
@@ -44,7 +44,6 @@ export default async function RequesterHome() {
   // waiting request is plainly still waiting.
   const historyRows: RequesterBookingCard[] = history.map((b) => ({
     id: b.id,
-    jobNumber: b.jobNumber,
     jobType: b.jobType,
     status:
       (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) || b.endAt >= now

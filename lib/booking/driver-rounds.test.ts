@@ -12,7 +12,6 @@ const drivers = [
 ];
 
 const bk = (over: Partial<RoundsBookingInput> & { id: string }): RoundsBookingInput => ({
-  jobNumber: `VB-${over.id}`,
   destination: "รพ.จุฬา",
   startAt: D("2026-08-10T09:00:00"),
   endAt: D("2026-08-10T11:00:00"),

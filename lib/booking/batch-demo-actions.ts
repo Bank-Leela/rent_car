@@ -167,16 +167,6 @@ async function seedBatchDemoForDate(date: Date): Promise<number> {
     });
   }
 
-  // Find the next jobNumber sequence in the current month bucket.
-  const ym = `VB-${dayStart.getFullYear()}${String(dayStart.getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({
-    where: { jobNumber: { startsWith: ym } },
-    select: { jobNumber: true },
-  });
-  let next = peers
-    .map((p) => Number(p.jobNumber.split("-").pop() ?? 0))
-    .reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
-
   const at = (h: number) => {
     const d = new Date(dayStart);
     d.setHours(h, 0, 0, 0);
@@ -189,7 +179,6 @@ async function seedBatchDemoForDate(date: Date): Promise<number> {
     if (s.endDayOffset) endAt.setDate(endAt.getDate() + s.endDayOffset);
     await prisma.booking.create({
       data: {
-        jobNumber: `${ym}-${next++}`,
         requesterId: requester.id,
         departmentId: requester.departmentId,
         purpose: s.purpose,

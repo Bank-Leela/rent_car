@@ -4,6 +4,33 @@ import { getSession } from "@/lib/session";
 import { fillVehicleForm, type SignatureImage } from "@/lib/pdf/official-form";
 import { readSignatureBytes } from "@/lib/storage";
 import { isStationEmail } from "@/lib/auth/station";
+import { formatTh } from "@/lib/format-date";
+
+// The official form carries no number of its own, so the download is named for
+// the trip: start date + ปลายทาง, which is how a person recognises it in a
+// folder of printed forms. Both parts are user-controlled free text, so the
+// header is built defensively — the RFC 5987 `filename*` keeps the Thai, and the
+// plain `filename=` fallback is stripped to ASCII for clients that ignore it.
+function pdfDispositionFor(startAt: Date, destination: string): string {
+  const date = formatTh(startAt, "yyyy-MM-dd");
+  // Drop the characters that end a header value or a path segment (CR/LF and
+  // other controls, quotes, backslash, slash) before anything else.
+  const dest = destination
+    .replace(/[\x00-\x1f\x7f"\\\/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60)
+    .trim();
+  const utf8 = dest ? `${date} ${dest}.pdf` : `${date}.pdf`;
+  const asciiDest = dest.replace(/[^\x20-\x7e]+/g, " ").replace(/\s+/g, " ").trim();
+  const ascii = asciiDest ? `${date} ${asciiDest}.pdf` : `${date}.pdf`;
+  // encodeURIComponent leaves ' ( ) * alone, none of which are attr-char.
+  const encoded = encodeURIComponent(utf8).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -77,7 +104,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   return new NextResponse(Buffer.from(bytes) as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${booking.jobNumber}.pdf"`,
+      "Content-Disposition": pdfDispositionFor(booking.startAt, booking.destination),
     },
   });
 }

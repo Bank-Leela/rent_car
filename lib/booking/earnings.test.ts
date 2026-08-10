@@ -7,6 +7,7 @@ import { loadWeightedEarnings } from "@/lib/booking/earnings";
 // CLAIMED). loadWeightedEarnings used to filter ASSIGNED|COMPLETED only, so the
 // claimed driver looked idle and the fairness pick kept landing on them. The
 // ledger must count APPROVED-with-driver trips.
+// The purpose prefix is this suite's marker: it is what beforeAll/afterAll sweep on.
 const MARKER = "EarningsClaimedTest:";
 
 let driverId: string;
@@ -43,7 +44,6 @@ describe("loadWeightedEarnings — claimed trips count toward fairness", () => {
 
     await prisma.booking.create({
       data: {
-        jobNumber: `${MARKER}${startAt.getTime()}`,
         requesterId,
         departmentId,
         purpose: `${MARKER} claimed tjw`,

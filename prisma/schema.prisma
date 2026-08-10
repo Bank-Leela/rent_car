@@ -372,8 +372,7 @@ model DriverUnavailability {
 }
 
 model Booking {
-  id        String @id @default(cuid())
-  jobNumber String @unique
+  id String @id @default(cuid())
 
   requesterId  String
   requester    User       @relation("BookingRequester", fields: [requesterId], references: [id])

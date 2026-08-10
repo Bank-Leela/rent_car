@@ -108,7 +108,6 @@ async function main() {
       const trip = TRIPS[(ci * BANDS.length + bi) % TRIPS.length]!;
       await prisma.booking.create({
         data: {
-          jobNumber: `VB-RD-${dateStr.replace(/-/g, "")}-${String(n + 1).padStart(3, "0")}`,
           requesterId: requester.id,
           departmentId: requester.departmentId,
           purpose: `${TAG} ${trip.purpose}`,

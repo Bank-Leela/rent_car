@@ -181,7 +181,7 @@ export function RequesterHistoryClient({
 
       <ListSearch
         items={filtered}
-        keys={["destination", "purpose", "jobNumber"]}
+        keys={["destination", "purpose"]}
         render={(rows) =>
           rows.length === 0 ? (
             <EmptyState icon={FileText} title={t("noMatches")} />

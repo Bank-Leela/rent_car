@@ -274,7 +274,7 @@ export default async function AdminCalendar({
                       className={`flex items-baseline gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
                         STATUS_TINT[b.status] ?? ""
                       }`}
-                      title={`${b.jobNumber} · ${formatTh(b.startAt, "EEE HH:mm")}–${formatTh(b.endAt, "EEE HH:mm")} · ${b.destination}`}
+                      title={`${formatTh(b.startAt, "EEE HH:mm")}–${formatTh(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
                       <span className="font-medium tabular-nums shrink-0">
                         {cellTime(b.startAt, b.endAt, span)}

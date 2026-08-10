@@ -13,7 +13,6 @@ export type SchedulerVehicle = {
 
 export type SchedulerBooking = {
   id: string;
-  jobNumber: string;
   purpose: string;
   destination: string;
   // Presentation only: campus/off-campus bit (derived from travelWithinChula;

@@ -3,7 +3,6 @@ import { Clock } from "lucide-react";
 
 export type TodayTripRow = {
   id: string;
-  jobNumber: string;
   startLabel: string;
   destination: string;
   driverName: string | null;

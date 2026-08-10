@@ -12,7 +12,6 @@ export type RoundState = "upcoming" | "inProgress" | "done";
 
 export interface RoundsBookingInput {
   id: string;
-  jobNumber: string;
   destination: string;
   startAt: Date;
   endAt: Date;
@@ -45,7 +44,6 @@ export type RoundPhase = "single" | "depart" | "away" | "return";
 
 export interface DriverRound {
   bookingId: string;
-  jobNumber: string;
   /** "HH:mm" departure, or the clamped day edge for a trip that began earlier. */
   startLabel: string;
   endLabel: string;
@@ -141,7 +139,6 @@ export function buildDriverRounds(input: {
     const nightIndex = nightTotal > 0 ? daysBetween(b.startAt, dayStart) + 1 : null;
     list.push({
       bookingId: b.id,
-      jobNumber: b.jobNumber,
       startLabel: continuesBefore ? hhmm(dayStart) : hhmm(b.startAt),
       endLabel: continuesAfter ? hhmm(dayEnd) : hhmm(b.endAt),
       place: b.destination,
@@ -171,8 +168,10 @@ export function buildDriverRounds(input: {
     registrationNumber: d.registrationNumber,
     isDuty: d.driverId === dutyDriverId,
     isOff: offDriverIds.includes(d.driverId),
+    // Two rounds leaving at the same minute are ordered by where they go —
+    // the only thing on the row that tells them apart.
     rounds: (byDriver.get(d.driverId) ?? []).sort(
-      (a, z) => a.startLabel.localeCompare(z.startLabel) || a.jobNumber.localeCompare(z.jobNumber),
+      (a, z) => a.startLabel.localeCompare(z.startLabel) || a.place.localeCompare(z.place),
     ),
   }));
 }

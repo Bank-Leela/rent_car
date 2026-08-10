@@ -64,7 +64,6 @@ export default async function SchedulePage({
       orderBy: { startAt: "asc" },
       select: {
         id: true,
-        jobNumber: true,
         purpose: true,
         destination: true,
         travelWithinChula: true,
@@ -139,7 +138,6 @@ export default async function SchedulePage({
       }),
     bookings: internalDayBookings.map((b) => ({
       id: b.id,
-      jobNumber: b.jobNumber,
       destination: b.destination,
       startAt: b.startAt,
       endAt: b.endAt,
@@ -232,7 +230,7 @@ export default async function SchedulePage({
     },
     orderBy: { startAt: "asc" },
     select: {
-      id: true, jobNumber: true, destination: true, startAt: true, endAt: true,
+      id: true, destination: true, startAt: true, endAt: true,
       jobType: true, isEmergency: true, preferredVehicleType: true, overflowReason: true,
       estimatedDistance: true, primaryDriverId: true,
     },
@@ -262,7 +260,6 @@ export default async function SchedulePage({
     const r = recos.get(b.id);
     return {
       id: b.id,
-      jobNumber: b.jobNumber,
       destination: b.destination,
       timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
       reasonLabel: reason,

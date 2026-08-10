@@ -57,7 +57,6 @@ export async function loadTimelineBoard(
       orderBy: { startAt: "asc" },
       select: {
         id: true,
-        jobNumber: true,
         purpose: true,
         destination: true,
         travelWithinChula: true,
@@ -96,7 +95,7 @@ export async function loadTimelineBoard(
       },
       orderBy: { startAt: "asc" },
       select: {
-        id: true, jobNumber: true, purpose: true, destination: true, startAt: true, endAt: true,
+        id: true, purpose: true, destination: true, startAt: true, endAt: true,
         travelWithinChula: true, googleMapsUrl: true,
         vehicleId: true, jobType: true, estimatedDistance: true, createdAt: true,
         primaryDriverId: true, secondaryDriverId: true,
@@ -175,7 +174,6 @@ export async function loadTimelineBoard(
         : null;
     return {
       id: b.id,
-      jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
       travelWithinChula: b.travelWithinChula,
@@ -219,7 +217,6 @@ export async function loadTimelineBoard(
     const span = daySpan(b.startAt, b.endAt, dayStart, dayEnd);
     return {
       id: b.id,
-      jobNumber: b.jobNumber,
       purpose: b.purpose,
       destination: b.destination,
       travelWithinChula: b.travelWithinChula,
@@ -271,7 +268,6 @@ export async function loadTimelineBoard(
       .join(" · ");
     return {
       id: b.id,
-      jobNumber: b.jobNumber,
       purpose: counts ? `${b.purpose} · ${counts}` : b.purpose,
       destination: b.destination,
       travelWithinChula: b.travelWithinChula,

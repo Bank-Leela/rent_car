@@ -232,7 +232,7 @@ export async function simulatePlacementAction(formData: FormData): Promise<SimRe
   };
 }
 
-export type BookSlotResult = { ok: true; jobNumber: string } | { ok: false; error: string };
+export type BookSlotResult = { ok: true } | { ok: false; error: string };
 
 // Commit a simulated placement: re-run the placement against the CURRENT schedule, then
 // create a real ASSIGNED booking on the chosen car/driver so it shows on จัดรอบ + schedule.
@@ -253,10 +253,6 @@ export async function bookSimulatedSlotAction(formData: FormData): Promise<BookS
   if (!me || !deptId) return { ok: false, error: "noDepartment" };
 
   const i = r.inputs;
-  const ym = `VB-${i.dayStart.getFullYear()}${String(i.dayStart.getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({ where: { jobNumber: { startsWith: ym } }, select: { jobNumber: true } });
-  const next = peers.map((p) => Number(p.jobNumber.split("-").pop() ?? 0)).reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
-  const jobNumber = `${ym}-${next}`;
   const h = i.startAt.getHours();
   const timeBucket = h < 8 ? "BEFORE_08" : h < 12 ? "MORNING_08_12" : h < 16 ? "AFTERNOON_12_16" : "AFTER_16";
   const stamp = i.startAt;
@@ -268,7 +264,6 @@ export async function bookSimulatedSlotAction(formData: FormData): Promise<BookS
   await prisma.$transaction(async (tx) => {
     await tx.booking.create({
       data: {
-        jobNumber,
         requesterId: me.id,
         departmentId: deptId,
         purpose: `[จำลอง] ${i.jobType}`,
@@ -305,5 +300,5 @@ export async function bookSimulatedSlotAction(formData: FormData): Promise<BookS
 
   revalidatePath("/admin/schedule");
   revalidatePath("/admin/batch");
-  return { ok: true, jobNumber };
+  return { ok: true };
 }

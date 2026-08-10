@@ -48,22 +48,9 @@ async function main() {
     console.log(`cleared ${existing.length} previous cluster-seed rows`);
   }
 
-  // Job numbers are unique. Find the next sequence in the current YYYYMM bucket.
-  const ym = `VB-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({
-    where: { jobNumber: { startsWith: ym } },
-    select: { jobNumber: true },
-  });
-  let next =
-    peers
-      .map((p) => Number(p.jobNumber.split("-").pop() ?? 0))
-      .reduce((max, n) => (n > max ? n : max), 0) + 1;
-
   for (const slot of slots) {
-    const jobNumber = `${ym}-${next++}`;
-    const booking = await prisma.booking.create({
+    await prisma.booking.create({
       data: {
-        jobNumber,
         requesterId: requester.id,
         departmentId: requester.departmentId,
         purpose: slot.purpose,
@@ -79,7 +66,7 @@ async function main() {
         timeBucket: "MORNING_08_12",
       },
     });
-    console.log(`created ${booking.jobNumber} ${slot.purpose} @ ${slot.startAt.toISOString()} -> ${slot.endAt.toISOString()} (${slot.status})`);
+    console.log(`created ${slot.purpose} → ${slot.destination} @ ${slot.startAt.toISOString()} -> ${slot.endAt.toISOString()} (${slot.status})`);
   }
 
   console.log(`\nopen /admin/calendar — look at ${baseDay.toDateString()}`);

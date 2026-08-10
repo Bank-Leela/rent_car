@@ -29,7 +29,6 @@ export const HISTORY_BOOKING_STATUSES: BookingStatus[] = [
 
 export type RequesterBookingCard = {
   id: string;
-  jobNumber: string;
   status: BookingStatus;
   jobType: JobType;
   purpose: string;

@@ -37,14 +37,13 @@ export default async function AdminQueue({
   const now = new Date();
   const urgentLabel = (await getTranslations("bookingForm"))("urgentBadge");
 
-  // Free-text filter across the three lists (job number / purpose / destination
-  // / requester / department) — the daily "find that one booking" need.
+  // Free-text filter across the three lists (ชื่อการจอง / destination /
+  // requester / department) — the daily "find that one booking" need.
   const sp = await searchParams;
   const term = (sp.q ?? "").trim();
   const searchFilter: Prisma.BookingWhereInput = term
     ? {
         OR: [
-          { jobNumber: { contains: term, mode: "insensitive" } },
           { purpose: { contains: term, mode: "insensitive" } },
           { destination: { contains: term, mode: "insensitive" } },
           { requester: { name: { contains: term, mode: "insensitive" } } },

@@ -25,14 +25,12 @@ import {
 
 const REQ_ID = "seed-user-requester";
 const DEPT = "seed-dept-medicine";
-const MARKER = "RESCH-TEST";
+const MARKER = "RESCH-TEST"; // purpose of every fixture here — afterAll sweeps on it
 // A quiet far-future day (beyond the seed's ~21-day duty roster + demo data) so
 // nothing else collides on the cars we test.
 const DAY = startOfDay(addDays(new Date(), 90));
 
 const createdIds: string[] = [];
-let jnSeq = 0;
-const jn = () => `VB-RESCH-${Date.now()}-${jnSeq++}`;
 const at = (h: number, m = 0) => {
   const d = new Date(DAY);
   d.setHours(h, m, 0, 0);
@@ -53,7 +51,6 @@ async function mkBooking(
 ) {
   const b = await prisma.booking.create({
     data: {
-      jobNumber: jn(),
       requesterId: REQ_ID,
       departmentId: DEPT,
       purpose: MARKER,
@@ -109,7 +106,9 @@ describe("reassignVehicleAction — the no-overlap rule", () => {
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.error).toBe("vehicleBusy");
-      expect(res.conflicts?.map((c) => c.jobNumber)).toContain(kept.jobNumber);
+      // Every fixture here shares one purpose and one destination, so the
+      // departure time is what tells the named conflict apart from the others.
+      expect(res.conflicts?.map((c) => c.startAt.getTime())).toContain(kept.startAt.getTime());
     }
     // mover is untouched — still unassigned.
     const after = await prisma.booking.findUnique({ where: { id: mover.id } });
@@ -153,7 +152,7 @@ describe("reassignVehicleAction — driver double-book guard (co-driver on anoth
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.error).toBe("vehicleBusy");
-      expect(res.conflicts?.map((c) => c.jobNumber)).toContain(L.jobNumber);
+      expect(res.conflicts?.map((c) => c.startAt.getTime())).toContain(L.startAt.getTime());
     }
     const after = await prisma.booking.findUnique({ where: { id: mover.id } });
     expect(after?.vehicleId).toBeNull();
@@ -174,7 +173,7 @@ describe("reassignVehicleAction — COMPLETED overlap is a NAMED conflict", () =
     expect(res.ok).toBe(false);
     if (!res.ok) {
       expect(res.error).toBe("vehicleBusy");
-      expect(res.conflicts?.map((c) => c.jobNumber)).toContain(done.jobNumber);
+      expect(res.conflicts?.map((c) => c.startAt.getTime())).toContain(done.startAt.getTime());
     }
   });
 });

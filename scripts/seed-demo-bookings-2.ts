@@ -65,21 +65,10 @@ async function main() {
     select: { id: true, assignedDriverId: true },
   });
 
-  const ym = `VB-${target.getFullYear()}${String(target.getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({
-    where: { jobNumber: { startsWith: ym } },
-    select: { jobNumber: true },
-  });
-  let next = peers
-    .map((p) => Number(p.jobNumber.split("-").pop() ?? 0))
-    .reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
-
   // ── Case 6: ASSIGNED — TJW ต่างจังหวัด เชียงใหม่ ค้างคืน รถตู้+คนขับ ──
   {
-    const jn = `${ym}-${String(next++).padStart(3, "0")}`;
     await prisma.booking.create({
       data: {
-        jobNumber: jn,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: `${TAG} นำแพทย์นิเทศฝึกอบรมสาขาอายุรศาสตร์ ม.เชียงใหม่`,
@@ -112,15 +101,13 @@ async function main() {
         driverScheduleStatus: "CONFIRMED",
       },
     });
-    console.log(`  ${jn}  [ASSIGNED]  TJW เชียงใหม่ ค้างคืน รถตู้+คนขับ`);
+    console.log(`  [ASSIGNED]  TJW เชียงใหม่ ค้างคืน รถตู้+คนขับ`);
   }
 
   // ── Case 7: COMPLETED — NORMAL เดินทางเสร็จแล้ว รถกระบะ ──
   {
-    const jn = `${ym}-${String(next++).padStart(3, "0")}`;
     const b = await prisma.booking.create({
       data: {
-        jobNumber: jn,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: `${TAG} ส่งตัวอย่างชีวภาพไปศูนย์วิทยาศาสตร์การแพทย์`,
@@ -159,15 +146,13 @@ async function main() {
     await prisma.trip.create({
       data: { bookingId: b.id, startedAt: at(8, 32), endedAt: at(10, 40), startMileage: 12500, endMileage: 12545 },
     });
-    console.log(`  ${jn}  [COMPLETED]  NORMAL ส่งตัวอย่างชีวภาพ รถกระบะ`);
+    console.log(`  [COMPLETED]  NORMAL ส่งตัวอย่างชีวภาพ รถกระบะ`);
   }
 
   // ── Case 8: CANCELLED — ยกเลิกก่อน approve ──
   {
-    const jn = `${ym}-${String(next++).padStart(3, "0")}`;
     await prisma.booking.create({
       data: {
-        jobNumber: jn,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: `${TAG} ไปร่วมงานรับรางวัลแพทย์ดีเด่น`,
@@ -201,15 +186,13 @@ async function main() {
         },
       },
     });
-    console.log(`  ${jn}  [CANCELLED]  OT บ่าย ยกเลิกก่อน approve`);
+    console.log(`  [CANCELLED]  OT บ่าย ยกเลิกก่อน approve`);
   }
 
   // ── Case 9: WAITLIST — ล้นคิวช่วงบ่าย ──
   {
-    const jn = `${ym}-${String(next++).padStart(3, "0")}`;
     await prisma.booking.create({
       data: {
-        jobNumber: jn,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: `${TAG} รับแพทย์ที่ปรึกษาจากโรงพยาบาลสมิติเวช`,
@@ -237,15 +220,13 @@ async function main() {
         outOfProvince: false,
       },
     });
-    console.log(`  ${jn}  [WAITLIST]  NORMAL บ่าย รถคณบดี ล้นคิว`);
+    console.log(`  [WAITLIST]  NORMAL บ่าย รถคณบดี ล้นคิว`);
   }
 
   // ── Case 10: OUTSOURCED — จัดหารถเช่าภายนอกแล้ว ──
   {
-    const jn = `${ym}-${String(next++).padStart(3, "0")}`;
     await prisma.booking.create({
       data: {
-        jobNumber: jn,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: `${TAG} พาคณะผู้เยี่ยมชมจากต่างประเทศเยี่ยมโรงพยาบาลศิริราช`,
@@ -278,7 +259,7 @@ async function main() {
         escalatedToKhunTop: true,
       },
     });
-    console.log(`  ${jn}  [OUTSOURCED]  NORMAL รับแขกต่างชาติ จัดรถเช่าภายนอก`);
+    console.log(`  [OUTSOURCED]  NORMAL รับแขกต่างชาติ จัดรถเช่าภายนอก`);
   }
 
   console.log(`\nDone. 5 bookings added (batch 2) on ${dateStr}.`);

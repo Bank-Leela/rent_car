@@ -21,12 +21,10 @@ import { getStationTripDetailAction } from "@/lib/booking/station-actions";
 const STATION = "seed-user-driverstation";
 const REQ_ID = "seed-user-requester";
 const DEPT = "seed-dept-medicine";
-const MARKER = "STATION-TEST";
+const MARKER = "STATION-TEST"; // purpose of every fixture here — afterAll sweeps on it
 const DAY = startOfDay(addDays(new Date(), 150));
 
 const createdIds: string[] = [];
-let jnSeq = 0;
-const jn = () => `VB-STN-${Date.now()}-${jnSeq++}`;
 const at = (h: number) => { const d = new Date(DAY); d.setHours(h, 0, 0, 0); return d; };
 const asUser = (id: string) => getSessionMock.mockResolvedValue({ user: { id, roles: ["DRIVER"] } });
 function fd(o: Record<string, string>): FormData {
@@ -77,7 +75,7 @@ afterAll(async () => {
 async function mkAssigned(h: number) {
   const b = await prisma.booking.create({
     data: {
-      jobNumber: jn(), requesterId: REQ_ID, departmentId: DEPT, purpose: MARKER,
+      requesterId: REQ_ID, departmentId: DEPT, purpose: MARKER,
       destination: "Test", province: "กรุงเทพมหานคร", passengerCount: 1, jobType: "NORMAL",
       timeBucket: "MORNING_08_12", status: "ASSIGNED",
       startAt: at(h), endAt: at(h + 2), primaryDriverId: driverA.id, vehicleId: driverA.vehicleId,
@@ -162,7 +160,8 @@ describe("getStationTripDetailAction — view gate", () => {
     const res = await getStationTripDetailAction(b.id);
     expect(res.ok).toBe(true);
     if (res.ok) {
-      expect(res.detail.jobNumber).toBe(b.jobNumber);
+      expect(res.detail.id).toBe(b.id);
+      expect(res.detail.purpose).toBe(MARKER);
       expect(res.detail.canRecord).toBe(true);
     }
   });

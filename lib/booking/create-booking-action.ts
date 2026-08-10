@@ -7,7 +7,6 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { newBookingSchema } from "@/lib/booking/schema";
-import { nextJobNumber } from "@/lib/booking/job-number";
 import { bucketFromStart } from "@/lib/booking/slot-allocation";
 import { dayWindow, dayCapacity, submitStatus, SLOT_HOLDING_STATUSES } from "@/lib/booking/slot-capacity";
 import { classifyJobType } from "@/lib/booking/classification";
@@ -136,8 +135,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     const parentStatus = await slotStatusFor(data.startAt);
 
     // Everything the parent and its recurrence children share. Per-occurrence
-    // values (jobNumber, startAt/endAt, jobType, timeBucket, status) are
-    // spread in at each create.
+    // values (startAt/endAt, jobType, timeBucket, status) are spread in at
+    // each create.
     const sharedData = {
       requesterId: userId,
       departmentId,
@@ -178,11 +177,9 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       externalVanCount: null,
     };
 
-    const jobNumber = await nextJobNumber(tx);
     const parent = await tx.booking.create({
       data: {
         ...sharedData,
-        jobNumber,
         startAt: data.startAt,
         endAt: data.endAt,
         jobType:
@@ -230,12 +227,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         const childStart = new Date(d);
         childStart.setHours(data.startAt.getHours(), data.startAt.getMinutes(), 0, 0);
         const childEnd = new Date(childStart.getTime() + trip);
-        const childJob = await nextJobNumber(tx);
         const childStatus = await slotStatusFor(childStart);
         const child = await tx.booking.create({
           data: {
             ...sharedData,
-            jobNumber: childJob,
             startAt: childStart,
             endAt: childEnd,
             jobType:

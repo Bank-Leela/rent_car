@@ -10,7 +10,6 @@ import { isStationEmail } from "@/lib/auth/station";
 
 export type StationTripDetail = {
   id: string;
-  jobNumber: string;
   status: BookingStatus;
   jobType: JobType;
   purpose: string;
@@ -68,7 +67,7 @@ export async function getStationTripDetailAction(bookingId: string): Promise<Sta
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     select: {
-      id: true, jobNumber: true, status: true, jobType: true, purpose: true,
+      id: true, status: true, jobType: true, purpose: true,
       destination: true, province: true, startAt: true, endAt: true, estimatedDistance: true,
       primaryDriverId: true, secondaryDriverId: true,
       department: { select: { nameEn: true, nameTh: true } },
@@ -95,7 +94,6 @@ export async function getStationTripDetailAction(bookingId: string): Promise<Sta
     ok: true,
     detail: {
       id: booking.id,
-      jobNumber: booking.jobNumber,
       status: booking.status,
       jobType: booking.jobType,
       purpose: booking.purpose,

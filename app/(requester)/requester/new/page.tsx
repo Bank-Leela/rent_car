@@ -58,7 +58,8 @@ export default async function NewBookingPage({
         preferredVehicleType: src.preferredVehicleType,
         needsOutsourcing: src.needsOutsourcing,
       };
-      prefillLabel = src.jobNumber;
+      // Names the copied trip back to the requester by its ชื่อการจอง.
+      prefillLabel = src.purpose;
     }
   }
 

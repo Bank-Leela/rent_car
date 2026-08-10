@@ -36,7 +36,6 @@ async function makePendingBooking() {
   end.setHours(start.getHours() + 4);
   const b = await prisma.booking.create({
     data: {
-      jobNumber: `VB-TEST-${Date.now()}`,
       requesterId: REQUESTER_ID,
       departmentId: requester.departmentId!,
       purpose: "Approval email smoke",

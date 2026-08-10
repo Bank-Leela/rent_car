@@ -19,13 +19,11 @@ import { matchBookingAction, setOnCallShiftAction } from "@/lib/booking/matching
 
 const REQ_ID = "seed-user-requester";
 const DEPT = "seed-dept-medicine";
-const MARKER = "MATCH-WERN-TEST";
+const MARKER = "MATCH-WERN-TEST"; // purpose of every fixture here — afterAll sweeps on it
 const DAY = startOfDay(addDays(new Date(), 175));
 const dayStart = DAY;
 
 const createdIds: string[] = [];
-let jnSeq = 0;
-const jn = () => `VB-MWERN-${Date.now()}-${jnSeq++}`;
 const at = (base: Date, h: number) => { const d = new Date(base); d.setHours(h, 0, 0, 0); return d; };
 const iso = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -44,7 +42,7 @@ let other: V;
 async function mkBooking(over: Partial<Prisma.BookingUncheckedCreateInput> & { startAt: Date; endAt: Date; jobType: Prisma.BookingUncheckedCreateInput["jobType"] }) {
   const b = await prisma.booking.create({
     data: {
-      jobNumber: jn(), requesterId: REQ_ID, departmentId: DEPT, purpose: MARKER,
+      requesterId: REQ_ID, departmentId: DEPT, purpose: MARKER,
       destination: "Test", province: "กรุงเทพมหานคร", passengerCount: 1,
       timeBucket: "MORNING_08_12", status: "APPROVED", ...over,
     },

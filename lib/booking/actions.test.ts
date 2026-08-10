@@ -132,7 +132,7 @@ describe("createBookingAction", () => {
     expect(after).toHaveLength(1);
     const booking = after[0]!;
     expect(booking.status).toBe("PENDING_APPROVAL");
-    expect(booking.jobNumber).toMatch(/^VB-\d{6}-\d+$/);
+    expect(booking.destination).toBe("Lab");
     expect(booking.auditLogs).toHaveLength(1);
     expect(booking.auditLogs[0]!.action).toBe("BOOKING_SUBMITTED");
     // Department comes from the profile, not the payload; coordinator persisted.

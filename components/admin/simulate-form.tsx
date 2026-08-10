@@ -37,7 +37,10 @@ export function SimulateForm({ today }: { today: string }) {
     startTransition(async () => {
       const res = await bookSimulatedSlotAction(fd);
       if (res.ok) {
-        setBooked(res.jobNumber);
+        // The booking is named on the board by its ชื่อการจอง, which the action
+        // writes as "[จำลอง] <ประเภทงาน>" — say the same thing back here so the
+        // admin can spot the row they just created.
+        setBooked(`[จำลอง] ${fd.get("jobType")}`);
         setBookError(null);
       } else {
         setBookError(res.error);

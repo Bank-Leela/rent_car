@@ -3,7 +3,6 @@ import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 
 export type UnassignedRow = {
   id: string;
-  jobNumber: string;
   destination: string;
   timeLabel: string;
   /** Why the solver could not place it, or the kind that never auto-assigns. */

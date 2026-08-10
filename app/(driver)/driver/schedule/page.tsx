@@ -51,7 +51,7 @@ export default async function DriverSchedule({
       where: { status: { in: ["APPROVED", "ASSIGNED"] }, startAt: { lt: dayEnd }, endAt: { gt: dayStart } },
       orderBy: { startAt: "asc" },
       select: {
-        id: true, jobNumber: true, purpose: true, destination: true, startAt: true, endAt: true,
+        id: true, purpose: true, destination: true, startAt: true, endAt: true,
         vehicleId: true, jobType: true, estimatedDistance: true,
         primaryDriverId: true, secondaryDriverId: true,
         coordinatorName: true, coordinatorPhone: true, ajarnName: true, ajarnPhone: true,
@@ -89,7 +89,6 @@ export default async function DriverSchedule({
       })),
     bookings: dayBookings.map((b) => ({
       id: b.id,
-      jobNumber: b.jobNumber,
       destination: b.destination,
       startAt: b.startAt,
       endAt: b.endAt,
@@ -128,7 +127,6 @@ export default async function DriverSchedule({
     )?.id;
     todayRows = dispatched.map((b) => ({
       id: b.id,
-      jobNumber: b.jobNumber,
       startLabel: format(b.startAt, "HH:mm"),
       destination: b.destination,
       driverName: nameOf(b.primaryDriver?.user),

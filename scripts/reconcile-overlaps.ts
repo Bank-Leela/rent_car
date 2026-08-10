@@ -36,7 +36,7 @@ async function main() {
   // they're its primary (driving their car) or its secondary (co-driver).
   const trips = await prisma.booking.findMany({
     where: { status: "ASSIGNED", primaryDriverId: { not: null } },
-    select: { id: true, jobNumber: true, jobType: true, startAt: true, endAt: true, primaryDriverId: true, secondaryDriverId: true },
+    select: { id: true, destination: true, jobType: true, startAt: true, endAt: true, primaryDriverId: true, secondaryDriverId: true },
   });
 
   // Global greedy: highest priority first, then earliest start. A trip is kept
@@ -68,8 +68,10 @@ async function main() {
   }
 
   console.log(`${DRY ? "[dry-run] would un-assign" : "Un-assigning"} ${toUnassign.length} overlapping trip(s) → queue:`);
+  // Day + window + destination is how the office recognises a trip; destination
+  // goes last because it's the only variable-width column.
   for (const t of toUnassign) {
-    console.log(`  ${t.jobNumber}  ${t.jobType}  ${ymdLocal(t.startAt)} ${t.startAt.toTimeString().slice(0, 5)}-${t.endAt.toTimeString().slice(0, 5)}`);
+    console.log(`  ${t.jobType}  ${ymdLocal(t.startAt)} ${t.startAt.toTimeString().slice(0, 5)}-${t.endAt.toTimeString().slice(0, 5)}  ${t.destination}`);
   }
 
   if (!DRY) {

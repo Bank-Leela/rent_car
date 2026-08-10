@@ -50,15 +50,6 @@ async function main() {
     where: { roles: { some: { role: "REQUESTER" } }, isActive: true, departmentId: { not: null } },
     select: { id: true, departmentId: true },
   });
-  const ym = `VB-${target.getFullYear()}${String(target.getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({
-    where: { jobNumber: { startsWith: ym } },
-    select: { jobNumber: true },
-  });
-  let next = peers
-    .map((p) => Number(p.jobNumber.split("-").pop() ?? 0))
-    .reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
-
   type Case = {
     purpose: string;
     destination: string;
@@ -206,10 +197,8 @@ async function main() {
       return d;
     })();
 
-    const jobNumber = `${ym}-${String(next++).padStart(3, "0")}`;
     await prisma.booking.create({
       data: {
-        jobNumber,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: c.purpose,
@@ -245,7 +234,7 @@ async function main() {
         outOfProvince: c.outOfProvince,
       },
     });
-    console.log(`  ${jobNumber}  [${c.status}]  ${c.purpose.replace(TAG, "").trim()}`);
+    console.log(`  [${c.status}]  ${c.purpose.replace(TAG, "").trim()} → ${c.destination}`);
   }
 
   console.log(`\nDone. ${cases.length} bookings on ${dateStr}.`);

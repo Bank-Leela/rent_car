@@ -33,7 +33,7 @@ export default async function DriverReviews({ params }: { params: Promise<{ driv
       rating: true,
       comment: true,
       submittedAt: true,
-      trip: { select: { booking: { select: { jobNumber: true, destination: true } } } },
+      trip: { select: { booking: { select: { destination: true } } } },
     },
   });
   const count = reviews.length;

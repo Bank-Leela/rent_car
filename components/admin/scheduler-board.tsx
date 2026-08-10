@@ -130,10 +130,11 @@ export function SchedulerBoard({
     ? [...bookings, ...adHocRows.flatMap((r) => r.bookings)].find((b) => b.id === activeRawId) ?? null
     : null;
 
-  // "VB-202606-9 · 18 Jun 09:00–11:00" — names a blocking trip with its DAY, so a
-  // multi-day clash on a day that isn't on screen is visible in the reject banner.
+  // "สนามบินดอนเมือง · 18 Jun 09:00–11:00" — names a blocking trip by where it
+  // goes plus its DAY, so a multi-day clash on a day that isn't on screen is
+  // visible in the reject banner.
   const fmtConflict = (c: ReassignConflict) =>
-    `${c.jobNumber} · ${format(c.startAt, "d MMM", { locale: dfLocale })} ${format(c.startAt, "HH:mm")}–${format(c.endAt, "HH:mm")}`;
+    `${c.destination} · ${format(c.startAt, "d MMM", { locale: dfLocale })} ${format(c.startAt, "HH:mm")}–${format(c.endAt, "HH:mm")}`;
 
   function reassign(bookingId: string, vehicleId: string) {
     setDropError(null);
@@ -263,7 +264,7 @@ export function SchedulerBoard({
           res = await matchBookingAction(fd);
         }
         if (res?.ok) assigned += 1;
-        else failures.push(`${b.jobNumber}: ${res?.error ?? "error"}`);
+        else failures.push(`${b.purpose} → ${b.destination}: ${res?.error ?? "error"}`);
       }
       setResult({ assigned, failures });
       router.refresh();

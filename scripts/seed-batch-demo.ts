@@ -76,16 +76,6 @@ async function main() {
   });
   console.log(`  duty driver = ${dutyDriver.user.name}`);
 
-  // 4. Job-number sequence.
-  const ym = `VB-${dayStart.getFullYear()}${String(dayStart.getMonth() + 1).padStart(2, "0")}`;
-  const peers = await prisma.booking.findMany({
-    where: { jobNumber: { startsWith: ym } },
-    select: { jobNumber: true },
-  });
-  let next = peers
-    .map((p) => Number(p.jobNumber.split("-").pop() ?? 0))
-    .reduce((mx, n) => (n > mx ? n : mx), 0) + 1;
-
   type Slot = {
     purpose: string;
     destination: string;
@@ -198,10 +188,8 @@ async function main() {
       if (s.endDayOffset) d.setDate(d.getDate() + s.endDayOffset);
       return d;
     })();
-    const jobNumber = `${ym}-${next++}`;
     await prisma.booking.create({
       data: {
-        jobNumber,
         requesterId: requester.id,
         departmentId: requester.departmentId!,
         purpose: s.purpose,
@@ -220,7 +208,7 @@ async function main() {
         estimatedDistance: s.estimatedDistance ?? null,
       },
     });
-    console.log(`  + ${jobNumber} [${s.jobType}] ${s.purpose}`);
+    console.log(`  + [${s.jobType}] ${s.purpose} → ${s.destination}`);
   }
 
   console.log(`\nDone. Open /admin/batch and pick ${target.toISOString().slice(0, 10)} -> Run Batch.`);

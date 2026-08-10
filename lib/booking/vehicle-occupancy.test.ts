@@ -7,21 +7,19 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { tripLegs } from "@/lib/booking/trip-legs";
 
-const MARKER = "OCCUPANCY-TEST";
+const MARKER = "OCCUPANCY-TEST"; // purpose of every fixture here — afterAll sweeps on it
 const DAY = startOfDay(addDays(new Date(), 200)); // quiet far-future day
 const DAY2 = addDays(DAY, 1); // one distinct day per describe so they don't collide on carA
 const DAY3 = addDays(DAY, 2);
 const DAY4 = addDays(DAY, 3);
 const at = (h: number, m = 0, base: Date = DAY) => { const d = new Date(base); d.setHours(h, m, 0, 0); return d; };
 const createdIds: string[] = [];
-let seq = 0;
-const jn = () => `VB-OCC-${Date.now()}-${seq++}`;
 let carA: string;
 
 async function mk(over: Partial<Prisma.BookingUncheckedCreateInput> & { startAt: Date; endAt: Date }) {
   const b = await prisma.booking.create({
     data: {
-      jobNumber: jn(), requesterId: "seed-user-requester", departmentId: "seed-dept-medicine",
+      requesterId: "seed-user-requester", departmentId: "seed-dept-medicine",
       purpose: MARKER, destination: "T", province: "กรุงเทพมหานคร", passengerCount: 1,
       jobType: "NORMAL", timeBucket: "MORNING_08_12", status: "ASSIGNED", ...over,
     },
