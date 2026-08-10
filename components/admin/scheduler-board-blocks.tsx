@@ -239,13 +239,18 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
         </div>
       )}
       {b.reco && (
-        // Recommended placement + one-click assign. Stop pointer propagation so
+        // One-click assign to the recommendation. Stop pointer propagation so
         // tapping the button doesn't start a drag.
+        //
+        // The recommended car and driver are NOT printed on the card: this trip
+        // has no car yet, and a plate plus a driver's name sitting on it read as
+        // though one had already been assigned. The suggestion stays on the
+        // button's tooltip — same treatment the job number got.
         <div
           className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]"
           onPointerDown={(e) => e.stopPropagation()}
+          title={b.reco.label}
         >
-          <span className="text-muted-foreground">💡 {b.reco.label}</span>
           <AssignRecoButton
             bookingId={b.id}
             vehicleId={b.reco.vehicleId}

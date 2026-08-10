@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { JobType } from "@prisma/client";
 import { parseQueueSort } from "@/lib/admin/queue-sort";
+import { SelectField } from "@/components/ui/select-field";
 
 const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN"];
 
@@ -59,18 +60,23 @@ export function QueueFilterBar() {
       >
         {t("filterOverdue")}
       </button>
-      <label className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-        {t("sortLabel")}
-        <select
+      {/* SelectField rather than a native <select> — an open <select> is drawn
+          by the OS and cannot take the app's theme, so it read as a foreign
+          control next to the filter chips. */}
+      <span className="ml-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <span>{t("sortLabel")}</span>
+        <SelectField
+          aria-label={t("sortLabel")}
           value={sort}
-          onChange={(e) => update((sp) => (e.target.value === "start" ? sp.delete("sort") : sp.set("sort", e.target.value)))}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="start">{t("sortStart")}</option>
-          <option value="oldest">{t("sortOldest")}</option>
-          <option value="risk">{t("sortRisk")}</option>
-        </select>
-      </label>
+          onValueChange={(v) => update((sp) => (v === "start" ? sp.delete("sort") : sp.set("sort", v)))}
+          className="h-8 w-auto text-xs"
+          options={[
+            { value: "start", label: t("sortStart") },
+            { value: "oldest", label: t("sortOldest") },
+            { value: "risk", label: t("sortRisk") },
+          ]}
+        />
+      </span>
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   deleteTripTemplateAction,
 } from "@/lib/booking/template-actions";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { SelectField } from "@/components/ui/select-field";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -651,17 +652,23 @@ export function BookingForm({
                   so start and end stay equal-sized boxes. One-way swaps the
                   end picker for a note — the admin sets the real end time at
                   approval. */}
-              <div className="grid w-36 shrink-0 gap-2">
+              <div className="grid w-44 shrink-0 gap-2">
                 <Label htmlFor="returnTrip">{t("returnTripLabel")}</Label>
-                <select
+                {/* SelectField, not a native <select>: an open <select>'s option
+                    list is drawn by the OS, so it ignored the app's theme and
+                    was the one control on this form that looked foreign. No
+                    `name` here — the hidden returnTrip input below is what
+                    submits, and a name on both would post the field twice. */}
+                <SelectField
                   id="returnTrip"
                   value={returnTrip ? "yes" : "no"}
-                  onChange={(e) => setReturnTrip(e.target.value === "yes")}
-                  className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value="yes">{t("returnTripYes")}</option>
-                  <option value="no">{t("returnTripNo")}</option>
-                </select>
+                  onValueChange={(v) => setReturnTrip(v === "yes")}
+                  className="h-10 font-medium"
+                  options={[
+                    { value: "yes", label: t("returnTripYes") },
+                    { value: "no", label: t("returnTripNo") },
+                  ]}
+                />
               </div>
               {/* One-way still asks for a time — the requester knows roughly when
                   they expect to arrive, and a guessed placeholder was being shown
@@ -893,20 +900,21 @@ export function BookingForm({
             </div>
             <div className="grid gap-2">
               <ReqLabel htmlFor="preferredVehicleType">{t("preferredVehicle")}</ReqLabel>
-              <select
+              <SelectField
                 id="preferredVehicleType"
                 name="preferredVehicleType"
                 required
                 value={preferredVehicleType}
-                onChange={(e) => setPreferredVehicleType(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="VAN">{t("preferredVehicleVan")}</option>
-                <option value="TRUCK_6_WHEEL">{t("preferredVehicleTruck6Wheel")}</option>
-                <option value="PICKUP">{t("preferredVehiclePickup")}</option>
-                <option value="SEDAN_DEAN">{t("preferredVehicleSedanDean")}</option>
-                <option value="BUS_OUTSOURCED">{t("preferredVehicleBusOutsourced")}</option>
-              </select>
+                onValueChange={setPreferredVehicleType}
+                className="h-10"
+                options={[
+                  { value: "VAN", label: t("preferredVehicleVan") },
+                  { value: "TRUCK_6_WHEEL", label: t("preferredVehicleTruck6Wheel") },
+                  { value: "PICKUP", label: t("preferredVehiclePickup") },
+                  { value: "SEDAN_DEAN", label: t("preferredVehicleSedanDean") },
+                  { value: "BUS_OUTSOURCED", label: t("preferredVehicleBusOutsourced") },
+                ]}
+              />
               {/* Bus is always an outsourced rental — backend forces
                   needsOutsourcing regardless of this checkbox, so reflect
                   that truth here instead of leaving it editable. */}
@@ -920,9 +928,14 @@ export function BookingForm({
                 />
                 <span>
                   <span className="font-medium">{t("flagOutsourcing")}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {isBus ? t("flagOutsourcingBusNotice") : t("flagOutsourcingHelper")}
-                  </span>
+                  {/* Only the bus case says anything here. The general helper
+                      restated the checkbox label word for word; what a requester
+                      actually needs to know is the deny notice below. */}
+                  {isBus && (
+                    <span className="block text-xs text-muted-foreground">
+                      {t("flagOutsourcingBusNotice")}
+                    </span>
+                  )}
                 </span>
               </label>
               <p className="text-xs text-muted-foreground">{t("flagOutsourcingDenyNotice")}</p>
