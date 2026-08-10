@@ -123,6 +123,16 @@ sudo -u rentcar --preserve-env=DATABASE_URL npx prisma db seed   # first time on
 > (`docker compose exec postgres psql -U postgres -c "CREATE ROLE rentcar LOGIN PASSWORD '<pw>' SUPERUSER;"`)
 > or use `postgres` as the role in `DATABASE_URL`. A native Postgres install where
 > you created a `rentcar` role needs neither.
+> **Lost the password later?** Do NOT re-run `prisma db seed` on a live install
+> to recover it — the seed also re-pairs every car to its seeded driver, undoing
+> pairing changes made in /admin/fleet. Use the targeted tool instead, which
+> touches only the password fields:
+> ```bash
+> cd /opt/rent_car && set -a; source /etc/rent_car.env; set +a
+> npx tsx scripts/reset-password.ts --dry-run   # who would change
+> npx tsx scripts/reset-password.ts             # admin only; prints a new password once
+> ```
+
 > **Capture the seeded password — it is shown once.** `prisma db seed` generates
 > a random temporary password for the admin, requester, kiosk and driver
 > accounts and prints it when it finishes. It is not stored anywhere and cannot

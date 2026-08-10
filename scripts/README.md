@@ -22,7 +22,9 @@ simulators, which need no DB). None are imported by the app or the test suite.
 | `seed-calendar-cluster.ts` | 3 bookings on one day so the calendar density tint + same-vehicle conflict marker have something to render. |
 | `seed-free-driver-day.ts` | A day that has free drivers, so a board drag-drop lands a driver (green block) instead of driverless. |
 
-## Data maintenance (writes the dev DB)
+## Data maintenance (writes the DB)
+
+All dev-only except `reset-password.ts`, which is written to be safe on a live install.
 
 | Script | Purpose |
 |--------|---------|
@@ -30,6 +32,7 @@ simulators, which need no DB). None are imported by the app or the test suite.
 | `pair-cars-drivers.ts` | Auto-pair active vehicles ↔ drivers 1:1 (`Vehicle.assignedDriverId`). Idempotent — fills only unpaired cars. |
 | `backfill-booking-drivers.ts` | car=driver migration: set `primaryDriverId` to the vehicle's `assignedDriver` for future APPROVED/ASSIGNED bookings that have a vehicle but no driver. |
 | `reconcile-overlaps.ts` | One-off fix for illegal car overlaps left by batch runs from before the no-overlap rule landed. |
+| `reset-password.ts` | **Account recovery — safe on production.** Resets `passwordHash` + `mustChangePassword` and nothing else. Use instead of re-seeding when someone loses the password the seed printed: `db seed` also re-pairs every car to its seeded driver, silently undoing pairing work done in /admin/fleet. Defaults to `admin` alone; `--user=<username\|email>`, `--all`, `--dry-run`, `NEW_PASSWORD=…`. |
 
 > The canonical seed is `prisma/seed.ts` (`npm run db:seed`) — departments, role
 > users, and the 6 per-car driver logins (`driverA`–`driverF`). The scripts above
