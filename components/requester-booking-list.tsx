@@ -10,6 +10,9 @@ export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
   BookingStatus.DRAFT,
   BookingStatus.PENDING_APPROVAL,
   BookingStatus.WAITLIST,
+  // Approved, waiting on the signed form — still very much the requester's
+  // in-flight trip, and the stage they are most likely to ask about.
+  BookingStatus.AWAITING_DOCUMENT,
   BookingStatus.APPROVED,
   BookingStatus.ASSIGNED,
   // Handed to an outside driver — still an in-flight trip the requester tracks.

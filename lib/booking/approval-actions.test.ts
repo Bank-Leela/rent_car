@@ -20,7 +20,7 @@ vi.mock("@/lib/pdf/generate", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { approveBookingAction } from "@/lib/booking/approval-actions";
+import { approveBookingAction, approveDocumentAction } from "@/lib/booking/approval-actions";
 
 const REQUESTER_ID = "seed-user-requester";
 const cleanup: string[] = [];
@@ -98,18 +98,39 @@ describe("approveBookingAction email", () => {
     // Emails are Thai-only (the "/ Approved" half was removed with the EN locale).
     expect(toRequester!.subject).toMatch(/อนุมัติแล้ว/);
 
-    // จัด runs on approval: a booking that fits leaves this call already on a
-    // car. It stays APPROVED only when the solver could not place it, in which
-    // case it carries an overflowReason for the schedule board's bar. Either way
-    // it is never left APPROVED *and* unexplained.
+    // จัด no longer runs on approval. The booking waits for the signed official
+    // form, so it must leave this call with a car conspicuously NOT assigned.
     const updated = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
-    if (updated.status === "ASSIGNED") {
-      expect(updated.primaryDriverId, "an assigned booking has a driver").not.toBeNull();
-      expect(updated.vehicleId, "an assigned booking has a car").not.toBeNull();
+    expect(updated.status).toBe("AWAITING_DOCUMENT");
+    expect(updated.primaryDriverId, "no car until the document is confirmed").toBeNull();
+    expect(updated.vehicleId).toBeNull();
+  });
+
+  // The step that replaced "จัด runs on approval": confirming the document is
+  // what dispatches. A booking that fits comes back already on a car; one that
+  // does not stays APPROVED for the schedule board's bar.
+  it("confirming the document runs จัด", async () => {
+    const bookingId = await makePendingBooking();
+    const fd = new FormData();
+    fd.append("bookingId", bookingId);
+    expect(await approveBookingAction(fd)).toEqual({ ok: true });
+
+    const doc = new FormData();
+    doc.append("bookingId", bookingId);
+    expect(await approveDocumentAction(doc)).toEqual({ ok: true });
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    if (after.status === "ASSIGNED") {
+      expect(after.primaryDriverId, "an assigned booking has a driver").not.toBeNull();
+      expect(after.vehicleId, "an assigned booking has a car").not.toBeNull();
     } else {
-      expect(updated.status).toBe("APPROVED");
-      expect(updated.primaryDriverId).toBeNull();
+      expect(after.status).toBe("APPROVED");
+      expect(after.primaryDriverId).toBeNull();
     }
+
+    // Re-confirming an already-confirmed document must not re-run anything.
+    const again = await approveDocumentAction(doc);
+    expect(again.ok).toBe(false);
   });
 
   it("notifies admins", async () => {

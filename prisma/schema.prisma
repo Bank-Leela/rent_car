@@ -45,6 +45,12 @@ enum DriverPool {
 enum BookingStatus {
   DRAFT
   PENDING_APPROVAL
+  // Approved, but the paperwork is not finished yet. Sits BEFORE APPROVED on
+  // purpose: everything downstream that means "decided, now give it a car"
+  // (COMMITTED_STATUSES, the solver's pending set, the overflow bar) keys on
+  // APPROVED and keeps working untouched. จัด no longer runs on approval — it
+  // runs when an ADMIN confirms the document, which is what moves the booking on.
+  AWAITING_DOCUMENT
   APPROVED
   ASSIGNED
   DENIED

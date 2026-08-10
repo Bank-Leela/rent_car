@@ -203,6 +203,7 @@
     "driver": "คนขับ",
     "noPhone": "ไม่มีเบอร์โทร",
     "coDriver": "คนขับเสริม",
+    "downloadDocument": "ดาวน์โหลดเอกสาร",
     "vehicle": "รถ",
     "pickup": "จุดรับ",
     "passengers": "ผู้โดยสาร {count} คน",
@@ -211,6 +212,7 @@
   "status": {
     "DRAFT": "ฉบับร่าง",
     "PENDING_APPROVAL": "รออนุมัติ",
+    "AWAITING_DOCUMENT": "รอเอกสาร",
     "APPROVED": "อนุมัติแล้ว",
     "ASSIGNED": "จัดรถแล้ว",
     "DENIED": "ไม่อนุมัติ",
@@ -603,6 +605,11 @@
     "otAssignConfirm": "อนุมัติและจัดรถเป็นงานล่วงเวลา: {summary}?",
     "otAssigned": "จัดแล้ว: {summary}",
     "otAssignPlaceFailed": "อนุมัติแล้ว แต่จัดรถไม่สำเร็จ (รถอาจไม่ว่างแล้ว) — งานอยู่ในคิวรอจัดรถ",
+    "awaitingDocHeading": "รอเอกสาร",
+    "awaitingDocBanner": "อนุมัติแล้ว รอเอกสารฉบับจริงกลับมา — กด “เอกสารเรียบร้อย” แล้วระบบจะจัดรถให้ทันที",
+    "awaitingDocApprove": "เอกสารเรียบร้อย",
+    "awaitingDocApproving": "กำลังบันทึก…",
+    "downloadDocument": "ดาวน์โหลดเอกสาร",
     "unassignedCount": "ยังไม่ได้จัดรถ %n% รายการ"
   },
   "bookingDetail": {
@@ -837,6 +844,7 @@
     },
     "legend": {
       "PENDING_APPROVAL": "รออนุมัติ",
+      "AWAITING_DOCUMENT": "รอเอกสาร",
       "APPROVED": "อนุมัติแล้ว",
       "ASSIGNED": "จัดรถแล้ว",
       "COMPLETED": "เสร็จสิ้น",

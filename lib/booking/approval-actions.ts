@@ -6,7 +6,7 @@ import { z } from "zod";
 import { format } from "date-fns";
 import { prisma } from "@/lib/db";
 import { runBatchForDay } from "@/lib/booking/batch-core";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { sendEmail } from "@/lib/email/client";
 import {
@@ -105,7 +105,10 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     await tx.booking.update({
       where: { id: bookingId },
       data: {
-        status: "APPROVED",
+        // Approving no longer hands out a car. The booking waits here until the
+        // signed official form is back and an ADMIN confirms it
+        // (approveDocumentAction), which is what runs จัด.
+        status: "AWAITING_DOCUMENT",
         decidedAt: new Date(),
         // One-way: replace the provisional end with the admin-set time.
         ...(confirmedEndAt ? { endAt: confirmedEndAt } : {}),
@@ -115,7 +118,7 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       bookingId,
       actorUserId: userId,
       fromStatus: booking.status,
-      toStatus: "APPROVED",
+      toStatus: "AWAITING_DOCUMENT",
       action: "BOOKING_APPROVED",
       metadata: comment ? { comment } : undefined,
       tx,
@@ -148,25 +151,65 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
     await sendEmail({ to: adminEmails, ...adminNewBookingEmail(detailed) });
   }
 
+  // จัด does NOT run here any more. The booking is now AWAITING_DOCUMENT and
+  // gets its car when the paperwork is confirmed — see approveDocumentAction.
   revalidatePath("/admin");
-  // จัด runs the moment the booking is approved: if a car and driver fit the
-  // day's rules it is assigned here and now, and if not it is left APPROVED with
-  // an overflowReason for P'Top to place by hand from the schedule board.
-  //
-  // runBatchForDay is the SAME solver the manual button and the nightly sweep
-  // use, and it only touches APPROVED bookings with no primary driver — so it is
-  // idempotent and cannot disturb an assignment that already exists. Nothing
-  // about the allocation rules changes here; only when they run.
-  //
-  // Wrapped like the PDF step above: assigning is a consequence of approving, and
-  // a consequence must never be able to undo its cause. If the solver throws, the
-  // booking stays APPROVED and simply shows up as unassigned.
-  try {
-    await runBatchForDay(format(detailed.startAt, "yyyy-MM-dd"), userId);
-  } catch (err) {
-    console.error("[approve] auto-assign failed; booking stays unassigned", err);
+  revalidatePath(`/admin/${bookingId}`);
+  revalidatePath("/admin/schedule");
+  revalidatePath("/requester");
+  revalidatePath(`/requester/${bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * "เอกสารเรียบร้อย" — the signed official form is back, so the booking may now
+ * be given a car.
+ *
+ * This is the step that used to be implicit in approving. Approval decides the
+ * trip may happen; this decides the paperwork supporting it is complete, and
+ * only then does จัด run. ADMIN only: the transport office holds the signed
+ * form, so they are the ones who know it is done.
+ */
+export async function approveDocumentAction(formData: FormData): Promise<ActionResult> {
+  const session = await requireRole("ADMIN");
+  const userId = session.user.id;
+  const te = await getTranslations("errors");
+  const ts = await getTranslations("status");
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  if (!bookingId) return { ok: false, error: te("invalidInput") };
+
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  if (!booking) return { ok: false, error: te("bookingNotFound") };
+  if (booking.status !== "AWAITING_DOCUMENT") {
+    return { ok: false, error: te("cannotApproveInStatus", { status: ts(booking.status) }) };
   }
 
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({ where: { id: bookingId }, data: { status: "APPROVED" } });
+    await logTransition({
+      bookingId,
+      actorUserId: userId,
+      fromStatus: "AWAITING_DOCUMENT",
+      toStatus: "APPROVED",
+      action: "DOCUMENT_APPROVED",
+      tx,
+    });
+  });
+
+  // จัด, moved here from approval. Same solver the manual button and the nightly
+  // sweep use; it only touches APPROVED bookings with no primary driver, so it is
+  // idempotent and cannot disturb an assignment that already exists. Wrapped
+  // because assigning is a consequence of confirming the document, and a
+  // consequence must never be able to undo its cause: if the solver throws, the
+  // booking stays APPROVED and simply shows up as unassigned on that day's board.
+  try {
+    await runBatchForDay(format(booking.startAt, "yyyy-MM-dd"), userId);
+  } catch (err) {
+    console.error("[document] auto-assign failed; booking stays unassigned", err);
+  }
+
+  revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);
   revalidatePath("/admin/schedule");
   revalidatePath("/requester");

@@ -5,6 +5,10 @@ const STYLES: Record<BookingStatus, string> = {
   DRAFT: "bg-muted text-muted-foreground ring-border",
   PENDING_APPROVAL:
     "bg-amber-100 text-amber-900 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/40",
+  // Distinct from both PENDING_APPROVAL (amber) and APPROVED (blue): the trip is
+  // decided but still waiting on paperwork, which is its own kind of blocked.
+  AWAITING_DOCUMENT:
+    "bg-cyan-100 text-cyan-900 ring-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-200 dark:ring-cyan-900/40",
   APPROVED:
     "bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:ring-blue-900/40",
   ASSIGNED:

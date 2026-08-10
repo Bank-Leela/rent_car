@@ -3,7 +3,7 @@ import type { JobType, Prisma } from "@prisma/client";
 import { format, subHours } from "date-fns";
 import { th } from "date-fns/locale";
 import { tripWhen } from "@/lib/booking/trip-when";
-import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle } from "lucide-react";
+import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle, FileClock } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -19,6 +19,8 @@ import { OtAssignButton } from "@/components/admin/ot-assign-button";
 import { loadQueueContext } from "@/lib/booking/queue-context";
 import { waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 import { Section } from "@/components/section";
+import { BookingDocumentLink } from "@/components/booking-document-link";
+import { DocumentApproveButton } from "@/components/admin/document-approve-button";
 
 const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
 const PENDING_DEFAULT_LIMIT = 100;
@@ -65,13 +67,22 @@ export default async function AdminQueue({
 
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
   // detail page surfaces role-appropriate action forms.
-  const [pending, approved, upcoming, allDrivers] = await Promise.all([
+  const [pending, awaitingDoc, approved, upcoming, allDrivers] = await Promise.all([
     prisma.booking.findMany({
       // P'Top's decision queue: normal pending plus over-capacity WAITLIST
       // cases (the 11th+ booking of a day) for him to fit or deny.
       where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] }, ...searchFilter, ...pendingFilter },
       orderBy: sort === "oldest" ? { createdAt: "asc" } : { startAt: "asc" },
       take: pendingLimit,
+      include: { requester: true, department: true },
+    }),
+    prisma.booking.findMany({
+      // Approved, waiting on the signed official form. Nothing here has a car
+      // yet and nothing will get one until an ADMIN confirms the document, so
+      // this list is the actual bottleneck between approval and dispatch.
+      where: { status: "AWAITING_DOCUMENT", ...searchFilter },
+      orderBy: { startAt: "asc" },
+      take: 50,
       include: { requester: true, department: true },
     }),
     prisma.booking.findMany({
@@ -312,6 +323,58 @@ export default async function AdminQueue({
         </Section>
       )}
 
+      {/* Between approval and a car: the official form is generated but the
+          signed copy is not back. Only an ADMIN can clear this, and doing so is
+          what runs จัด. */}
+      {awaitingDoc.length > 0 && (
+        <Section title={t("awaitingDocHeading")} icon={<FileClock className="h-4 w-4" />}>
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 p-3 text-sm font-medium text-cyan-900 dark:border-cyan-900/40 dark:bg-cyan-950/40 dark:text-cyan-200">
+            <FileClock className="h-4 w-4 shrink-0" aria-hidden />
+            {t("awaitingDocBanner")}
+          </div>
+          <ul className="space-y-2">
+            {awaitingDoc.map((b) => (
+              <li key={b.id}>
+                <div className="rounded-xl border border-cyan-200 bg-card p-4 dark:border-cyan-900/40">
+                  <Link
+                    href={`/admin/${b.id}`}
+                    className="group -m-1 flex items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="truncate font-medium">{b.purpose}</div>
+                      <div className="truncate text-sm text-muted-foreground">
+                        {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                        <InChulaChip travelWithinChula={b.travelWithinChula} />
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  {/* Siblings of the Link, never inside it — an anchor nested in
+                      an anchor swallows one of the two clicks. */}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <BookingDocumentLink
+                      bookingId={b.id}
+                      label={t("downloadDocument")}
+                      hasPdf={!!b.pdfUrl}
+                    />
+                    {isAdmin && (
+                      <DocumentApproveButton
+                        bookingId={b.id}
+                        label={t("awaitingDocApprove")}
+                        pendingLabel={t("awaitingDocApproving")}
+                      />
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {/* The รอจัดรถ list is gone: จัด now runs the moment a booking is approved,
           so nothing should sit here. What cannot be placed shows on that day's
           board instead (components/admin/unassigned-bar.tsx) — per-day, next to
@@ -337,10 +400,10 @@ export default async function AdminQueue({
         ) : (
           <ul className="space-y-2">
             {upcoming.map((b) => (
-              <li key={b.id}>
+              <li key={b.id} className="rounded-xl border bg-card">
                 <Link
                   href={`/admin/${b.id}`}
-                  className="group flex items-start justify-between gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="group flex items-start justify-between gap-4 rounded-xl p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <div className="min-w-0">
                     {/* The job number means nothing to anyone reading the list —
@@ -362,6 +425,13 @@ export default async function AdminQueue({
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </Link>
+                {/* Outside the Link — the border moved to the <li> so the card
+                    still reads as one block with the action below it. */}
+                {b.pdfUrl && (
+                  <div className="px-4 pb-3">
+                    <BookingDocumentLink bookingId={b.id} label={t("downloadDocument")} />
+                  </div>
+                )}
               </li>
             ))}
           </ul>

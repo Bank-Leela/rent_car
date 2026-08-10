@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { ACTIVE_BOOKING_STATUSES } from "@/components/requester-booking-list";
 import { formatTh } from "@/lib/format-date";
+import { BookingDocumentLink } from "@/components/booking-document-link";
 
 type Translator = Awaited<ReturnType<typeof getTranslations<"requesterUpcoming">>>;
 type FormTranslator = Awaited<ReturnType<typeof getTranslations<"bookingForm">>>;
@@ -171,13 +172,17 @@ function TripCard({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <BookingStatusBadge status={b.status} />
         </div>
-        <Link
-          href={`/requester/${b.id}`}
-          className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-primary hover:underline"
-        >
-          {t("detailLink")}
-          <ChevronRight className="h-4 w-4" aria-hidden />
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* The official form, once approval has generated it. */}
+          <BookingDocumentLink bookingId={b.id} label={t("downloadDocument")} hasPdf={!!b.pdfUrl} />
+          <Link
+            href={`/requester/${b.id}`}
+            className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-primary hover:underline"
+          >
+            {t("detailLink")}
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </div>
       </div>
 
       {/* Route: pickup → destination, with a round-trip / one-way badge */}
