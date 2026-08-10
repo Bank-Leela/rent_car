@@ -13,10 +13,16 @@ not the gap), the **no-overlap rule** (no car may double-book — not even the d
 car; a manual override may relax only the 2h gap), the placement recommendation
 obeying `canChain`, and the >400 km co-driver pairing.
 
-Before changing any of `lib/booking/{rotations,batch-solver,batch-actions,matching,matching-actions,overtime-reco,driver-capacity,placement-reco,earnings,schedule-actions,tjw-request-solver}.ts`
+Before changing any of `lib/booking/{rotations,batch-solver,batch-actions,matching,matching-actions,overtime-reco,driver-capacity,placement-reco,earnings,schedule-actions,tjw-request-solver,leave-core,availability-actions}.ts`
 or `lib/booking/driver-rounds.ts` / `components/driver/driver-rounds-board.tsx`
-(the board that replaced the deleted drag-and-drop timeline), the hotspots, read that doc first — this subsystem has churned because the rule
-kept being re-derived.
+(the whiteboard rounds board — it sits beside the drag-and-drop timeline
+`components/admin/scheduler-board*`, which was deleted and then restored, not
+replaced), the hotspots, read that doc first — this subsystem has churned because
+the rule kept being re-derived.
+
+Driver leave / sick day is **§9b** of that doc: which seat the absent driver held
+decides what moves, and a trip already departed or spanning in from an earlier
+day is flagged, never re-dispatched.
 
 Verify scheduling changes: `npm test` (the `canChain`, `solver-invariants`, and
 `overtime-reco` tests encode the rule) **and** the scenarios

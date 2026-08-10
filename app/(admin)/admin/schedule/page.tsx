@@ -212,27 +212,50 @@ export default async function SchedulePage({
   // /admin รอจัดรถ list is gone.
   const unassigned = await prisma.booking.findMany({
     where: {
-      status: "APPROVED",
-      primaryDriverId: null,
-      startAt: { gte: dayStart, lt: dayEnd },
+      OR: [
+        { status: "APPROVED", primaryDriverId: null, startAt: { gte: dayStart, lt: dayEnd } },
+        // Trips that DO have a driver but still need P'Top: one whose driver went
+        // off sick/on leave while it was already under way or spanning in from an
+        // earlier day (never re-dispatched automatically), and one that lost the
+        // second driver a >400 km run requires. Neither is unassigned, so the
+        // "APPROVED with no driver" key alone would leave both invisible.
+        // Overlap-matched, not start-matched — a multi-day ตจว flagged on its
+        // second day started on its first.
+        {
+          status: { in: ["APPROVED", "ASSIGNED"] },
+          primaryDriverId: { not: null },
+          overflowReason: { in: ["DRIVER_OFF_NEEDS_REVIEW", "NO_SECONDARY_DRIVER"] },
+          startAt: { lt: dayEnd },
+          endAt: { gt: dayStart },
+        },
+      ],
     },
     orderBy: { startAt: "asc" },
     select: {
       id: true, jobNumber: true, destination: true, startAt: true, endAt: true,
       jobType: true, isEmergency: true, preferredVehicleType: true, overflowReason: true,
-      estimatedDistance: true,
+      estimatedDistance: true, primaryDriverId: true,
     },
   });
 
-  // A recommendation only exists for bookings the solver actually considered.
+  // A recommendation only exists for bookings the solver actually considered —
+  // and only for ones that still need placing. A flagged booking already has a
+  // car; offering to "assign" it would double-book its own driver.
   const recoInputs = unassigned.filter(
-    (b) => b.jobType !== "TJW" && !b.isEmergency && b.preferredVehicleType !== "BUS_OUTSOURCED",
+    (b) =>
+      b.primaryDriverId === null &&
+      b.jobType !== "TJW" && !b.isEmergency && b.preferredVehicleType !== "BUS_OUTSOURCED",
   );
   const recos = recoInputs.length ? await recommendForBookings(dayStart, recoInputs, isThai) : new Map();
 
   const unassignedRows: UnassignedRow[] = unassigned.map((b) => {
+    // A driver-off flag outranks the kind-of-job labels: a multi-day ตจว flagged
+    // because its driver fell sick is not sitting here for the usual "ตจว is
+    // always placed by hand" reason, and saying so would hide why it appeared.
     const reason =
-      b.jobType === "TJW" ? t("reasonManualTjw")
+      b.overflowReason === "DRIVER_OFF_NEEDS_REVIEW" ? tsim("reason_DRIVER_OFF_NEEDS_REVIEW")
+      : b.primaryDriverId ? tsim(`reason_${b.overflowReason ?? "NO_SECONDARY_DRIVER"}`)
+      : b.jobType === "TJW" ? t("reasonManualTjw")
       : b.isEmergency ? t("reasonManualUrgent")
       : b.preferredVehicleType === "BUS_OUTSOURCED" ? t("reasonManualBus")
       : tsim(`reason_${b.overflowReason ?? "NO_PRIMARY_DRIVER"}`);

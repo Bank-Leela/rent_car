@@ -6,6 +6,7 @@ import { DriverPool, Role, VehicleType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { isStationEmail } from "@/lib/auth/station";
+import { logEvent } from "@/lib/booking/audit";
 import type { ActionResult } from "@/lib/booking/actions";
 
 // Backfill Driver profiles for DRIVER-role users that don't have one yet.
@@ -34,13 +35,13 @@ export async function provisionDriverProfilesAction(): Promise<ActionResult & { 
 // Set (or clear) a car's assigned driver. Enforces 1:1: if the driver is
 // already on another car, that car is cleared first (a driver owns one car).
 export async function setVehicleDriverAction(formData: FormData): Promise<ActionResult> {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
   const vehicleId = String(formData.get("vehicleId") ?? "");
   const raw = String(formData.get("driverId") ?? "");
   const driverId = raw === "" ? null : raw;
   if (!vehicleId) return { ok: false, error: "invalidInput" };
 
-  await prisma.$transaction((tx) => assignDriverTx(tx, vehicleId, driverId));
+  await prisma.$transaction((tx) => assignDriverTx(tx, vehicleId, driverId, session.user.id));
 
   revalidatePath("/admin/fleet");
   revalidatePath("/admin/schedule");
@@ -64,20 +65,57 @@ const newVehicleSchema = z.object({
 
 // Point a driver at a car inside a transaction, honouring the 1:1 rule: the
 // driver is first released from any other car (a driver owns at most one car).
-async function assignDriverTx(tx: Prisma.TransactionClient, vehicleId: string, driverId: string | null) {
+//
+// Audited: car=driver is the fleet's central invariant — who drives what decides
+// what the scheduler may dispatch — and re-pairing left no trace at all, so a
+// pairing that changed under someone could not be traced to a person or a time.
+async function assignDriverTx(
+  tx: Prisma.TransactionClient,
+  vehicleId: string,
+  driverId: string | null,
+  actorUserId: string,
+) {
+  const before = await tx.vehicle.findUnique({
+    where: { id: vehicleId },
+    select: { assignedDriverId: true },
+  });
+
+  // The 1:1 rule silently un-pairs the driver's previous car; name it in the log
+  // rather than leaving a car that quietly lost its driver unexplained.
+  let releasedFromVehicleIds: string[] = [];
   if (driverId) {
+    const others = await tx.vehicle.findMany({
+      where: { assignedDriverId: driverId, id: { not: vehicleId } },
+      select: { id: true },
+    });
+    releasedFromVehicleIds = others.map((v) => v.id);
     await tx.vehicle.updateMany({
       where: { assignedDriverId: driverId, id: { not: vehicleId } },
       data: { assignedDriverId: null },
     });
   }
   await tx.vehicle.update({ where: { id: vehicleId }, data: { assignedDriverId: driverId } });
+
+  // Re-saving the same pairing changes nothing worth a row.
+  if ((before?.assignedDriverId ?? null) === driverId && releasedFromVehicleIds.length === 0) return;
+  await logEvent({
+    actorUserId,
+    entityType: "VEHICLE",
+    entityId: vehicleId,
+    action: driverId ? "VEHICLE_DRIVER_PAIRED" : "VEHICLE_DRIVER_UNPAIRED",
+    metadata: {
+      fromDriverId: before?.assignedDriverId ?? null,
+      toDriverId: driverId,
+      releasedFromVehicleIds,
+    },
+    tx,
+  });
 }
 
 // Add a car to the fleet (Admin เพิ่มรถในระบบได้), optionally pairing a driver
 // in the same step. Registration is unique; a dup is a friendly error.
 export async function createVehicleAction(formData: FormData): Promise<ActionResult> {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
   const parsed = newVehicleSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) return { ok: false, error: "invalidInput" };
   const { registrationNumber, type, capacity, notes, driverId } = parsed.data;
@@ -85,7 +123,7 @@ export async function createVehicleAction(formData: FormData): Promise<ActionRes
   if (existing) return { ok: false, error: "vehicleRegTaken" };
   await prisma.$transaction(async (tx) => {
     const created = await tx.vehicle.create({ data: { registrationNumber, type, capacity, notes } });
-    if (driverId) await assignDriverTx(tx, created.id, driverId);
+    if (driverId) await assignDriverTx(tx, created.id, driverId, session.user.id);
   });
   revalidatePath("/admin/fleet");
   revalidatePath("/admin/schedule");
@@ -110,13 +148,13 @@ export async function updateVehicleSpecAction(formData: FormData): Promise<Actio
 // VehicleOccupancy rows exist to trip the FK restrict); otherwise deactivate
 // so past trips keep their vehicle link. Releases its driver either way.
 export async function removeVehicleAction(formData: FormData): Promise<ActionResult> {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
   const vehicleId = String(formData.get("vehicleId") ?? "");
   if (!vehicleId) return { ok: false, error: "invalidInput" };
 
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { id: true, _count: { select: { bookings: true } } },
+    select: { id: true, assignedDriverId: true, _count: { select: { bookings: true } } },
   });
   if (!vehicle) return { ok: false, error: "vehicleNotFound" };
 
@@ -125,6 +163,15 @@ export async function removeVehicleAction(formData: FormData): Promise<ActionRes
   } else {
     await prisma.vehicle.update({ where: { id: vehicleId }, data: { isActive: false, assignedDriverId: null } });
   }
+  // Either path takes a car — and its driver's only car — out of the fleet.
+  // A hard-deleted vehicle leaves no row to explain where it went.
+  await logEvent({
+    actorUserId: session.user.id,
+    entityType: "VEHICLE",
+    entityId: vehicleId,
+    action: vehicle._count.bookings === 0 ? "VEHICLE_DELETED" : "VEHICLE_DEACTIVATED",
+    metadata: { releasedDriverId: vehicle.assignedDriverId, bookingCount: vehicle._count.bookings },
+  });
   revalidatePath("/admin/fleet");
   revalidatePath("/admin/schedule");
   return { ok: true };

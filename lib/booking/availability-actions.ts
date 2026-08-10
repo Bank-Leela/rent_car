@@ -60,7 +60,7 @@ export async function setDriverUnavailableAction(formData: FormData): Promise<Ac
   if (!driverId || !date) return { ok: false, error: "invalidInput" };
 
   if (!off) {
-    await clearLeaveDay(driverId, date);
+    await clearLeaveDay(driverId, date, session.user.id);
     revalidateLeave();
     return { ok: true };
   }
@@ -94,7 +94,7 @@ export async function setDriverLeaveRangeAction(formData: FormData): Promise<Act
   if (days.length === 0) return { ok: false, error: "invalidInput" };
 
   if (!off) {
-    for (const d of days) await clearLeaveDay(driverId, d);
+    for (const d of days) await clearLeaveDay(driverId, d, session.user.id);
     revalidateLeave();
     return { ok: true };
   }
@@ -102,10 +102,18 @@ export async function setDriverLeaveRangeAction(formData: FormData): Promise<Act
   const released: string[] = [];
   let handedOff = 0;
   let rerostered = 0;
+  // Trips the system deliberately did NOT move — a co-driver seat it could not
+  // refill, or a trip already under way. Both keep a driver, so neither shows up
+  // in `released`; without their own counters the summary would read as a clean
+  // hand-off while two things still needed P'Top.
+  let coDriverLost = 0;
+  let needsReview = 0;
   for (const d of days) {
     const outcome = await applyLeaveDay(driverId, d, session.user.id, reason);
     released.push(...outcome.released);
-    handedOff += outcome.handedOff.length;
+    handedOff += outcome.handedOff.length + outcome.coDriverReplaced.length;
+    coDriverLost += outcome.coDriverLost.length;
+    needsReview += outcome.needsReview.length;
     if (outcome.rerosteredTo) rerostered += 1;
   }
 
@@ -117,5 +125,14 @@ export async function setDriverLeaveRangeAction(formData: FormData): Promise<Act
     handedOff,
     released: released.length,
     rerostered,
-  } as ActionResult & { days: number; handedOff: number; released: number; rerostered: number };
+    coDriverLost,
+    needsReview,
+  } as ActionResult & {
+    days: number;
+    handedOff: number;
+    released: number;
+    rerostered: number;
+    coDriverLost: number;
+    needsReview: number;
+  };
 }

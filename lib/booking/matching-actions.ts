@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
-import { logTransition } from "@/lib/booking/audit";
+import { logEvent, logTransition } from "@/lib/booking/audit";
 import { matchBookingSchema } from "@/lib/booking/schema";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import {
@@ -322,7 +322,7 @@ async function loadTripsThisMonth(driverIds: string[]): Promise<Map<string, numb
 }
 
 export async function setOnCallShiftAction(formData: FormData): Promise<ActionResult> {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
   const te = await getTranslations("errors");
 
   const date = String(formData.get("date") ?? "");
@@ -382,11 +382,35 @@ export async function setOnCallShiftAction(formData: FormData): Promise<ActionRe
     if (!chosenDriverId) return { ok: false, error: te("noActiveDrivers") };
   }
 
+  // Who held it before, so the audit row says what actually changed rather than
+  // only what it became.
+  const before = await prisma.onCallShift.findUnique({
+    where: { date: day },
+    select: { driverId: true },
+  });
+
   await prisma.onCallShift.upsert({
     where: { date: day },
     create: { date: day, driverId: chosenDriverId },
     update: { driverId: chosenDriverId },
   });
+
+  if (before?.driverId !== chosenDriverId) {
+    await logEvent({
+      actorUserId: session.user.id,
+      entityType: "ON_CALL",
+      entityId: date,
+      action: "ON_CALL_SHIFT_SET",
+      metadata: {
+        date,
+        fromDriverId: before?.driverId ?? null,
+        toDriverId: chosenDriverId,
+        // An explicitly named driver is P'Top's choice; an empty field means the
+        // rotation picked. Worth keeping apart when reading the history back.
+        picked: driverId ? "manual" : "rotation",
+      },
+    });
+  }
 
   revalidatePath("/admin");
   return { ok: true };

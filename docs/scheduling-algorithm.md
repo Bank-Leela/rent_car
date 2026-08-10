@@ -299,11 +299,15 @@ the co-driver at assign time.
 
 ## 8. Board rendering (`driver-rounds-board.tsx` + `driver-rounds.ts`)
 
-**The drag-and-drop timeline board is gone.** `scheduler-board.tsx`,
-`-blocks.tsx`, `-shared.ts` and `driver-schedule-board.tsx` were deleted once
-nothing imported them; the whiteboard-style **rounds board** replaced them on
-both `/admin/schedule` and `/driver/schedule`. If you are looking for lanes, an
-X-axis, conflict rings or dragging, that code no longer exists.
+**Two boards, one page.** The whiteboard-style **rounds board** is the default on
+both `/admin/schedule` and `/driver/schedule`. The drag-and-drop **timeline**
+(`scheduler-board.tsx`, `-blocks.tsx`, `-shared.ts`, data in
+`timeline-board-data.ts`) was deleted mid-cycle and **restored in `1f731f4`**:
+the two answer different questions — the whiteboard says what is happening today,
+the timeline is how you change it — so they sit behind a view switch rather than
+one replacing the other. (This section previously said the timeline was gone; it
+is not.) The timeline carries its own unplaced-trip tray, which is why
+`/admin/schedule` hides the overflow bar while the timeline view is showing.
 
 `lib/booking/driver-rounds.ts` is a **pure** view-model builder: drivers + the
 viewed day's bookings → one row per car-paired driver, each holding that day's
@@ -353,6 +357,69 @@ as more are assigned. A same-day chip reads `start–end · place`.
 | `NO_SECONDARY_DRIVER` | Long trip, no fresh co-driver, and the duty driver doesn't fit either. |
 | `NEEDS_WERN_RECLAIM_DECISION` | Long trip staffable only by reclaiming the duty driver → admin chooses. |
 | `NO_SLOT` | Picked driver has no assigned car (unpaired) → can't dispatch. |
+| `DRIVER_OFF_NEEDS_REVIEW` | Not from a solver. Set when a driver goes off sick/on leave holding a trip §9b refuses to re-dispatch. |
+
+---
+
+## 9b. Driver leave / sick day (`leave-core.ts`)
+
+Marked by ADMIN only — one day (a chip on the roster row) or a range
+(`setDriverLeaveRangeAction`); every day in a range is settled independently,
+since a five-day absence can meet five different เวร drivers and five different
+trip sets. Drivers cannot mark themselves off.
+
+`applyLeaveDay` writes the `DriverUnavailability` row and then settles four
+things. All of it is idempotent — re-marking a marked day re-checks rather than
+failing.
+
+1. **เวร.** If that driver held the day's `OnCallShift`, re-pick it **directly**
+   for that day. Do *not* defer to `ensureOnCallRosterThrough`: it tops the
+   roster up from the last rostered day forward and no-ops in the middle of an
+   already-written roster, leaving the day unmanned. Pool excludes anyone else
+   off that day and anyone on a spanning multi-day ตจว. Nobody eligible → the
+   shift is **deleted**, because an empty day is honest and a name that is on
+   leave is not.
+2. **Their trips → the เวร driver.** The agreed rule: the duty driver catches a
+   dropped job. This is the one place the "duty driver is reserved all day" rule
+   is deliberately overridden — being reserved is what makes them the catcher.
+   Still gated by `canTakeTrip`; the no-overlap rule (§5) is never relaxed.
+   Read the duty driver **after** step 1 or the work goes back to the person
+   leaving.
+3. **Which seat they held decides what moves.**
+   - **Primary** → the whole trip goes to the เวร driver's car (`ASSIGNED`).
+     Any existing co-driver is **kept** across the move — the window has not
+     changed, so they are still free, and a > 400 km trip still needs them —
+     unless they *are* the receiving driver, who cannot fill both seats.
+     Nobody can take it → `APPROVED` + no car + `UNCLAIMED`, into the day's
+     overflow bar.
+   - **Co-driver only** → the primary and the car are **untouched**. Only the
+     second seat is refilled (เวร driver, same catcher rule, no car needed since
+     they ride in the primary's). Unfillable *and* the trip requires one
+     (`needsSecondaryDriver` or > `LONG_TRIP_KM`) → `NO_SECONDARY_DRIVER` so it
+     cannot sit on the board looking healthy.
+4. **What is never re-dispatched.** A trip that **started on an earlier day** (a
+   multi-day ตจว whose car is already out of province — handing its remaining
+   legs to an on-campus เวร driver is nonsense) or one **already departed**
+   (`trip.startedAt`, or `startAt` now past). Both keep their driver and are
+   flagged `DRIVER_OFF_NEEDS_REVIEW` for P'Top. A trip already **finished** is
+   left entirely alone. The scan is an **overlap** query, not start-in-day —
+   the old start-in-day window could not see a trip spanning the leave day at all.
+
+Rotation stamps are recomputed for every driver who gains or loses work, so
+leave never credits work not done. Only trips left with **nobody** email the
+requester: a trip that merely changed hands departs at the same time for the
+same place.
+
+**Clearing** (`clearLeaveDay`) deletes the row and clears the
+`DRIVER_OFF_NEEDS_REVIEW` flag it caused — nothing else. Moved trips are **not**
+moved back: they belong to whoever holds them now, and unwinding could
+double-book that person.
+
+**Every other assignment path** excludes an off driver by
+`unavailabilities: { none: { date } }` — `batch-core`, `matching-actions`,
+`placement-reco-data`, `duty-roster`. `tjw-request-actions` cannot use a per-day
+filter (a ตจว spans days), so it converts each off-day into a whole-day
+**synthetic commitment** the solver already knows how to respect.
 
 ---
 
@@ -371,7 +438,9 @@ as more are assigned. A same-day chip reads `start–end · place`.
 | `lib/booking/earnings.ts` | Shared duration-weighted fairness loader (`loadWeightedEarnings`); counts `COMMITTED_STATUSES` |
 | `lib/booking/booking-status.ts` | `COMMITTED_STATUSES` = APPROVED \| ASSIGNED \| COMPLETED — a driver-bearing booking that counts as a real commitment (claimed trips included) |
 | `lib/booking/rotation-stamp.ts` | Recompute a driver's category rotation stamp |
-| `lib/booking/audit.ts` | `logTransition` — single audit-log writer for every status change |
+| `lib/booking/audit.ts` | `logTransition` (per-booking) + `logEvent` (leave marked, เวร swapped, car re-paired — `entityType`/`entityId`, no booking) |
+| `lib/booking/leave-core.ts` | §9b — one day of leave and every consequence: เวร re-pick, seat-aware hand-off, in-flight flagging |
+| `lib/booking/availability-actions.ts` | Single-day + date-range leave server actions; emails only genuinely stranded trips |
 | `lib/booking/day-window.ts` | `daySpan` / `daysSpanned` — project a (multi-day) trip onto a viewed day / its day cells |
 | `lib/booking/overtime-reco.ts` | Advisory OT placement |
 | `lib/booking/placement-reco.ts` | `recommendPlacement` — leftover/overflow suggestion, gated by `canChain` (pure) |

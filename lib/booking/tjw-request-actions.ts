@@ -82,6 +82,23 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     if (t.secondaryDriverId) existingCommitments.push({ driverId: t.secondaryDriverId, startAt: t.startAt, endAt: t.endAt });
   }
 
+  // Sick / leave days across the same span, as commitments the solver already
+  // knows how to respect. Every other assignment path filters on
+  // `unavailabilities: { none: … }`, but that is a per-DAY filter and a TJW spans
+  // days, so this one was left unfiltered — a driver marked off Tuesday could
+  // still be handed a Mon–Wed ตจว. Blocking the whole off-day is the correct
+  // shape: any part of a trip touching it means they are not there for it.
+  const offDays = await prisma.driverUnavailability.findMany({
+    where: { date: { gte: startOfDay(minStart), lte: startOfDay(maxEnd) } },
+    select: { driverId: true, date: true },
+  });
+  for (const o of offDays) {
+    const from = startOfDay(o.date);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 1);
+    existingCommitments.push({ driverId: o.driverId, startAt: from, endAt: to });
+  }
+
   // Duty driver per day across the requested span (excluded from TJW on that day).
   const shifts = await prisma.onCallShift.findMany({
     where: { date: { gte: startOfDay(minStart), lte: startOfDay(maxEnd) } },

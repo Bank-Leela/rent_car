@@ -224,7 +224,13 @@ function ymd(d: Date) {
 // ---------- run ----------
 const outcomes = {
   matched: 0,
-  overflow: { NO_SLOT: 0, NO_PRIMARY_DRIVER: 0, NO_SECONDARY_DRIVER: 0, NEEDS_WERN_RECLAIM_DECISION: 0 },
+  // DRIVER_OFF_NEEDS_REVIEW is never produced by the solver — it is set when a
+  // driver goes off sick holding a trip too far along to re-dispatch. Counted
+  // here only so the tally covers the whole enum.
+  overflow: {
+    NO_SLOT: 0, NO_PRIMARY_DRIVER: 0, NO_SECONDARY_DRIVER: 0,
+    NEEDS_WERN_RECLAIM_DECISION: 0, DRIVER_OFF_NEEDS_REVIEW: 0,
+  },
   totalBookings: 0,
   totalDays: TOTAL_DAYS,
   capViolations: 0,        // a driver got >2 trips in a day

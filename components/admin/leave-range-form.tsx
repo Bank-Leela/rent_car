@@ -45,6 +45,8 @@ export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; de
         handedOff?: number;
         released?: number;
         rerostered?: number;
+        coDriverLost?: number;
+        needsReview?: number;
       };
       if (!res.ok) {
         setError(res.error ?? null);
@@ -55,6 +57,12 @@ export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; de
           .replace("%days%", String(res.days ?? 0))
           .replace("%handed%", String(res.handedOff ?? 0))
           .replace("%released%", String(res.released ?? 0))
+          // Both of these keep a driver, so neither is counted in %released% —
+          // reporting only that would read as a clean hand-off while a >400 km
+          // trip sits short a second driver, or a trip already under way still
+          // names someone who is off.
+          .replace("%codriver%", String(res.coDriverLost ?? 0))
+          .replace("%review%", String(res.needsReview ?? 0))
           .replace("%rerostered%", String(res.rerostered ?? 0)),
       );
       router.refresh();

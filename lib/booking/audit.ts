@@ -28,3 +28,37 @@ export async function logTransition(args: {
     },
   });
 }
+
+/** What a non-booking audit row is about. */
+export type AuditEntity = "DRIVER" | "ON_CALL" | "VEHICLE";
+
+/**
+ * Log a change that is not about one booking.
+ *
+ * The audit log used to require a bookingId, so three decisions left no trace at
+ * all: marking a driver off sick/on leave, swapping a เวร day by hand, and
+ * re-pairing a car to a driver. Their *consequences* were logged (trips moved,
+ * trips released) but not the decision, so "who marked ก off on Tuesday" had no
+ * answer. Same table, same actor/action/metadata contract — the subject moves
+ * from bookingId to entityType/entityId.
+ */
+export async function logEvent(args: {
+  actorUserId: string;
+  entityType: AuditEntity;
+  entityId: string;
+  action: string;
+  metadata?: Prisma.InputJsonValue;
+  tx?: Prisma.TransactionClient;
+}) {
+  const client = args.tx ?? prisma;
+  await client.auditLog.create({
+    data: {
+      bookingId: null,
+      entityType: args.entityType,
+      entityId: args.entityId,
+      actorUserId: args.actorUserId,
+      action: args.action,
+      metadata: args.metadata,
+    },
+  });
+}

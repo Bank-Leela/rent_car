@@ -117,6 +117,11 @@ enum OverflowReason {
   NO_PRIMARY_DRIVER
   NO_SECONDARY_DRIVER
   NEEDS_WERN_RECLAIM_DECISION
+  // A driver went off sick/on leave while holding a trip the system must not
+  // silently re-dispatch: one that started on an earlier day (a multi-day ตจว
+  // whose car is already out of province) or one already departed. Flagged for
+  // P'Top rather than moved.
+  DRIVER_OFF_NEEDS_REVIEW
 }
 
 // CR-05: four fixed time buckets used by Algorithm 1 (slot allocation).
@@ -733,8 +738,18 @@ model Evaluation {
 
 model AuditLog {
   id          String         @id @default(cuid())
-  bookingId   String
-  booking     Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  // Nullable since the log also records changes that are not ABOUT one booking:
+  // leave marked or cleared, a เวร day swapped by hand, a car re-paired to a
+  // driver. Nobody could previously answer "who marked this driver off, and
+  // when" — the consequences were logged, the decision was not. Those rows set
+  // entityType/entityId instead. The per-booking history pages read through the
+  // `booking.auditLogs` relation, so widening this cannot affect them.
+  bookingId   String?
+  booking     Booking?       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  /// Subject of a non-booking event: "DRIVER" | "ON_CALL" | "VEHICLE".
+  entityType  String?
+  /// That subject's id — driverId, "yyyy-MM-dd" for a เวร day, or vehicleId.
+  entityId    String?
   actorUserId String
   actor       User           @relation(fields: [actorUserId], references: [id])
   fromStatus  BookingStatus?
@@ -744,4 +759,5 @@ model AuditLog {
   createdAt   DateTime       @default(now())
 
   @@index([bookingId, createdAt])
+  @@index([entityType, entityId, createdAt])
 }
