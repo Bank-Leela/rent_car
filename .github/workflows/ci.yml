@@ -46,4 +46,7 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npx prisma db seed
       - run: npx tsc --noEmit
+      - run: npm run lint
+      # vitest.config.ts sets fileParallelism: false, so bare `npm test` is
+      # serialized here exactly as `make test` runs it locally.
       - run: npm test

@@ -1,8 +1,7 @@
 import Link from "next/link";
 import type { JobType, Prisma } from "@prisma/client";
 import { format, subHours } from "date-fns";
-import { th } from "date-fns/locale";
-import { tripWhen } from "@/lib/booking/trip-when";
+import { tripWhen, tripWhenRecurring } from "@/lib/booking/trip-when";
 import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle, FileClock } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
@@ -255,7 +254,7 @@ export default async function AdminQueue({
                           <div className="space-y-0.5">
                             <div className="truncate font-medium">{b.purpose}</div>
                             <div className="truncate text-sm text-muted-foreground">
-                              {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                              {b.destination} · {(isSeries ? tripWhenRecurring : tripWhen)(b.startAt, b.endAt)}
                             </div>
                             {isSeries && (
                               // Every date, not just a count: "6 days" does not
@@ -416,7 +415,7 @@ export default async function AdminQueue({
                     <div className="min-w-0 space-y-0.5">
                       <div className="truncate font-medium">{b.purpose}</div>
                       <div className="truncate text-sm text-muted-foreground">
-                        {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                        {b.destination} · {(isSeries ? tripWhenRecurring : tripWhen)(b.startAt, b.endAt)}
                       </div>
                       {isSeries && (
                         <div className="text-xs tabular-nums text-muted-foreground">

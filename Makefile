@@ -2,7 +2,10 @@
 # these are the one-word aliases (`make check` is the default verifier).
 .PHONY: check verify test typecheck lint build dev seed migrate sim help
 
-# Full pre-commit gate: types + lint + tests. Matches CI (minus the DB steps).
+# Full pre-commit gate: types + lint + tests — the same three CI runs, minus the
+# DB setup steps (generate / migrate deploy / db seed) that CI does against its
+# own Postgres service. Keep this list and ci.yml in step: for a while `check`
+# ran lint and CI did not, so lint breakage could reach main unseen.
 check: typecheck lint test
 verify: check
 

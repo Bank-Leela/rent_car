@@ -15,14 +15,54 @@ gated **Adobe Sign / Google Maps** integrations, a **LESS** submission tracker,
 and the **nginx/Linux deployment kit**, then (2026-07-17→08-10) a pre-deployment
 audit and the go-live pass it triggered: a **driver leave/sick-day** rework, the
 **drag-and-drop timeline restored** alongside the rounds board, a **รอเอกสาร**
-stage between approval and dispatch, and the **VB job number deleted** outright.
-**Test suite: 389 tests across 43 files** (was 350 / 42).
+stage between approval and dispatch, and the **VB job number deleted** outright,
+then (2026-08-11) a whole-app audit pass — a recurring booking is now **one card
+and one approval**, the queue paginates, and the i18n keys have a test.
+**Test suite: 407 tests across 48 files** (was 389 / 43).
 
 > The session entries below are newest-first. Entries under **Earlier sessions**
 > predate 2026-06-22 and are kept for architecture context; where a newer change
 > overrode them it's flagged ⚠️.
 
 ---
+
+### Session 2026-08-11 — audit pass, series-as-one-card, queue paging
+
+Suite now **407 tests / 48 files**. No schema changes.
+
+- **A recurring booking is one card and one approval** (`580f6d4`, `03ec137`):
+  the queue grouped nothing, so a 24-week series filled the page with 24
+  identical cards. `lib/booking/series.ts` groups by `recurrenceParentId` and
+  the page limit counts **cards, not rows** — a five-week series is one card,
+  not five. `approveSeriesAction` / `denySeriesAction` act on the whole group.
+  The occurrences do **not** share a fate: the fleet can be free on the 23rd and
+  full on the 30th, so the action reports **per day** and the days that could not
+  go through stay `PENDING_APPROVAL`. Blocked days are named in a **toast**, not
+  an inline panel — once the successful days leave the queue the card is no
+  longer a series and the panel's own component unmounts with the message in it.
+- **Document approval reports unplaced days** (`e60a36c`): confirming the
+  paperwork runs จัด, and จัด can fail to place a day. `DocumentApproveButton`
+  was discarding the series result, so a 24-day series reported clean success
+  while some days quietly had no car.
+- **A series card no longer prints its first date twice** (this session): the
+  "when" line showed `ศ. 14 ส.ค. 08:00–12:00` and the list below opened with
+  `14 ส.ค.` — and the weekday was only the first of thirteen days, so a series
+  running Tue–Fri was labelled ศ. (Friday). `tripWhenRecurring()` returns the
+  shared time alone; a midnight-spanning occurrence keeps the full form because
+  the date list cannot express it. The ASSIGNED list still shows its first date
+  on purpose — the car and driver named beside it belong to that occurrence.
+- **Queue paging keeps your place** (`a8a4a20`, `167eaa1`): five cards per list,
+  `scroll={false}` on every show-more link — it was jumping to the top of the
+  page and making you scroll back down.
+- **i18n keys have a test** (`003ae04`): `driverCalendar.titleStation` was never
+  written and shipped a page that threw `MISSING_MESSAGE` — next-intl resolves
+  keys at **runtime**, so tsc and the build cannot catch this.
+  `tests/i18n-keys.test.ts` resolves every literal `t("…")` against its
+  translator's namespace.
+- **Three audit defects fixed** (`3deafc9`), each verified before the fix.
+- **Verifier drift closed** (this session): CI ran `tsc` + tests but **not
+  lint**, while `make check` did and its comment claimed the two matched. CI now
+  runs lint. See AGENTS.md § The verifier.
 
 ### Session 2026-08-10 — leave rework, รอเอกสาร stage, job number deleted
 
