@@ -131,6 +131,10 @@ export function ApproverQueueActions({
           />
         </span>
       )}
+      {/* First click on อนุมัติ opens the note box; the second confirms. The
+          note is never required — leaving it empty and pressing อนุมัติ again is
+          the normal path — but it is offered every time rather than hidden
+          behind a separate link. */}
       {noteOpen && (
         <Textarea
           autoFocus
@@ -146,6 +150,10 @@ export function ApproverQueueActions({
         type="button"
         disabled={approve.pending || (!returnTrip && !confirmedEnd)}
         onClick={() => {
+          if (!noteOpen) {
+            setNoteOpen(true);
+            return;
+          }
           const fd = new FormData();
           if (!returnTrip) fd.set("endAt", confirmedEnd);
           if (approveNote.trim()) fd.set("comment", approveNote.trim());
@@ -155,14 +163,18 @@ export function ApproverQueueActions({
         <Check className="h-4 w-4" />
         {approve.pending ? t("approving") : t("approve")}
       </Button>
-      {!noteOpen && (
-        <button
+      {noteOpen && (
+        <Button
           type="button"
-          onClick={() => setNoteOpen(true)}
-          className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          variant="outline"
+          disabled={approve.pending}
+          onClick={() => {
+            setNoteOpen(false);
+            setApproveNote("");
+          }}
         >
-          {t("approveCommentLabel")}
-        </button>
+          {t("cancel")}
+        </Button>
       )}
       {(canDeny || dayFull) && (
         <Button

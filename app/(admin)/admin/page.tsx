@@ -87,7 +87,10 @@ export default async function AdminQueue({
     prisma.booking.findMany({
       // Only the COUNT and the earliest day are used now (the รอจัดรถ list moved
       // to each day's board), so order by startAt and select just what that needs.
-      where: { status: "APPROVED", primaryDriverId: null, ...searchFilter },
+      // Still ahead only. Without the endAt bound this counted every unplaced
+      // booking ever, so the banner reported days long past as outstanding work
+      // and its link led to a date nobody can act on.
+      where: { status: "APPROVED", primaryDriverId: null, endAt: { gte: now }, ...searchFilter },
       orderBy: { startAt: "asc" },
       take: 200,
       select: { id: true, startAt: true },
@@ -357,11 +360,8 @@ export default async function AdminQueue({
                   {/* Siblings of the Link, never inside it — an anchor nested in
                       an anchor swallows one of the two clicks. */}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <BookingDocumentLink
-                      bookingId={b.id}
-                      label={t("downloadDocument")}
-                      hasPdf={!!b.pdfUrl}
-                    />
+                    {/* Confirming the document is the action; downloading it is
+                        the reference. Primary action reads first. */}
                     {isAdmin && (
                       <DocumentApproveButton
                         bookingId={b.id}
@@ -369,6 +369,11 @@ export default async function AdminQueue({
                         pendingLabel={t("awaitingDocApproving")}
                       />
                     )}
+                    <BookingDocumentLink
+                      bookingId={b.id}
+                      label={t("downloadDocument")}
+                      hasPdf={!!b.pdfUrl}
+                    />
                   </div>
                 </div>
               </li>

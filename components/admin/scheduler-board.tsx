@@ -450,6 +450,7 @@ export function SchedulerBoard({
                   bookings={onVehicle(v.id)}
                   coDriverBookings={coDriverOn(v.id)}
                   dutyLabel={t("duty")}
+                  offLabel={t("roundsOff")}
                   noDriverLabel={t("noDriver")}
                   coDriverLabel={t("coDriver")}
                   arrivesLabel={t("arrives")}

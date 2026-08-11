@@ -42,7 +42,12 @@ export async function loadTimelineBoard(
         id: true,
         registrationNumber: true,
         assignedDriverId: true,
-        assignedDriver: { select: { user: { select: { name: true, thaiName: true } } } },
+        assignedDriver: {
+          select: {
+            user: { select: { name: true, thaiName: true } },
+            unavailabilities: { where: { date: dayStart }, select: { id: true } },
+          },
+        },
       },
     }),
     prisma.booking.findMany({
@@ -118,7 +123,11 @@ export async function loadTimelineBoard(
   const vehicleRows = vehicles.map((v) => {
     const du = v.assignedDriver?.user;
     const driverName = du ? (isThai ? du.thaiName ?? du.name : du.name ?? du.thaiName) ?? null : null;
-    return { id: v.id, registrationNumber: v.registrationNumber, driverName };
+    // car = driver, so a driver on leave takes their car out of service with
+    // them. The row still shows whatever is already booked on it — that is
+    // exactly what P'Top has to move.
+    const isOff = (v.assignedDriver?.unavailabilities?.length ?? 0) > 0;
+    return { id: v.id, registrationNumber: v.registrationNumber, driverName, isOff };
   });
 
 

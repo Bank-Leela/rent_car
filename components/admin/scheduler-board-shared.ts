@@ -9,6 +9,9 @@ export type SchedulerVehicle = {
   registrationNumber: string;
   // car=driver: the car's fixed driver. null only for an unpaired car.
   driverName: string | null;
+  /** Driver marked off (sick/leave) for the viewed day — the rounds board has
+   *  shown this all along; the timeline showed the row as if nothing were wrong. */
+  isOff?: boolean;
 };
 
 export type SchedulerBooking = {

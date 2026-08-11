@@ -332,6 +332,7 @@ export function CarRow({
   vehicle,
   label,
   isDuty,
+  offLabel,
   bookings,
   coDriverBookings,
   dutyLabel,
@@ -348,6 +349,8 @@ export function CarRow({
   vehicle: SchedulerVehicle;
   label: string;
   isDuty: boolean;
+  /** Thai for "ลา" — shown instead of the เวร badge when the driver is away. */
+  offLabel: string;
   bookings: SchedulerBooking[];
   // Long-haul trips where THIS car's driver rides as co-driver (painted as ghosts).
   coDriverBookings: SchedulerBooking[];
@@ -406,8 +409,12 @@ export function CarRow({
   }
   const laneCount = Math.max(1, laneEnds.length);
 
+  // A driver on leave takes their car with them (car = driver), so the row is
+  // marked the same way the rounds board marks it: amber edge stripe, struck-out
+  // name, ลา badge. Anything already sitting on the row is what has to be moved.
+  const off = vehicle.isOff === true;
   return (
-    <div className="flex border-b last:border-b-0">
+    <div className={`flex border-b last:border-b-0 ${off ? "border-l-4 border-l-amber-400 bg-amber-50/40 dark:bg-amber-950/20" : ""}`}>
       <div
         className="flex w-44 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium"
         title={vehicle.registrationNumber}
@@ -415,14 +422,24 @@ export function CarRow({
         <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
         <span className="shrink-0">{label}</span>
         {vehicle.driverName ? (
-          <span className="truncate text-xs font-normal text-muted-foreground">· {vehicle.driverName}</span>
+          <span
+            className={`truncate text-xs font-normal ${off ? "text-muted-foreground line-through" : "text-muted-foreground"}`}
+          >
+            · {vehicle.driverName}
+          </span>
         ) : (
           <span className="truncate text-[10px] font-normal text-destructive">· {noDriverLabel}</span>
         )}
-        {isDuty && (
-          <span className="ml-auto shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-            {dutyLabel}
+        {off ? (
+          <span className="ml-auto shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+            {offLabel}
           </span>
+        ) : (
+          isDuty && (
+            <span className="ml-auto shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              {dutyLabel}
+            </span>
+          )
         )}
       </div>
       <div
