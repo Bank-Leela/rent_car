@@ -186,6 +186,11 @@ async function main() {
   }
 
   console.log(`
+RELOAD /admin if it is already open. Re-running this script deletes the previous
+rows and creates new ones, so a card left on screen from an earlier run posts an
+id that no longer exists — the approve then fails with "ไม่พบการจอง", which is
+the queue correctly reporting a booking that is gone, not a bug.
+
 Ready. Open /admin — the queue shows ONE card, "จองซ้ำ 4 วัน", requester ${requester.name ?? requester.email}.
 Press อนุมัติทั้งชุด (4 วัน) and the three free days should go through while
 ${iso(fullDay)} stays in the queue and is named in the warning toast.
