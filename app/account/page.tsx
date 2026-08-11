@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser, homePathFor } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -9,6 +10,8 @@ import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { ChangeDepartmentForm } from "@/components/forms/change-department-form";
 import { SignatureForm } from "@/components/forms/signature-form";
 import { listDepartments } from "@/lib/departments";
+import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
+import { signOutAction } from "@/lib/auth/credentials-actions";
 
 export default async function AccountPage({
   searchParams,
@@ -41,6 +44,13 @@ export default async function AccountPage({
   // proxy.ts redirects mustChangePassword users here with ?forceChange=1.
   // Surface the stronger banner so they know they can't navigate away.
   const forced = forceChange === "1" || user.mustChangePassword;
+  // This page sits outside the (requester)/(driver)/(admin) route groups, so it
+  // never gets their AppShell — there is no nav here at all. When the user is
+  // NOT locked that is fine, the back link below covers it. When they ARE
+  // locked, withholding the back link is the point, but withholding EVERY exit
+  // left them with no way out of the app short of clearing cookies. Sign-out is
+  // the escape that does not defeat the lock.
+  const isDevImpersonation = DEV_ENABLED && !!(await cookies()).get(DEV_COOKIE);
 
   return (
     <div className="min-h-screen p-6 max-w-2xl mx-auto space-y-6">
@@ -48,7 +58,16 @@ export default async function AccountPage({
         title={t("title")}
         description={t("description")}
         actions={
-          !forced && (
+          forced ? (
+            <form action={isDevImpersonation ? "/api/dev/sign-out" : signOutAction} method={isDevImpersonation ? "post" : undefined}>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+              >
+                {tc("signOut")}
+              </button>
+            </form>
+          ) : (
             <Link
               href={homePath}
               className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"

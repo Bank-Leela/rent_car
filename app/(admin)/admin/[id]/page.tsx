@@ -12,6 +12,7 @@ import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
 import { MatchingButton, NeedsSecondaryDriverToggle } from "@/components/forms/matching-form";
+import { DocumentApproveButton } from "@/components/admin/document-approve-button";
 import { LessSubmitToggle } from "@/components/admin/less-submit-toggle";
 import { EstimateDistanceButton } from "@/components/admin/estimate-distance-button";
 import { isMapsConfigured } from "@/lib/maps/distance";
@@ -31,6 +32,7 @@ export default async function AdminBookingDetail({
   const tad = await getTranslations("adminDetail");
   const taf = await getTranslations("assignForm");
   const ta = await getTranslations("approverActions");
+  const tadmin = await getTranslations("admin");
   // Reuse the booking-form field/value labels (pickup, vehicle type, gender
   // counts, etc.) so the detail page surfaces every input the requester filled.
   const tf = await getTranslations("bookingForm");
@@ -307,6 +309,17 @@ export default async function AdminBookingDetail({
             >
               {t("downloadPdf")}
             </Link>
+            {/* The same เอกสารเรียบร้อย action the รอเอกสาร queue card carries — a
+                booking waiting on paperwork has to be clearable from wherever it
+                is being read, and the detail page is where the form itself is
+                downloaded. Confirming it is what runs จัด. */}
+            {isAdmin && booking.status === "AWAITING_DOCUMENT" && (
+              <DocumentApproveButton
+                bookingId={booking.id}
+                label={tadmin("awaitingDocApprove")}
+                pendingLabel={tadmin("awaitingDocApproving")}
+              />
+            )}
             {/* Manual LESS Paper submission: download above, upload to LESS, mark here. */}
             <div className="border-t pt-3">
               <p className="mb-2 text-xs text-muted-foreground">{tless("hint")}</p>
