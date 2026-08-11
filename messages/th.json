@@ -921,6 +921,7 @@
   },
   "driverCalendar": {
     "title": "ปฏิทินของฉัน",
+    "titleStation": "ปฏิทินรถทั้งหมด",
     "onCall": "เวร",
     "onCallLegend": "เวร (อยู่เวร)",
     "noProfileTitle": "ไม่พบโปรไฟล์พนักงานขับรถ",
