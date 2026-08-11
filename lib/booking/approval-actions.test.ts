@@ -152,6 +152,9 @@ describe("approveBookingAction email", () => {
 // without having to fabricate a full fleet's worth of trips.
 describe("approval capacity gate", () => {
   const offDay = new Date("2027-03-17T00:00:00");
+  // A day nobody is marked off for, so the gate says there IS room. Used to
+  // prove `force` does nothing when the fleet can serve the trip.
+  const freeDay = new Date("2027-03-24T00:00:00");
   let driverIds: string[] = [];
 
   beforeAll(async () => {
@@ -216,6 +219,76 @@ describe("approval capacity gate", () => {
     // so the refusal leaves the approver able to act on it.
     const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
     expect(after.status).toBe("PENDING_APPROVAL");
+  });
+
+  // ── force: P'Top approving a full day anyway ──────────────────────────────
+  //
+  // The override does not invent capacity. It puts the trip on the ordinary
+  // pipeline with no car, where the day's board shows it as approved-and-unplaced
+  // for a human to sort out.
+  it("force approves a full day, and keeps it INTERNAL rather than filing it as an outside rental", async () => {
+    const id = await bookingOn(offDay, { needsOutsourcing: false });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    fd.append("force", "1");
+    fd.append("comment", "อธิการบดีสั่งการ ต้องไปให้ได้");
+    expect((await approveBookingAction(fd)).ok).toBe(true);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    // NOT OUTSOURCED: the requester never accepted an outside vehicle, and
+    // filing an override as one would quietly change what was agreed.
+    expect(after.status).toBe("AWAITING_DOCUMENT");
+    expect(after.needsOutsourcing).toBe(false);
+    // Still no car — the override was a decision, not a dispatch.
+    expect(after.primaryDriverId).toBeNull();
+    expect(after.vehicleId).toBeNull();
+  });
+
+  it("records the override under its own audit action, because the history renders the action and never the metadata", async () => {
+    const id = await bookingOn(offDay, { needsOutsourcing: false });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    fd.append("force", "1");
+    fd.append("comment", "ผู้บริหารยืนยันให้เดินทาง");
+    expect((await approveBookingAction(fd)).ok).toBe(true);
+
+    const logs = await prisma.auditLog.findMany({ where: { bookingId: id } });
+    const forced = logs.find((l) => l.action === "BOOKING_APPROVED_FORCED_DAY_FULL");
+    expect(forced, "a forced approval must not read as an ordinary one").toBeTruthy();
+    expect(logs.some((l) => l.action === "BOOKING_APPROVED_OUTSOURCED_DAY_FULL")).toBe(false);
+    // The justification is kept where a deny keeps its reason too.
+    const approval = await prisma.approval.findFirstOrThrow({ where: { bookingId: id } });
+    expect(approval.comment).toBe("ผู้บริหารยืนยันให้เดินทาง");
+  });
+
+  it("refuses to force without a reason — the server checks, not just the button", async () => {
+    const id = await bookingOn(offDay, { needsOutsourcing: false });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    fd.append("force", "1");
+    fd.append("comment", "ok"); // 2 chars, under the minimum
+    const res = await approveBookingAction(fd);
+
+    expect(res.ok).toBe(false);
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("PENDING_APPROVAL");
+  });
+
+  it("force is inert on a day that is not full — it never changes an ordinary approval", async () => {
+    // The flag is an escape hatch for the capacity gate, not a mode. On a free
+    // day the result must be byte-for-byte the ordinary approve.
+    const id = await bookingOn(freeDay, { needsOutsourcing: false });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    fd.append("force", "1");
+    fd.append("comment", "ไม่จำเป็นต้องใช้");
+    expect((await approveBookingAction(fd)).ok).toBe(true);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("AWAITING_DOCUMENT");
+    const logs = await prisma.auditLog.findMany({ where: { bookingId: id } });
+    expect(logs.some((l) => l.action === "BOOKING_APPROVED")).toBe(true);
+    expect(logs.some((l) => l.action === "BOOKING_APPROVED_FORCED_DAY_FULL")).toBe(false);
   });
 
   it("sends it to ส่งรถนอก instead of refusing when the requester accepted an outside rental", async () => {

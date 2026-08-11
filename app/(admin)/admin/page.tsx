@@ -303,9 +303,16 @@ export default async function AdminQueue({
                         <ApproverQueueActions
                           bookingId={b.id}
                           canDeny
-                          // Same flag the chip reads, so the card cannot show
-                          // วันเต็ม beside a live approve button.
-                          dayFull={(triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")}
+                          // The server refuses on `dayFull && !needsOutsourcing`
+                          // — a requester who accepted an outside rental is
+                          // approved straight to ส่งรถนอก on a full day, so
+                          // hiding the button for them would block an approval
+                          // the server would have allowed. The chip still shows
+                          // วันเต็ม, which is why they are going outside.
+                          dayFull={
+                            !b.needsOutsourcing &&
+                            (triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")
+                          }
                           returnTrip={b.returnTrip}
                           startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
                           endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}

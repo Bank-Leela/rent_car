@@ -44,6 +44,27 @@ Suite now **407 tests / 48 files**. No schema changes.
   paperwork runs จัด, and จัด can fail to place a day. `DocumentApproveButton`
   was discarding the series result, so a 24-day series reported clean success
   while some days quietly had no car.
+- **อนุมัติทั้งที่เต็ม — the override** (this session): a full day can be approved
+  anyway, behind a typed reason (min 3, **enforced on the server** — the approve
+  schema's comment is optional, so a client-only gate would record an override
+  with no explanation). It does not invent capacity: the trip goes down the
+  ordinary pipeline with no car and surfaces on that day's board as
+  approved-and-unplaced. Three traps the design pass caught, all avoided:
+  `approveSchema` is a plain `z.object` and **silently strips** unknown keys, so
+  `force` had to be declared or the flag would vanish and the refusal fire anyway
+  with a misleading message; the one-way `endAt` check runs **before** the
+  capacity check, so the override panel renders its own DateTimePicker or a
+  one-way trip would fail 100% of the time on an unrelated error; and reusing the
+  existing `dayFull` branch would have filed every override as `OUTSOURCED` with
+  the outside-rental audit string — `outsourcing` and `overriding` are now
+  separate, with their own audit actions. The action name carries the override
+  (`BOOKING_APPROVED_FORCED_DAY_FULL`) because the booking history renders
+  `action` and **never** renders `metadata`.
+- **The outsourcing card was hiding an approve the server would allow** (this
+  session): the `dayFull` prop ignored `needsOutsourcing` while the server refuses
+  only on `dayFull && !needsOutsourcing`, so a requester who had accepted an
+  outside rental got the no-approve card even though approving would have gone
+  straight to ส่งรถนอก. Caught by rendering both cards side by side, not by tests.
 - **A full day has no approve button at all** (this session): approving used to
   be offered, refused on click, and only then revealed Deny. But approving is not
   a decision the approver can make on a day the fleet cannot serve — so the card

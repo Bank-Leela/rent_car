@@ -164,6 +164,38 @@ async function main() {
     });
   }
 
+  // ── 2b. Two single requests on the SAME full day, differing only in whether
+  //        the requester ticked "จัดหารถเช่าจากภายนอกได้" ────────────────────
+  //
+  // Same day, same hours, same job type — so the only thing that can explain a
+  // different outcome at approval is that one flag. The one who accepted an
+  // outside rental should approve straight through to ส่งรถนอก; the one who did
+  // not should be refused and offered the board, deny, or the override.
+  const singleBase = {
+    ...base,
+    purpose: "", // set per row
+    destination: "ศาลายา",
+    passengerCount: 2,
+  };
+  await prisma.booking.create({
+    data: {
+      ...singleBase,
+      purpose: `${TAG} ขอรถวันเต็ม — ผู้ขอ "รับรถเช่าภายนอกได้"`,
+      needsOutsourcing: true,
+      startAt: at(fullDay, 9),
+      endAt: at(fullDay, 11),
+    },
+  });
+  await prisma.booking.create({
+    data: {
+      ...singleBase,
+      purpose: `${TAG} ขอรถวันเต็ม — ผู้ขอ "ขอรถคณะเท่านั้น"`,
+      needsOutsourcing: false,
+      startAt: at(fullDay, 9),
+      endAt: at(fullDay, 11),
+    },
+  });
+
   // ── 3. Ask the real gate, rather than assuming the seeding worked ───────────
   console.log(`\nAsking the approval gate about each occurrence (08:00–12:00 NORMAL):`);
   const occurrences = await prisma.booking.findMany({
@@ -185,15 +217,44 @@ async function main() {
     );
   }
 
+  // The two singles differ only in needsOutsourcing, so report what the gate
+  // says about each — the exemption is what makes them behave differently.
+  console.log(`\nThe two single requests on ${iso(fullDay)} 09:00–11:00:`);
+  const singles = await prisma.booking.findMany({
+    where: { purpose: { startsWith: `${TAG} ขอรถวันเต็ม` } },
+    orderBy: { needsOutsourcing: "desc" },
+  });
+  for (const s of singles) {
+    const v = await dayHasRoomFor(s);
+    const full = v.gated && !v.fits;
+    console.log(
+      `  needsOutsourcing=${String(s.needsOutsourcing).padEnd(5)} ` +
+        `gate=${full ? "FULL" : "has room"}  →  ` +
+        (s.needsOutsourcing
+          ? "approve goes straight to ส่งรถนอก (OUTSOURCED)"
+          : "approve is refused; card offers board / deny / override"),
+    );
+  }
+
   console.log(`
 RELOAD /admin if it is already open. Re-running this script deletes the previous
 rows and creates new ones, so a card left on screen from an earlier run posts an
 id that no longer exists — the approve then fails with "ไม่พบการจอง", which is
 the queue correctly reporting a booking that is gone, not a bug.
 
-Ready. Open /admin — the queue shows ONE card, "จองซ้ำ 4 วัน", requester ${requester.name ?? requester.email}.
-Press อนุมัติทั้งชุด (4 วัน) and the three free days should go through while
-${iso(fullDay)} stays in the queue and is named in the warning toast.
+Ready. Open /admin — requester ${requester.name ?? requester.email}. Three things to try:
+
+1. The series card "จองซ้ำ 4 วัน" — press อนุมัติทั้งชุด (4 วัน). Three days go
+   through; ${iso(fullDay)} stays in the queue and is named in the warning toast.
+
+2. ขอรถวันเต็ม — ผู้ขอ "รับรถเช่าภายนอกได้" — a normal อนุมัติ button, even though
+   the day is full. Pressing it sends the trip to ส่งรถนอก; it leaves the internal
+   fleet entirely and never asks for a car.
+
+3. ขอรถวันเต็ม — ผู้ขอ "ขอรถคณะเท่านั้น" — no อนุมัติ. Offers ไปจัดตารางวันนั้น,
+   ไม่อนุมัติ, and อนุมัติทั้งที่เต็ม (needs a typed reason). The override keeps the
+   trip INTERNAL: it goes to รอเอกสารอนุมัติ with no car, and after
+   เอกสารเรียบร้อย it shows on that day's board as approved-and-unplaced.
 
 Remove everything afterwards:
   npx tsx scripts/seed-series-conflict.ts --clean`);

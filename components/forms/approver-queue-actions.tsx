@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarClock, Check, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Check, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,17 +64,25 @@ export function ApproverQueueActions({
   const [refusedAsFull, setRefusedAsFull] = useState(false);
   const dayFull = dayFullFromServer || refusedAsFull;
   const dayHref = startAt ? `/admin/schedule?date=${startAt.slice(0, 10)}` : "/admin/schedule";
+  // The override panel: approve a day with no car anyway, with a written reason.
+  const [forceOpen, setForceOpen] = useState(false);
+  const [forceReason, setForceReason] = useState("");
 
   const approve = useFormAction(approveBookingAction, {
     bookingId,
     onSuccess: () => router.refresh(),
     onResult: (res) => {
       const full = !!(res && !res.ok && (res as { dayFull?: boolean }).dayFull);
-      setRefusedAsFull(full);
+      // Latch, never clear. Clearing on a non-capacity failure (a too-short
+      // override reason, say) would put the ordinary approve button back on a
+      // day that is still full.
+      if (full) setRefusedAsFull(true);
       // Losing the last car to someone else between render and click is a race,
       // not a mistake — take them to that day's board rather than leaving them
-      // reading a refusal, exactly as the pre-rendered case does.
-      if (full && startAt) router.push(dayHref);
+      // reading a refusal, exactly as the pre-rendered case does. Not while the
+      // override panel is open: navigating away would discard the reason they
+      // are part-way through typing.
+      if (full && startAt && !forceOpen) router.push(dayHref);
     },
   });
   const deny = useFormAction(denyByApproverAction, {
@@ -127,10 +135,74 @@ export function ApproverQueueActions({
     );
   }
 
-  // No car can serve this trip on its day. Approving is not on the table — the
-  // decision belongs on the schedule board, where making room is actually
-  // possible. Deny stays, for when it genuinely will not fit.
+  // No car can serve this trip on its day. The first answer is the schedule
+  // board, where making room is actually possible, and the second is to refuse.
+  // Approving anyway is available as a deliberate override — behind a reason,
+  // and never as the default-looking button.
   if (dayFull) {
+    if (forceOpen) {
+      return (
+        <div className="mt-3 space-y-2 border-t pt-3">
+          <p className="text-xs text-muted-foreground">{t("forceApproveHint")}</p>
+          {/* A one-way trip needs its arrival time set before ANY approve — the
+              server checks that before it checks capacity, so without this the
+              override would fail every time on an unrelated error. */}
+          {!returnTrip && (
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              {t("confirmEndLabel")}
+              <DateTimePicker
+                name=""
+                min={startAt}
+                defaultValue={endAt}
+                placeholder={t("confirmEndLabel")}
+                timeLabel={t("confirmEndLabel")}
+                onChange={setConfirmedEnd}
+              />
+            </span>
+          )}
+          <Textarea
+            autoFocus
+            aria-label={t("forceApproveReason")}
+            placeholder={t("forceApproveReason")}
+            rows={2}
+            value={forceReason}
+            onChange={(e) => setForceReason(e.target.value)}
+          />
+          <FormError message={approve.error} />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                approve.pending || forceReason.trim().length < 3 || (!returnTrip && !confirmedEnd)
+              }
+              onClick={() => {
+                const fd = new FormData();
+                fd.set("force", "1");
+                fd.set("comment", forceReason.trim());
+                if (!returnTrip) fd.set("endAt", confirmedEnd);
+                approve.run(fd);
+              }}
+            >
+              <AlertTriangle className="h-4 w-4" aria-hidden />
+              {approve.pending ? t("forceApproving") : t("forceApproveConfirm")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={approve.pending}
+              onClick={() => {
+                setForceOpen(false);
+                setForceReason("");
+              }}
+            >
+              {t("cancel")}
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="mt-3 space-y-2 border-t pt-3">
         <p className="text-xs text-muted-foreground">{t("dayFullHint")}</p>
@@ -144,6 +216,12 @@ export function ApproverQueueActions({
           <Button type="button" variant="destructive" onClick={() => setDenyOpen(true)}>
             <X className="h-4 w-4" />
             {t("deny")}
+          </Button>
+          {/* Ghost, and last: the override is available, not encouraged. Fixing
+              the schedule is the thing that actually gets the trip a car. */}
+          <Button type="button" variant="ghost" onClick={() => setForceOpen(true)}>
+            <AlertTriangle className="h-4 w-4" aria-hidden />
+            {t("forceApprove")}
           </Button>
         </div>
       </div>

@@ -42,6 +42,13 @@ const approveSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((v) => (v ? new Date(v) : undefined)),
+  // Deliberate override: approve even though no car can serve the day.
+  //
+  // It MUST be declared here. This is a plain z.object, which strips unknown
+  // keys silently — a caller sending `force` without this line would parse
+  // cleanly, be refused by the capacity gate anyway, and get an error message
+  // that says nothing about the flag having been dropped.
+  force: z.literal("1").optional(),
 });
 
 const denySchema = z.object({
@@ -67,7 +74,8 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
-  const { bookingId, comment, endAt } = parsed.data;
+  const { bookingId, comment, endAt, force } = parsed.data;
+  const forcing = force === "1";
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
@@ -98,14 +106,19 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
   const room = await dayHasRoomFor(booking);
   const dayFull = room.gated && !room.fits;
 
-  // A full day with no outside-rental option is not something to approve: the
-  // fleet cannot serve it, so refuse and let P'Top deny from the queue. The
-  // booking stays PENDING_APPROVAL, which is the only status denyByApproverAction
-  // accepts.
-  if (dayFull && !booking.needsOutsourcing) {
-    // `dayFull` rides along so the queue can reveal its Deny button — the fleet
-    // being full is the one refusal the approver is expected to act on, not
-    // just read.
+  // A full day with no outside-rental option is not something to approve on the
+  // ordinary path: the fleet cannot serve it, so refuse and let P'Top go free a
+  // slot or deny. The booking stays PENDING_APPROVAL, which is the only status
+  // denyByApproverAction accepts.
+  //
+  // `force` is the deliberate exception — P'Top approving anyway, knowing there
+  // is no car. It is NOT a way to make the trip fit: nothing here invents
+  // capacity, so the trip goes down the normal pipeline and surfaces on that
+  // day's board as approved-with-no-car for a human to place by hand.
+  if (dayFull && !booking.needsOutsourcing && !forcing) {
+    // `dayFull` rides along so the queue can hide its approve button and offer
+    // the board instead — the fleet being full is the one refusal the approver
+    // is expected to act on, not just read.
     return {
       ok: false,
       field: "startAt",
@@ -113,6 +126,24 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       dayFull: true,
     } as ActionResult & { dayFull: true };
   }
+
+  // Overriding the capacity rule has to be justified, and the check belongs
+  // HERE rather than only in the component: approveSchema.comment is optional
+  // (an ordinary approve note never needs a reason), so a client that skipped
+  // the textarea — or called the action directly — would otherwise record an
+  // override with no explanation at all.
+  const overriding = forcing && dayFull && !booking.needsOutsourcing;
+  if (overriding && (comment ?? "").trim().length < 3) {
+    return { ok: false, field: "comment", error: te("forceApproveReasonRequired") };
+  }
+
+  // Two different things can be true when `dayFull` is: the requester accepted
+  // an outside rental (the trip leaves the internal fleet → OUTSOURCED), or
+  // P'Top overrode the gate (the trip STAYS internal and still needs a car).
+  // Keeping them apart matters — collapsing them would file every forced
+  // approval as an accepted outside rental, in both the status and the audit
+  // trail.
+  const outsourcing = dayFull && booking.needsOutsourcing;
 
   await prisma.$transaction(async (tx) => {
     await tx.approval.create({
@@ -136,8 +167,8 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
         // OUTSOURCED and leaves the internal pipeline for the timeline board's
         // per-day outside-vehicle row. Staff may still deny it later if no
         // vendor can be found — which is exactly what the form's notice says.
-        status: dayFull ? "OUTSOURCED" : "AWAITING_DOCUMENT",
-        ...(dayFull ? { needsOutsourcing: true } : {}),
+        status: outsourcing ? "OUTSOURCED" : "AWAITING_DOCUMENT",
+        ...(outsourcing ? { needsOutsourcing: true } : {}),
         decidedAt: new Date(),
         // One-way: replace the provisional end with the admin-set time.
         ...(confirmedEndAt ? { endAt: confirmedEndAt } : {}),
@@ -147,11 +178,24 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       bookingId,
       actorUserId: userId,
       fromStatus: booking.status,
-      toStatus: dayFull ? "OUTSOURCED" : "AWAITING_DOCUMENT",
-      action: dayFull ? "BOOKING_APPROVED_OUTSOURCED_DAY_FULL" : "BOOKING_APPROVED",
+      toStatus: outsourcing ? "OUTSOURCED" : "AWAITING_DOCUMENT",
+      // A distinct action per variant, not a metadata boolean — the booking
+      // history renders `action` and never renders `metadata`, so an override
+      // recorded only in metadata would be stored and still invisible to
+      // everyone reading the page.
+      action: outsourcing
+        ? "BOOKING_APPROVED_OUTSOURCED_DAY_FULL"
+        : overriding
+          ? "BOOKING_APPROVED_FORCED_DAY_FULL"
+          : "BOOKING_APPROVED",
       metadata: {
         ...(comment ? { comment } : {}),
-        ...(dayFull ? { reason: "no legal car on the day; requester accepted an outside rental" } : {}),
+        ...(outsourcing
+          ? { reason: "no legal car on the day; requester accepted an outside rental" }
+          : {}),
+        ...(overriding
+          ? { reason: "no legal car on the day; approved anyway by admin override" }
+          : {}),
       },
       tx,
     });
