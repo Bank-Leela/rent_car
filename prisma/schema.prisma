@@ -505,6 +505,12 @@ model Booking {
   outsourceVendor    String?
   outsourceCost      Decimal? @db.Decimal(10, 2)
   outsourceReference String?
+  // Who to ring on the day. Held on the booking, not read through AdHocVehicle,
+  // because a trip can be outsourced two ways — attached to a board row, or via
+  // the manual vendor form — and the requester's page must show a contact either
+  // way. The board path copies these down from the row it is attached to.
+  outsourceContactName  String?
+  outsourceContactPhone String?
   // The uploaded quote document (ใบเสนอราคา) for an outsourced trip.
   outsourceQuoteUrl      String?
   outsourceQuoteFilename String?
@@ -659,6 +665,12 @@ model AdHocVehicle {
   label     String
   cost      Decimal?  @db.Decimal(10, 2)
   note      String?
+  // Who the passengers actually ring on the day. `label` is the company or the
+  // vehicle; these are the human driving it. Copied onto each booking attached to
+  // this row (outsourceToRowAction) so the requester's page can show a contact
+  // without joining, and so it survives the row being removed.
+  contactName  String?
+  contactPhone String?
   bookings  Booking[]
   createdAt DateTime  @default(now())
 

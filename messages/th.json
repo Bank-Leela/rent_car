@@ -279,6 +279,10 @@
     "externalWaitingTitle": "รออนุมัติรถเช่า {count} งาน — ยังไม่ได้เลือกผู้ให้บริการ",
     "externalWaitingNeedsRow": "เพิ่มแถวรถเช่าก่อน แล้วจึงกำหนดงานนี้เข้าไป",
     "externalWaitingAssign": "ใส่ใน {row}",
+    "externalContactNamePlaceholder": "ชื่อคนขับ",
+    "externalContactPhonePlaceholder": "เบอร์โทร",
+    "externalContactSave": "บันทึก",
+    "externalContactAdd": "+ เพิ่มคนขับ/เบอร์โทร",
     "externalCancel": "ยกเลิก",
     "moveToExternal": "ส่งรถนอก",
     "removeExternalRow": "ลบแถว (งานจะกลับไปที่คิว)",
@@ -692,7 +696,9 @@
     "outsourceTitle": "จ้างรถภายนอก",
     "outsourceVendor": "ผู้ให้บริการ",
     "outsourceCost": "ค่าใช้จ่าย",
-    "outsourceReference": "เลขที่อ้างอิง/ใบเสนอราคา"
+    "outsourceReference": "เลขที่อ้างอิง/ใบเสนอราคา",
+    "outsourceContact": "คนขับ / ผู้ติดต่อ",
+    "outsourcePendingVendor": "อนุมัติให้ใช้รถเช่าภายนอกแล้ว — กำลังจัดหาผู้ให้บริการ จะแจ้งชื่อคนขับและเบอร์โทรให้ทราบ"
   },
   "adminDetail": {
     "backToQueue": "กลับไปคิวงาน",

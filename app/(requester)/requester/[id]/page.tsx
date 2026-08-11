@@ -221,13 +221,29 @@ export default async function RequesterBookingDetail({
         </Card>
       )}
 
-      {booking.status === "OUTSOURCED" && booking.outsourceVendor && (
+      {/* Shown for every OUTSOURCED trip, not only once a vendor exists.
+          Approval onto an outside rental sets the status but no vendor yet, so
+          gating on `outsourceVendor` meant the requester saw an ส่งรถนอก badge in
+          their list and then a page that said nothing about it at all. */}
+      {booking.status === "OUTSOURCED" && (
         <Card>
           <CardHeader>
             <CardTitle>{tr("outsourceTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
-            <Field label={tr("outsourceVendor")} value={booking.outsourceVendor} />
+            {booking.outsourceVendor ? (
+              <Field label={tr("outsourceVendor")} value={booking.outsourceVendor} />
+            ) : (
+              <p className="sm:col-span-2 text-muted-foreground">{tr("outsourcePendingVendor")}</p>
+            )}
+            {(booking.outsourceContactName || booking.outsourceContactPhone) && (
+              <Field
+                label={tr("outsourceContact")}
+                value={[booking.outsourceContactName, booking.outsourceContactPhone]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+            )}
             {booking.outsourceCost != null && (
               <Field label={tr("outsourceCost")} value={`฿${booking.outsourceCost.toString()}`} />
             )}

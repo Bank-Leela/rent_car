@@ -177,6 +177,20 @@ const outsourceSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((v) => v || undefined),
+  // Who the passengers ring on the day. Optional here for the same reason it is
+  // optional on a board row: the vendor may not have named a driver yet.
+  outsourceContactName: z
+    .string()
+    .max(120)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v || undefined),
+  outsourceContactPhone: z
+    .string()
+    .max(40)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v || undefined),
   notify: z.coerce.boolean().optional().default(true),
 });
 
@@ -190,7 +204,15 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? te("invalidInput") };
   }
-  const { bookingId, outsourceVendor, outsourceCost, outsourceReference, notify } = parsed.data;
+  const {
+    bookingId,
+    outsourceVendor,
+    outsourceCost,
+    outsourceReference,
+    outsourceContactName,
+    outsourceContactPhone,
+    notify,
+  } = parsed.data;
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
@@ -219,6 +241,8 @@ export async function recordOutsourcingAction(formData: FormData): Promise<Actio
         outsourceVendor,
         outsourceCost,
         outsourceReference,
+        outsourceContactName,
+        outsourceContactPhone,
         ...(quoteRef ? { outsourceQuoteUrl: quoteRef, outsourceQuoteFilename: quoteName } : {}),
         needsOutsourcing: true,
         // OUTSOURCED is fully off-algorithm — clear the fleet car/drivers so the

@@ -44,6 +44,21 @@ Suite now **407 tests / 48 files**. No schema changes.
   paperwork runs จัด, and จัด can fail to place a day. `DocumentApproveButton`
   was discarding the series result, so a 24-day series reported clean success
   while some days quietly had no car.
+- **Outside vehicles now carry a contact** (this session): migration
+  `20260811170000_outsource_contact` adds `AdHocVehicle.contactName/contactPhone`
+  and `Booking.outsourceContactName/outsourceContactPhone` — four nullable
+  columns, no backfill. The admin types it on the คนขับนอก row; attaching a trip
+  **copies it down** onto the booking, because the requester's page reads the
+  booking and the manual vendor form fills the same two columns, so both routes
+  to OUTSOURCED read alike. `setAdHocContactAction` exists because a row is
+  normally created before the vendor names a driver: without it the only way to
+  add a phone number was to delete and recreate the row, which un-outsources
+  every trip on it. It updates the attached trips in the same transaction, or the
+  board would show a contact the requester could not see. Un-outsourcing clears
+  all of it. Also: the requester's จ้างรถภายนอก card was gated on
+  `outsourceVendor`, which approval never sets — so they saw an ส่งรถนอก badge
+  and then a page that said nothing. It now shows for any OUTSOURCED trip, with
+  "กำลังจัดหาผู้ให้บริการ" until a vendor exists.
 - **Approving onto an outside rental made the trip disappear** (this session):
   it landed on `OUTSOURCED` with `adHocVehicleId` still null, and **nine** admin
   surfaces filtered it out — the queues key on PENDING_APPROVAL /

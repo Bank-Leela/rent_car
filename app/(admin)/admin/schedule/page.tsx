@@ -163,6 +163,8 @@ export default async function SchedulePage({
       id: true,
       label: true,
       cost: true,
+      contactName: true,
+      contactPhone: true,
       bookings: {
         where: { status: "OUTSOURCED" },
         orderBy: { startAt: "asc" },
@@ -174,6 +176,8 @@ export default async function SchedulePage({
     id: r.id,
     label: r.label,
     cost: r.cost != null ? String(r.cost) : null,
+    contactName: r.contactName,
+    contactPhone: r.contactPhone,
     trips: r.bookings.map((b) => ({
       id: b.id,
       timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
