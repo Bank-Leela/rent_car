@@ -984,6 +984,7 @@
     "deny": "ไม่อนุมัติ",
     "denying": "กำลังปฏิเสธ…",
     "cancel": "ยกเลิก",
+    "approveCommentLabel": "เพิ่มหมายเหตุ (ไม่บังคับ)",
     "denyPresets": {
       "noVehicle": "ไม่มีรถว่างในวันนั้น",
       "leadTime": "แจ้งล่วงหน้าไม่พอ",

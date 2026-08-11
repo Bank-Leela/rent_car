@@ -191,10 +191,10 @@ export function DateTimePicker({
   // overrun the left. Runs before paint, so the user never sees the unclamped
   // position. shiftX is 0 while measuring because it resets on close.
   useLayoutEffect(() => {
-    if (!open) {
-      setShiftX(0);
-      return;
-    }
+    // No reset on close: the panel unmounts, and on the next open React renders
+    // with the previous shift still applied, which `clamp` subtracts back out
+    // before measuring. Calling setState here would only cascade a render.
+    if (!open) return;
     const clamp = () => {
       const el = panelRef.current;
       if (!el) return;

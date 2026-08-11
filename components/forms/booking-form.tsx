@@ -155,6 +155,12 @@ export function BookingForm({
   const isOvernight = isUpcountry && overnight;
   const [externalBusCount, setExternalBusCount] = useState("0");
   const [externalVanCount, setExternalVanCount] = useState("0");
+  // Declared here, above raiseStartToFloor/selectTripArea, because those read
+  // them: a const read before its declaration is a lint error even when the
+  // read only happens at call time.
+  const [startValue, setStartValue] = useState<string>("");
+  const [endValue, setEndValue] = useState<string>("");
+
   // Move an already-chosen start forward when a change raises the lead-time
   // floor above it — switching กรุงเทพ (3 business days) to ตจว (7) or to
   // หลักสูตรนิสิตแพทย์ (30 calendar days), or turning จองเร่งด่วน back off.
@@ -163,7 +169,7 @@ export function BookingForm({
   //
   // The chosen TIME of day is kept — only the calendar day moves — and the end
   // shifts by the same amount so the trip keeps the duration that was set.
-  const raiseStartToFloor = (area: TripArea, urgent: boolean) => {
+  function raiseStartToFloor(area: TripArea, urgent: boolean) {
     if (!startValue) return;
     const current = new Date(startValue);
     const earliest = earliestStartFor(area, urgent, new Date());
@@ -177,23 +183,24 @@ export function BookingForm({
         setEndValue(datetimeLocalValue(new Date(end.getTime() + (moved.getTime() - current.getTime()))));
       }
     }
-  };
+  }
 
-  const selectTripArea = (next: TripArea) => {
+  function selectTripArea(next: TripArea) {
     setTripArea(next);
     // Overnight only applies upcountry; leaving it must clear the choice so the
     // end date snaps back to the same day.
     if (next !== "UPCOUNTRY") setOvernight(false);
     raiseStartToFloor(next, isEmergency);
-  };
+  }
 
   // Turning urgent OFF restores the area's full floor, which can leave the
   // chosen date behind it. Turning it ON only ever lowers the floor, so nothing
   // needs moving.
-  const setUrgent = (next: boolean) => {
+  function setUrgent(next: boolean) {
     setIsEmergency(next);
     if (!next) raiseStartToFloor(tripArea, false);
-  };
+  }
+
   // Urgent ("จองเร่งด่วน"): waives the lead-time floor (down to 1 day) and
   // routes the trip to manual admin assignment. Lifted here because it drives
   // the date picker's min + the lead-time notice, and is toggled from inside
@@ -350,7 +357,6 @@ export function BookingForm({
   // area helper text so requesters see "3 / 7 business days" (or "30 days" for
   // external charter) up front.
   const areaLeadDays = leadDaysFor(tripArea);
-  const requiredDays = isEmergency ? LEAD_TIME_URGENT_DAYS : areaLeadDays;
   // Earliest start = midnight on (today + N days). External charter (SMUS)
   // counts every calendar day, including weekends; the other tiers skip
   // Saturdays and Sundays. Any time on that day is fine.
@@ -359,8 +365,6 @@ export function BookingForm({
   // Cap typed year so the browser can't accept "20251" or longer.
   const maxStart = datetimeLocalValue(addYears(now, 5));
 
-  const [startValue, setStartValue] = useState<string>("");
-  const [endValue, setEndValue] = useState<string>("");
 
   // Earliest allowed end DAY: the start day for a same-day trip, the day AFTER
   // for an overnight (upcountry) trip. Same-day trips are single-day, so the

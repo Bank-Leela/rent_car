@@ -40,6 +40,11 @@ export function ApproverQueueActions({
   const [denyOpen, setDenyOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [confirmedEnd, setConfirmedEnd] = useState(endAt ?? "");
+  // Optional free-text note on APPROVE. Approving needs no justification, so
+  // this never gates the button — it rides along on the Approval row and shows
+  // in the booking's history. Deny keeps its required reason below.
+  const [approveNote, setApproveNote] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
   // Set when approve is refused because no car can serve the day. The fleet
   // being full is the one refusal the approver has to ACT on, so Deny appears
   // here rather than making them open the detail page to find it.
@@ -118,18 +123,39 @@ export function ApproverQueueActions({
           />
         </span>
       )}
+      {noteOpen && (
+        <Textarea
+          autoFocus
+          rows={2}
+          value={approveNote}
+          onChange={(e) => setApproveNote(e.target.value)}
+          placeholder={t("approveCommentLabel")}
+          aria-label={t("approveCommentLabel")}
+          className="w-full"
+        />
+      )}
       <Button
         type="button"
         disabled={approve.pending || (!returnTrip && !confirmedEnd)}
         onClick={() => {
           const fd = new FormData();
           if (!returnTrip) fd.set("endAt", confirmedEnd);
+          if (approveNote.trim()) fd.set("comment", approveNote.trim());
           approve.run(fd);
         }}
       >
         <Check className="h-4 w-4" />
         {approve.pending ? t("approving") : t("approve")}
       </Button>
+      {!noteOpen && (
+        <button
+          type="button"
+          onClick={() => setNoteOpen(true)}
+          className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {t("approveCommentLabel")}
+        </button>
+      )}
       {(canDeny || dayFull) && (
         <Button
           type="button"
