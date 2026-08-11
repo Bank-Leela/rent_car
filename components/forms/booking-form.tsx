@@ -726,7 +726,9 @@ export function BookingForm({
                   id="returnTrip"
                   value={returnTrip ? "yes" : "no"}
                   onValueChange={(v) => setReturnTrip(v === "yes")}
-                  className="h-10 font-medium"
+                  // data-[size=default]:h-8 in the trigger beats a plain h-10,
+                  // which left this 32px tall between two 40px date fields.
+                  className="data-[size=default]:h-10 font-medium"
                   options={[
                     { value: "yes", label: t("returnTripYes") },
                     { value: "no", label: t("returnTripNo") },

@@ -23,7 +23,11 @@ import { BookingDocumentLink } from "@/components/booking-document-link";
 import { DocumentApproveButton } from "@/components/admin/document-approve-button";
 
 const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
-const PENDING_DEFAULT_LIMIT = 100;
+// Five cards, then "แสดงเพิ่ม" adds five more. A hundred approve/deny cards at
+// once is a wall, not a queue — and each carries its own controls, so the page
+// was rendering far more interactive markup than anyone works through in a
+// sitting. The show-more link raises the limit by this same step.
+const PENDING_DEFAULT_LIMIT = 5;
 const PENDING_MAX_LIMIT = 500;
 
 export default async function AdminQueue({

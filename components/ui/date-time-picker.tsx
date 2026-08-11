@@ -127,6 +127,7 @@ export function DateTimePicker({
   // its helper paragraph is far wider than the plain calendar), so any constant
   // is wrong for some variant and the panel silently hangs off the screen.
   const [shiftX, setShiftX] = useState(0);
+  const [shiftY, setShiftY] = useState(0);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
@@ -186,10 +187,16 @@ export function DateTimePicker({
     if (value) commit(value, hour, v);
   }
 
-  // Measure the panel and slide it horizontally so it always sits inside the
-  // viewport: pull it left when it overruns the right edge, right when it would
-  // overrun the left. Runs before paint, so the user never sees the unclamped
-  // position. shiftX is 0 while measuring because it resets on close.
+  // Measure the panel and slide it back inside the viewport on BOTH axes.
+  //
+  // Horizontal was the first bug: the panel chose its side from a hard-coded
+  // width guess. Vertical is the same mistake in the other direction — `dropUp`
+  // flips the panel above the field when there is little room below, but nothing
+  // checked there was room ABOVE either, so a tall panel (the end picker carries
+  // the คอย/ไม่คอย column) flipped up and ran off the top of the window.
+  //
+  // Runs before paint, so the unclamped position is never shown, and re-clamps
+  // on resize and on scroll — the space below a field changes as the page moves.
   useLayoutEffect(() => {
     // No reset on close: the panel unmounts, and on the next open React renders
     // with the previous shift still applied, which `clamp` subtracts back out
@@ -203,14 +210,30 @@ export function DateTimePicker({
       // r already includes the current shift, so undo it to get the natural box.
       const left = r.left - shiftX;
       const right = r.right - shiftX;
+      const top = r.top - shiftY;
+      const bottom = r.bottom - shiftY;
+
       let dx = 0;
       if (right > window.innerWidth - MARGIN) dx = window.innerWidth - MARGIN - right;
       if (left + dx < MARGIN) dx = MARGIN - left;
+
+      // Bottom first, then top — a panel taller than the viewport is pinned to
+      // the top edge and scrolls internally (max-height below) rather than
+      // having its header pushed off-screen where the month controls live.
+      let dy = 0;
+      if (bottom > window.innerHeight - MARGIN) dy = window.innerHeight - MARGIN - bottom;
+      if (top + dy < MARGIN) dy = MARGIN - top;
+
       setShiftX(dx);
+      setShiftY(dy);
     };
     clamp();
     window.addEventListener("resize", clamp);
-    return () => window.removeEventListener("resize", clamp);
+    window.addEventListener("scroll", clamp, true);
+    return () => {
+      window.removeEventListener("resize", clamp);
+      window.removeEventListener("scroll", clamp, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -291,9 +314,9 @@ export function DateTimePicker({
         <div
           role="dialog"
           ref={panelRef}
-          style={shiftX ? { transform: `translateX(${shiftX}px)` } : undefined}
+          style={shiftX || shiftY ? { transform: `translate(${shiftX}px, ${shiftY}px)` } : undefined}
           className={cn(
-            "absolute left-0 z-50 w-auto max-w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            "absolute left-0 z-50 w-auto max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
             dropUp ? "bottom-full mb-2" : "mt-2",
           )}
         >

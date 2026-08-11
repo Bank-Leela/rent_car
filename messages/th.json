@@ -445,6 +445,7 @@
     "assignTjwDone": "จัด ตจว แล้ว {count} รายการ ตามลำดับการจอง"
   },
   "adminDrivers": {
+    "leaveTitle": "วันลา / วันหยุดของคนขับ",
     "title": "คนขับ",
     "description": "แก้ไขข้อมูลคนขับ",
     "listTitle": "รายชื่อคนขับ",
