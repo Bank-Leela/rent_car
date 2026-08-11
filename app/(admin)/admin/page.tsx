@@ -229,13 +229,16 @@ export default async function AdminQueue({
                         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </div>
-                    {/* One primary action per card. Deny lives on the detail page
-                        (ApproverDenyForm) — it needs a reason anyway, and a second
-                        button repeated down the whole queue is the cognitive load
-                        a card layout is supposed to avoid. */}
+                    {/* Approve and Deny both live on the card now. Deny used to
+                        be detail-page only, to keep one action per card — but a
+                        request the fleet cannot serve has to be refusable where
+                        it is read, and the inline deny collects its reason
+                        (preset chips + free text) without leaving the queue.
+                        WAITLIST rows below still cannot: denyByApproverAction
+                        accepts PENDING_APPROVAL only. */}
                     {isAdmin && <ApproverQueueActions
                         bookingId={b.id}
-                        canDeny={false}
+                        canDeny
                         returnTrip={b.returnTrip}
                         startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
                         endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}

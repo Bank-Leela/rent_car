@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeftRight, X } from "lucide-react";
+import { ArrowLeftRight, Truck, X } from "lucide-react";
 import { reassignVehicleAction, unassignBookingAction } from "@/lib/booking/schedule-actions";
+import { outsourceToRowAction } from "@/lib/booking/adhoc-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
 
 export interface ReassignTarget {
@@ -21,12 +22,21 @@ export interface ReassignTarget {
 // trip back to the queue. Both post to the SAME server actions the old board
 // used — the overlap / driver-elsewhere guards still apply and a rejected move
 // surfaces its conflict message.
+export interface AdHocTarget {
+  id: string;
+  label: string;
+}
+
 export function RoundReassign({
   bookingId,
   targets,
+  adHocTargets = [],
 }: {
   bookingId: string;
   targets: ReassignTarget[];
+  /** Outside vehicles hired for this day. Moving a trip here hands it off the
+   *  fleet entirely (OUTSOURCED) — no car, no driver, no slot. */
+  adHocTargets?: AdHocTarget[];
 }) {
   const router = useRouter();
   const t = useTranslations("scheduler");
@@ -37,12 +47,13 @@ export function RoundReassign({
   };
   const move = useFormAction(reassignVehicleAction, { bookingId, onSuccess: refresh });
   const drop = useFormAction(unassignBookingAction, { bookingId, onSuccess: refresh });
+  const toOutside = useFormAction(outsourceToRowAction, { bookingId, onSuccess: refresh });
 
-  const err = move.error ?? drop.error;
+  const err = move.error ?? drop.error ?? toOutside.error;
   const message = err
     ? t(err === "vehicleBusy" ? "dropConflict" : err === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed")
     : null;
-  const busy = move.pending || drop.pending;
+  const busy = move.pending || drop.pending || toOutside.pending;
 
   return (
     <span className="relative inline-flex items-center">
@@ -78,6 +89,32 @@ export function RoundReassign({
               </li>
             ))}
           </ul>
+          {adHocTargets.length > 0 && (
+            <>
+              <p className="border-t px-2 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground">
+                {t("moveToExternal")}
+              </p>
+              <ul className="max-h-32 overflow-y-auto">
+                {adHocTargets.map((row) => (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        const fd = new FormData();
+                        fd.set("rowId", row.id);
+                        toOutside.run(fd);
+                      }}
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
+                    >
+                      <Truck className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="truncate">{row.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <button
             type="button"
             disabled={busy}

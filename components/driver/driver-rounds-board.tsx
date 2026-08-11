@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { Car, CornerDownRight, Moon, UserRound } from "lucide-react";
 import type { DriverRoundsRow } from "@/lib/booking/driver-rounds";
-import { RoundReassign, type ReassignTarget } from "@/components/admin/round-reassign";
+import { RoundReassign, type ReassignTarget, type AdHocTarget } from "@/components/admin/round-reassign";
 
 // Whiteboard-style board: one row per driver, their day's rounds flowing
 // left→right as chips (depart–return · place) that wrap as more are added.
@@ -14,6 +14,7 @@ export function DriverRoundsBoard({
   rows,
   href,
   reassignTargets,
+  adHocTargets,
   labels,
   legend,
 }: {
@@ -22,6 +23,8 @@ export function DriverRoundsBoard({
   href?: (bookingId: string) => string;
   /** Admin only: the cars a round can be moved to. Omit for the read-only kiosk. */
   reassignTargets?: ReassignTarget[];
+  /** Admin only: outside vehicles hired for this day, as move targets. */
+  adHocTargets?: AdHocTarget[];
   labels: {
     duty: string;
     off: string;
@@ -205,6 +208,7 @@ export function DriverRoundsBoard({
                       <RoundReassign
                         bookingId={round.bookingId}
                         targets={reassignTargets.filter((tg) => tg.driverId !== r.driverId)}
+                        adHocTargets={adHocTargets}
                       />
                     </span>
                   ) : (

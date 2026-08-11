@@ -11,6 +11,7 @@ import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
 import { LeaveRangeForm } from "@/components/admin/leave-range-form";
 import { UpcomingLeave, type LeaveBlock } from "@/components/admin/upcoming-leave";
+import { AdHocRowsPanel, type AdHocPanelRow } from "@/components/admin/adhoc-rows-panel";
 import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { WernStrip, type WernJob } from "@/components/admin/wern-strip";
@@ -188,6 +189,35 @@ export default async function SchedulePage({
     b.label = b.from === b.to ? formatTh(f, "d MMM") : `${formatTh(f, "d MMM")}–${formatTh(tt, "d MMM")}`;
   }
 
+  // Outside vehicles hired for this day. These already drove the timeline board;
+  // the rounds board is the view P'Top actually lands on, so they belong here
+  // too — otherwise the feature exists but is never seen.
+  const adHocRaw = await prisma.adHocVehicle.findMany({
+    where: { date: dayStart },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      label: true,
+      cost: true,
+      bookings: {
+        where: { status: "OUTSOURCED" },
+        orderBy: { startAt: "asc" },
+        select: { id: true, startAt: true, endAt: true, destination: true },
+      },
+    },
+  });
+  const adHocPanelRows: AdHocPanelRow[] = adHocRaw.map((r) => ({
+    id: r.id,
+    label: r.label,
+    cost: r.cost != null ? String(r.cost) : null,
+    trips: r.bookings.map((b) => ({
+      id: b.id,
+      timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
+      place: b.destination,
+    })),
+  }));
+  const adHocTargets = adHocRaw.map((r) => ({ id: r.id, label: r.label }));
+
   // Only pay for the timeline's ~270 lines of mapping when it is the view.
   const timelineData = timeline ? await loadTimelineBoard(dayStart, isThai) : null;
 
@@ -358,6 +388,7 @@ export default async function SchedulePage({
               registrationNumber: v.registrationNumber,
             };
           })}
+        adHocTargets={adHocTargets}
         labels={{
           duty: t("duty"),
           off: t("roundsOff"),
@@ -380,6 +411,11 @@ export default async function SchedulePage({
         }}
       />
       )}
+
+      {/* Outside vehicles sit under the fleet's own rows on the rounds board.
+          The timeline carries its own copy (you drag onto it there), so showing
+          both at once would be the same rows twice. */}
+      {!timeline && <AdHocRowsPanel date={isoOf(dayStart)} rows={adHocPanelRows} />}
     </div>
   );
 }
