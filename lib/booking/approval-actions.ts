@@ -517,6 +517,27 @@ export async function approveDocumentSeriesAction(formData: FormData): Promise<S
     else blocked.push({ id: b.id, date: format(b.startAt, "yyyy-MM-dd"), reason: res.error ?? "" });
   }
 
+  // Confirming the document runs จัด, but จัด is not obliged to succeed: a day
+  // with no legal car leaves the booking APPROVED and driverless with an
+  // overflowReason. Reporting only the action's own failures would call that a
+  // clean success — the approver would be told 24 days went through while some
+  // of them quietly have no car. Re-read and say which.
+  const settled = await prisma.booking.findMany({
+    where: { id: { in: series.map((b) => b.id) } },
+    orderBy: { startAt: "asc" },
+    select: { id: true, startAt: true, status: true, primaryDriverId: true, overflowReason: true },
+  });
+  const ts = await getTranslations("simulate");
+  for (const b of settled) {
+    if (b.status === "OUTSOURCED" || b.primaryDriverId) continue; // has a car, or left the fleet
+    if (blocked.some((x) => x.id === b.id)) continue; // already reported as a hard failure
+    blocked.push({
+      id: b.id,
+      date: format(b.startAt, "yyyy-MM-dd"),
+      reason: b.overflowReason ? ts(`reason_${b.overflowReason}`) : te("noCarAssignedYet"),
+    });
+  }
+
   revalidatePath("/admin");
   revalidatePath("/admin/schedule");
   return approved > 0

@@ -1,6 +1,8 @@
 "use client";
 
 import { useTransition } from "react";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ export function DocumentApproveButton({
   pendingLabel: string;
 }) {
   const router = useRouter();
+  const ta = useTranslations("approverActions");
   const [pending, start] = useTransition();
 
   return (
@@ -37,7 +40,17 @@ export function DocumentApproveButton({
           const fd = new FormData();
           if (seriesParentId) {
             fd.set("parentId", seriesParentId);
-            await approveDocumentSeriesAction(fd);
+            const res = await approveDocumentSeriesAction(fd);
+            // Confirming the document runs จัด, and จัด can fail to place a day.
+            // The result was being discarded, so a 24-day series reported a clean
+            // success while some of those days quietly had no car. Name them.
+            const stuck = res.blocked ?? [];
+            if (stuck.length > 0) {
+              toast.warning(ta("seriesBlockedTitle", { count: stuck.length }), {
+                description: stuck.map((x) => `${x.date} — ${x.reason}`).join("\n"),
+                duration: 12000,
+              });
+            }
           } else {
             fd.set("bookingId", bookingId);
             await approveDocumentAction(fd);
