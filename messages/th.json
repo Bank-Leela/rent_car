@@ -276,6 +276,9 @@
     "addExternalRow": "เพิ่มแถว",
     "externalRowsEmpty": "ยังไม่มีแถวรถนอก กดเพิ่มแล้วลากงานมาวางเพื่อส่งให้รถนอก (ไม่เกี่ยวกับอัลกอริทึม)",
     "externalRowsEmptyRounds": "ยังไม่มีแถวรถนอกสำหรับวันนี้ กด “เพิ่มแถว” แล้วย้ายงานมาที่แถวนี้จากปุ่มย้ายรอบ (ไม่เกี่ยวกับอัลกอริทึม)",
+    "externalWaitingTitle": "รออนุมัติรถเช่า {count} งาน — ยังไม่ได้เลือกผู้ให้บริการ",
+    "externalWaitingNeedsRow": "เพิ่มแถวรถเช่าก่อน แล้วจึงกำหนดงานนี้เข้าไป",
+    "externalWaitingAssign": "ใส่ใน {row}",
     "externalCancel": "ยกเลิก",
     "moveToExternal": "ส่งรถนอก",
     "removeExternalRow": "ลบแถว (งานจะกลับไปที่คิว)",
@@ -619,7 +622,10 @@
     "awaitingDocApprove": "เอกสารเรียบร้อย",
     "awaitingDocApproving": "กำลังบันทึก…",
     "downloadDocument": "ดาวน์โหลดเอกสาร",
-    "unassignedCount": "ยังไม่ได้จัดรถ %n% รายการ"
+    "unassignedCount": "ยังไม่ได้จัดรถ %n% รายการ",
+    "outsourcedPendingHeading": "ส่งรถนอก — ยังไม่ได้จัดรถเช่า",
+    "outsourcedPendingBanner": "อนุมัติให้ใช้รถเช่าภายนอกแล้ว แต่ยังไม่ได้เลือกผู้ให้บริการ — เปิดกระดานของวันนั้น เพิ่มแถวรถเช่า แล้วลากงานนี้เข้าไป",
+    "outsourcedPendingAction": "เปิดกระดานวันนั้นเพื่อจัดรถเช่า"
   },
   "bookingDetail": {
     "trip": "การเดินทาง",

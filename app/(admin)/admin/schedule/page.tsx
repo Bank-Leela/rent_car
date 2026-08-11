@@ -9,7 +9,7 @@ import { BoardDatePicker } from "@/components/admin/board-date-picker";
 import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
-import { AdHocRowsPanel, type AdHocPanelRow } from "@/components/admin/adhoc-rows-panel";
+import { AdHocRowsPanel, type AdHocPanelRow, type WaitingTrip } from "@/components/admin/adhoc-rows-panel";
 import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { WernStrip, type WernJob } from "@/components/admin/wern-strip";
@@ -181,6 +181,27 @@ export default async function SchedulePage({
     })),
   }));
   const adHocTargets = adHocRaw.map((r) => ({ id: r.id, label: r.label }));
+
+  // Outsourced on this day but attached to no row yet. The query above reaches
+  // outsourced trips only THROUGH an AdHocVehicle, so approving a full day onto
+  // an outside rental produced a trip that appeared on no board at all — while
+  // the requester's own list still showed it as arranged.
+  const adHocWaitingRaw = await prisma.booking.findMany({
+    where: {
+      status: "OUTSOURCED",
+      adHocVehicleId: null,
+      startAt: { lt: dayEnd },
+      endAt: { gt: dayStart },
+    },
+    orderBy: { startAt: "asc" },
+    select: { id: true, purpose: true, destination: true, startAt: true, endAt: true },
+  });
+  const adHocWaiting: WaitingTrip[] = adHocWaitingRaw.map((b) => ({
+    id: b.id,
+    purpose: b.purpose,
+    place: b.destination,
+    timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
+  }));
 
   // Only pay for the timeline's ~270 lines of mapping when it is the view.
   const timelineData = timeline ? await loadTimelineBoard(dayStart, isThai) : null;
@@ -383,7 +404,9 @@ export default async function SchedulePage({
       {/* Outside vehicles sit under the fleet's own rows on the rounds board.
           The timeline carries its own copy (you drag onto it there), so showing
           both at once would be the same rows twice. */}
-      {!timeline && <AdHocRowsPanel date={isoOf(dayStart)} rows={adHocPanelRows} />}
+      {!timeline && (
+        <AdHocRowsPanel date={isoOf(dayStart)} rows={adHocPanelRows} waiting={adHocWaiting} />
+      )}
     </div>
   );
 }

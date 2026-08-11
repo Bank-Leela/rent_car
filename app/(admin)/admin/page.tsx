@@ -2,10 +2,12 @@ import Link from "next/link";
 import type { JobType, Prisma } from "@prisma/client";
 import { format, subHours } from "date-fns";
 import { tripWhen, tripWhenRecurring } from "@/lib/booking/trip-when";
-import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle, FileClock } from "lucide-react";
+import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle, FileClock, Bus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { InChulaChip } from "@/components/in-chula-chip";
 import { PageHeader } from "@/components/page-header";
@@ -82,7 +84,7 @@ export default async function AdminQueue({
 
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
   // detail page surfaces role-appropriate action forms.
-  const [pending, awaitingDoc, approved, upcoming, allDrivers] = await Promise.all([
+  const [pending, awaitingDoc, approved, upcoming, outsourcedNoVendor, allDrivers] = await Promise.all([
     prisma.booking.findMany({
       // P'Top's decision queue: normal pending plus over-capacity WAITLIST
       // cases (the 11th+ booking of a day) for him to fit or deny.
@@ -116,6 +118,27 @@ export default async function AdminQueue({
       orderBy: { startAt: "asc" },
       take: PENDING_MAX_LIMIT,
       include: { vehicle: true, primaryDriver: { include: { user: true } } },
+    }),
+    // Approved onto an outside rental, but no vendor row picked yet.
+    //
+    // Nothing used to list these. Approving a full day whose requester accepted
+    // an outside vehicle sets status OUTSOURCED with adHocVehicleId still null,
+    // and EVERY admin surface filters it out: the queues key on
+    // PENDING_APPROVAL / AWAITING_DOCUMENT / APPROVED / ASSIGNED, and both board
+    // views reach outsourced trips only THROUGH an AdHocVehicle row
+    // (timeline-board-data.ts requires `adHocVehicleId: { not: null }`). So the
+    // trip vanished from the office's side while still showing in the
+    // requester's list — they think a vehicle is coming and nobody is hiring one.
+    prisma.booking.findMany({
+      where: {
+        status: "OUTSOURCED",
+        adHocVehicleId: null,
+        endAt: { gte: new Date() },
+        ...searchFilter,
+      },
+      orderBy: { startAt: "asc" },
+      take: PENDING_MAX_LIMIT,
+      include: { requester: true, department: true },
     }),
     prisma.driver.findMany({
       where: { isActive: true },
@@ -476,6 +499,56 @@ export default async function AdminQueue({
               </Link>
             </div>
           )}
+        </Section>
+      )}
+
+      {/* Approved onto an outside rental, no vendor booked yet.
+          These used to appear on NO admin screen at all while still showing in
+          the requester's list — so the requester believed a vehicle was coming
+          and nobody in the office had been told to hire one. Each row links to
+          its day's board, which is where an outside row is created and the trip
+          attached to it. */}
+      {outsourcedNoVendor.length > 0 && (
+        <Section title={t("outsourcedPendingHeading")} icon={<Bus className="h-4 w-4" />}>
+          <div className="mb-3 flex items-center gap-2 rounded-xl border border-violet-300 bg-violet-50 p-3 text-sm font-medium text-violet-900 dark:border-violet-900/40 dark:bg-violet-950/40 dark:text-violet-200">
+            <Bus className="h-4 w-4 shrink-0" aria-hidden />
+            {t("outsourcedPendingBanner")}
+          </div>
+          <ul className="space-y-2">
+            {outsourcedNoVendor.map((b) => (
+              <li key={b.id}>
+                <div className="rounded-xl border border-violet-200 bg-card p-4 dark:border-violet-900/40">
+                  <Link
+                    href={`/admin/${b.id}`}
+                    className="group -m-1 flex items-start justify-between gap-4 rounded-lg p-1 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="truncate font-medium">{b.purpose}</div>
+                      <div className="truncate text-sm text-muted-foreground">
+                        {b.destination} · {tripWhen(b.startAt, b.endAt)}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                        <InChulaChip travelWithinChula={b.travelWithinChula} />
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  {/* Sibling of the Link, never inside it — an anchor nested in an
+                      anchor swallows one of the two clicks. */}
+                  <div className="mt-3">
+                    <Link
+                      href={`/admin/schedule?date=${format(b.startAt, "yyyy-MM-dd")}`}
+                      className={cn(buttonVariants({ size: "sm" }))}
+                    >
+                      <Bus className="h-4 w-4" aria-hidden />
+                      {t("outsourcedPendingAction")}
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         </Section>
       )}
 

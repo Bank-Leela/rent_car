@@ -302,6 +302,45 @@ describe("approval capacity gate", () => {
     expect(after.needsOutsourcing).toBe(true);
   });
 
+  // The bug this pins: approving onto an outside rental left the booking
+  // OUTSOURCED with adHocVehicleId null, and EVERY admin surface filtered it
+  // out — the queues key on PENDING_APPROVAL / AWAITING_DOCUMENT / APPROVED /
+  // ASSIGNED, and both board views reach outsourced trips only THROUGH an
+  // AdHocVehicle row. The requester's own list still showed it, so they believed
+  // a vehicle was coming while nobody in the office had been told to hire one.
+  //
+  // The query below is the one /admin and the day's board now both run. If a
+  // future change moves an approved-outsourced booking out of it without adding
+  // another surface, the trip goes invisible to the office again.
+  it("stays visible to the office until a vendor row is actually picked", async () => {
+    const id = await bookingOn(offDay, { needsOutsourcing: true });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    expect((await approveBookingAction(fd)).ok).toBe(true);
+
+    const waitingForVendor = async () =>
+      (
+        await prisma.booking.findMany({
+          where: { status: "OUTSOURCED", adHocVehicleId: null },
+          select: { id: true },
+        })
+      ).some((b) => b.id === id);
+
+    expect(await waitingForVendor(), "an approved outside rental with no vendor must be listed").toBe(true);
+
+    // Attaching it to a hired vehicle is what resolves it — then it belongs to
+    // that row and must drop out of the waiting list.
+    const booking = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    const day = startOfDay(booking.startAt);
+    const row = await prisma.adHocVehicle.create({ data: { date: day, label: "ทดสอบ รถเช่า" } });
+    await prisma.booking.update({ where: { id }, data: { adHocVehicleId: row.id } });
+
+    expect(await waitingForVendor(), "once on a vendor row it is no longer outstanding").toBe(false);
+
+    await prisma.booking.update({ where: { id }, data: { adHocVehicleId: null } });
+    await prisma.adHocVehicle.delete({ where: { id: row.id } });
+  });
+
   it("does not gate a เวร booking — the duty car serves it, so the recommender always says none", async () => {
     // Without the jobType exemption this would refuse EVERY in-Chula booking as
     // "day full", because recommendPlacement returns none for WERN by design.

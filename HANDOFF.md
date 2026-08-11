@@ -44,6 +44,19 @@ Suite now **407 tests / 48 files**. No schema changes.
   paperwork runs จัด, and จัด can fail to place a day. `DocumentApproveButton`
   was discarding the series result, so a 24-day series reported clean success
   while some days quietly had no car.
+- **Approving onto an outside rental made the trip disappear** (this session):
+  it landed on `OUTSOURCED` with `adHocVehicleId` still null, and **nine** admin
+  surfaces filtered it out — the queues key on PENDING_APPROVAL /
+  AWAITING_DOCUMENT / APPROVED / ASSIGNED, and BOTH board views reach outsourced
+  trips only *through* an `AdHocVehicle` row (`timeline-board-data.ts` requires
+  `adHocVehicleId: { not: null }`; the rounds panel reads `bookings` through the
+  row). The requester's list still showed it, so they believed a vehicle was
+  coming while nobody in the office had been told to hire one — and the "attach
+  it to a row" flow was a dead end, because the trip was on no board to attach
+  FROM. Now listed in a **ส่งรถนอก — ยังไม่ได้จัดรถเช่า** section on `/admin` and
+  in a waiting list on that day's rounds board, with a one-click attach per
+  vendor row; both drop it once a row is picked. Measured before and after
+  against all nine surfaces.
 - **อนุมัติทั้งที่เต็ม — the override** (this session): a full day can be approved
   anyway, behind a typed reason (min 3, **enforced on the server** — the approve
   schema's comment is optional, so a client-only gate would record an override

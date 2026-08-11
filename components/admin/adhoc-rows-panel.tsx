@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { addAdHocRowAction, removeAdHocRowAction } from "@/lib/booking/adhoc-actions";
+import { addAdHocRowAction, removeAdHocRowAction, outsourceToRowAction } from "@/lib/booking/adhoc-actions";
 
 export type AdHocPanelRow = {
   id: string;
@@ -15,6 +15,8 @@ export type AdHocPanelRow = {
   cost: string | null;
   trips: { id: string; timeLabel: string; place: string }[];
 };
+
+export type WaitingTrip = { id: string; timeLabel: string; place: string; purpose: string };
 
 /**
  * Outside vehicles hired for one day, on the rounds board.
@@ -29,7 +31,23 @@ export type AdHocPanelRow = {
  * no driver in the pool, takes no slot, and earns no fairness credit. Removing a
  * row returns its trips to the queue rather than deleting them.
  */
-export function AdHocRowsPanel({ date, rows }: { date: string; rows: AdHocPanelRow[] }) {
+export function AdHocRowsPanel({
+  date,
+  rows,
+  waiting = [],
+}: {
+  date: string;
+  rows: AdHocPanelRow[];
+  /**
+   * Trips already approved onto an outside rental but not yet on any row.
+   *
+   * Approving a full day for a requester who accepted an outside vehicle sets
+   * status OUTSOURCED with no `adHocVehicleId`, and every board query reaches
+   * outsourced trips only THROUGH a row — so these were invisible here, on the
+   * one screen where the vendor actually gets booked.
+   */
+  waiting?: WaitingTrip[];
+}) {
   const t = useTranslations("scheduler");
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -51,6 +69,15 @@ export function AdHocRowsPanel({ date, rows }: { date: string; rows: AdHocPanelR
       router.refresh();
     });
   };
+
+  const attach = (bookingId: string, rowId: string) =>
+    start(async () => {
+      const fd = new FormData();
+      fd.set("bookingId", bookingId);
+      fd.set("rowId", rowId);
+      await outsourceToRowAction(fd);
+      router.refresh();
+    });
 
   const remove = (id: string) =>
     start(async () => {
@@ -100,6 +127,45 @@ export function AdHocRowsPanel({ date, rows }: { date: string; rows: AdHocPanelR
           <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => setAdding(false)}>
             {t("externalCancel")}
           </Button>
+        </div>
+      )}
+
+      {/* Approved for an outside vehicle, no vendor picked yet. Shown above the
+          rows because it is the outstanding work: until one of these is on a
+          row, nobody has actually hired anything. */}
+      {waiting.length > 0 && (
+        <div className="border-b bg-amber-50 px-4 py-3 dark:bg-amber-950/30">
+          <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+            {t("externalWaitingTitle", { count: waiting.length })}
+          </p>
+          <ul className="mt-2 space-y-2">
+            {waiting.map((w) => (
+              <li key={w.id} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="tabular-nums text-amber-900 dark:text-amber-200">{w.timeLabel}</span>
+                <span className="min-w-0 truncate text-amber-900 dark:text-amber-200">
+                  {w.purpose} · {w.place}
+                </span>
+                {rows.length === 0 ? (
+                  // Nothing to attach it to yet — say so rather than showing an
+                  // empty row of buttons that looks broken.
+                  <span className="text-amber-800 dark:text-amber-300">{t("externalWaitingNeedsRow")}</span>
+                ) : (
+                  rows.map((r) => (
+                    <Button
+                      key={r.id}
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => attach(w.id, r.id)}
+                    >
+                      {t("externalWaitingAssign", { row: r.label })}
+                    </Button>
+                  ))
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
