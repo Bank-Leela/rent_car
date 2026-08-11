@@ -317,7 +317,8 @@ export default async function AdminQueue({
         )}
         {allPendingGroups.length > pendingLimit && (
           <div className="mt-3">
-            <Link href={showMoreHref} className="text-sm text-primary underline-offset-2 hover:underline">
+            <Link href={showMoreHref} scroll={false}
+                className="text-sm text-primary underline-offset-2 hover:underline">
               {t("showMore")}
             </Link>
           </div>
@@ -460,7 +461,8 @@ export default async function AdminQueue({
           </ul>
           {allDocGroups.length > docLimit && (
             <div className="mt-3">
-              <Link href={moreHref("docLimit", docLimit)} className="text-sm text-primary underline-offset-2 hover:underline">
+              <Link href={moreHref("docLimit", docLimit)} scroll={false}
+                className="text-sm text-primary underline-offset-2 hover:underline">
                 {t("showMore")}
               </Link>
             </div>
@@ -551,7 +553,8 @@ export default async function AdminQueue({
         )}
         {allTripGroups.length > tripLimit && (
           <div className="mt-3">
-            <Link href={moreHref("tripLimit", tripLimit)} className="text-sm text-primary underline-offset-2 hover:underline">
+            <Link href={moreHref("tripLimit", tripLimit)} scroll={false}
+                className="text-sm text-primary underline-offset-2 hover:underline">
               {t("showMore")}
             </Link>
           </div>
