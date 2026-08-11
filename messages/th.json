@@ -213,7 +213,7 @@
   "status": {
     "DRAFT": "ฉบับร่าง",
     "PENDING_APPROVAL": "รออนุมัติ",
-    "AWAITING_DOCUMENT": "รอเอกสาร",
+    "AWAITING_DOCUMENT": "รอเอกสารอนุมัติ",
     "APPROVED": "อนุมัติแล้ว",
     "ASSIGNED": "จัดรถแล้ว",
     "DENIED": "ไม่อนุมัติ",
@@ -609,7 +609,7 @@
     "otAssignConfirm": "อนุมัติและจัดรถเป็นงานล่วงเวลา: {summary}?",
     "otAssigned": "จัดแล้ว: {summary}",
     "otAssignPlaceFailed": "อนุมัติแล้ว แต่จัดรถไม่สำเร็จ (รถอาจไม่ว่างแล้ว) — งานอยู่ในคิวรอจัดรถ",
-    "awaitingDocHeading": "รอเอกสาร",
+    "awaitingDocHeading": "รอเอกสารอนุมัติ",
     "awaitingDocBanner": "อนุมัติแล้ว รอเอกสารฉบับจริงกลับมา — กด “เอกสารเรียบร้อย” แล้วระบบจะจัดรถให้ทันที",
     "awaitingDocApprove": "เอกสารเรียบร้อย",
     "awaitingDocApproving": "กำลังบันทึก…",
@@ -848,7 +848,7 @@
     },
     "legend": {
       "PENDING_APPROVAL": "รออนุมัติ",
-      "AWAITING_DOCUMENT": "รอเอกสาร",
+      "AWAITING_DOCUMENT": "รอเอกสารอนุมัติ",
       "APPROVED": "อนุมัติแล้ว",
       "ASSIGNED": "จัดรถแล้ว",
       "COMPLETED": "เสร็จสิ้น",
