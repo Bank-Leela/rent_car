@@ -44,6 +44,17 @@ Suite now **407 tests / 48 files**. No schema changes.
   paperwork runs จัด, and จัด can fail to place a day. `DocumentApproveButton`
   was discarding the series result, so a 24-day series reported clean success
   while some days quietly had no car.
+- **The approval capacity gate never fired** (this session): `recommendPlacement`
+  fell back to the duty car as a `reclaim` suggestion after checking only that a
+  duty driver **existed and had a car** — never whether that driver was already
+  on an overlapping trip. `dayHasRoomFor` reads any non-`none` placement as "the
+  fleet can serve this", so a day with every car committed still passed the gate
+  whenever a เวร was rostered, which is every day. Measured: same day, 12
+  assigned trips, duty rostered → `fits: true`; duty roster removed →
+  `fits: false`. Reclaim now requires the duty driver to have no **overlapping**
+  trip — §5 makes overlap the one constraint no override may relax — while still
+  allowing the 2 h gap to be overridden, which is P'Top's call.
+  `scripts/seed-series-conflict.ts` reproduces it.
 - **A series card no longer prints its first date twice** (this session): the
   "when" line showed `ศ. 14 ส.ค. 08:00–12:00` and the list below opened with
   `14 ส.ค.` — and the weekday was only the first of thirteen days, so a series

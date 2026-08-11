@@ -85,6 +85,43 @@ describe("recommendPlacement", () => {
     expect(r).toEqual({ kind: "none" });
   });
 
+  // §5: overlap is the one constraint a manual override may never relax, "not
+  // even the duty car". Reclaim pulls the duty driver off STANDBY; a duty driver
+  // already ON a trip in that window has nothing to reclaim.
+  it("does NOT offer reclaim when the duty driver's own trip overlaps", () => {
+    const r = recommendPlacement({
+      ...base,
+      dutyDriverId: "A",
+      drivers: [drv("A", { trips: overlap }), drv("B", { trips: overlap })],
+    });
+    expect(r).toEqual({ kind: "none" });
+  });
+
+  // The consequence that made this worth fixing: dayHasRoomFor reads any
+  // non-`none` placement as "the fleet can serve this", so a bare existence check
+  // on the duty driver made the approval capacity gate pass every full day that
+  // had a เวร rostered — which is every day.
+  it("reports a genuinely full fleet as none, duty rostered or not", () => {
+    const everyoneBusy = ["A", "B", "C"].map((id) => drv(id, { trips: overlap }));
+    expect(recommendPlacement({ ...base, dutyDriverId: "A", drivers: everyoneBusy })).toEqual({ kind: "none" });
+    expect(recommendPlacement({ ...base, dutyDriverId: null, drivers: everyoneBusy })).toEqual({ kind: "none" });
+  });
+
+  it("still offers reclaim when the duty driver is merely inside the 2h gap", () => {
+    // The gap IS P'Top's to override, so a duty driver who is only gap-blocked
+    // remains a legitimate reclaim candidate — this is the half of canChain that
+    // reclaim deliberately skips.
+    const r = recommendPlacement({
+      ...base,
+      dutyDriverId: "A",
+      drivers: [
+        drv("A", { trips: [trip("2026-06-10T11:30:00", "2026-06-10T12:30:00")] }), // ends 30 min before
+        drv("B", { trips: overlap }),
+      ],
+    });
+    expect(r).toMatchObject({ kind: "reclaim", driverId: "A" });
+  });
+
   it("skips an unpaired driver (no car)", () => {
     const r = recommendPlacement({ ...base, drivers: [drv("B", { vehicleId: null })] });
     expect(r).toEqual({ kind: "none" });

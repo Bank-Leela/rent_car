@@ -12,6 +12,21 @@
 
 import type { JobType } from "@prisma/client";
 import { canChain } from "@/lib/booking/rotations";
+import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
+
+// Reclaim relaxes the 2h gap but never the no-overlap rule (§5), so it needs the
+// overlap half of `canChain` on its own. Legs, not raw intervals: a no-wait trip
+// frees its middle, and a duty driver whose gap sits over the requested window
+// really can take it.
+const asLeg = (j: { startAt: Date; endAt: Date }): LegSource => ({
+  startAt: j.startAt,
+  endAt: j.endAt,
+  waitAtDestination: true,
+  dropOffDone: null,
+  pickupReturnTime: null,
+});
+const overlapsAny = (next: { startAt: Date; endAt: Date }, trips: Array<{ startAt: Date; endAt: Date }>) =>
+  trips.some((t) => legsOverlap(asLeg(next), asLeg(t)));
 
 export interface RecoDriver {
   driverId: string;
@@ -91,8 +106,20 @@ export function recommendPlacement(input: RecoInput): Placement {
   let primary: RecoDriver | undefined = free[0];
   let kind: "fit" | "reclaim" = "fit";
   if (!primary) {
-    // Nobody free → the duty car is the only one that may overlap (reclaim).
-    primary = drivers.find((d) => d.driverId === dutyDriverId && d.vehicleId);
+    // Nobody free → offer the duty car (reclaim). Reclaim means pulling the duty
+    // driver off STANDBY, and standby is what the 2h gap may be relaxed against —
+    // P'Top's call. It does NOT mean double-booking them: §5 makes overlap the
+    // one constraint no manual override may relax, "not even the duty car".
+    //
+    // This used to check only that a duty driver existed and had a car, so a day
+    // where every car including the duty car was already committed still returned
+    // `reclaim`. Nothing downstream could tell that apart from real capacity —
+    // `dayHasRoomFor` reads any non-`none` as "the fleet can serve this" — so the
+    // approval capacity gate silently passed every full day that had a เวร
+    // rostered, which in practice is every day.
+    primary = drivers.find(
+      (d) => d.driverId === dutyDriverId && d.vehicleId && !overlapsAny(booking, d.trips),
+    );
     kind = "reclaim";
   }
   if (!primary) return { kind: "none" };
