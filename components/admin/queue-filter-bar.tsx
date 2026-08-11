@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { JobType } from "@prisma/client";
-import { parseQueueSort } from "@/lib/admin/queue-sort";
+import { parseQueueSort, DEFAULT_QUEUE_SORT } from "@/lib/admin/queue-sort";
 import { SelectField } from "@/components/ui/select-field";
 
 const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
@@ -68,7 +68,7 @@ export function QueueFilterBar() {
         <SelectField
           aria-label={t("sortLabel")}
           value={sort}
-          onValueChange={(v) => update((sp) => (v === "start" ? sp.delete("sort") : sp.set("sort", v)))}
+          onValueChange={(v) => update((sp) => (v === DEFAULT_QUEUE_SORT ? sp.delete("sort") : sp.set("sort", v)))}
           className="h-8 w-auto text-xs"
           options={[
             { value: "start", label: t("sortStart") },

@@ -297,6 +297,7 @@
     "roundsOff": "ลา",
     "roundsOffRow": "ลาวันนี้",
     "unassignedTitle": "ยังไม่ได้จัดรถ / ต้องจัดเอง",
+    "reasonNotPlacedYet": "ยังไม่ได้จัดรถให้ — กด “จัดให้” เพื่อจัดเดี๋ยวนี้ หรือรอรอบจัดอัตโนมัติ",
     "unassignedEmpty": "จัดรถครบทุกคำขอของวันนี้แล้ว",
     "unassignedOpen": "เปิดคำขอ",
     "reasonManualTjw": "ตจว–ค้างคืน (จัดตามลำดับคำขอ)",

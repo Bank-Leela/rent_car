@@ -16,6 +16,7 @@ import {
 import { th, enUS, type Locale } from "date-fns/locale";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
 import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
@@ -61,8 +62,17 @@ export default async function DriverCalendar({
   const localeCode = await getLocale();
   const loc: Locale = localeCode.toLowerCase().startsWith("th") ? th : enUS;
 
-  const driver = await prisma.driver.findUnique({ where: { userId: session.user.id } });
-  if (!driver) {
+  // Drivers sign in on ONE shared station kiosk — there are no personal driver
+  // logins — so that account has no Driver row and never will. driver/page.tsx
+  // already handles it; this page did not, and showed the kiosk
+  // "ไม่พบโปรไฟล์พนักงานขับรถ", i.e. the calendar tab was dead for every driver.
+  // For the kiosk the whole fleet's month IS the useful view, the same way
+  // /driver/schedule shows the whole day.
+  const isStation = isStationEmail(session.user.email);
+  const driver = isStation
+    ? null
+    : await prisma.driver.findUnique({ where: { userId: session.user.id } });
+  if (!isStation && !driver) {
     return (
       <EmptyState
         icon={Coffee}
@@ -71,7 +81,7 @@ export default async function DriverCalendar({
       />
     );
   }
-  const driverId = driver.id;
+  const driverId = driver?.id ?? null;
   const qs = await searchParams;
   const monthAnchor = parseMonth(qs.month);
   const gridStart = startOfWeek(startOfMonth(monthAnchor), { weekStartsOn: 0 });
@@ -84,11 +94,16 @@ export default async function DriverCalendar({
       // Overlap the visible grid so a multi-day trip lands in every cell it spans.
       startAt: { lte: gridEnd },
       endAt: { gte: gridStart },
-      OR: [
-        { primaryDriverId: driverId },
-        { secondaryDriverId: driverId },
-        { claims: { some: { driverId, status: "ACTIVE" } } },
-      ],
+      // Kiosk: every driver's trips. Personal login: only their own.
+      ...(driverId
+        ? {
+            OR: [
+              { primaryDriverId: driverId },
+              { secondaryDriverId: driverId },
+              { claims: { some: { driverId, status: "ACTIVE" } } },
+            ],
+          }
+        : { primaryDriverId: { not: null } }),
       status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
     },
     orderBy: { startAt: "asc" },
@@ -111,10 +126,14 @@ export default async function DriverCalendar({
   // aren't bookings, so without this the driver couldn't see when they're on call
   // — that's the calendar↔admin-schedule sync gap (the duty driver is excluded
   // from auto-assignment, so their calendar would otherwise look empty).
-  const dutyShifts = await prisma.onCallShift.findMany({
-    where: { driverId, date: { gte: gridStart, lte: gridEnd } },
-    select: { date: true },
-  });
+  // On the kiosk every day has SOME duty driver, so tinting them all says
+  // nothing — the เวร marking is only meaningful for one person's own calendar.
+  const dutyShifts = driverId
+    ? await prisma.onCallShift.findMany({
+        where: { driverId, date: { gte: gridStart, lte: gridEnd } },
+        select: { date: true },
+      })
+    : [];
   const dutyDays = new Set(dutyShifts.map((s) => format(s.date, "yyyy-MM-dd")));
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -126,7 +145,10 @@ export default async function DriverCalendar({
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          {/* The kiosk is shared, so "ของฉัน" would be a lie — it shows every car. */}
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {isStation ? t("titleStation") : t("title")}
+          </h1>
           <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy", { locale: loc })}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

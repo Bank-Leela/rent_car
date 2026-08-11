@@ -286,7 +286,13 @@ export default async function SchedulePage({
       : b.jobType === "TJW" ? t("reasonManualTjw")
       : b.isEmergency ? t("reasonManualUrgent")
       : b.preferredVehicleType === "BUS_OUTSOURCED" ? t("reasonManualBus")
-      : tsim(`reason_${b.overflowReason ?? "NO_PRIMARY_DRIVER"}`);
+      // A NULL overflowReason means the solver has never rejected this booking —
+      // usually it simply has not run for it yet. Falling back to
+      // NO_PRIMARY_DRIVER stated a specific cause ("rotation, the 2 h gap, or a
+      // full daily quota") that nothing had established, which reads as nonsense
+      // on a day where every driver is free.
+      : b.overflowReason ? tsim(`reason_${b.overflowReason}`)
+      : t("reasonNotPlacedYet");
     const r = recos.get(b.id);
     return {
       id: b.id,
