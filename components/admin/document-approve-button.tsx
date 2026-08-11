@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { approveDocumentAction } from "@/lib/booking/approval-actions";
+import { approveDocumentAction, approveDocumentSeriesAction } from "@/lib/booking/approval-actions";
 
 // "เอกสารเรียบร้อย" — the signed official form is back.
 //
@@ -13,10 +13,14 @@ import { approveDocumentAction } from "@/lib/booking/approval-actions";
 // ADMIN only, because the transport office is who holds the signed form.
 export function DocumentApproveButton({
   bookingId,
+  seriesParentId,
   label,
   pendingLabel,
 }: {
   bookingId: string;
+  /** Set for a recurring series: confirms the paperwork for every occurrence at
+   *  once, because one form covers the whole series. */
+  seriesParentId?: string;
   label: string;
   pendingLabel: string;
 }) {
@@ -31,8 +35,13 @@ export function DocumentApproveButton({
       onClick={() =>
         start(async () => {
           const fd = new FormData();
-          fd.set("bookingId", bookingId);
-          await approveDocumentAction(fd);
+          if (seriesParentId) {
+            fd.set("parentId", seriesParentId);
+            await approveDocumentSeriesAction(fd);
+          } else {
+            fd.set("bookingId", bookingId);
+            await approveDocumentAction(fd);
+          }
           router.refresh();
         })
       }

@@ -21,6 +21,7 @@ import { loadQueueContext } from "@/lib/booking/queue-context";
 import { waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 import { Section } from "@/components/section";
 import { formatTh } from "@/lib/format-date";
+import { groupBySeries } from "@/lib/booking/series";
 import { BookingDocumentLink } from "@/components/booking-document-link";
 import { DocumentApproveButton } from "@/components/admin/document-approve-button";
 
@@ -35,7 +36,10 @@ const PENDING_MAX_LIMIT = 500;
 export default async function AdminQueue({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; jobType?: string; overdue?: string; sort?: string; limit?: string }>;
+  searchParams: Promise<{
+    q?: string; jobType?: string; overdue?: string; sort?: string;
+    limit?: string; docLimit?: string; tripLimit?: string;
+  }>;
 }) {
   const session = await requireAnyRole(["ADMIN"]);
   const isAdmin = session.user.roles.includes("ADMIN");
@@ -66,6 +70,12 @@ export default async function AdminQueue({
   const overdueOnly = sp.overdue === "1";
   const sort = parseQueueSort(sp.sort);
   const pendingLimit = Math.min(Math.max(parseInt(sp.limit ?? "", 10) || PENDING_DEFAULT_LIMIT, 1), PENDING_MAX_LIMIT);
+  // Same five-then-more rule for the other two lists. Each keeps its own param so
+  // expanding one section does not silently expand the rest.
+  const readLimit = (raw: string | undefined) =>
+    Math.min(Math.max(parseInt(raw ?? "", 10) || PENDING_DEFAULT_LIMIT, 1), PENDING_MAX_LIMIT);
+  const docLimit = readLimit(sp.docLimit);
+  const tripLimit = readLimit(sp.tripLimit);
   const pendingFilter: Prisma.BookingWhereInput = {
     ...(jobTypeFilter.length ? { jobType: { in: jobTypeFilter } } : {}),
     ...(overdueOnly ? { createdAt: { lte: subHours(now, SLA_WARN_HOURS) } } : {}),
@@ -79,7 +89,7 @@ export default async function AdminQueue({
       // cases (the 11th+ booking of a day) for him to fit or deny.
       where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] }, ...searchFilter, ...pendingFilter },
       orderBy: sort === "oldest" ? { createdAt: "asc" } : { startAt: "asc" },
-      take: pendingLimit,
+      take: PENDING_MAX_LIMIT,
       include: { requester: true, department: true, recurrenceChildren: { select: { id: true } } },
     }),
     prisma.booking.findMany({
@@ -88,7 +98,7 @@ export default async function AdminQueue({
       // this list is the actual bottleneck between approval and dispatch.
       where: { status: "AWAITING_DOCUMENT", ...searchFilter },
       orderBy: { startAt: "asc" },
-      take: 50,
+      take: PENDING_MAX_LIMIT,
       include: { requester: true, department: true },
     }),
     prisma.booking.findMany({
@@ -105,7 +115,7 @@ export default async function AdminQueue({
     prisma.booking.findMany({
       where: { status: "ASSIGNED", endAt: { gte: new Date() }, ...searchFilter },
       orderBy: { startAt: "asc" },
-      take: 20,
+      take: PENDING_MAX_LIMIT,
       include: { vehicle: true, primaryDriver: { include: { user: true } } },
     }),
     prisma.driver.findMany({
@@ -135,34 +145,35 @@ export default async function AdminQueue({
       return waitingHours(z.createdAt, now) - waitingHours(a.createdAt, now);
     });
   }
-  // A recurring booking arrives as one row PER OCCURRENCE. Ten identical cards
-  // with ten approve buttons is one decision typed ten times, so occurrences of
-  // the same series collapse into a single card. The parent is itself an
-  // occurrence, hence `recurrenceParentId ?? id` as the series key.
+  // A recurring booking is one row PER OCCURRENCE, and a card is a SERIES — so
+  // grouping happens before slicing. Doing it the other way round let a single
+  // five-week booking consume an entire five-card page.
   //
-  // A series of ONE is just a booking and renders as a normal card — grouping
+  // A series of one is just a booking and renders as a normal card; grouping
   // something that is not a group only adds a layer to read past.
-  type PendingRow = (typeof pendingRows)[number];
-  const seriesOf = (b: PendingRow) => b.recurrenceParentId ?? b.id;
-  const grouped = new Map<string, PendingRow[]>();
-  for (const b of pendingRows) {
-    const key = seriesOf(b);
-    grouped.set(key, [...(grouped.get(key) ?? []), b]);
-  }
-  const pendingGroups = [...grouped.entries()].map(([key, items]) => ({
-    key,
-    items: [...items].sort((a, z) => a.startAt.getTime() - z.startAt.getTime()),
-  }));
+  const allPendingGroups = groupBySeries(pendingRows);
+  const pendingGroups = allPendingGroups.slice(0, pendingLimit);
+  const allDocGroups = groupBySeries(awaitingDoc);
+  const docGroups = allDocGroups.slice(0, docLimit);
+  const allTripGroups = groupBySeries(upcoming);
+  const tripGroups = allTripGroups.slice(0, tripLimit);
 
-  const showMoreHref = (() => {
+  // One builder for all three lists: carry every current param, then raise the
+  // one being expanded. Expanding a section must not reset the filters or
+  // collapse the others.
+  const moreHref = (key: "limit" | "docLimit" | "tripLimit", current: number) => {
     const q = new URLSearchParams();
     if (term) q.set("q", term);
     if (sp.jobType) q.set("jobType", sp.jobType);
     if (overdueOnly) q.set("overdue", "1");
     if (sp.sort) q.set("sort", sp.sort);
-    q.set("limit", String(Math.min(pendingLimit + PENDING_DEFAULT_LIMIT, PENDING_MAX_LIMIT)));
+    if (sp.limit && key !== "limit") q.set("limit", sp.limit);
+    if (sp.docLimit && key !== "docLimit") q.set("docLimit", sp.docLimit);
+    if (sp.tripLimit && key !== "tripLimit") q.set("tripLimit", sp.tripLimit);
+    q.set(key, String(Math.min(current + PENDING_DEFAULT_LIMIT, PENDING_MAX_LIMIT)));
     return `/admin?${q.toString()}`;
-  })();
+  };
+  const showMoreHref = moreHref("limit", pendingLimit);
 
   return (
     <div className="space-y-8">
@@ -304,7 +315,7 @@ export default async function AdminQueue({
               })}
             </ul>
         )}
-        {pending.length >= pendingLimit && pendingLimit < PENDING_MAX_LIMIT && (
+        {allPendingGroups.length > pendingLimit && (
           <div className="mt-3">
             <Link href={showMoreHref} className="text-sm text-primary underline-offset-2 hover:underline">
               {t("showMore")}
@@ -391,8 +402,11 @@ export default async function AdminQueue({
             {t("awaitingDocBanner")}
           </div>
           <ul className="space-y-2">
-            {awaitingDoc.map((b) => (
-              <li key={b.id}>
+            {docGroups.map((g) => {
+              const b = g.items[0]!;
+              const isSeries = g.items.length > 1;
+              return (
+              <li key={g.key}>
                 <div className="rounded-xl border border-cyan-200 bg-card p-4 dark:border-cyan-900/40">
                   <Link
                     href={`/admin/${b.id}`}
@@ -403,8 +417,18 @@ export default async function AdminQueue({
                       <div className="truncate text-sm text-muted-foreground">
                         {b.destination} · {tripWhen(b.startAt, b.endAt)}
                       </div>
+                      {isSeries && (
+                        <div className="text-xs tabular-nums text-muted-foreground">
+                          {g.items.map((o) => formatTh(o.startAt, "d MMM")).join(" · ")}
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                        {isSeries && (
+                          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                            {ta("seriesBadge", { count: g.items.length })}
+                          </span>
+                        )}
                         <InChulaChip travelWithinChula={b.travelWithinChula} />
                       </div>
                     </div>
@@ -418,7 +442,8 @@ export default async function AdminQueue({
                     {isAdmin && (
                       <DocumentApproveButton
                         bookingId={b.id}
-                        label={t("awaitingDocApprove")}
+                        seriesParentId={isSeries ? g.key : undefined}
+                        label={isSeries ? ta("approveSeries", { count: g.items.length }) : t("awaitingDocApprove")}
                         pendingLabel={t("awaitingDocApproving")}
                       />
                     )}
@@ -430,8 +455,16 @@ export default async function AdminQueue({
                   </div>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
+          {allDocGroups.length > docLimit && (
+            <div className="mt-3">
+              <Link href={moreHref("docLimit", docLimit)} className="text-sm text-primary underline-offset-2 hover:underline">
+                {t("showMore")}
+              </Link>
+            </div>
+          )}
         </Section>
       )}
 
@@ -459,8 +492,11 @@ export default async function AdminQueue({
           />
         ) : (
           <ul className="space-y-2">
-            {upcoming.map((b) => (
-              <li key={b.id} className="rounded-xl border bg-card">
+            {tripGroups.map((g) => {
+              const b = g.items[0]!;
+              const isSeries = g.items.length > 1;
+              return (
+              <li key={g.key} className="rounded-xl border bg-card">
                 <Link
                   href={`/admin/${b.id}`}
                   className="group flex items-start justify-between gap-4 rounded-xl p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -476,12 +512,28 @@ export default async function AdminQueue({
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 font-medium truncate">{b.purpose}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium">{b.purpose}</span>
+                      {isSeries && (
+                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                          {ta("seriesBadge", { count: g.items.length })}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-0.5 text-sm text-muted-foreground">
-                      {format(b.startAt, "EEE d MMM HH:mm", { locale: th })} ·{" "}
+                      {formatTh(b.startAt, "EEE d MMM HH:mm")} ·{" "}
                       {b.vehicle?.registrationNumber ?? "—"} ·{" "}
                       {b.primaryDriver?.user.name ?? b.primaryDriver?.user.email ?? "—"}
                     </div>
+                    {isSeries && (
+                      // The car and driver above belong to the FIRST occurrence;
+                      // the others may be dispatched differently, so the dates
+                      // are listed without repeating an assignment that may not
+                      // hold for them.
+                      <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                        {g.items.map((o) => formatTh(o.startAt, "d MMM")).join(" · ")}
+                      </div>
+                    )}
                   </div>
                   <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </Link>
@@ -493,8 +545,16 @@ export default async function AdminQueue({
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
+        )}
+        {allTripGroups.length > tripLimit && (
+          <div className="mt-3">
+            <Link href={moreHref("tripLimit", tripLimit)} className="text-sm text-primary underline-offset-2 hover:underline">
+              {t("showMore")}
+            </Link>
+          </div>
         )}
       </Section>
     </div>

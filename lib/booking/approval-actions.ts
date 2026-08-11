@@ -480,3 +480,46 @@ export async function denySeriesAction(formData: FormData): Promise<SeriesApprov
     ? { ok: true, approved: denied, outsourced: 0, blocked }
     : { ok: false, approved: 0, outsourced: 0, blocked };
 }
+
+/**
+ * Confirm the document for every remaining occurrence of a series.
+ *
+ * Same reasoning as approveSeriesAction: the paperwork for a recurring booking
+ * is one form for the whole series, so confirming it occurrence by occurrence is
+ * the same decision typed N times. Each still goes through
+ * approveDocumentAction, so จัด runs per day exactly as it would individually —
+ * and a day the fleet cannot serve is reported, not swallowed.
+ */
+export async function approveDocumentSeriesAction(formData: FormData): Promise<SeriesApprovalResult> {
+  await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+
+  const parentId = String(formData.get("parentId") ?? "");
+  if (!parentId) return { ok: false, error: te("invalidInput") };
+
+  const series = await prisma.booking.findMany({
+    where: {
+      status: "AWAITING_DOCUMENT",
+      OR: [{ id: parentId }, { recurrenceParentId: parentId }],
+    },
+    orderBy: { startAt: "asc" },
+    select: { id: true, startAt: true },
+  });
+  if (series.length === 0) return { ok: false, error: te("bookingNotFound") };
+
+  let approved = 0;
+  const blocked: SeriesBlock[] = [];
+  for (const b of series) {
+    const fd = new FormData();
+    fd.set("bookingId", b.id);
+    const res = await approveDocumentAction(fd);
+    if (res.ok) approved += 1;
+    else blocked.push({ id: b.id, date: format(b.startAt, "yyyy-MM-dd"), reason: res.error ?? "" });
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
+  return approved > 0
+    ? { ok: true, approved, outsourced: 0, blocked }
+    : { ok: false, approved: 0, outsourced: 0, blocked };
+}
