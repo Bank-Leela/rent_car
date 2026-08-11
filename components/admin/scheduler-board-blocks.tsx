@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 
+import { formatBaht } from "@/lib/format-money";
 import {
   type SchedulerBooking,
   type SchedulerVehicle,
@@ -597,7 +598,7 @@ export function AdHocRow({
         <span className="min-w-0 truncate" title={row.label}>
           {row.label}
         </span>
-        {row.cost && <span className="shrink-0 text-[10px] text-muted-foreground">฿{row.cost}</span>}
+        {row.cost && <span className="shrink-0 text-[10px] text-muted-foreground">{formatBaht(row.cost)}</span>}
         <button
           type="button"
           title={removeLabel}

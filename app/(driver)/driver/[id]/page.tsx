@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { EndTripForm } from "@/components/forms/trip-forms";
 import { DetailField } from "@/components/detail-field";
+import { formatBaht } from "@/lib/format-money";
 
 export default async function DriverBookingDetail({
   params,
@@ -188,7 +189,7 @@ export default async function DriverBookingDetail({
             <Field label={t("completedEnd")} value={`${booking.trip.endMileage?.toLocaleString() ?? "—"} km`} />
             <Field label={t("completedDistance")} value={`${booking.trip.distanceKm ?? "—"} km`} />
             {booking.trip.fuelCost != null && (
-              <Field label={t("completedFuel")} value={`฿${booking.trip.fuelCost.toString()}`} />
+              <Field label={t("completedFuel")} value={formatBaht(booking.trip.fuelCost)} />
             )}
             {booking.trip.fuelLiters != null && (
               <Field label={t("completedFuelLiters")} value={`${booking.trip.fuelLiters.toString()} L`} />
@@ -197,10 +198,10 @@ export default async function DriverBookingDetail({
               <Field label={t("completedFuelType")} value={booking.trip.fuelType} />
             )}
             {booking.trip.tollwayCost != null && (
-              <Field label={t("completedTollway")} value={`฿${booking.trip.tollwayCost.toString()}`} />
+              <Field label={t("completedTollway")} value={formatBaht(booking.trip.tollwayCost)} />
             )}
             {booking.trip.parkingCost != null && (
-              <Field label={t("completedParking")} value={`฿${booking.trip.parkingCost.toString()}`} />
+              <Field label={t("completedParking")} value={formatBaht(booking.trip.parkingCost)} />
             )}
             {overtimeMin > 0 && (
               <Field

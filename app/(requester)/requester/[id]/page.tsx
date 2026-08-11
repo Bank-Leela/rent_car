@@ -12,6 +12,7 @@ import { TimeChangeForm } from "@/components/forms/time-change-form";
 import { DetailField as Field } from "@/components/detail-field";
 import { InChulaChip } from "@/components/in-chula-chip";
 import { formatTh } from "@/lib/format-date";
+import { formatBaht } from "@/lib/format-money";
 
 export default async function RequesterBookingDetail({
   params,
@@ -245,7 +246,7 @@ export default async function RequesterBookingDetail({
               />
             )}
             {booking.outsourceCost != null && (
-              <Field label={tr("outsourceCost")} value={`฿${booking.outsourceCost.toString()}`} />
+              <Field label={tr("outsourceCost")} value={formatBaht(booking.outsourceCost)} />
             )}
             {booking.outsourceReference && (
               <Field label={tr("outsourceReference")} value={booking.outsourceReference} colSpan />

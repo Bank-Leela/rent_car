@@ -284,7 +284,7 @@ export default async function AdminQueue({
                               // tell the approver whether one of them is a
                               // public holiday or the week they are away.
                               <div className="text-xs tabular-nums text-muted-foreground">
-                                {g.items.map((o) => formatTh(o.startAt, "d MMM")).join(" · ")}
+                                {seriesDates(g.items, t)}
                               </div>
                             )}
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -334,6 +334,13 @@ export default async function AdminQueue({
                           // วันเต็ม, which is why they are going outside.
                           dayFull={
                             !b.needsOutsourcing &&
+                            (triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")
+                          }
+                          // Full day but the requester accepted an outside
+                          // rental: approve still works, and the card has to say
+                          // why it works here and not on the card below it.
+                          outsourcingOnFullDay={
+                            b.needsOutsourcing &&
                             (triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")
                           }
                           returnTrip={b.returnTrip}
@@ -452,7 +459,7 @@ export default async function AdminQueue({
                       </div>
                       {isSeries && (
                         <div className="text-xs tabular-nums text-muted-foreground">
-                          {g.items.map((o) => formatTh(o.startAt, "d MMM")).join(" · ")}
+                          {seriesDates(g.items, t)}
                         </div>
                       )}
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -615,7 +622,7 @@ export default async function AdminQueue({
                       // are listed without repeating an assignment that may not
                       // hold for them.
                       <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-                        {g.items.map((o) => formatTh(o.startAt, "d MMM")).join(" · ")}
+                        {seriesDates(g.items, t)}
                       </div>
                     )}
                   </div>
@@ -658,6 +665,22 @@ function Pill({ tone, children }: { tone: "amber" | "rose"; children: string }) 
       {children}
     </span>
   );
+}
+
+// Occurrence dates for a series card.
+//
+// Printed in full, a 24-week booking laid 24 dates across the widest line on the
+// card and wrapped to three rows of 11 px text — the noisiest thing on a screen
+// whose job is triage. The first dates are what an approver checks; the rest is
+// a count. Capped to whole dates, never mid-string, so nothing ends in an
+// ellipsis that hides which day it was.
+const SERIES_DATES_SHOWN = 8;
+
+function seriesDates(items: { startAt: Date }[], t: AdminT): string {
+  const all = items.map((o) => formatTh(o.startAt, "d MMM"));
+  if (all.length <= SERIES_DATES_SHOWN + 1) return all.join(" · ");
+  const shown = all.slice(0, SERIES_DATES_SHOWN).join(" · ");
+  return `${shown} · ${t("seriesMoreDates", { count: all.length - SERIES_DATES_SHOWN })}`;
 }
 
 // Risk/capacity/aging chips for one pending request. Aging shows after 12h

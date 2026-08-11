@@ -18,6 +18,7 @@ import { EstimateDistanceButton } from "@/components/admin/estimate-distance-but
 import { isMapsConfigured } from "@/lib/maps/distance";
 import { DetailField as Field } from "@/components/detail-field";
 import { formatTh } from "@/lib/format-date";
+import { formatBaht } from "@/lib/format-money";
 
 export default async function AdminBookingDetail({
   params,
@@ -281,11 +282,11 @@ export default async function AdminBookingDetail({
             />
             <Field
               label={t("tripFuel")}
-              value={booking.trip.fuelCost != null ? `฿${booking.trip.fuelCost.toString()}` : "—"}
+              value={formatBaht(booking.trip.fuelCost)}
             />
             <Field
               label={t("tripTollway")}
-              value={booking.trip.tollwayCost != null ? `฿${booking.trip.tollwayCost.toString()}` : "—"}
+              value={formatBaht(booking.trip.tollwayCost)}
             />
             {booking.trip.usedExpressway && (
               <Field label={t("tripExpressway")} value={t("tripExpresswayUsed")} />

@@ -27,9 +27,20 @@ export function ApproverQueueActions({
   endAt,
   startAt,
   dayFull: dayFullFromServer = false,
+  outsourcingOnFullDay = false,
 }: {
   bookingId: string;
   canDeny: boolean;
+  /**
+   * The day is full AND the requester accepted an outside rental, so approve is
+   * still offered — it sends the trip to ส่งรถนอก instead of asking the fleet
+   * for a car.
+   *
+   * Without saying so, two cards on the same full day looked contradictory: both
+   * carried a red วันเต็ม chip, one had a live อนุมัติ and the other had none,
+   * with nothing on screen explaining why.
+   */
+  outsourcingOnFullDay?: boolean;
   /**
    * The placement engine found no car for this trip on its day (computed with
    * the queue, so it is known BEFORE anyone clicks).
@@ -217,9 +228,11 @@ export function ApproverQueueActions({
             <X className="h-4 w-4" />
             {t("deny")}
           </Button>
-          {/* Ghost, and last: the override is available, not encouraged. Fixing
-              the schedule is the thing that actually gets the trip a car. */}
-          <Button type="button" variant="ghost" onClick={() => setForceOpen(true)}>
+          {/* Outline, and last: the override is available, not encouraged.
+              Fixing the schedule is what actually gets the trip a car. Not
+              `ghost` — with no border it sat beside two filled buttons reading
+              as disabled text rather than as the third choice it is. */}
+          <Button type="button" variant="outline" onClick={() => setForceOpen(true)}>
             <AlertTriangle className="h-4 w-4" aria-hidden />
             {t("forceApprove")}
           </Button>
@@ -230,6 +243,9 @@ export function ApproverQueueActions({
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+      {outsourcingOnFullDay && (
+        <p className="w-full text-xs text-muted-foreground">{t("outsourcingOnFullDayHint")}</p>
+      )}
       {!returnTrip && (
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           {t("confirmEndLabel")}

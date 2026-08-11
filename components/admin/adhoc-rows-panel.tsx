@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Phone, Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatBaht } from "@/lib/format-money";
 import {
   addAdHocRowAction,
   removeAdHocRowAction,
@@ -227,64 +228,40 @@ export function AdHocRowsPanel({
       ) : (
         <ul className="divide-y">
           {rows.map((r) => (
-            <li key={r.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:gap-4">
+            <li key={r.id} className="flex flex-col gap-2 p-3">
+             <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
               {/* Same fixed-width identity column as the driver rows above, so the
                   two lists read as one board rather than two lists. */}
-              <div className="flex shrink-0 flex-col gap-1 sm:w-56">
-                <div className="flex items-start gap-2">
+              <div className="flex min-w-0 shrink-0 flex-col gap-1 sm:w-56">
+                <div className="flex min-w-0 items-start gap-2">
                   <span className="truncate text-sm font-semibold">{r.label}</span>
                   {r.cost && (
                     <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">
-                      ฿{r.cost}
+                      {formatBaht(r.cost)}
                     </span>
                   )}
                 </div>
                 {/* The contact sits under the vendor name, not beside the trips —
-                    it belongs to the vehicle, not to any one trip on it. */}
-                {editing === r.id ? (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Input
-                      autoFocus
-                      value={editDriver}
-                      onChange={(e) => setEditDriver(e.target.value)}
-                      placeholder={t("externalContactNamePlaceholder")}
-                      aria-label={t("externalContactNamePlaceholder")}
-                      className="h-7 w-28 text-xs"
-                    />
-                    <Input
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      type="tel"
-                      inputMode="tel"
-                      placeholder={t("externalContactPhonePlaceholder")}
-                      aria-label={t("externalContactPhonePlaceholder")}
-                      className="h-7 w-32 text-xs"
-                    />
-                    <Button type="button" size="xs" disabled={pending} onClick={() => saveContact(r.id)}>
-                      {t("externalContactSave")}
-                    </Button>
-                    <Button type="button" size="xs" variant="ghost" disabled={pending} onClick={() => setEditing(null)}>
-                      {t("externalCancel")}
-                    </Button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openEdit(r)}
-                    className="flex items-center gap-1 self-start rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <Phone className="h-3 w-3 shrink-0" aria-hidden />
-                    {r.contactPhone || r.contactName ? (
-                      <span className="truncate">
-                        {[r.contactName, r.contactPhone].filter(Boolean).join(" · ")}
-                      </span>
-                    ) : (
-                      // Named as the missing thing, so a row without a contact
-                      // reads as unfinished rather than as having none.
-                      <span className="text-amber-700 dark:text-amber-400">{t("externalContactAdd")}</span>
-                    )}
-                  </button>
-                )}
+                    it belongs to the vehicle, not to any one trip on it.
+                    min-w-0 on both this column and the button: `truncate` only
+                    clips when every flex ancestor is allowed to shrink below its
+                    content, otherwise a long vendor + phone widens the column. */}
+                <button
+                  type="button"
+                  onClick={() => openEdit(r)}
+                  className="flex min-w-0 items-center gap-1 self-start rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Phone className="h-3 w-3 shrink-0" aria-hidden />
+                  {r.contactPhone || r.contactName ? (
+                    <span className="truncate">
+                      {[r.contactName, r.contactPhone].filter(Boolean).join(" · ")}
+                    </span>
+                  ) : (
+                    // Named as the missing thing, so a row without a contact
+                    // reads as unfinished rather than as having none.
+                    <span className="text-amber-700 dark:text-amber-400">{t("externalContactAdd")}</span>
+                  )}
+                </button>
               </div>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 {r.trips.length === 0 ? (
@@ -312,6 +289,45 @@ export function AdHocRowsPanel({
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
+             </div>
+
+             {/* The editor spans the whole row rather than living inside the
+                 224 px identity column: two inputs plus two buttons need about
+                 250 px, so nested there it wrapped onto three lines and pushed
+                 the trips out of alignment with the driver rows above. */}
+             {editing === r.id && (
+               <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-muted/40 p-2">
+                 <Input
+                   autoFocus
+                   value={editDriver}
+                   onChange={(e) => setEditDriver(e.target.value)}
+                   placeholder={t("externalContactNamePlaceholder")}
+                   aria-label={t("externalContactNamePlaceholder")}
+                   className="h-8 w-full text-xs sm:w-40"
+                 />
+                 <Input
+                   value={editPhone}
+                   onChange={(e) => setEditPhone(e.target.value)}
+                   type="tel"
+                   inputMode="tel"
+                   placeholder={t("externalContactPhonePlaceholder")}
+                   aria-label={t("externalContactPhonePlaceholder")}
+                   className="h-8 w-full text-xs sm:w-40"
+                 />
+                 <Button type="button" size="sm" disabled={pending} onClick={() => saveContact(r.id)}>
+                   {t("externalContactSave")}
+                 </Button>
+                 <Button
+                   type="button"
+                   size="sm"
+                   variant="ghost"
+                   disabled={pending}
+                   onClick={() => setEditing(null)}
+                 >
+                   {t("externalCancel")}
+                 </Button>
+               </div>
+             )}
             </li>
           ))}
         </ul>
