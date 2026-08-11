@@ -53,8 +53,16 @@ export function ApproverQueueActions({
   const approve = useFormAction(approveBookingAction, {
     bookingId,
     onSuccess: () => router.refresh(),
-    onResult: (res) =>
-      setDayFull(!!(res && !res.ok && (res as { dayFull?: boolean }).dayFull)),
+    onResult: (res) => {
+      const full = !!(res && !res.ok && (res as { dayFull?: boolean }).dayFull);
+      setDayFull(full);
+      // The fleet cannot serve this day as it stands. Rather than leave the
+      // approver reading a refusal, take them to that day's board: rearranging
+      // what is already there is the thing most likely to make room, and it is
+      // two clicks away otherwise. Deny stays available on the card when they
+      // come back and it genuinely will not fit.
+      if (full && startAt) router.push(`/admin/schedule?date=${startAt.slice(0, 10)}`);
+    },
   });
   const deny = useFormAction(denyByApproverAction, {
     bookingId,
