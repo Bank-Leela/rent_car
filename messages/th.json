@@ -988,6 +988,12 @@
     "denying": "กำลังปฏิเสธ…",
     "cancel": "ยกเลิก",
     "approveCommentLabel": "เพิ่มหมายเหตุ (ไม่บังคับ)",
+    "approveSeries": "อนุมัติทั้งชุด ({count} วัน)",
+    "seriesDenyHint": "ไม่อนุมัติทั้งชุด {count} วัน ด้วยเหตุผลเดียวกัน",
+    "seriesEndTimeLabel": "เวลารถกลับถึงคณะ (ใช้กับทุกวันในชุด)",
+    "seriesBlockedTitle": "ยังทำไม่ได้ {count} วัน — ต้องจัดการแยก",
+    "seriesNothingDone": "ไม่มีรายการใดถูกดำเนินการ",
+    "seriesBadge": "จองซ้ำ {count} วัน",
     "denyPresets": {
       "noVehicle": "ไม่มีรถว่างในวันนั้น",
       "leadTime": "แจ้งล่วงหน้าไม่พอ",

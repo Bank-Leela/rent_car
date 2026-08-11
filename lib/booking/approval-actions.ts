@@ -353,3 +353,130 @@ export async function uploadSignatureAction(formData: FormData): Promise<ActionR
   revalidatePath("/account");
   return { ok: true };
 }
+
+/**
+ * Approve every remaining occurrence of a recurring booking in one go.
+ *
+ * A weekly trip booked for a term arrives as one card PER OCCURRENCE, each with
+ * its own approve and deny. Ten identical decisions is not ten decisions — it is
+ * one decision typed ten times, and the tenth gets less attention than the first.
+ *
+ * This makes it one press, WITHOUT weakening anything: each occurrence still
+ * goes through approveBookingAction, so the capacity gate, the outsourcing
+ * branch, the one-way end-time rule, the audit row and the emails all behave
+ * exactly as they do individually. What comes back is a per-day account, because
+ * the occurrences do NOT share a fate — the fleet can be free on the 23rd and
+ * full on the 30th, and the approver has to be told which.
+ *
+ * `endTime` ("HH:mm") is for a one-way series: the occurrences share a route and
+ * a duration, so one arrival time applies to every date, each on its own day.
+ */
+export type SeriesBlock = { id: string; date: string; reason: string };
+export type SeriesApprovalResult =
+  | { ok: true; approved: number; outsourced: number; blocked: SeriesBlock[] }
+  | { ok: false; error?: string; approved?: number; outsourced?: number; blocked?: SeriesBlock[] };
+
+export async function approveSeriesAction(formData: FormData): Promise<SeriesApprovalResult> {
+  await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+
+  const parentId = String(formData.get("parentId") ?? "");
+  const comment = String(formData.get("comment") ?? "").trim();
+  const endTime = String(formData.get("endTime") ?? "").trim(); // "HH:mm"
+  if (!parentId) return { ok: false, error: te("invalidInput") };
+
+  // The parent is itself an occurrence, so the series is the parent plus its
+  // children. Only the ones still awaiting a decision are touched — re-running
+  // after a partial approval must not disturb what already went through.
+  const series = await prisma.booking.findMany({
+    where: {
+      status: { in: ["PENDING_APPROVAL", "WAITLIST"] },
+      OR: [{ id: parentId }, { recurrenceParentId: parentId }],
+    },
+    orderBy: { startAt: "asc" },
+    select: { id: true, startAt: true, returnTrip: true },
+  });
+  if (series.length === 0) return { ok: false, error: te("bookingNotFound") };
+
+  let approved = 0;
+  let outsourced = 0;
+  const blocked: SeriesBlock[] = [];
+
+  for (const b of series) {
+    const fd = new FormData();
+    fd.set("bookingId", b.id);
+    if (comment) fd.set("comment", comment);
+    // One-way: the same clock time, on this occurrence's own date.
+    if (!b.returnTrip && endTime) {
+      const [hh, mm] = endTime.split(":").map(Number);
+      if (Number.isFinite(hh) && Number.isFinite(mm)) {
+        const end = new Date(b.startAt);
+        end.setHours(hh, mm, 0, 0);
+        fd.set("endAt", format(end, "yyyy-MM-dd'T'HH:mm"));
+      }
+    }
+
+    const res = await approveBookingAction(fd);
+    if (res.ok) {
+      const after = await prisma.booking.findUnique({ where: { id: b.id }, select: { status: true } });
+      if (after?.status === "OUTSOURCED") outsourced += 1;
+      else approved += 1;
+    } else {
+      blocked.push({
+        id: b.id,
+        date: format(b.startAt, "yyyy-MM-dd"),
+        reason: res.error ?? te("invalidInput"),
+      });
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/schedule");
+  revalidatePath("/requester");
+  // ok when ANY occurrence went through — a series where the fleet is full on
+  // one day out of six is a partial success, not a failure, and the caller
+  // reports the blocked days rather than throwing the lot away.
+  return approved + outsourced > 0
+    ? { ok: true, approved, outsourced, blocked }
+    : { ok: false, approved, outsourced, blocked };
+}
+
+/** Deny every remaining occurrence of a recurring booking, one reason for all. */
+export async function denySeriesAction(formData: FormData): Promise<SeriesApprovalResult> {
+  await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+
+  const parentId = String(formData.get("parentId") ?? "");
+  const comment = String(formData.get("comment") ?? "").trim();
+  if (!parentId) return { ok: false, error: te("invalidInput") };
+  if (comment.length < 3) return { ok: false, error: te("invalidInput") };
+
+  // denyByApproverAction accepts PENDING_APPROVAL only, so a WAITLIST occurrence
+  // in the series is reported as blocked rather than silently skipped.
+  const series = await prisma.booking.findMany({
+    where: {
+      status: { in: ["PENDING_APPROVAL", "WAITLIST"] },
+      OR: [{ id: parentId }, { recurrenceParentId: parentId }],
+    },
+    orderBy: { startAt: "asc" },
+    select: { id: true, startAt: true },
+  });
+  if (series.length === 0) return { ok: false, error: te("bookingNotFound") };
+
+  let denied = 0;
+  const blocked: SeriesBlock[] = [];
+  for (const b of series) {
+    const fd = new FormData();
+    fd.set("bookingId", b.id);
+    fd.set("comment", comment);
+    const res = await denyByApproverAction(fd);
+    if (res.ok) denied += 1;
+    else blocked.push({ id: b.id, date: format(b.startAt, "yyyy-MM-dd"), reason: res.error ?? "" });
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/requester");
+  return denied > 0
+    ? { ok: true, approved: denied, outsourced: 0, blocked }
+    : { ok: false, approved: 0, outsourced: 0, blocked };
+}

@@ -12,6 +12,7 @@ import { InChulaChip } from "@/components/in-chula-chip";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ApproverQueueActions } from "@/components/forms/approver-queue-actions";
+import { SeriesQueueActions } from "@/components/forms/series-queue-actions";
 import { QueueFilterBar } from "@/components/admin/queue-filter-bar";
 import { parseQueueSort } from "@/lib/admin/queue-sort";
 import { QueueBulkProvider, BulkCheckbox } from "@/components/admin/queue-bulk";
@@ -19,6 +20,7 @@ import { OtAssignButton } from "@/components/admin/ot-assign-button";
 import { loadQueueContext } from "@/lib/booking/queue-context";
 import { waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 import { Section } from "@/components/section";
+import { formatTh } from "@/lib/format-date";
 import { BookingDocumentLink } from "@/components/booking-document-link";
 import { DocumentApproveButton } from "@/components/admin/document-approve-button";
 
@@ -40,6 +42,7 @@ export default async function AdminQueue({
   const t = await getTranslations("admin");
   const now = new Date();
   const urgentLabel = (await getTranslations("bookingForm"))("urgentBadge");
+  const ta = await getTranslations("approverActions");
 
   // Free-text filter across the three lists (ชื่อการจอง / destination /
   // requester / department) — the daily "find that one booking" need.
@@ -77,7 +80,7 @@ export default async function AdminQueue({
       where: { status: { in: ["PENDING_APPROVAL", "WAITLIST"] }, ...searchFilter, ...pendingFilter },
       orderBy: sort === "oldest" ? { createdAt: "asc" } : { startAt: "asc" },
       take: pendingLimit,
-      include: { requester: true, department: true },
+      include: { requester: true, department: true, recurrenceChildren: { select: { id: true } } },
     }),
     prisma.booking.findMany({
       // Approved, waiting on the signed official form. Nothing here has a car
@@ -132,6 +135,25 @@ export default async function AdminQueue({
       return waitingHours(z.createdAt, now) - waitingHours(a.createdAt, now);
     });
   }
+  // A recurring booking arrives as one row PER OCCURRENCE. Ten identical cards
+  // with ten approve buttons is one decision typed ten times, so occurrences of
+  // the same series collapse into a single card. The parent is itself an
+  // occurrence, hence `recurrenceParentId ?? id` as the series key.
+  //
+  // A series of ONE is just a booking and renders as a normal card — grouping
+  // something that is not a group only adds a layer to read past.
+  type PendingRow = (typeof pendingRows)[number];
+  const seriesOf = (b: PendingRow) => b.recurrenceParentId ?? b.id;
+  const grouped = new Map<string, PendingRow[]>();
+  for (const b of pendingRows) {
+    const key = seriesOf(b);
+    grouped.set(key, [...(grouped.get(key) ?? []), b]);
+  }
+  const pendingGroups = [...grouped.entries()].map(([key, items]) => ({
+    key,
+    items: [...items].sort((a, z) => a.startAt.getTime() - z.startAt.getTime()),
+  }));
+
   const showMoreHref = (() => {
     const q = new URLSearchParams();
     if (term) q.set("q", term);
@@ -196,8 +218,11 @@ export default async function AdminQueue({
           />
         ) : (
             <ul className="space-y-2">
-              {pendingRows.map((b) => (
-                <li key={b.id}>
+              {pendingGroups.map((g) => {
+                const b = g.items[0]!;              // the earliest occurrence carries the card
+                const isSeries = g.items.length > 1;
+                return (
+                <li key={g.key}>
                   <div className="rounded-xl border bg-card p-4">
                     <div className="flex items-start gap-2">
                       <BulkCheckbox bookingId={b.id} />
@@ -221,8 +246,21 @@ export default async function AdminQueue({
                             <div className="truncate text-sm text-muted-foreground">
                               {b.destination} · {tripWhen(b.startAt, b.endAt)}
                             </div>
+                            {isSeries && (
+                              // Every date, not just a count: "6 days" does not
+                              // tell the approver whether one of them is a
+                              // public holiday or the week they are away.
+                              <div className="text-xs tabular-nums text-muted-foreground">
+                                {g.items.map((o) => formatTh(o.startAt, "d MMM")).join(" · ")}
+                              </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                              {isSeries && (
+                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                                  {ta("seriesBadge", { count: g.items.length })}
+                                </span>
+                              )}
                               <InChulaChip travelWithinChula={b.travelWithinChula} />
                               {b.isEmergency && (
                                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
@@ -243,16 +281,27 @@ export default async function AdminQueue({
                         (preset chips + free text) without leaving the queue.
                         WAITLIST rows below still cannot: denyByApproverAction
                         accepts PENDING_APPROVAL only. */}
-                    {isAdmin && <ApproverQueueActions
-                        bookingId={b.id}
-                        canDeny
-                        returnTrip={b.returnTrip}
-                        startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
-                        endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}
-                      />}
+                    {isAdmin &&
+                      (isSeries ? (
+                        <SeriesQueueActions
+                          parentId={g.key}
+                          count={g.items.length}
+                          returnTrip={b.returnTrip}
+                          defaultEndTime={format(b.endAt, "HH:mm")}
+                        />
+                      ) : (
+                        <ApproverQueueActions
+                          bookingId={b.id}
+                          canDeny
+                          returnTrip={b.returnTrip}
+                          startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
+                          endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}
+                        />
+                      ))}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
         )}
         {pending.length >= pendingLimit && pendingLimit < PENDING_MAX_LIMIT && (
