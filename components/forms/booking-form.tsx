@@ -715,7 +715,7 @@ export function BookingForm({
                   so start and end stay equal-sized boxes. One-way swaps the
                   end picker for a note — the admin sets the real end time at
                   approval. */}
-              <div className="grid w-44 shrink-0 gap-2">
+              <div className="grid w-52 shrink-0 gap-2">
                 <Label htmlFor="returnTrip">{t("returnTripLabel")}</Label>
                 {/* SelectField, not a native <select>: an open <select>'s option
                     list is drawn by the OS, so it ignored the app's theme and

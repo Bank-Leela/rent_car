@@ -57,7 +57,14 @@ export function SelectField({
       required={required}
       disabled={disabled}
     >
-      <SelectTrigger id={id} aria-label={ariaLabel} className={cn("w-full", className)}>
+      {/* min-w-0 + overflow-hidden: the trigger is `w-fit whitespace-nowrap`,
+          so without these a value longer than the field spills out of the box
+          and over whatever sits beside it. */}
+      <SelectTrigger
+        id={id}
+        aria-label={ariaLabel}
+        className={cn("w-full min-w-0 overflow-hidden", className)}
+      >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className={contentClassName}>
