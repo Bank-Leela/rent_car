@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -121,10 +121,13 @@ export function DateTimePicker({
   // Flip the popover above the trigger when there isn't room below (e.g. the
   // recurrence field near the bottom of the form) so it never opens off-screen.
   const [dropUp, setDropUp] = useState(false);
-  // Right-align the popover to the trigger when the (now wider, two-column)
-  // panel would overflow the right edge of the viewport — e.g. the End picker
-  // sitting in the form's right column.
-  const [dropLeft, setDropLeft] = useState(false);
+  // Horizontal correction applied AFTER the panel is on screen and can be
+  // measured. This replaced a hard-coded width estimate: the panel's real width
+  // depends on which extras it carries (the End picker's คอย/ไม่คอย column with
+  // its helper paragraph is far wider than the plain calendar), so any constant
+  // is wrong for some variant and the panel silently hangs off the screen.
+  const [shiftX, setShiftX] = useState(0);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -183,6 +186,34 @@ export function DateTimePicker({
     if (value) commit(value, hour, v);
   }
 
+  // Measure the panel and slide it horizontally so it always sits inside the
+  // viewport: pull it left when it overruns the right edge, right when it would
+  // overrun the left. Runs before paint, so the user never sees the unclamped
+  // position. shiftX is 0 while measuring because it resets on close.
+  useLayoutEffect(() => {
+    if (!open) {
+      setShiftX(0);
+      return;
+    }
+    const clamp = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const MARGIN = 12;
+      const r = el.getBoundingClientRect();
+      // r already includes the current shift, so undo it to get the natural box.
+      const left = r.left - shiftX;
+      const right = r.right - shiftX;
+      let dx = 0;
+      if (right > window.innerWidth - MARGIN) dx = window.innerWidth - MARGIN - right;
+      if (left + dx < MARGIN) dx = MARGIN - left;
+      setShiftX(dx);
+    };
+    clamp();
+    window.addEventListener("resize", clamp);
+    return () => window.removeEventListener("resize", clamp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   function toggleOpen() {
     if (!open && rootRef.current) {
       const rect = rootRef.current.getBoundingClientRect();
@@ -190,11 +221,6 @@ export function DateTimePicker({
       // ~380px ≈ popover height; flip up only when below is tight and there's
       // more room above.
       setDropUp(below < 380 && rect.top > below);
-      // Two-column panel (extras + calendar) ≈ 540px; the calendar-only
-      // (dateOnly) panel ≈ 300px. If a left-aligned panel would run past the
-      // right edge, anchor it to the trigger's right edge instead.
-      const panelWidth = hasExtras ? 540 : 300;
-      setDropLeft(window.innerWidth - rect.left < panelWidth);
     }
     setOpen((v) => !v);
   }
@@ -264,13 +290,17 @@ export function DateTimePicker({
       {open && (
         <div
           role="dialog"
+          ref={panelRef}
+          style={shiftX ? { transform: `translateX(${shiftX}px)` } : undefined}
           className={cn(
-            "absolute z-50 w-auto max-w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            "absolute left-0 z-50 w-auto max-w-[calc(100vw-1.5rem)] rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
             dropUp ? "bottom-full mb-2" : "mt-2",
-            dropLeft ? "right-0" : "left-0",
           )}
         >
-          <div className="flex gap-4">
+          {/* Wraps rather than forcing one row: on a narrow window the extras
+              column drops under the calendar instead of pushing the panel wider
+              than the screen. */}
+          <div className="flex flex-wrap gap-4">
             {/* Time + overnight + urgent (only when present). Rendered after
                 the calendar in markup but visually placed on the LEFT via
                 `order-2`/`order-1` below, so the calendar reads first. */}
