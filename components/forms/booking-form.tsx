@@ -60,6 +60,24 @@ const TRIP_AREAS: ReadonlyArray<{ value: TripArea; key: string; helperKey: strin
   { value: "SMUS_CURRICULUM", key: "tripAreaSmus", helperKey: "tripAreaSmusHelper" },
 ];
 
+// Lead time is a property of the area, so it has to be answerable for an area
+// the component has not switched to yet — selectTripArea needs the INCOMING
+// area's floor while `tripArea` still holds the outgoing one.
+function leadDaysFor(area: TripArea): number {
+  if (area === "SMUS_CURRICULUM") return LEAD_TIME_SMUS_DAYS;
+  if (area === "UPCOUNTRY") return LEAD_TIME_OUTSIDE_DAYS;
+  return LEAD_TIME_BANGKOK_DAYS;
+}
+
+function earliestStartFor(area: TripArea, urgent: boolean, now: Date): Date {
+  const days = urgent ? LEAD_TIME_URGENT_DAYS : leadDaysFor(area);
+  // External charter counts every calendar day, weekends included, because the
+  // notice goes to an outside vendor. Every other tier counts business days.
+  return startOfDay(
+    area === "SMUS_CURRICULUM" && !urgent ? addDays(now, days) : addBusinessDays(now, days),
+  );
+}
+
 export type BookingFormDepartment = {
   id: string;
   nameEn: string;
@@ -137,11 +155,44 @@ export function BookingForm({
   const isOvernight = isUpcountry && overnight;
   const [externalBusCount, setExternalBusCount] = useState("0");
   const [externalVanCount, setExternalVanCount] = useState("0");
+  // Move an already-chosen start forward when a change raises the lead-time
+  // floor above it — switching กรุงเทพ (3 business days) to ตจว (7) or to
+  // หลักสูตรนิสิตแพทย์ (30 calendar days), or turning จองเร่งด่วน back off.
+  // Without this the date sat there looking valid while the helper text above it
+  // stated a rule it no longer met, and only the server rejected it.
+  //
+  // The chosen TIME of day is kept — only the calendar day moves — and the end
+  // shifts by the same amount so the trip keeps the duration that was set.
+  const raiseStartToFloor = (area: TripArea, urgent: boolean) => {
+    if (!startValue) return;
+    const current = new Date(startValue);
+    const earliest = earliestStartFor(area, urgent, new Date());
+    if (Number.isNaN(current.getTime()) || current >= earliest) return;
+    const moved = new Date(earliest);
+    moved.setHours(current.getHours(), current.getMinutes(), 0, 0);
+    setStartValue(datetimeLocalValue(moved));
+    if (endValue) {
+      const end = new Date(endValue);
+      if (!Number.isNaN(end.getTime())) {
+        setEndValue(datetimeLocalValue(new Date(end.getTime() + (moved.getTime() - current.getTime()))));
+      }
+    }
+  };
+
   const selectTripArea = (next: TripArea) => {
     setTripArea(next);
     // Overnight only applies upcountry; leaving it must clear the choice so the
     // end date snaps back to the same day.
     if (next !== "UPCOUNTRY") setOvernight(false);
+    raiseStartToFloor(next, isEmergency);
+  };
+
+  // Turning urgent OFF restores the area's full floor, which can leave the
+  // chosen date behind it. Turning it ON only ever lowers the floor, so nothing
+  // needs moving.
+  const setUrgent = (next: boolean) => {
+    setIsEmergency(next);
+    if (!next) raiseStartToFloor(tripArea, false);
   };
   // Urgent ("จองเร่งด่วน"): waives the lead-time floor (down to 1 day) and
   // routes the trip to manual admin assignment. Lifted here because it drives
@@ -298,18 +349,12 @@ export function BookingForm({
   // The trip area's base lead time (ignoring the urgent waiver) — shown in the
   // area helper text so requesters see "3 / 7 business days" (or "30 days" for
   // external charter) up front.
-  const areaLeadDays = isExternalCharter
-    ? LEAD_TIME_SMUS_DAYS
-    : isUpcountry
-      ? LEAD_TIME_OUTSIDE_DAYS
-      : LEAD_TIME_BANGKOK_DAYS;
+  const areaLeadDays = leadDaysFor(tripArea);
   const requiredDays = isEmergency ? LEAD_TIME_URGENT_DAYS : areaLeadDays;
   // Earliest start = midnight on (today + N days). External charter (SMUS)
   // counts every calendar day, including weekends; the other tiers skip
   // Saturdays and Sundays. Any time on that day is fine.
-  const earliestStart = startOfDay(
-    isExternalCharter && !isEmergency ? addDays(now, requiredDays) : addBusinessDays(now, requiredDays),
-  );
+  const earliestStart = earliestStartFor(tripArea, isEmergency, now);
   const minStart = datetimeLocalValue(earliestStart);
   // Cap typed year so the browser can't accept "20251" or longer.
   const maxStart = datetimeLocalValue(addYears(now, 5));
@@ -653,7 +698,7 @@ export function BookingForm({
                   }
                   urgent={{
                     value: isEmergency,
-                    onChange: setIsEmergency,
+                    onChange: setUrgent,
                     label: t("emergencyLabel"),
                     helper: t("emergencyHelper"),
                     yesLabel: t("overnightYes"),
