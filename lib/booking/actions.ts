@@ -207,6 +207,34 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
     };
   }
 
+  // A no-wait trip is TWO intervals, and the split has to move with the trip.
+  // updateBookingTimeAction rewrote startAt/endAt only, so dropOffDone kept the
+  // OLD day: the occupancy trigger then builds tsrange(startAt, dropOffDone)
+  // with lower > upper and Postgres refuses the write — not here, but on the
+  // next assignment, taking that day's whole batch down with it. The ordering
+  // rule (start < dropOffDone < leg-2 start < end) is only enforced by the
+  // create-time schema, never on edit.
+  //
+  // Carry the drop-off to the new date at the same clock time. pickupReturnTime
+  // is a bare "HH:mm" resolved against startAt, so it needs no shift — only
+  // re-checking.
+  let movedDropOff: Date | null = booking.dropOffDone;
+  if (!booking.waitAtDestination && booking.dropOffDone && booking.pickupReturnTime) {
+    const shifted = new Date(startAt);
+    shifted.setHours(booking.dropOffDone.getHours(), booking.dropOffDone.getMinutes(), 0, 0);
+    const [hh, mm] = booking.pickupReturnTime.split(":").map(Number);
+    const legTwoStart = new Date(startAt);
+    if (Number.isFinite(hh) && Number.isFinite(mm)) legTwoStart.setHours(hh, mm, 0, 0);
+    const ordered =
+      startAt < shifted && shifted < legTwoStart && legTwoStart < endAt;
+    if (!ordered) {
+      // Refuse rather than silently turn a no-wait trip into a waiting one, or
+      // write a split that the constraint will reject later.
+      return { ok: false, field: "startAt", error: te("noWaitSplitNoLongerFits") };
+    }
+    movedDropOff = shifted;
+  }
+
   const inHours = isWithinWorkHours({ startAt, endAt });
   if (!inHours && !submittedReason) {
     return { ok: false, field: "outOfHoursReason", error: te("outOfHoursReasonRequired") };
@@ -227,6 +255,7 @@ export async function updateBookingTimeAction(formData: FormData): Promise<Actio
       data: {
         startAt,
         endAt,
+        ...(movedDropOff !== booking.dropOffDone ? { dropOffDone: movedDropOff } : {}),
         outOfHoursReason,
         timeBucket: bucketFromStart(startAt),
         ...(wasAssigned

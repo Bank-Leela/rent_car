@@ -92,13 +92,13 @@ export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; de
         <div className="grid gap-1.5">
           <Label className="text-xs">{t("rangeFrom")}</Label>
           <div className="w-44">
-            <DateTimePicker name="" dateOnly defaultValue={`${from}T00:00`} onChange={(v) => setFrom(v.slice(0, 10))} />
+            <DateTimePicker name="" dateOnly defaultValue={from ? `${from}T00:00` : ""} onChange={(v) => setFrom(v.slice(0, 10))} />
           </div>
         </div>
         <div className="grid gap-1.5">
           <Label className="text-xs">{t("rangeTo")}</Label>
           <div className="w-44">
-            <DateTimePicker name="" dateOnly defaultValue={`${to}T00:00`} onChange={(v) => setTo(v.slice(0, 10))} />
+            <DateTimePicker name="" dateOnly defaultValue={to ? `${to}T00:00` : ""} onChange={(v) => setTo(v.slice(0, 10))} />
           </div>
         </div>
         <Button type="button" size="sm" disabled={pending || !driverId} onClick={submit}>

@@ -90,11 +90,14 @@ function toLocalISO(d: Date) {
 
 function parseValue(v: string | undefined): Date | null {
   if (!v) return null;
-  try {
-    return parse(v, "yyyy-MM-dd'T'HH:mm", new Date());
-  } catch {
-    return null;
-  }
+  // date-fns `parse` NEVER throws — it returns an Invalid Date — so the old
+  // try/catch here was dead code and this function silently broke its own
+  // `Date | null` contract. An Invalid Date is truthy, so it flowed straight
+  // through every `if (parsed)` guard and into `format()`, which DOES throw:
+  // pressing ล้าง in the leave-range picker fed back the string "T00:00" and
+  // took the whole page down with a RangeError during render.
+  const d = parse(v, "yyyy-MM-dd'T'HH:mm", new Date());
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export function DateTimePicker({

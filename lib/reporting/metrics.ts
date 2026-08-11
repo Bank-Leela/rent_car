@@ -16,8 +16,16 @@ export function defaultRange(): DateRange {
 
 export function rangeFromQuery(qs: { from?: string; to?: string }): DateRange {
   const fallback = defaultRange();
-  const from = qs.from ? new Date(qs.from) : fallback.from;
-  const to = qs.to ? new Date(qs.to) : fallback.to;
+  // A bare "yyyy-MM-dd" is parsed by the ES spec as UTC midnight, which in
+  // Asia/Bangkok is 07:00 LOCAL. Every consumer compares with gte/lte, so the
+  // range silently lost the last 17 hours of the end day and the first 7 of the
+  // start day while the page heading still printed the dates the user asked
+  // for — an under-count that looks like a complete report.
+  //
+  // Anchor both bounds in local time, end-inclusive, matching what
+  // requester-history-client.tsx already does for its own filter.
+  const from = qs.from ? new Date(`${qs.from}T00:00:00`) : fallback.from;
+  const to = qs.to ? new Date(`${qs.to}T23:59:59.999`) : fallback.to;
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return fallback;
   return { from, to };
 }
