@@ -28,7 +28,7 @@ export type CapacityVerdict = {
   fits: boolean;
 };
 
-type Candidate = {
+export type Candidate = {
   id: string;
   startAt: Date;
   endAt: Date;
@@ -55,25 +55,61 @@ function skipsCapacityGate(b: Candidate): boolean {
 }
 
 export async function dayHasRoomFor(booking: Candidate): Promise<CapacityVerdict> {
-  if (skipsCapacityGate(booking)) return { gated: false, fits: true };
+  const verdicts = await dayHasRoomForMany([booking]);
+  return verdicts.get(booking.id) ?? { gated: false, fits: true };
+}
 
-  const recos = await recommendForBookings(
-    startOfDay(booking.startAt),
-    [
-      {
-        id: booking.id,
-        startAt: booking.startAt,
-        endAt: booking.endAt,
-        estimatedDistance: booking.estimatedDistance,
-        jobType: booking.jobType,
-      },
-    ],
-    true,
-  );
+/**
+ * The same question for a whole queue at once.
+ *
+ * The approver queue shows a "day full" chip on every pending card, and asking
+ * per card would be one placement solve per card. `recommendForBookings` already
+ * takes a list and loads the day's drivers and trips ONCE, so grouping by day
+ * costs one round of queries per distinct day instead of per booking.
+ *
+ * Same caveat as the single version: each booking is judged against the day as
+ * it stands, not against the other pending ones. Two cards on a day with one
+ * free car will both read as fitting, because neither holds a driver until จัด
+ * runs. That is the honest answer to "could this be served?" — it is the solver,
+ * not this, that decides who actually gets the car.
+ */
+export async function dayHasRoomForMany(
+  bookings: readonly Candidate[],
+): Promise<Map<string, CapacityVerdict>> {
+  const out = new Map<string, CapacityVerdict>();
+  const byDay = new Map<number, Candidate[]>();
 
-  const placement = recos.get(booking.id);
-  // `reclaim` means a car DOES exist — the duty car — and pulling it is P'Top's
-  // call, handled by the existing NEEDS_WERN_RECLAIM_DECISION flow. Only `none`
-  // means the fleet genuinely cannot serve this trip.
-  return { gated: true, fits: !!placement && placement.kind !== "none" };
+  for (const b of bookings) {
+    if (skipsCapacityGate(b)) {
+      out.set(b.id, { gated: false, fits: true });
+      continue;
+    }
+    const key = startOfDay(b.startAt).getTime();
+    const group = byDay.get(key) ?? [];
+    group.push(b);
+    byDay.set(key, group);
+  }
+
+  for (const [dayMs, group] of byDay) {
+    const recos = await recommendForBookings(
+      new Date(dayMs),
+      group.map((b) => ({
+        id: b.id,
+        startAt: b.startAt,
+        endAt: b.endAt,
+        estimatedDistance: b.estimatedDistance,
+        jobType: b.jobType,
+      })),
+      true,
+    );
+    for (const b of group) {
+      const placement = recos.get(b.id);
+      // `reclaim` means a car DOES exist — the duty car — and pulling it is
+      // P'Top's call, handled by the existing NEEDS_WERN_RECLAIM_DECISION flow.
+      // Only `none` means the fleet genuinely cannot serve this trip.
+      out.set(b.id, { gated: true, fits: !!placement && placement.kind !== "none" });
+    }
+  }
+
+  return out;
 }

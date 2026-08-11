@@ -44,6 +44,21 @@ Suite now **407 tests / 48 files**. No schema changes.
   paperwork runs จัด, and จัด can fail to place a day. `DocumentApproveButton`
   was discarding the series result, so a 24-day series reported clean success
   while some days quietly had no car.
+- **A full day has no approve button at all** (this session): approving used to
+  be offered, refused on click, and only then revealed Deny. But approving is not
+  a decision the approver can make on a day the fleet cannot serve — so the card
+  now shows **ไปจัดตารางวันนั้น** (to that day's board) and **ไม่อนุมัติ**, and no
+  approve. There is deliberately **no override**: the only way through is real
+  capacity. Freeing a slot on the board brings อนุมัติ back by itself — measured
+  end to end, including the restore. The click-time refusal is kept for the race
+  where someone else takes the last car between render and click.
+- **The วันเต็ม chip now asks the same question as the button** (this session): it
+  came from a slot count (`วันเต็ม 13/12`) while the approve came from the
+  placement engine, so a card could read full and approve fine, or look free and
+  be refused. Both now use `dayHasRoomForMany`, which batches one placement solve
+  per distinct day rather than one per card; the two slot-count queries it
+  replaced are gone, so the queue is not slower for it. The chip lost its counts
+  because the engine has no "11 of 11" behind "no legal car exists".
 - **The approval capacity gate never fired** (this session): `recommendPlacement`
   fell back to the duty car as a `reclaim` suggestion after checking only that a
   duty driver **existed and had a car** — never whether that driver was already

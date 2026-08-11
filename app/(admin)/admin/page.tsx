@@ -303,6 +303,9 @@ export default async function AdminQueue({
                         <ApproverQueueActions
                           bookingId={b.id}
                           canDeny
+                          // Same flag the chip reads, so the card cannot show
+                          // วันเต็ม beside a live approve button.
+                          dayFull={(triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")}
                           returnTrip={b.returnTrip}
                           startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
                           endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}
@@ -588,7 +591,7 @@ function TriageChips({ flags, waitedHours, t }: { flags: TriageFlag[]; waitedHou
         const tone: "amber" | "rose" = f.key === "emergency" || f.key === "dayFull" ? "rose" : "amber";
         const label =
           f.key === "dayFull"
-            ? t("triageDayFull", { used: f.used, capacity: f.capacity })
+            ? t("triageDayFull")
             : f.key === "repeatCanceller"
               ? t("triageRepeatCanceller", { count: f.count })
               : f.key === "outOfHours"

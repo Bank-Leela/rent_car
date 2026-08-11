@@ -583,7 +583,7 @@
     "triageEmergency": "ฉุกเฉิน",
     "triageOutOfHours": "นอกเวลาทำการ",
     "triageShortLead": "แจ้งล่วงหน้าไม่พอ",
-    "triageDayFull": "วันเต็ม {used}/{capacity}",
+    "triageDayFull": "วันเต็ม",
     "triageRepeatCanceller": "ยกเลิก {count}× ใน 90 วัน",
     "triageWaitingDays": "รอ {days} วัน",
     "triageWaitingHours": "รอ {hours} ชม.",
@@ -1003,7 +1003,9 @@
       "outOfPolicy": "ไม่เป็นไปตามนโยบาย",
       "missingDetails": "ข้อมูลการเดินทางไม่ครบ"
     },
-    "confirmEndLabel": "รถกลับถึงคณะ"
+    "confirmEndLabel": "รถกลับถึงคณะ",
+    "goFixSchedule": "ไปจัดตารางวันนั้น",
+    "dayFullHint": "วันนี้ไม่มีรถที่รับงานนี้ได้ — จัดตารางวันนั้นให้ว่างก่อน แล้วปุ่มอนุมัติจะกลับมาเอง"
   },
   "bookingForm": {
     "leadTimeBangkok": "ระยะเวลาล่วงหน้า: <strong>{days} วัน</strong> สำหรับการเดินทางในกรุงเทพฯ",

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CalendarClock, Check, X } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { approveBookingAction, denyByApproverAction } from "@/lib/booking/approval-actions";
@@ -24,9 +26,21 @@ export function ApproverQueueActions({
   returnTrip = true,
   endAt,
   startAt,
+  dayFull: dayFullFromServer = false,
 }: {
   bookingId: string;
   canDeny: boolean;
+  /**
+   * The placement engine found no car for this trip on its day (computed with
+   * the queue, so it is known BEFORE anyone clicks).
+   *
+   * When true there is no approve button at all. Approving is not a decision
+   * P'Top can make here — the fleet cannot serve the trip, and the only honest
+   * moves are to go rearrange that day's board or to refuse. Once a slot is
+   * freed there, the queue re-renders and อนุมัติ comes back on its own; nothing
+   * has to be unlocked by hand.
+   */
+  dayFull?: boolean;
   // One-way ("ไม่เดินทางกลับ"): the requester's time is when they expect to
   // ARRIVE, so the car is still out afterwards. Approval confirms when it is
   // back at the faculty — pre-filled with their answer, editable here so the
@@ -45,23 +59,22 @@ export function ApproverQueueActions({
   // in the booking's history. Deny keeps its required reason below.
   const [approveNote, setApproveNote] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
-  // Set when approve is refused because no car can serve the day. The fleet
-  // being full is the one refusal the approver has to ACT on, so Deny appears
-  // here rather than making them open the detail page to find it.
-  const [dayFull, setDayFull] = useState(false);
+  // The server can still refuse a day the queue rendered as free — someone else
+  // took the last car in between. Either source hides the approve button.
+  const [refusedAsFull, setRefusedAsFull] = useState(false);
+  const dayFull = dayFullFromServer || refusedAsFull;
+  const dayHref = startAt ? `/admin/schedule?date=${startAt.slice(0, 10)}` : "/admin/schedule";
 
   const approve = useFormAction(approveBookingAction, {
     bookingId,
     onSuccess: () => router.refresh(),
     onResult: (res) => {
       const full = !!(res && !res.ok && (res as { dayFull?: boolean }).dayFull);
-      setDayFull(full);
-      // The fleet cannot serve this day as it stands. Rather than leave the
-      // approver reading a refusal, take them to that day's board: rearranging
-      // what is already there is the thing most likely to make room, and it is
-      // two clicks away otherwise. Deny stays available on the card when they
-      // come back and it genuinely will not fit.
-      if (full && startAt) router.push(`/admin/schedule?date=${startAt.slice(0, 10)}`);
+      setRefusedAsFull(full);
+      // Losing the last car to someone else between render and click is a race,
+      // not a mistake — take them to that day's board rather than leaving them
+      // reading a refusal, exactly as the pre-rendered case does.
+      if (full && startAt) router.push(dayHref);
     },
   });
   const deny = useFormAction(denyByApproverAction, {
@@ -108,6 +121,29 @@ export function ApproverQueueActions({
             }}
           >
             {t("cancel")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // No car can serve this trip on its day. Approving is not on the table — the
+  // decision belongs on the schedule board, where making room is actually
+  // possible. Deny stays, for when it genuinely will not fit.
+  if (dayFull) {
+    return (
+      <div className="mt-3 space-y-2 border-t pt-3">
+        <p className="text-xs text-muted-foreground">{t("dayFullHint")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* A link, not a button with router.push: this navigates, so it should
+              middle-click and open in a new tab like any other navigation. */}
+          <Link href={dayHref} className={cn(buttonVariants())}>
+            <CalendarClock className="h-4 w-4" aria-hidden />
+            {t("goFixSchedule")}
+          </Link>
+          <Button type="button" variant="destructive" onClick={() => setDenyOpen(true)}>
+            <X className="h-4 w-4" />
+            {t("deny")}
           </Button>
         </div>
       </div>
@@ -176,7 +212,7 @@ export function ApproverQueueActions({
           {t("cancel")}
         </Button>
       )}
-      {(canDeny || dayFull) && (
+      {canDeny && (
         <Button
           type="button"
           variant="destructive"

@@ -1,8 +1,9 @@
 import { format, startOfDay, subDays } from "date-fns";
+import type { JobType, PreferredVehicleType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
-import { SLOT_HOLDING_STATUSES, dayCapacity } from "@/lib/booking/slot-capacity";
+import { dayHasRoomForMany } from "@/lib/booking/approval-capacity";
 import { triageFlags, waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
 
 // Derived signals for the admin queue: overtime-placement recommendations for
@@ -21,6 +22,12 @@ type QueueBooking = {
   province: string;
   isEmergency: boolean;
   createdAt: Date;
+  // Needed by the capacity check: jobType and these two decide whether the
+  // question even applies (WERN/TJW/SMUS/เร่งด่วน/outsourced bus never go
+  // through จัด), and the distance decides whether a co-driver is required.
+  jobType: JobType;
+  preferredVehicleType: PreferredVehicleType | null;
+  estimatedDistance: number | null;
 };
 
 type QueueDriver = {
@@ -119,39 +126,20 @@ export async function loadQueueContext(opts: {
 
   // --- Triage signals for the pending queue + SLA-overdue count. ---
   if (pending.length > 0) {
-    const dayKeys = pending.map((b) => startOfDay(b.startAt).getTime());
-    const rangeStart = new Date(Math.min(...dayKeys));
-    const rangeEnd = new Date(Math.max(...dayKeys));
-    rangeEnd.setDate(rangeEnd.getDate() + 1);
     const requesterIds = [...new Set(pending.map((b) => b.requesterId))];
 
-    const [activeVehicles, daySlotBookings, cancellations] = await Promise.all([
-      prisma.vehicle.findMany({
-        where: {
-          isActive: true,
-          assignedDriver: { is: { isActive: true, user: { is: { isActive: true } } } },
-        },
-        select: { isDutyVehicle: true },
-      }),
-      prisma.booking.findMany({
-        where: { status: { in: SLOT_HOLDING_STATUSES }, startAt: { gte: rangeStart, lt: rangeEnd } },
-        select: { startAt: true },
-      }),
+    // The capacity signal is the placement engine, not a slot count — the same
+    // question the approve button asks, so the chip can never contradict it.
+    // Batched by day (see dayHasRoomForMany), so this is one round of queries per
+    // distinct day on the queue rather than one per card.
+    const [capacity, cancellations] = await Promise.all([
+      dayHasRoomForMany(pending),
       prisma.cancellation.findMany({
         where: { booking: { requesterId: { in: requesterIds } }, cancelledAt: { gte: subDays(now, 90) } },
         select: { booking: { select: { requesterId: true } } },
       }),
     ]);
 
-    const cap = dayCapacity(
-      activeVehicles.filter((v) => !v.isDutyVehicle).length,
-      activeVehicles.filter((v) => v.isDutyVehicle).length,
-    );
-    const usedByDay = new Map<number, number>();
-    for (const s of daySlotBookings) {
-      const k = startOfDay(s.startAt).getTime();
-      usedByDay.set(k, (usedByDay.get(k) ?? 0) + 1);
-    }
     const cancelByRequester = new Map<string, number>();
     for (const c of cancellations) {
       const rid = c.booking.requesterId;
@@ -167,8 +155,10 @@ export async function loadQueueContext(opts: {
           province: b.province,
           isEmergency: b.isEmergency,
           now,
-          dayUsed: usedByDay.get(startOfDay(b.startAt).getTime()) ?? 0,
-          dayCapacity: cap,
+          fleetFull: (() => {
+            const v = capacity.get(b.id);
+            return !!v && v.gated && !v.fits;
+          })(),
           cancellations: cancelByRequester.get(b.requesterId) ?? 0,
         }),
       );

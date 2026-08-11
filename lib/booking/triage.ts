@@ -4,13 +4,12 @@
 // feeds it data already in hand.
 import { differenceInHours } from "date-fns";
 import { isWithinWorkHours, checkLeadTime, shouldWarnAboutCancellations } from "@/lib/booking/rules";
-import { isFull } from "@/lib/booking/slot-capacity";
 
 export type TriageFlag =
   | { key: "emergency" }
   | { key: "outOfHours" }
   | { key: "shortLead" }
-  | { key: "dayFull"; used: number; capacity: number }
+  | { key: "dayFull" }
   | { key: "repeatCanceller"; count: number };
 
 export type TriageInput = {
@@ -19,9 +18,18 @@ export type TriageInput = {
   province: string;
   isEmergency: boolean;
   now: Date;
-  /** slot-holding bookings already on this booking's day (incl. itself). */
-  dayUsed: number;
-  dayCapacity: number;
+  /**
+   * Whether the placement engine can find a car for THIS trip on its day —
+   * `dayHasRoomForMany`, the same question the approve button asks.
+   *
+   * This used to be a slot count (`isFull(dayUsed, dayCapacity)`), which is a
+   * different question with a different answer: the count is a coarse "how many
+   * trips fit in a day" from submission time, while the approve asks whether a
+   * legal car exists for this specific trip given the 2 h gap, the NORMAL cap and
+   * overlap. A card could read "วันเต็ม 13/12" and approve without complaint, or
+   * look free and be refused. Now the chip and the button agree by construction.
+   */
+  fleetFull: boolean;
   /** the requester's cancellations in the past 90 days. */
   cancellations: number;
 };
@@ -33,9 +41,7 @@ export function triageFlags(b: TriageInput): TriageFlag[] {
   if (!checkLeadTime({ startAt: b.startAt, province: b.province, now: b.now }).ok) {
     flags.push({ key: "shortLead" });
   }
-  if (isFull(b.dayUsed, b.dayCapacity)) {
-    flags.push({ key: "dayFull", used: b.dayUsed, capacity: b.dayCapacity });
-  }
+  if (b.fleetFull) flags.push({ key: "dayFull" });
   if (shouldWarnAboutCancellations(b.cancellations)) {
     flags.push({ key: "repeatCanceller", count: b.cancellations });
   }

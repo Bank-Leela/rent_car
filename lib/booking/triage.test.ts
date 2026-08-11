@@ -16,8 +16,7 @@ function base(over: Partial<Parameters<typeof triageFlags>[0]> = {}) {
     province: BANGKOK_PROVINCE,
     isEmergency: false,
     now: NOW,
-    dayUsed: 0,
-    dayCapacity: 11,
+    fleetFull: false,
     cancellations: 0,
     ...over,
   });
@@ -52,14 +51,17 @@ describe("triageFlags", () => {
     expect(keys(base({ startAt: start, endAt: end }))).toContain("shortLead");
   });
 
-  it("flags day-full and carries the used/capacity counts", () => {
-    const flags = base({ dayUsed: 11, dayCapacity: 11 });
-    const full = flags.find((f) => f.key === "dayFull");
-    expect(full).toEqual({ key: "dayFull", used: 11, capacity: 11 });
+  // The flag now mirrors the placement engine (dayHasRoomForMany) rather than a
+  // slot count, so it carries no used/capacity numbers — there is no "11 of 11"
+  // behind "no legal car exists for this trip". The point of the change is that
+  // the chip and the approve button ask one question, not two that can disagree.
+  it("flags day-full when the placement engine found no car", () => {
+    const flags = base({ fleetFull: true });
+    expect(flags.find((f) => f.key === "dayFull")).toEqual({ key: "dayFull" });
   });
 
-  it("does not flag day-full below capacity", () => {
-    expect(keys(base({ dayUsed: 10, dayCapacity: 11 }))).not.toContain("dayFull");
+  it("does not flag day-full when a car exists", () => {
+    expect(keys(base({ fleetFull: false }))).not.toContain("dayFull");
   });
 
   it("flags a repeat canceller at 3+ in 90 days", () => {
