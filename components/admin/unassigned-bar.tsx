@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
+import { OutsourceToRowButton, type OutsideTarget } from "@/components/forms/outsource-to-row-button";
 
 export type UnassignedRow = {
   id: string;
@@ -9,6 +10,14 @@ export type UnassignedRow = {
   reasonLabel: string;
   /** Present only when a legal car was found — one click assigns it. */
   reco: { vehicleId: string; secondaryDriverId: string | null; label: string } | null;
+  /**
+   * True when an outside vehicle is the answer for this trip rather than a
+   * faculty car — a รถบัสเช่า, an external charter, or anything the requester
+   * flagged for outsourcing. Those rows previously had no action at all: the
+   * solver has nothing to offer them, so they fell through to the "open the
+   * request" link and simply sat on the board.
+   */
+  outsideCandidate: boolean;
 };
 
 // Everything on the viewed day that still needs a car.
@@ -25,9 +34,12 @@ export type UnassignedRow = {
 export function UnassignedBar({
   rows,
   labels,
+  outsideTargets = [],
 }: {
   rows: UnassignedRow[];
   labels: { title: string; empty: string; open: string };
+  /** The hired vehicles on this day, for the outside-attach action. */
+  outsideTargets?: OutsideTarget[];
 }) {
   if (rows.length === 0) {
     return (
@@ -61,6 +73,8 @@ export function UnassignedBar({
                 secondaryDriverId={r.reco.secondaryDriverId}
                 label={r.reco.label}
               />
+            ) : r.outsideCandidate ? (
+              <OutsourceToRowButton bookingId={r.id} targets={outsideTargets} />
             ) : (
               <Link
                 href={`/admin/${r.id}`}

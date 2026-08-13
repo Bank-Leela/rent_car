@@ -270,7 +270,7 @@ export default async function SchedulePage({
     select: {
       id: true, destination: true, startAt: true, endAt: true,
       jobType: true, isEmergency: true, preferredVehicleType: true, overflowReason: true,
-      estimatedDistance: true, primaryDriverId: true,
+      estimatedDistance: true, primaryDriverId: true, needsOutsourcing: true,
     },
   });
 
@@ -325,6 +325,13 @@ export default async function SchedulePage({
       timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
       reasonLabel: reason,
       reco: r ? { vehicleId: r.vehicleId, secondaryDriverId: r.secondaryDriverId ?? null, label: r.assignLabel ?? r.label } : null,
+      // A hired vehicle is the answer for these, not a faculty car. Before this
+      // they were the rows with no action at all — the solver has nothing to
+      // offer them, so they fell through to "open the request" and sat here.
+      outsideCandidate:
+        b.preferredVehicleType === "BUS_OUTSOURCED" ||
+        b.jobType === "SMUS" ||
+        b.needsOutsourcing,
     };
   });
 
@@ -362,6 +369,7 @@ export default async function SchedulePage({
       {!timeline && (
       <UnassignedBar
         rows={unassignedRows}
+        outsideTargets={adHocTargets}
         labels={{
           title: t("unassignedTitle"),
           empty: t("unassignedEmpty"),
