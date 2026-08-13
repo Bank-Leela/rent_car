@@ -283,6 +283,7 @@
     "externalContactPhonePlaceholder": "เบอร์โทร",
     "externalContactSave": "บันทึก",
     "externalContactAdd": "+ เพิ่มคนขับ/เบอร์โทร",
+    "externalCarriedForward": "ใช้ผู้ให้บริการรายนี้กับอีก {count} วันของชุดนี้ด้วยแล้ว — แก้ชื่อคนขับ/เบอร์โทรของแต่ละวันได้ที่กระดานวันนั้น",
     "externalCancel": "ยกเลิก",
     "moveToExternal": "ส่งรถนอก",
     "removeExternalRow": "ลบแถว (งานจะกลับไปที่คิว)",

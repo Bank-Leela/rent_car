@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { Phone, Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -113,7 +114,13 @@ export function AdHocRowsPanel({
       const fd = new FormData();
       fd.set("bookingId", bookingId);
       fd.set("rowId", rowId);
-      await outsourceToRowAction(fd);
+      const res = (await outsourceToRowAction(fd)) as { ok: boolean; carriedForward?: number };
+      // A recurring booking carries this vendor to its later dates, creating a
+      // row on each. That happens on days the admin is not looking at, so it has
+      // to be said out loud rather than discovered later.
+      if (res?.ok && (res.carriedForward ?? 0) > 0) {
+        toast.success(t("externalCarriedForward", { count: res.carriedForward! }));
+      }
       router.refresh();
     });
 

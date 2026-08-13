@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { startOfDay } from "date-fns";
+import type { BookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
@@ -101,8 +103,26 @@ export async function removeAdHocRowAction(formData: FormData): Promise<ActionRe
   return { ok: true };
 }
 
-// Drop a booking onto an external row → OUTSOURCED (off-algorithm): cleared of
-// car/driver, status OUTSOURCED, linked to the row, vendor = the row's label.
+/** Occurrences a carried-forward vendor may claim: approved and still car-less. */
+const CARRY_FORWARD_STATUSES = ["APPROVED", "AWAITING_DOCUMENT", "OUTSOURCED"] as const;
+
+/**
+ * Drop a booking onto an external row → OUTSOURCED (off-algorithm): cleared of
+ * car/driver, status OUTSOURCED, linked to the row, vendor = the row's label.
+ *
+ * For a RECURRING booking the vendor carries forward to the later occurrences.
+ * A weekly trip hires the same coach company every week, but AdHocVehicle is
+ * scoped to a single date (`date @db.Date`), so the later dates cannot share this
+ * row — each needs its own row carrying the same label, cost and contact. Before
+ * this, arranging a 3-week outside booking meant repeating the whole setup on
+ * each date, and the two later dates sat in "ยังไม่ได้จัดรถ / ต้องจัดเอง" looking
+ * unhandled.
+ *
+ * Only LATER occurrences, and only ones still without a car — an occurrence
+ * already on a faculty car or already on its own vendor row is left exactly as
+ * it is. Each date's row stays independently editable afterwards, so a week whose
+ * driver changes is corrected on that date alone.
+ */
 export async function outsourceToRowAction(formData: FormData): Promise<ActionResult> {
   const session = await requireRole("ADMIN");
   const bookingId = String(formData.get("bookingId") ?? "");
@@ -110,16 +130,25 @@ export async function outsourceToRowAction(formData: FormData): Promise<ActionRe
   if (!bookingId || !rowId) return { ok: false, error: "invalidInput" };
   const row = await prisma.adHocVehicle.findUnique({
     where: { id: rowId },
-    select: { id: true, label: true, contactName: true, contactPhone: true },
+    select: { id: true, label: true, cost: true, note: true, contactName: true, contactPhone: true },
   });
   if (!row) return { ok: false, error: "invalidInput" };
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId }, select: { status: true } });
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: { status: true, startAt: true, recurrenceParentId: true, id: true },
+  });
   if (!booking) return { ok: false, error: "bookingNotFound" };
-  await prisma.$transaction(async (tx) => {
+
+  const attach = async (
+    tx: Prisma.TransactionClient,
+    id: string,
+    fromStatus: BookingStatus,
+    targetRowId: string,
+  ) => {
     await tx.booking.update({
-      where: { id: bookingId },
+      where: { id },
       data: {
-        status: "OUTSOURCED", adHocVehicleId: rowId,
+        status: "OUTSOURCED", adHocVehicleId: targetRowId,
         vehicleId: null, primaryDriverId: null, secondaryDriverId: null,
         needsOutsourcing: true, outsourceVendor: row.label,
         // Copied down, not joined: the requester's page shows one contact per
@@ -130,12 +159,66 @@ export async function outsourceToRowAction(formData: FormData): Promise<ActionRe
       },
     });
     await logTransition({
-      bookingId, actorUserId: session.user.id, fromStatus: booking.status, toStatus: "OUTSOURCED",
+      bookingId: id, actorUserId: session.user.id, fromStatus, toStatus: "OUTSOURCED",
       action: "BOOKING_OUTSOURCED", metadata: { row: row.label }, tx,
     });
+  };
+
+  // The series key: the parent IS an occurrence, so it is `recurrenceParentId ??
+  // id` (see lib/booking/series.ts). A non-recurring booking is a series of one
+  // and the query below simply returns nothing.
+  const seriesKey = booking.recurrenceParentId ?? booking.id;
+  const laterSiblings = await prisma.booking.findMany({
+    where: {
+      id: { not: bookingId },
+      OR: [{ id: seriesKey }, { recurrenceParentId: seriesKey }],
+      startAt: { gt: booking.startAt },
+      status: { in: [...CARRY_FORWARD_STATUSES] },
+      // Never displace an occurrence that already has an arrangement.
+      primaryDriverId: null,
+      vehicleId: null,
+      adHocVehicleId: null,
+    },
+    orderBy: { startAt: "asc" },
+    select: { id: true, status: true, startAt: true },
   });
+
+  let carried = 0;
+  await prisma.$transaction(async (tx) => {
+    await attach(tx, bookingId, booking.status, rowId);
+
+    for (const sib of laterSiblings) {
+      const day = startOfDay(sib.startAt);
+      // Reuse a row already hired from this vendor on that date rather than
+      // adding a second identical row to the board.
+      const existing = await tx.adHocVehicle.findFirst({
+        where: { date: day, label: row.label },
+        select: { id: true },
+      });
+      const targetId =
+        existing?.id ??
+        (
+          await tx.adHocVehicle.create({
+            data: {
+              date: day,
+              label: row.label,
+              cost: row.cost,
+              note: row.note,
+              contactName: row.contactName,
+              contactPhone: row.contactPhone,
+            },
+            select: { id: true },
+          })
+        ).id;
+      await attach(tx, sib.id, sib.status, targetId);
+      carried++;
+    }
+  });
+
   revalidatePath("/admin/schedule");
-  return { ok: true };
+  revalidatePath("/admin");
+  revalidatePath("/requester");
+  return { ok: true, carriedForward: carried } as ActionResult & { carriedForward: number };
 }
 
 // Drag an outsourced booking back off the row → APPROVED (returns to the queue).
