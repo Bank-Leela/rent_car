@@ -9,13 +9,37 @@ import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import type { DriverRotationState, ScheduledTrip } from "@/lib/booking/rotations";
 import type { ActionResult } from "@/lib/booking/actions";
-import type { JobType } from "@prisma/client";
+import type { JobType, Prisma } from "@prisma/client";
 
 export interface BatchStats {
   pendingCount: number;
   matchedCount: number;
   overflowByReason: Record<string, number>;
 }
+
+/**
+ * What the daily batch can actually place — everything except the date bounds.
+ *
+ * Exported because the cron's "which days still need solving?" sweep has to ask
+ * the SAME question. It used to ask a broader one (just APPROVED with no driver),
+ * so a booking the solver deliberately never touches — จองเร่งด่วน, SMUS charter,
+ * TJW, an outsourced bus — kept its day on the outstanding list permanently. The
+ * sweep re-solved that day every night, the solver skipped the booking every
+ * time, and the day could never clear: each such booking added a day to the
+ * nightly run for good, so the sweep only ever grew.
+ *
+ * One definition, two callers. Duplicating the predicate is what caused this.
+ */
+export const BATCH_SOLVABLE_WHERE = {
+  status: "APPROVED",
+  primaryDriverId: null,
+  // Urgent requests stay APPROVED for manual matching.
+  isEmergency: false,
+  // SMUS = external charter; TJW goes through assignTjwByRequestOrder;
+  // BUS_OUTSOURCED = outsourced rental — all excluded from the daily batch.
+  jobType: { notIn: ["SMUS", "TJW"] },
+  preferredVehicleType: { not: "BUS_OUTSOURCED" },
+} as const satisfies Prisma.BookingWhereInput;
 
 /**
  * CR-07 core: solve one day's APPROVED bookings and persist assignments +
@@ -42,14 +66,7 @@ export async function runBatchForDay(
   // --- Pending bookings for the day (APPROVED, no primary yet). ---
   const pending = await prisma.booking.findMany({
     where: {
-      status: "APPROVED",
-      primaryDriverId: null,
-      // Urgent requests stay APPROVED for manual matching.
-      isEmergency: false,
-      // SMUS = external charter; TJW goes through assignTjwByRequestOrder;
-      // BUS_OUTSOURCED = outsourced rental — all excluded from the daily batch.
-      jobType: { notIn: ["SMUS", "TJW"] },
-      preferredVehicleType: { not: "BUS_OUTSOURCED" },
+      ...BATCH_SOLVABLE_WHERE,
       startAt: { gte: dayStart, lt: dayEnd },
     },
     orderBy: { createdAt: "asc" },

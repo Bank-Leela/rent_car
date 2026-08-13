@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { addDays, startOfDay, format } from "date-fns";
 import { prisma } from "@/lib/db";
 import { getCronSecret, isValidCronAuth } from "@/lib/config/cron";
-import { runBatchForDay } from "@/lib/booking/batch-core";
+import { runBatchForDay, BATCH_SOLVABLE_WHERE } from "@/lib/booking/batch-core";
 
 // Daily round-scheduling (จัดรอบ) auto-run. A systemd timer / crontab POSTs here
 // each evening with `Authorization: Bearer <CRON_SECRET>`. Since จัด now runs on
@@ -41,13 +41,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ date: dateStr, ...result });
   }
 
-  // Otherwise sweep EVERY day that still has approved-but-unassigned bookings,
-  // not just tomorrow. จัด now runs on approval, so this is the safety net: it
-  // catches trips that became placeable only later — a driver came back from
-  // leave, a cancellation freed a car — and anything approved while the solver
-  // was failing. Idempotent, so re-running over already-assigned days is free.
+  // Otherwise sweep EVERY day that still has work the batch can actually do, not
+  // just tomorrow. จัด now runs on approval, so this is the safety net: it catches
+  // trips that became placeable only later — a driver came back from leave, a
+  // cancellation freed a car — and anything approved while the solver was
+  // failing. Idempotent, so re-running over already-assigned days is free.
+  //
+  // Keyed on BATCH_SOLVABLE_WHERE, the solver's own predicate. This used to ask a
+  // broader question (any APPROVED booking with no driver), which included the
+  // kinds the solver deliberately never touches — จองเร่งด่วน, SMUS charter, TJW,
+  // an outsourced bus. Those bookings pinned their day on this list for good: the
+  // sweep re-solved the day nightly, the solver skipped the booking every time,
+  // and nothing could ever clear it. Every such booking permanently added a day
+  // to the nightly run, so the sweep only grew. They still need a human, and the
+  // per-day board is where they are shown.
   const outstanding = await prisma.booking.findMany({
-    where: { status: "APPROVED", primaryDriverId: null, startAt: { gte: startOfDay(new Date()) } },
+    where: { ...BATCH_SOLVABLE_WHERE, startAt: { gte: startOfDay(new Date()) } },
     select: { startAt: true },
     orderBy: { startAt: "asc" },
   });
