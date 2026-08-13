@@ -131,6 +131,10 @@ export function DateTimePicker({
   // is wrong for some variant and the panel silently hangs off the screen.
   const [shiftX, setShiftX] = useState(0);
   const [shiftY, setShiftY] = useState(0);
+  // The shift the panel is CURRENTLY rendered with. The clamp needs this to
+  // recover the panel's natural box from a measured rect, and it cannot read it
+  // from the state above without re-subscribing its listeners on every shift.
+  const shiftRef = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [hour, setHour] = useState<number>(initial?.getHours() ?? 8);
   const [minute, setMinute] = useState<number>(initial?.getMinutes() ?? 0);
@@ -211,43 +215,72 @@ export function DateTimePicker({
       const MARGIN = 12;
       const r = el.getBoundingClientRect();
       // r already includes the current shift, so undo it to get the natural box.
-      const left = r.left - shiftX;
-      const right = r.right - shiftX;
-      const top = r.top - shiftY;
-      const bottom = r.bottom - shiftY;
+      // Read it from a ref, NOT from the shiftX/shiftY captured when this effect
+      // ran: the effect is keyed on [open] alone, so the listeners below kept
+      // subtracting the shift from the render at which the panel opened while
+      // measuring a rect that already carried a newer one. Scrolling with the
+      // panel open then alternated between the corrected and uncorrected
+      // position instead of settling.
+      const { x: curX, y: curY } = shiftRef.current;
+      const left = r.left - curX;
+      const right = r.right - curX;
+      const top = r.top - curY;
+      const bottom = r.bottom - curY;
+      const height = r.height;
 
       let dx = 0;
       if (right > window.innerWidth - MARGIN) dx = window.innerWidth - MARGIN - right;
       if (left + dx < MARGIN) dx = MARGIN - left;
 
+      // Which side to open on is decided HERE, from the measured height, not on
+      // click from a guess. The old code compared the space below against a
+      // hard-coded 380px "≈ popover height"; the panel is taller than that
+      // whenever the extras column is present, so it flipped up into a gap that
+      // could not hold it and then had to be clamped against the top edge.
+      const anchor = rootRef.current?.getBoundingClientRect();
+      if (anchor) {
+        const roomBelow = window.innerHeight - anchor.bottom - MARGIN;
+        const roomAbove = anchor.top - MARGIN;
+        // Only flip up when it genuinely does not fit below AND fits better
+        // above. Equal-fit stays down, which is where users expect it.
+        setDropUp(height > roomBelow && roomAbove > roomBelow);
+      }
+
       // Bottom first, then top — a panel taller than the viewport is pinned to
-      // the top edge and scrolls internally (max-height below) rather than
+      // the top edge and scrolls internally (max-height above) rather than
       // having its header pushed off-screen where the month controls live.
       let dy = 0;
       if (bottom > window.innerHeight - MARGIN) dy = window.innerHeight - MARGIN - bottom;
       if (top + dy < MARGIN) dy = MARGIN - top;
 
+      shiftRef.current = { x: dx, y: dy };
       setShiftX(dx);
       setShiftY(dy);
     };
     clamp();
     window.addEventListener("resize", clamp);
     window.addEventListener("scroll", clamp, true);
+    // The panel changes its own height after opening: the month grid goes from 5
+    // to 6 week rows, the overnight warning appears, the ไม่คอย pickup row
+    // appears, and the urgent "ต้องการจองเร่งด่วน" <details> expands. None of
+    // those fire resize or scroll, so without observing the panel itself the
+    // clamp never re-ran and the growth went straight off the top of the window.
+    const ro = new ResizeObserver(() => clamp());
+    if (panelRef.current) ro.observe(panelRef.current);
     return () => {
+      ro.disconnect();
       window.removeEventListener("resize", clamp);
       window.removeEventListener("scroll", clamp, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // [open] alone is now genuinely exhaustive: the clamp reads the live shift
+    // from a ref and the panel's own size from a ResizeObserver, so it no longer
+    // closes over anything that changes. The suppression this line used to carry
+    // was hiding exactly the staleness described above.
   }, [open]);
 
   function toggleOpen() {
-    if (!open && rootRef.current) {
-      const rect = rootRef.current.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom;
-      // ~380px ≈ popover height; flip up only when below is tight and there's
-      // more room above.
-      setDropUp(below < 380 && rect.top > below);
-    }
+    // Side is chosen by the clamp, which measures the real panel. Nothing to
+    // decide here.
     setOpen((v) => !v);
   }
 
@@ -319,7 +352,19 @@ export function DateTimePicker({
           ref={panelRef}
           style={shiftX || shiftY ? { transform: `translate(${shiftX}px, ${shiftY}px)` } : undefined}
           className={cn(
-            "absolute left-0 z-50 w-auto max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            // `w-max`, not `w-auto`. An absolutely positioned box shrink-to-fits
+            // against its CONTAINING BLOCK, which here is the field — measured at
+            // 455px on the booking form. The calendar (~350px) and the w-56
+            // extras column (224px) need ~590px side by side, so at 455px they
+            // wrapped into one column and the panel became ~712px tall. A 712px
+            // panel cannot fit above or below a field in a 750px window, so it
+            // flipped up, got clamped against the top edge, and covered the
+            // header and the whole form. At max-content the two columns sit side
+            // by side and the panel is ~420px, which fits either way.
+            //
+            // The viewport cap still wins on a narrow screen: there it wraps
+            // again and scrolls internally rather than overflowing.
+            "absolute left-0 z-50 w-max max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
             dropUp ? "bottom-full mb-2" : "mt-2",
           )}
         >
