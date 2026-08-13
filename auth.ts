@@ -3,6 +3,15 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/db";
 import type { Role } from "@prisma/client";
+import {
+  checkLoginThrottle,
+  recordLoginFailure,
+  clearLoginFailures,
+} from "@/lib/login-throttle";
+
+// A real bcrypt hash of a value nobody can supply, used only to spend the same
+// time on a miss as on a wrong password. Never compared for a truthy result.
+const DUMMY_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
 // CR-08: admin-managed credentials. Replaces Google OAuth.
 //
@@ -31,10 +40,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         identifier: { label: "Email or username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(raw) {
+      // `request` is the second argument so the throttle below can see the client
+      // IP. Both entry points — the signInAction server action and a raw POST to
+      // /api/auth/callback/credentials — funnel through here, so one guard covers
+      // both; putting it in the form would guard neither.
+      async authorize(raw, request) {
         const identifier = String(raw?.identifier ?? "").trim().toLowerCase();
         const password = String(raw?.password ?? "");
         if (!identifier || !password) return null;
+
+        // nginx is the only thing that can reach this app (see trustHost above),
+        // and it sets these itself, so the forwarded address is trustworthy here
+        // for the same reason the Host header is.
+        const fwd = request?.headers?.get("x-forwarded-for") ?? "";
+        const ip = (fwd.split(",")[0] ?? "").trim() || "unknown";
+        const idKey = `id:${identifier}`;
+        const keys = [idKey, `ip:${ip}`];
+
+        const throttle = checkLoginThrottle(keys);
+        if (throttle.blocked) {
+          // Refuse before the DB hit and before bcrypt: the point is to stop
+          // spending work on a guess, not merely to reject it.
+          console.warn(
+            `[auth] sign-in throttled for ${identifier} from ${ip}; ${throttle.retryAfterSeconds}s remaining`,
+          );
+          return null;
+        }
 
         const user = await prisma.user.findFirst({
           where: {
@@ -42,10 +73,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
           include: { roles: true },
         });
-        if (!user || !user.isActive || !user.passwordHash) return null;
+
+        if (!user || !user.isActive || !user.passwordHash) {
+          // Compare against a throwaway hash so a missing or disabled account
+          // costs the same time as a wrong password. Returning early here made
+          // the response measurably faster, which tells an attacker which
+          // identifiers exist — and identifiers are admin-assigned usernames.
+          await compare(password, DUMMY_HASH);
+          recordLoginFailure(keys);
+          return null;
+        }
 
         const ok = await compare(password, user.passwordHash);
-        if (!ok) return null;
+        if (!ok) {
+          recordLoginFailure(keys);
+          return null;
+        }
+        // Only the identifier is cleared. One user signing in correctly must not
+        // reset an address that is part-way through sweeping other accounts.
+        clearLoginFailures(idKey);
 
         return {
           id: user.id,
