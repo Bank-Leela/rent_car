@@ -9,6 +9,7 @@ import { CalendarPlus, Pencil, Phone, Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBaht } from "@/lib/format-money";
+import { DragRound, DropAdHocRow } from "@/components/admin/rounds-dnd";
 import {
   addAdHocRowAction,
   removeAdHocRowAction,
@@ -59,9 +60,13 @@ export function AdHocRowsPanel({
   date,
   rows,
   waiting = [],
+  dnd = false,
 }: {
   date: string;
   rows: AdHocPanelRow[];
+  /** Accept dropped trips, and let the trips already here be dragged away.
+   *  Needs a `RoundsDnd` provider above it. */
+  dnd?: boolean;
   /**
    * Trips already approved onto an outside rental but not yet on any row.
    *
@@ -270,8 +275,9 @@ export function AdHocRowsPanel({
         <p className="px-4 py-3 text-xs text-muted-foreground">{t("externalRowsEmptyRounds")}</p>
       ) : (
         <ul className="divide-y">
-          {rows.map((r) => (
-            <li key={r.id} className="flex flex-col gap-2 p-3">
+          {rows.map((r) => {
+            const rowInner = (
+              <>
              <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
               {/* Same fixed-width identity column as the driver rows above, so the
                   two lists read as one board rather than two lists. */}
@@ -325,8 +331,8 @@ export function AdHocRowsPanel({
                 {r.trips.length === 0 ? (
                   <span className="text-xs text-muted-foreground">{t("roundsFree")}</span>
                 ) : (
-                  r.trips.map((tr) => (
-                    <span key={tr.id} className="flex flex-wrap items-center gap-1.5">
+                  r.trips.map((tr) => {
+                    const chip = (
                       <Link
                         href={`/admin/${tr.id}`}
                         className="rounded-md border border-zinc-300 bg-zinc-100 px-2 py-1 text-xs hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800/70 dark:hover:bg-zinc-800"
@@ -334,6 +340,18 @@ export function AdHocRowsPanel({
                         <span className="font-medium tabular-nums">{tr.timeLabel}</span>{" "}
                         <span className="text-muted-foreground">{tr.place}</span>
                       </Link>
+                    );
+                    return (
+                    <span key={tr.id} className="flex flex-wrap items-center gap-1.5">
+                      {dnd ? (
+                        // Dragged onto another hired row it moves vendor; dropped
+                        // anywhere else it comes back in-house.
+                        <DragRound id={`x:${tr.id}`} label={`${tr.timeLabel} · ${tr.place}`}>
+                          {chip}
+                        </DragRound>
+                      ) : (
+                        chip
+                      )}
                       {tr.strandedSiblings > 0 && (
                         <Button
                           type="button"
@@ -347,7 +365,8 @@ export function AdHocRowsPanel({
                         </Button>
                       )}
                     </span>
-                  ))
+                    );
+                  })
                 )}
               </div>
               <button
@@ -424,8 +443,19 @@ export function AdHocRowsPanel({
                  </Button>
                </div>
              )}
-            </li>
-          ))}
+              </>
+            );
+            const cls = "flex flex-col gap-2 p-3";
+            return dnd ? (
+              <DropAdHocRow key={r.id} rowId={r.id} className={cls}>
+                {rowInner}
+              </DropAdHocRow>
+            ) : (
+              <li key={r.id} className={cls}>
+                {rowInner}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

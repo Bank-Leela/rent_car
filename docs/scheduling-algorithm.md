@@ -345,6 +345,29 @@ as more are assigned. A same-day chip reads `start–end · place`.
   returns the conflicting trip(s) (`ReassignConflict`) **with their dates**, so a
   multi-day clash on a day that isn't on screen is still named. The board paints
   no conflict ring: a double-book is refused at the action, not drawn.
+- **Dragging one round**: the rounds board is ALSO drag-and-drop on `/admin/schedule`
+  (`rounds-dnd.tsx`), alongside the menu above — an earlier version of this section
+  said the menu was the only way to move a trip on this board, which stopped being
+  true. One `DndContext` spans the ยังไม่ได้จัดรถ bar, the driver rows and the hired
+  outside rows, so a trip can cross between all three. Draggable ids are namespaced
+  by where the trip currently sits (`p:` on a car, `q:` unplaced, `x:` on a hired
+  vehicle) and droppables by what they are (`car:<vehicleId>`, `adhoc:<rowId>`, the
+  queue) — the same vocabulary the timeline uses, deliberately.
+
+  It decides **nothing new**: every drop posts to the action the menu posts to, so
+  §5 still holds — overlap refused on every car including the duty car, the 2 h gap
+  still overridable — and a refused drop raises the conflict as a toast rather than
+  silently snapping back. As on the timeline, "dropped on neither a car nor a hired
+  row" means unassign, because the queue box is a thin strip on a tall page and was
+  unreliable to hit. Two deliberate exclusions: a **co-driver ghost** cannot be
+  picked up (it rides in the primary's car, so a drop could not honour it — move the
+  primary instead), and an **outsourced trip dropped on a car** only comes back
+  in-house rather than landing on that car, since un-outsourcing and assigning are
+  two decisions.
+
+  Dragging is **admin-only and off by default** (`dnd` prop): the same component is
+  the driver kiosk, and a driver reading their day must not be able to re-dispatch
+  it. The timeline view renders without this provider — it brings its own.
 - **Bulk assignment lives on `/admin/batch`** (`BatchRunForm` → `solveDay`), whose
   overflow list carries each booking's placement recommendation (§7b) with an
   inline `AssignRecoButton`. The timeline board ALSO has its own `autoAssignAll`

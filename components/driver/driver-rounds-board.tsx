@@ -4,6 +4,7 @@ import { th } from "date-fns/locale";
 import { Car, CornerDownRight, Moon, UserRound } from "lucide-react";
 import type { DriverRoundsRow } from "@/lib/booking/driver-rounds";
 import { RoundReassign, type ReassignTarget, type AdHocTarget } from "@/components/admin/round-reassign";
+import { DragRound, DropCarRow } from "@/components/admin/rounds-dnd";
 
 // Whiteboard-style board: one row per driver, their day's rounds flowing
 // left→right as chips (depart–return · place) that wrap as more are added.
@@ -15,6 +16,7 @@ export function DriverRoundsBoard({
   href,
   reassignTargets,
   adHocTargets,
+  dnd = false,
   labels,
   legend,
 }: {
@@ -25,6 +27,15 @@ export function DriverRoundsBoard({
   reassignTargets?: ReassignTarget[];
   /** Admin only: outside vehicles hired for this day, as move targets. */
   adHocTargets?: AdHocTarget[];
+  /**
+   * Admin only: make the rounds draggable and the rows drop targets.
+   *
+   * Off by default because this same component IS the driver kiosk — a driver
+   * reading their day must not be able to re-dispatch it. Requires a
+   * `RoundsDnd` provider above it, and `reassignTargets` for the car of each
+   * row (car = driver, and the row model carries only the registration).
+   */
+  dnd?: boolean;
   labels: {
     duty: string;
     off: string;
@@ -64,6 +75,11 @@ export function DriverRoundsBoard({
   // this row is a person who is NOT available, the opposite of a เวร row.
   const offRowStyle = "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20";
 
+  // car = driver, but the row view-model carries only the registration number —
+  // the vehicle id lives in the move-control's target list, which is the same
+  // admin-only prop that gates dragging.
+  const carOf = new Map((reassignTargets ?? []).map((tg) => [tg.driverId, tg.vehicleId]));
+
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       {/* Colour key. The swatches are the chip and row styles themselves, so the
@@ -88,17 +104,13 @@ export function DriverRoundsBoard({
       </div>
 
       <ul className="divide-y">
-        {rows.map((r) => (
-          // The เวร (duty) driver is reserved all day — they run campus rounds and
-          // are excluded from every other auto-assignment. A small badge was easy
-          // to miss when scanning; the whole row is tinted with an edge stripe so
-          // "who is on duty today" is answered at a glance.
-          <li
-            key={r.driverId}
-            className={`flex flex-col gap-2 p-3 sm:flex-row sm:gap-4 ${
-              r.isOff ? `${offRowStyle} pl-2` : r.isDuty ? `${dutyRowStyle} pl-2` : ""
-            }`}
-          >
+        {rows.map((r) => {
+          const rowClass = `flex flex-col gap-2 p-3 sm:flex-row sm:gap-4 ${
+            r.isOff ? `${offRowStyle} pl-2` : r.isDuty ? `${dutyRowStyle} pl-2` : ""
+          }`;
+          const vehicleId = carOf.get(r.driverId);
+          const rowInner = (
+            <>
             {/* Driver identity — fixed-width column, like the whiteboard's name column. */}
             <div className="flex shrink-0 items-center gap-2 sm:w-56">
               <span
@@ -200,11 +212,26 @@ export function DriverRoundsBoard({
                   ) : (
                     chip
                   );
+                  // Only the primary assignment can be picked up. A co-driver
+                  // ghost rides in the primary's car, so dragging it would
+                  // promise something the drop cannot deliver — it is moved by
+                  // moving its own (primary) trip, exactly as the menu does.
+                  const draggable =
+                    dnd && !round.isCoDriver ? (
+                      <DragRound
+                        id={`p:${round.bookingId}`}
+                        label={`${round.startLabel} · ${round.place}`}
+                      >
+                        {body}
+                      </DragRound>
+                    ) : (
+                      body
+                    );
                   // The move control targets the PRIMARY assignment; a co-driver
                   // ghost is moved by moving its own (primary) trip.
                   return reassignTargets && !round.isCoDriver ? (
                     <span key={key} className="group relative inline-flex items-start gap-0.5">
-                      {body}
+                      {draggable}
                       <RoundReassign
                         bookingId={round.bookingId}
                         targets={reassignTargets.filter((tg) => tg.driverId !== r.driverId)}
@@ -212,13 +239,31 @@ export function DriverRoundsBoard({
                       />
                     </span>
                   ) : (
-                    <span key={key}>{body}</span>
+                    <span key={key}>{draggable}</span>
                   );
                 })}
               </div>
             )}
-          </li>
-        ))}
+            </>
+          );
+          // The เวร (duty) driver is reserved all day — they run campus rounds and
+          // are excluded from every other auto-assignment. A small badge was easy
+          // to miss when scanning; the whole row is tinted with an edge stripe so
+          // "who is on duty today" is answered at a glance.
+          //
+          // A driver with no car of their own cannot receive a drop — car=driver
+          // is what makes a row a destination at all — and the kiosk keeps a plain
+          // server-rendered <li> rather than shipping a client component per row.
+          return dnd && vehicleId ? (
+            <DropCarRow key={r.driverId} vehicleId={vehicleId} className={rowClass}>
+              {rowInner}
+            </DropCarRow>
+          ) : (
+            <li key={r.driverId} className={rowClass}>
+              {rowInner}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

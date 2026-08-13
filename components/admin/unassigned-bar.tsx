@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 import { OutsourceToRowButton, type OutsideTarget } from "@/components/forms/outsource-to-row-button";
+import { DragRound, DropQueue } from "@/components/admin/rounds-dnd";
 
 export type UnassignedRow = {
   id: string;
@@ -35,34 +36,62 @@ export function UnassignedBar({
   rows,
   labels,
   outsideTargets = [],
+  dnd = false,
 }: {
   rows: UnassignedRow[];
   labels: { title: string; empty: string; open: string };
   /** The hired vehicles on this day, for the outside-attach action. */
   outsideTargets?: OutsideTarget[];
+  /**
+   * Make the rows draggable onto the board below, and the bar itself a place to
+   * drop a placed round back to. Needs a `RoundsDnd` provider above it.
+   *
+   * The empty bar stays a drop target: "there is nothing unplaced" is exactly
+   * when P'Top wants to drag something off a car, and a target that vanishes
+   * when it is empty cannot be aimed at.
+   */
+  dnd?: boolean;
 }) {
   if (rows.length === 0) {
-    return (
+    const empty = (
       <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         {labels.empty}
       </div>
     );
+    return dnd ? <DropQueue>{empty}</DropQueue> : empty;
   }
 
-  return (
+  const bar = (
     <section className="overflow-hidden rounded-xl border border-amber-300 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
       <h2 className="border-b border-amber-300/60 px-4 py-2 text-sm font-semibold text-amber-900 dark:border-amber-900/40 dark:text-amber-200">
         {labels.title} · {rows.length}
       </h2>
       <ul className="divide-y divide-amber-300/40 dark:divide-amber-900/30">
-        {rows.map((r) => (
-          <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 text-sm">
-            <span className="min-w-0 flex-1">
+        {rows.map((r) => {
+          // The trip's name and time are the drag handle, not the whole row: the
+          // row also holds จัดให้ / ใส่ใน buttons, and a 4 px drag threshold over
+          // a button is a coin toss between pressing it and picking the row up.
+          const identity = (
+            <>
               <Link href={`/admin/${r.id}`} className="font-medium hover:underline">
                 {r.destination}
               </Link>
               <span className="ml-2 text-muted-foreground tabular-nums">{r.timeLabel}</span>
-            </span>
+            </>
+          );
+          return (
+          <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 text-sm">
+            {dnd ? (
+              <DragRound
+                id={`q:${r.id}`}
+                label={`${r.timeLabel} · ${r.destination}`}
+                className="min-w-0 flex-1"
+              >
+                {identity}
+              </DragRound>
+            ) : (
+              <span className="min-w-0 flex-1">{identity}</span>
+            )}
             <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950/60 dark:text-amber-200">
               {r.reasonLabel}
             </span>
@@ -84,8 +113,11 @@ export function UnassignedBar({
               </Link>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );
+
+  return dnd ? <DropQueue>{bar}</DropQueue> : bar;
 }

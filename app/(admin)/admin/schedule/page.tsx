@@ -12,6 +12,7 @@ import { DriverRosterControl } from "@/components/admin/driver-roster-control";
 import { AdHocRowsPanel, type AdHocPanelRow, type WaitingTrip } from "@/components/admin/adhoc-rows-panel";
 import { laterUnplacedSiblings } from "@/lib/booking/adhoc-actions";
 import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
+import { RoundsDnd } from "@/components/admin/rounds-dnd";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { WernStrip, type WernJob } from "@/components/admin/wern-strip";
 import { loadTimelineBoard } from "@/lib/booking/timeline-board-data";
@@ -335,8 +336,8 @@ export default async function SchedulePage({
     };
   });
 
-  return (
-    <div className="space-y-6">
+  const body = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
@@ -370,6 +371,7 @@ export default async function SchedulePage({
       <UnassignedBar
         rows={unassignedRows}
         outsideTargets={adHocTargets}
+        dnd
         labels={{
           title: t("unassignedTitle"),
           empty: t("unassignedEmpty"),
@@ -426,6 +428,7 @@ export default async function SchedulePage({
             };
           })}
         adHocTargets={adHocTargets}
+        dnd
         labels={{
           duty: t("duty"),
           off: t("roundsOff"),
@@ -453,8 +456,17 @@ export default async function SchedulePage({
           The timeline carries its own copy (you drag onto it there), so showing
           both at once would be the same rows twice. */}
       {!timeline && (
-        <AdHocRowsPanel date={isoOf(dayStart)} rows={adHocPanelRows} waiting={adHocWaiting} />
+        <AdHocRowsPanel date={isoOf(dayStart)} rows={adHocPanelRows} waiting={adHocWaiting} dnd />
       )}
-    </div>
+    </>
+  );
+
+  // One drag context spanning the unassigned bar, the driver rows and the hired
+  // vehicles — a trip has to be able to cross between all three, and a droppable
+  // is only reachable from inside the same provider. The timeline view brings its
+  // own DndContext, and hides both the bar and the hired rows, so it renders bare
+  // rather than nesting one context inside another.
+  return (
+    <div className="space-y-6">{timeline ? body : <RoundsDnd>{body}</RoundsDnd>}</div>
   );
 }
