@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { logTransition } from "@/lib/booking/audit";
+import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
@@ -194,58 +195,95 @@ export async function runBatchForDay(
   }
 
   // --- Persist assignments + bump rotation timestamps + record overflow. ---
-  await prisma.$transaction(async (tx) => {
-    for (const { item: a, vehicleId } of withVehicle) {
-      const booking = pending.find((p) => p.id === a.bookingId)!;
-      await tx.booking.update({
-        where: { id: a.bookingId },
-        data: {
-          primaryDriverId: a.primaryDriverId,
-          secondaryDriverId: a.secondaryDriverId,
-          vehicleId,
-          status: "ASSIGNED",
-          driverScheduleStatus: "CONFIRMED",
-          decidedAt: new Date(),
-          overflowReason: null,
-          escalatedToKhunTop: false,
-        },
-      });
+  //
+  // ONE TRANSACTION PER ASSIGNMENT, not one for the whole day.
+  //
+  // This used to be a single transaction wrapping the entire loop, with no
+  // try/catch anywhere in the file. The occupancy EXCLUDE raises 23P01 when a
+  // write would double-book a car, so one conflicting booking rolled back every
+  // assignment already made for that day AND recorded no overflow reason to
+  // explain it — P'Top pressed จัดรอบ, got an opaque failure, and the board looked
+  // untouched. Worse on the nightly cron: the uncaught throw escaped the per-day
+  // loop in the sweep route, so every day later in the sweep was silently never
+  // scheduled at all.
+  //
+  // Per-assignment is also what the contract in this file's docstring already
+  // describes: bookings flip to ASSIGNED on success, and what cannot be placed
+  // keeps APPROVED with an `overflowReason`. A car the DB says is taken is exactly
+  // that case, so it becomes an overflow row instead of taking its siblings down.
+  // The booking update and its rotation stamps stay atomic together, which is the
+  // only grouping that actually matters — a stamped driver must always have the
+  // trip that stamped them.
+  let conflicted = 0;
+  for (const { item: a, vehicleId } of withVehicle) {
+    const booking = pending.find((p) => p.id === a.bookingId)!;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: a.bookingId },
+          data: {
+            primaryDriverId: a.primaryDriverId,
+            secondaryDriverId: a.secondaryDriverId,
+            vehicleId,
+            status: "ASSIGNED",
+            driverScheduleStatus: "CONFIRMED",
+            decidedAt: new Date(),
+            overflowReason: null,
+            escalatedToKhunTop: false,
+          },
+        });
 
-      const stamp = booking.startAt;
-      await stampPrimary(tx, a.primaryDriverId, a.jobType, stamp);
-      if (a.secondaryDriverId) {
-        await stampSecondary(tx, a.secondaryDriverId, a.jobType, stamp);
-      }
+        const stamp = booking.startAt;
+        await stampPrimary(tx, a.primaryDriverId, a.jobType, stamp);
+        if (a.secondaryDriverId) {
+          await stampSecondary(tx, a.secondaryDriverId, a.jobType, stamp);
+        }
 
-      await logTransition({
-        bookingId: a.bookingId,
-        actorUserId,
-        fromStatus: "APPROVED",
-        toStatus: "ASSIGNED",
-        action: "BATCH_MATCHED",
-        metadata: {
-          primaryDriverId: a.primaryDriverId,
-          secondaryDriverId: a.secondaryDriverId,
-          jobType: a.jobType,
-        },
-        tx,
+        await logTransition({
+          bookingId: a.bookingId,
+          actorUserId,
+          fromStatus: "APPROVED",
+          toStatus: "ASSIGNED",
+          action: "BATCH_MATCHED",
+          metadata: {
+            primaryDriverId: a.primaryDriverId,
+            secondaryDriverId: a.secondaryDriverId,
+            jobType: a.jobType,
+          },
+          tx,
+        });
       });
+    } catch (err) {
+      if (!isExclusionViolation(err)) throw err;
+      // The solver believed this car was free and the DB disagrees — a stale
+      // read, or another admin assigning the same car while the batch ran.
+      // Record it the way any other unplaceable trip is recorded rather than
+      // failing the day.
+      conflicted++;
+      noVehicle.push(a);
+      console.warn(
+        `[batch] ${dateStr}: ${a.bookingId} lost its car to a conflict; left as NO_SLOT overflow`,
+      );
     }
-    // Solver matched but no free car in the bucket → NO_SLOT overflow.
-    for (const a of noVehicle) {
-      await tx.booking.update({ where: { id: a.bookingId }, data: { overflowReason: "NO_SLOT" } });
-    }
-    for (const o of result.overflows) {
-      await tx.booking.update({ where: { id: o.bookingId }, data: { overflowReason: o.reason } });
-    }
-  });
+  }
+
+  // Overflow marks are independent single-row writes; one failing must not undo
+  // the others, and none of them can trip the occupancy constraint.
+  for (const a of noVehicle) {
+    await prisma.booking.update({ where: { id: a.bookingId }, data: { overflowReason: "NO_SLOT" } });
+  }
+  for (const o of result.overflows) {
+    await prisma.booking.update({ where: { id: o.bookingId }, data: { overflowReason: o.reason } });
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/batch");
 
   const stats: BatchStats = {
     pendingCount: pending.length,
-    matchedCount: withVehicle.length,
+    // Minus the ones the DB refused: they were attempted, not matched, and they
+    // are already counted as NO_SLOT overflow below.
+    matchedCount: withVehicle.length - conflicted,
     overflowByReason: tallyOverflows([
       ...result.overflows,
       ...noVehicle.map(() => ({ reason: "NO_SLOT" })),
