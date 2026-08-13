@@ -7,7 +7,12 @@ vi.mock("@/lib/session", () => ({
 
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
-import { addAdHocRowAction, outsourceToRowAction, removeAdHocRowAction } from "@/lib/booking/adhoc-actions";
+import {
+  addAdHocRowAction,
+  outsourceToRowAction,
+  removeAdHocRowAction,
+  carryVendorToSeriesAction,
+} from "@/lib/booking/adhoc-actions";
 
 const REQUESTER_ID = "seed-user-requester";
 const TAG = "SERIES-OUTSOURCE:";
@@ -215,6 +220,71 @@ describe("outsourcing one occurrence of a recurring booking", () => {
     const res = (await outsourceToRowAction(fd)) as { ok: boolean; carriedForward?: number };
     expect(res.ok).toBe(true);
     expect(res.carriedForward).toBe(0);
+  });
+
+  // The retro-fit path. Everything attached BEFORE the carry-forward existed has
+  // a first date on a vendor and its siblings stranded — exactly the state the
+  // real 18/24/31 ส.ค. series was left in. This is how the board catches it up
+  // without detaching and redoing the arrangement.
+  it("catches up a series whose first date was attached before carry-forward existed", async () => {
+    const { first, second, third } = await seedSeries();
+    const row = await makeRow(DATES[0]!);
+
+    // Simulate the pre-fix state: attach ONLY the first occurrence, by hand.
+    await prisma.booking.update({
+      where: { id: first },
+      data: {
+        status: "OUTSOURCED", adHocVehicleId: row.id, needsOutsourcing: true,
+        outsourceVendor: VENDOR, outsourceContactName: "สมชาย ใจดี",
+        outsourceContactPhone: "081-111-2222",
+      },
+    });
+    for (const id of [second, third]) {
+      expect((await prisma.booking.findUniqueOrThrow({ where: { id } })).status).toBe("APPROVED");
+    }
+
+    const fd = new FormData();
+    fd.set("bookingId", first);
+    const res = (await carryVendorToSeriesAction(fd)) as { ok: boolean; carriedForward?: number };
+    expect(res.ok).toBe(true);
+    expect(res.carriedForward).toBe(2);
+
+    for (const id of [second, third]) {
+      const b = await prisma.booking.findUniqueOrThrow({ where: { id } });
+      expect(b.status).toBe("OUTSOURCED");
+      expect(b.outsourceVendor).toBe(VENDOR);
+      expect(b.outsourceContactPhone).toBe("081-111-2222");
+      expect(b.adHocVehicleId).not.toBeNull();
+    }
+  });
+
+  it("carrying again is a no-op rather than a duplicate", async () => {
+    const { first } = await seedSeries();
+    const row = await makeRow(DATES[0]!);
+    const attachFd = new FormData();
+    attachFd.set("bookingId", first);
+    attachFd.set("rowId", row.id);
+    await outsourceToRowAction(attachFd); // already carries both forward
+
+    const again = new FormData();
+    again.set("bookingId", first);
+    const res = (await carryVendorToSeriesAction(again)) as { ok: boolean; carriedForward?: number };
+    expect(res.ok, "safe to press twice").toBe(true);
+    expect(res.carriedForward, "nothing left stranded").toBe(0);
+    // And no extra rows appeared on the later dates.
+    for (const iso of DATES.slice(1)) {
+      const n = await prisma.adHocVehicle.count({
+        where: { date: startOfDay(new Date(`${iso}T00:00:00`)), label: VENDOR },
+      });
+      expect(n).toBe(1);
+    }
+  });
+
+  it("refuses a booking that is not on a vendor row", async () => {
+    const { first } = await seedSeries();
+    const fd = new FormData();
+    fd.set("bookingId", first); // still APPROVED, no row
+    expect((await carryVendorToSeriesAction(fd)).ok).toBe(false);
   });
 
   it("removing one date's row frees only that date", async () => {

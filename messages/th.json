@@ -284,6 +284,8 @@
     "externalContactSave": "บันทึก",
     "externalContactAdd": "+ เพิ่มคนขับ/เบอร์โทร",
     "externalCarriedForward": "ใช้ผู้ให้บริการรายนี้กับอีก {count} วันของชุดนี้ด้วยแล้ว — แก้ชื่อคนขับ/เบอร์โทรของแต่ละวันได้ที่กระดานวันนั้น",
+    "externalCarryToSeries": "ใช้กับอีก {count} วันในชุดนี้",
+    "externalCarryNothingLeft": "วันอื่นในชุดนี้จัดรถไว้แล้ว ไม่มีอะไรต้องทำเพิ่ม",
     "externalCancel": "ยกเลิก",
     "moveToExternal": "ส่งรถนอก",
     "removeExternalRow": "ลบแถว (งานจะกลับไปที่คิว)",

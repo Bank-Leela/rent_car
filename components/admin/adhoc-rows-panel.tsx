@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { Phone, Plus, Truck, X } from "lucide-react";
+import { CalendarPlus, Phone, Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBaht } from "@/lib/format-money";
@@ -14,6 +14,7 @@ import {
   removeAdHocRowAction,
   outsourceToRowAction,
   setAdHocContactAction,
+  carryVendorToSeriesAction,
 } from "@/lib/booking/adhoc-actions";
 
 export type AdHocPanelRow = {
@@ -23,7 +24,20 @@ export type AdHocPanelRow = {
   /** Who the passengers ring. `label` is the company or vehicle; this is the person. */
   contactName: string | null;
   contactPhone: string | null;
-  trips: { id: string; timeLabel: string; place: string }[];
+  trips: {
+    id: string;
+    timeLabel: string;
+    place: string;
+    /**
+     * Later occurrences of this trip's series that still have no vehicle.
+     *
+     * Attaching a trip carries the vendor forward automatically, but a trip
+     * attached before that existed — or attached while the later dates were not
+     * yet approved — leaves its siblings behind. This is how the board offers to
+     * catch them up, instead of the admin repeating the setup date by date.
+     */
+    strandedSiblings: number;
+  }[];
 };
 
 export type WaitingTrip = { id: string; timeLabel: string; place: string; purpose: string };
@@ -120,6 +134,21 @@ export function AdHocRowsPanel({
       // to be said out loud rather than discovered later.
       if (res?.ok && (res.carriedForward ?? 0) > 0) {
         toast.success(t("externalCarriedForward", { count: res.carriedForward! }));
+      }
+      router.refresh();
+    });
+
+  const carryToSeries = (bookingId: string) =>
+    start(async () => {
+      const fd = new FormData();
+      fd.set("bookingId", bookingId);
+      const res = (await carryVendorToSeriesAction(fd)) as { ok: boolean; carriedForward?: number };
+      if (res?.ok) {
+        const n = res.carriedForward ?? 0;
+        // Say nothing happened rather than flashing a success on a no-op: by the
+        // time the click lands, another admin may have arranged those dates.
+        if (n > 0) toast.success(t("externalCarriedForward", { count: n }));
+        else toast.info(t("externalCarryNothingLeft"));
       }
       router.refresh();
     });
@@ -275,14 +304,27 @@ export function AdHocRowsPanel({
                   <span className="text-xs text-muted-foreground">{t("roundsFree")}</span>
                 ) : (
                   r.trips.map((tr) => (
-                    <Link
-                      key={tr.id}
-                      href={`/admin/${tr.id}`}
-                      className="rounded-md border border-zinc-300 bg-zinc-100 px-2 py-1 text-xs hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800/70 dark:hover:bg-zinc-800"
-                    >
-                      <span className="font-medium tabular-nums">{tr.timeLabel}</span>{" "}
-                      <span className="text-muted-foreground">{tr.place}</span>
-                    </Link>
+                    <span key={tr.id} className="flex flex-wrap items-center gap-1.5">
+                      <Link
+                        href={`/admin/${tr.id}`}
+                        className="rounded-md border border-zinc-300 bg-zinc-100 px-2 py-1 text-xs hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800/70 dark:hover:bg-zinc-800"
+                      >
+                        <span className="font-medium tabular-nums">{tr.timeLabel}</span>{" "}
+                        <span className="text-muted-foreground">{tr.place}</span>
+                      </Link>
+                      {tr.strandedSiblings > 0 && (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => carryToSeries(tr.id)}
+                        >
+                          <CalendarPlus className="h-3 w-3" aria-hidden />
+                          {t("externalCarryToSeries", { count: tr.strandedSiblings })}
+                        </Button>
+                      )}
+                    </span>
                   ))
                 )}
               </div>

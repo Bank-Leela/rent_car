@@ -10,6 +10,7 @@ import { buildDriverRounds } from "@/lib/booking/driver-rounds";
 import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
 import { DriverRosterControl } from "@/components/admin/driver-roster-control";
 import { AdHocRowsPanel, type AdHocPanelRow, type WaitingTrip } from "@/components/admin/adhoc-rows-panel";
+import { laterUnplacedSiblings } from "@/lib/booking/adhoc-actions";
 import { UnassignedBar, type UnassignedRow } from "@/components/admin/unassigned-bar";
 import { SchedulerBoard } from "@/components/admin/scheduler-board";
 import { WernStrip, type WernJob } from "@/components/admin/wern-strip";
@@ -168,10 +169,27 @@ export default async function SchedulePage({
       bookings: {
         where: { status: "OUTSOURCED" },
         orderBy: { startAt: "asc" },
-        select: { id: true, startAt: true, endAt: true, destination: true },
+        select: {
+          id: true, startAt: true, endAt: true, destination: true,
+          recurrenceParentId: true,
+        },
       },
     },
   });
+
+  // For each trip on a hired vehicle: how many LATER occurrences of its series
+  // still have no vehicle at all. Non-zero means the vendor was arranged for this
+  // date only and the rest of the series is stranded — which is what happens to
+  // anything attached before the carry-forward existed.
+  const strandedBySourceBooking = new Map<string, number>();
+  for (const r of adHocRaw) {
+    for (const b of r.bookings) {
+      const seriesKey = b.recurrenceParentId ?? b.id;
+      const siblings = await laterUnplacedSiblings(seriesKey, b.startAt, b.id);
+      if (siblings.length > 0) strandedBySourceBooking.set(b.id, siblings.length);
+    }
+  }
+
   const adHocPanelRows: AdHocPanelRow[] = adHocRaw.map((r) => ({
     id: r.id,
     label: r.label,
@@ -182,6 +200,7 @@ export default async function SchedulePage({
       id: b.id,
       timeLabel: `${formatTh(b.startAt, "HH:mm")}–${formatTh(b.endAt, "HH:mm")}`,
       place: b.destination,
+      strandedSiblings: strandedBySourceBooking.get(b.id) ?? 0,
     })),
   }));
   const adHocTargets = adHocRaw.map((r) => ({ id: r.id, label: r.label }));
