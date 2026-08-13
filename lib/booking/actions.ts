@@ -20,6 +20,8 @@ import {
 } from "@/lib/email/templates";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
+import { isExclusionViolation } from "@/lib/booking/db-errors";
 
 export type ActionResult =
   | { ok: true }
@@ -53,10 +55,17 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
   }
 
   // 1-hour buffer rule against other confirmed bookings on the same vehicle.
+  //
+  // COMMITTED_STATUSES, not ["APPROVED","ASSIGNED"]. The occupancy trigger writes
+  // its rows for APPROVED, ASSIGNED *and* COMPLETED, and the GiST EXCLUDE enforces
+  // them, so a COMPLETED trip still holds its car for its original window —
+  // completing early does not shorten it, because occupancy comes from
+  // startAt/endAt and never from completedAt. Missing COMPLETED here meant this
+  // pre-check passed a car the database would then refuse.
   const otherBookings = await prisma.booking.findMany({
     where: {
       vehicleId: data.vehicleId,
-      status: { in: ["APPROVED", "ASSIGNED"] },
+      status: { in: COMMITTED_STATUSES },
       id: { not: data.bookingId },
     },
     select: { id: true, startAt: true, endAt: true },
@@ -71,21 +80,33 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
 
   // CR-02: status stays APPROVED until drivers claim + the primary confirms.
   // Only the vehicle is set here; driver fields are touched via claim flow.
-  await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: data.bookingId },
-      data: { vehicleId: data.vehicleId, decidedAt: new Date() },
+  //
+  // The pre-check above is a read, so it can always lose a race to another admin
+  // allocating the same car. The occupancy EXCLUDE is the real authority, and
+  // without this catch its 23P01 escaped as an unhandled rejection: the admin
+  // detail page was replaced wholesale by the error boundary while the allocation
+  // silently failed. schedule-actions.ts already degrades the same violation to a
+  // friendly result; this path had simply never been given the same treatment.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: data.bookingId },
+        data: { vehicleId: data.vehicleId, decidedAt: new Date() },
+      });
+      await logTransition({
+        bookingId: data.bookingId,
+        actorUserId: adminId,
+        fromStatus: booking.status,
+        toStatus: booking.status,
+        action: "VEHICLE_ALLOCATED",
+        metadata: { vehicleId: data.vehicleId },
+        tx,
+      });
     });
-    await logTransition({
-      bookingId: data.bookingId,
-      actorUserId: adminId,
-      fromStatus: booking.status,
-      toStatus: booking.status,
-      action: "VEHICLE_ALLOCATED",
-      metadata: { vehicleId: data.vehicleId },
-      tx,
-    });
-  });
+  } catch (err) {
+    if (!isExclusionViolation(err)) throw err;
+    return { ok: false, field: "vehicleId", error: te("vehicleConflict") };
+  }
 
   const detailed = await prisma.booking.findUniqueOrThrow({
     where: { id: data.bookingId },

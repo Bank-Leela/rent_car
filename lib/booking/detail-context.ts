@@ -8,6 +8,7 @@ import {
   TWO_DRIVER_DISTANCE_KM,
 } from "@/lib/booking/rules";
 import { SLOT_HOLDING_STATUSES, dayCapacity, dayWindow } from "@/lib/booking/slot-capacity";
+import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 
 // Derived data for the admin booking-detail page: assignable-vehicle list with
 // per-car buffer-conflict flags, the repeat-canceller warning, and (only when an
@@ -56,9 +57,13 @@ export async function loadBookingDetailContext(
 ): Promise<BookingDetailContext> {
   const [vehicles, otherBookingsByVehicle, recentCancellations] = await Promise.all([
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { registrationNumber: "asc" } }),
+    // COMMITTED_STATUSES so the greyed-out cars in the picker match what the
+    // database will actually accept. With COMPLETED missing, a car whose only
+    // clash was a finished trip rendered as free and enabled, and choosing it
+    // failed on the occupancy EXCLUDE.
     prisma.booking.findMany({
       where: {
-        status: { in: ["APPROVED", "ASSIGNED"] },
+        status: { in: COMMITTED_STATUSES },
         id: { not: booking.id },
         vehicleId: { not: null },
       },

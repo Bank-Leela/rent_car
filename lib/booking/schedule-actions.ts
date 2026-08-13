@@ -366,10 +366,22 @@ export async function setWernTimeAction(formData: FormData): Promise<ReassignRes
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { id: true, jobType: true, vehicleId: true, status: true, startAt: true, endAt: true },
+    select: {
+      id: true, jobType: true, vehicleId: true, status: true, startAt: true, endAt: true,
+      primaryDriverId: true, secondaryDriverId: true,
+      waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+    },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
   if (booking.jobType !== "WERN") return { ok: false, error: "onlyWernTimeEditable" };
+
+  // The window being moved TO, in leg terms.
+  const movedLeg = toLegSrc({
+    startAt, endAt,
+    waitAtDestination: booking.waitAtDestination,
+    dropOffDone: booking.dropOffDone,
+    pickupReturnTime: booking.pickupReturnTime,
+  });
 
   // Same car, new window: refuse if it would collide with anything else on it.
   if (booking.vehicleId) {
@@ -381,14 +393,57 @@ export async function setWernTimeAction(formData: FormData): Promise<ReassignRes
         startAt: { lt: endAt },
         endAt: { gt: startAt },
       },
-      select: { destination: true, startAt: true, endAt: true },
+      select: {
+        destination: true, startAt: true, endAt: true,
+        waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      },
     });
-    if (clashes.length > 0) {
-      return {
-        ok: false,
-        error: "vehicleBusy",
-        conflicts: clashes.map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt })),
-      };
+    // legsOverlap, not the raw window: a no-wait trip frees its middle, so a
+    // whole-trip comparison refused เวร hours that legally fit inside that gap.
+    // The SQL bounds above stay as a cheap pre-filter.
+    const carConflicts = clashes
+      .filter((c) => legsOverlap(movedLeg, toLegSrc(c)))
+      .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));
+    if (carConflicts.length > 0) {
+      return { ok: false, error: "vehicleBusy", conflicts: carConflicts };
+    }
+  }
+
+  // The DRIVER's other commitments, on any OTHER car.
+  //
+  // The occupancy EXCLUDE is per-vehicle, so it cannot see this: moving เวร hours
+  // on car A into a window where that same driver is already riding on car B
+  // double-books the person while every car stays legal. The drag path has this
+  // guard; the เวร hour editor never did. Overlap on a driver is never
+  // override-relaxable, unlike the 2 h gap.
+  const driverIds = [booking.primaryDriverId, booking.secondaryDriverId].filter(
+    (d): d is string => !!d,
+  );
+  if (driverIds.length > 0) {
+    const elsewhere = await prisma.booking.findMany({
+      where: {
+        id: { not: bookingId },
+        ...(booking.vehicleId ? { vehicleId: { not: booking.vehicleId } } : {}),
+        status: { in: COMMITTED_STATUSES },
+        OR: [
+          { primaryDriverId: { in: driverIds } },
+          { secondaryDriverId: { in: driverIds } },
+        ],
+        startAt: { lt: endAt },
+        endAt: { gt: startAt },
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        destination: true, startAt: true, endAt: true,
+        waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      },
+    });
+    const driverConflicts = elsewhere
+      .filter((c) => legsOverlap(movedLeg, toLegSrc(c)))
+      .slice(0, 3)
+      .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));
+    if (driverConflicts.length > 0) {
+      return { ok: false, error: "vehicleBusy", conflicts: driverConflicts };
     }
   }
 
