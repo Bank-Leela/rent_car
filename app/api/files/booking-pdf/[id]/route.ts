@@ -51,17 +51,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // pdfUrl is set at approval — the official form is offered once decided.
   if (!booking || !booking.pdfUrl) return new NextResponse("Not found", { status: 404 });
 
-  // Access: the requester, the dept head, any ADMIN — and the driver running the
-  // trip. The driver carries the printed form so the passenger can sign that the
-  // trip was completed, so they need to be able to open it from the station.
-  // Same rule the driver trip page uses: the shared station kiosk, or the driver
-  // actually assigned to this booking (primary or co-driver).
+  // Access: any ADMIN, the dept head — and the driver running the trip. The
+  // driver carries the printed form so the passenger can sign that the trip was
+  // completed, so they need to be able to open it from the station. Same rule the
+  // driver trip page uses: the shared station kiosk, or the driver actually
+  // assigned to this booking (primary or co-driver).
+  //
+  // NOT the requester. The official form is the transport office's paperwork —
+  // they print it, collect the signature and file it — and the three
+  // requester-facing download buttons were removed along with this grant. Leaving
+  // the grant would have made that removal cosmetic: the URL is guessable from a
+  // booking id the requester already knows.
   const userId = session.user.id;
   const isAdmin = session.user.roles.includes("ADMIN");
-  const isOwner = booking.requesterId === userId;
   const isHead = booking.department?.headUserId === userId;
   let isAssignedDriver = false;
-  if (!(isAdmin || isOwner || isHead) && session.user.roles.includes("DRIVER")) {
+  if (!(isAdmin || isHead) && session.user.roles.includes("DRIVER")) {
     if (isStationEmail(session.user.email)) {
       isAssignedDriver = true;
     } else {
@@ -73,7 +78,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         !!me && (booking.primaryDriverId === me.id || booking.secondaryDriverId === me.id);
     }
   }
-  if (!(isAdmin || isOwner || isHead || isAssignedDriver)) {
+  if (!(isAdmin || isHead || isAssignedDriver)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

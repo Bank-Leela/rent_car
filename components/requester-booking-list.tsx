@@ -4,7 +4,6 @@ import { th } from "date-fns/locale";
 import { ChevronRight } from "lucide-react";
 import { BookingStatus, type JobType } from "@prisma/client";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
-import { BookingDocumentLink } from "@/components/booking-document-link";
 
 // In-flight requests the requester is still tracking.
 export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = [
@@ -42,7 +41,6 @@ export type RequesterBookingCard = {
 
 export function RequesterBookingList({
   bookings,
-  documentLabel,
 }: {
   bookings: RequesterBookingCard[];
   documentLabel: string;
@@ -67,13 +65,10 @@ export function RequesterBookingList({
             </div>
             <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
           </Link>
-          {/* Sibling of the Link, never inside it — an anchor nested in an
-              anchor swallows one of the two clicks. */}
-          {b.hasPdf && (
-            <div className="px-4 pb-3">
-              <BookingDocumentLink bookingId={b.id} label={documentLabel} />
-            </div>
-          )}
+          {/* No official-form download on the requester's side. The form is the
+              transport office's paperwork — printed, signed and filed by them —
+              so it lives on the admin surfaces and on the driver's trip page
+              (the driver carries the printed copy for the passenger to sign). */}
         </li>
       ))}
     </ul>

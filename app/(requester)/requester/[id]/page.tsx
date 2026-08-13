@@ -297,21 +297,6 @@ export default async function RequesterBookingDetail({
         </Card>
       )}
 
-      {booking.pdfUrl && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("approvalDocument")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Link
-              href={`/api/files/booking-pdf/${booking.id}`}
-              className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
-            >
-              {t("downloadPdf")}
-            </Link>
-          </CardContent>
-        </Card>
-      )}
 
       {booking.status === "WAITLIST" && (
         <Card className="border-amber-300 ring-amber-300/50 dark:border-amber-900/40 dark:ring-amber-900/40">

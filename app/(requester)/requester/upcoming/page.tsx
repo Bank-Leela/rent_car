@@ -11,7 +11,6 @@ import { EmptyState } from "@/components/empty-state";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { ACTIVE_BOOKING_STATUSES } from "@/components/requester-booking-list";
 import { formatTh } from "@/lib/format-date";
-import { BookingDocumentLink } from "@/components/booking-document-link";
 
 type Translator = Awaited<ReturnType<typeof getTranslations<"requesterUpcoming">>>;
 type FormTranslator = Awaited<ReturnType<typeof getTranslations<"bookingForm">>>;
@@ -83,10 +82,10 @@ export default async function RequesterUpcoming() {
       ) : (
         <div className="space-y-8">
           {todayTrips.length > 0 && (
-            <DaySection label={t("today")} trips={todayTrips} t={t} tf={tf} tv={tv} isThai={isThai} />
+            <DaySection label={t("today")} trips={todayTrips} t={t} tf={tf} tv={tv} isThai={isThai} now={now} />
           )}
           {tomorrowTrips.length > 0 && (
-            <DaySection label={t("tomorrow")} trips={tomorrowTrips} t={t} tf={tf} tv={tv} isThai={isThai} />
+            <DaySection label={t("tomorrow")} trips={tomorrowTrips} t={t} tf={tf} tv={tv} isThai={isThai} now={now} />
           )}
           {laterGroups.map((g) => (
             <DaySection
@@ -97,6 +96,7 @@ export default async function RequesterUpcoming() {
               tf={tf}
               tv={tv}
               isThai={isThai}
+              now={now}
             />
           ))}
         </div>
@@ -112,6 +112,7 @@ function DaySection({
   tf,
   tv,
   isThai,
+  now,
 }: {
   label: string;
   trips: Trip[];
@@ -119,13 +120,14 @@ function DaySection({
   tf: FormTranslator;
   tv: FleetTranslator;
   isThai: boolean;
+  now: Date;
 }) {
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{label}</h2>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {trips.map((b) => (
-          <TripCard key={b.id} b={b} t={t} tf={tf} tv={tv} isThai={isThai} />
+          <TripCard key={b.id} b={b} t={t} tf={tf} tv={tv} isThai={isThai} now={now} />
         ))}
       </div>
     </section>
@@ -149,17 +151,34 @@ function TripCard({
   tf,
   tv,
   isThai,
+  now,
 }: {
   b: Trip;
   t: Translator;
   tf: FormTranslator;
   tv: FleetTranslator;
   isThai: boolean;
+  now: Date;
 }) {
-  const hasDriver = !!b.primaryDriver;
   const driverName = driverLabel(b.primaryDriver, isThai);
   const coDriverName = driverLabel(b.secondaryDriver, isThai);
   const vehicleTypeLabel = b.vehicle ? tv(`type_${b.vehicle.type}`) : null;
+
+  // The driver and car are shown to the requester only from the day before the
+  // trip. Earlier than that the assignment is still liable to change — a driver
+  // going off sick re-dispatches the trip (leave-core §9b) — and a requester who
+  // has already written down a name and phone number will ring the wrong person.
+  // One day is the window the office actually treats as settled.
+  const DAY_MS = 86_400_000;
+  // `now` is threaded from the page rather than read here: a component render
+  // must stay pure (react-hooks/purity), and the page already has the single
+  // timestamp every section is bucketed against — so the card and the
+  // today/tomorrow grouping cannot disagree about what "now" is.
+  const withinOneDay = b.startAt.getTime() - now.getTime() <= DAY_MS;
+  const showCrew = !!b.primaryDriver && withinOneDay;
+  // The left edge still marks "this has a car" as soon as it does, so the
+  // requester can see progress without being given details that may move.
+  const hasDriver = !!b.primaryDriver;
 
   return (
     <div
@@ -173,8 +192,11 @@ function TripCard({
           <BookingStatusBadge status={b.status} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* The official form, once approval has generated it. */}
-          <BookingDocumentLink bookingId={b.id} label={t("downloadDocument")} hasPdf={!!b.pdfUrl} />
+          {/* No document download here. The official form is the transport
+              office's paperwork — they print it, collect the signature and file
+              it — so it belongs on the admin surfaces only. Offering it to the
+              requester invited them to submit their own copy, and made the card
+              busier than the one thing it is for: where and when. */}
           <Link
             href={`/requester/${b.id}`}
             className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-primary hover:underline"
@@ -204,8 +226,8 @@ function TripCard({
         </div>
       </div>
 
-      {/* Driver + vehicle details — only once a car is actually assigned */}
-      {hasDriver && (
+      {/* Driver + vehicle — assigned AND within a day of departure (see showCrew) */}
+      {showCrew && (
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="flex items-start gap-2 rounded-lg border p-2.5">
             <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
