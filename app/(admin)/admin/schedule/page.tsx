@@ -277,10 +277,18 @@ export default async function SchedulePage({
   // A recommendation only exists for bookings the solver actually considered —
   // and only for ones that still need placing. A flagged booking already has a
   // car; offering to "assign" it would double-book its own driver.
+  // SMUS belongs in this exclusion for the same reason as the others: it can
+  // never take a faculty car. Without it, an approved หลักสูตรนิสิตแพทย์ charter got
+  // a placement recommendation naming a real car and a live จัดให้ button, and
+  // every press failed — reassignVehicleAction rejects SMUS outright
+  // (schedule-actions.ts), so the row could never clear and there was no hint why.
   const recoInputs = unassigned.filter(
     (b) =>
       b.primaryDriverId === null &&
-      b.jobType !== "TJW" && !b.isEmergency && b.preferredVehicleType !== "BUS_OUTSOURCED",
+      b.jobType !== "TJW" &&
+      b.jobType !== "SMUS" &&
+      !b.isEmergency &&
+      b.preferredVehicleType !== "BUS_OUTSOURCED",
   );
   const recos = recoInputs.length ? await recommendForBookings(dayStart, recoInputs, isThai) : new Map();
 
@@ -292,6 +300,15 @@ export default async function SchedulePage({
       b.overflowReason === "DRIVER_OFF_NEEDS_REVIEW" ? tsim("reason_DRIVER_OFF_NEEDS_REVIEW")
       : b.primaryDriverId ? tsim(`reason_${b.overflowReason ?? "NO_SECONDARY_DRIVER"}`)
       : b.jobType === "TJW" ? t("reasonManualTjw")
+      // Ahead of isEmergency on purpose. A charter can never take a faculty car
+      // whether or not it is urgent, so "this does not use the fleet at all" is
+      // the more load-bearing fact; ranked below, an urgent charter read as
+      // "จองเร่งด่วน (จัดเอง)", which invites someone to go and place it by hand.
+      // Before the branch existed at all it fell through to reasonNotPlacedYet —
+      // "press จัดให้ or wait for the automatic round" — and both halves of that
+      // are false: the button always failed for SMUS and the solver deliberately
+      // never sees it.
+      : b.jobType === "SMUS" ? t("reasonExternalCharter")
       : b.isEmergency ? t("reasonManualUrgent")
       : b.preferredVehicleType === "BUS_OUTSOURCED" ? t("reasonManualBus")
       // A NULL overflowReason means the solver has never rejected this booking —

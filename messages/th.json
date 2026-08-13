@@ -317,6 +317,7 @@
     "reasonManualTjw": "ตจว–ค้างคืน (จัดตามลำดับคำขอ)",
     "reasonManualUrgent": "จองเร่งด่วน (จัดเอง)",
     "reasonManualBus": "รถบัสเช่า (ไม่ใช้รถคณะ)",
+    "reasonExternalCharter": "หลักสูตรนิสิตแพทย์ — เช่ารถจากภายนอกเอง ไม่ใช้รถและคนขับของคณะ",
     "viewRounds": "กระดานรอบวิ่ง",
     "viewTimeline": "เส้นเวลา (ลากจัดรถ)",
     "wernEditTime": "แก้เวลางานเวร",
