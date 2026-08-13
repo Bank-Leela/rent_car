@@ -13,6 +13,7 @@ import { ReclaimDecisionForm } from "@/components/forms/reclaim-decision-form";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
 import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
+import { isSimulationEnabled } from "@/lib/config/features";
 
 const OVERFLOW_TONE: Record<string, string> = {
   NO_PRIMARY_DRIVER:
@@ -196,7 +197,7 @@ export default async function AdminBatchPage({
           <CardTitle>{t("runTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <BatchRunForm defaultDate={targetDate} />
+          <BatchRunForm defaultDate={targetDate} demoEnabled={isSimulationEnabled()} />
           <p className="text-xs text-muted-foreground">
             {onCallShift
               ? t("dutyDriverNote", {

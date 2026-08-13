@@ -20,7 +20,15 @@ type Stats = {
   overflowByReason: Record<string, number>;
 };
 
-export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
+export function BatchRunForm({
+  defaultDate,
+  demoEnabled = false,
+}: {
+  defaultDate: string;
+  /** Whether the demo seed / clear controls may be shown. Server-resolved from
+   *  the same flag the actions enforce, so the two cannot disagree. */
+  demoEnabled?: boolean;
+}) {
   const t = useTranslations("adminBatch");
   const tt = useTranslations("toast");
   const { toastResult } = useActionToast();
@@ -115,17 +123,25 @@ export function BatchRunForm({ defaultDate }: { defaultDate: string }) {
         <Button type="button" onClick={run} disabled={pending}>
           {pending ? t("running") : t("run")}
         </Button>
-        <Button type="button" variant="outline" onClick={simulate} disabled={pending}>
-          {pending ? t("simulating") : t("simulate")}
-        </Button>
-        <Button type="button" variant="ghost" onClick={clearDemo} disabled={pending}>
-          {t("clearDemo")}
-        </Button>
+        {/* The two demo controls write fake trips into the real schedule and wipe
+            every driver's rotation history, so they are hidden wherever the
+            simulator is — the server refuses them there regardless, and offering a
+            button the server will reject is worse than not offering it. */}
+        {demoEnabled && (
+          <>
+            <Button type="button" variant="outline" onClick={simulate} disabled={pending}>
+              {pending ? t("simulating") : t("simulate")}
+            </Button>
+            <Button type="button" variant="ghost" onClick={clearDemo} disabled={pending}>
+              {t("clearDemo")}
+            </Button>
+          </>
+        )}
         <Button type="button" variant="outline" onClick={runTjw} disabled={pending}>
           {t("assignTjw")}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">{t("simulateHelper")}</p>
+      {demoEnabled && <p className="text-xs text-muted-foreground">{t("simulateHelper")}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
       {seeded != null && (
         <p className="text-xs text-emerald-700 dark:text-emerald-400">

@@ -19,6 +19,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { runBatchAction } from "@/lib/booking/batch-actions";
 import type { BatchStats } from "@/lib/booking/batch-core";
 import type { ActionResult } from "@/lib/booking/actions";
+import { isSimulationEnabled } from "@/lib/config/features";
 
 const runBatchSchema = z.object({ date: z.string().min(8) });
 
@@ -219,6 +220,14 @@ export async function simulateAndRunBatchAction(
 ): Promise<ActionResult & { stats?: BatchStats; seededCount?: number }> {
   await requireRole("ADMIN");
   const te = await getTranslations("errors");
+  // ADMIN alone was the only gate, and ADMIN is the role that runs the real
+  // office. In production one stray click injected eight fake APPROVED trips into
+  // the live schedule, overwrote that day's already-decided เวร driver, and then
+  // dispatched real drivers and real cars to the fakes. Same flag the /admin/simulate
+  // page already hides behind — a debugging tool, kept out of production — and the
+  // check has to be HERE because a server action is callable regardless of whether
+  // the button rendered.
+  if (!isSimulationEnabled()) return { ok: false, error: te("forbidden") };
 
   const parsed = runBatchSchema.safeParse({ date: formData.get("date") });
   if (!parsed.success) {
@@ -252,6 +261,14 @@ const DEMO_TAGS = ["BatchDemo:", "LongHaulDemo:", "FreeDayDemo:", "FiveAmDemo:"]
  */
 export async function clearBatchDemoAction(formData: FormData): Promise<ActionResult & { clearedCount?: number }> {
   await requireRole("ADMIN");
+  const te = await getTranslations("errors");
+  // Same gate, and this one is the more destructive of the two: it takes no
+  // confirmation and nulls lastTjwAt/lastOtAt/lastDutyAt/lastAssignedAt for EVERY
+  // active driver on every date, which is the fairness history the whole rotation
+  // priority is computed from. There is no undo — the stamps are not recoverable
+  // from the bookings, because a booking records who drove, not when they were
+  // last picked for each category.
+  if (!isSimulationEnabled()) return { ok: false, error: te("forbidden") };
   void formData;
 
   const del = await prisma.booking.deleteMany({
