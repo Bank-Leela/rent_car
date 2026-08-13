@@ -55,6 +55,23 @@ export default async function AccountPage({
   // other route back here, so live links would ping-pong. Sign-out stays the one
   // escape that does not defeat the lock.
   const isDevImpersonation = DEV_ENABLED && !!(await cookies()).get(DEV_COOKIE);
+  // The nav lock tracks what proxy.ts ACTUALLY enforces, which is narrower than
+  // `forced` in two ways that both left the bar dead for no reason:
+  //
+  //  * `?forceChange=1` is only the label proxy.ts puts on its own redirect
+  //    (proxy.ts:41) — it carries no authority. A stale link, a back button, or
+  //    a reload after the password was changed all keep the param, and the bar
+  //    stayed inert for someone the server would happily let navigate.
+  //  * dev-cookie sessions are exempt from the redirect outright
+  //    (proxy.ts:36-37), yet this page read mustChangePassword straight from the
+  //    row — so impersonating a seeded user whose flag is set locked the bar
+  //    while every route was in fact reachable.
+  //
+  // The banner, the autofocus and the ring still follow `forced`: telling
+  // someone their password is temporary is right either way. Only navigation
+  // follows the redirect, so the bar is dead exactly when clicking it would
+  // bounce and live whenever clicking it works.
+  const navLocked = user.mustChangePassword && !isDevImpersonation;
   const { badgeRole, routes } = navForRoles(session.user.roles, {
     isStation: isStationEmail(session.user.email),
   });
@@ -72,7 +89,11 @@ export default async function AccountPage({
         title={t("title")}
         description={t("description")}
         actions={
-          forced ? (
+          // Follows the nav lock, not the banner: sign-out is offered instead of
+          // "back" because under a real lock there is nowhere to go back TO. Once
+          // the bar is live again, "back" is the honest action — offering only
+          // sign-out beside a working nav made leaving look harder than it is.
+          navLocked ? (
             <form action={isDevImpersonation ? "/api/dev/sign-out" : signOutAction} method={isDevImpersonation ? "post" : undefined}>
               <button
                 type="submit"
@@ -164,11 +185,11 @@ export default async function AccountPage({
       badgeRole={badgeRole}
       user={session.user}
       nav={routes.map((r) => ({ href: r.href, label: tAll(r.labelKey) }))}
-      navDisabled={forced}
+      navDisabled={navLocked}
       // Same sentence the banner shows, repeated where the click fails: the
       // banner is below the header, so someone who reaches for the nav first
       // hits a dead link with no reason given.
-      navDisabledReason={forced ? t("mustChangeBlocked") : undefined}
+      navDisabledReason={navLocked ? t("mustChangeBlocked") : undefined}
     >
       {body}
     </AppShell>
