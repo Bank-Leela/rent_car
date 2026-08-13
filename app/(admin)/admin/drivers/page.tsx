@@ -11,6 +11,7 @@ import { licenseStatus, retirementStatus } from "@/lib/admin/roster-alerts";
 import { LeaveRangeForm } from "@/components/admin/leave-range-form";
 import { UpcomingLeave, type LeaveBlock } from "@/components/admin/upcoming-leave";
 import { formatTh } from "@/lib/format-date";
+import { localDayOfDbDate } from "@/lib/booking/db-date";
 
 export default async function AdminDriversPage() {
   await requireRole("ADMIN");
@@ -60,7 +61,10 @@ export default async function AdminDriversPage() {
   const nameByDriver = new Map(rows.map((r) => [r.id, r.name]));
   const leaveBlocks: LeaveBlock[] = [];
   for (const row of leaveRows) {
-    const iso = format(row.date, "yyyy-MM-dd");
+    // localDayOfDbDate first: this list DISPLAYS the day and chains adjacent days
+    // into blocks, and format() of a read-back @db.Date is the stored date — so
+    // every upcoming leave day was shown one day early.
+    const iso = format(localDayOfDbDate(row.date), "yyyy-MM-dd");
     const last = leaveBlocks[leaveBlocks.length - 1];
     const isNextDay =
       last &&

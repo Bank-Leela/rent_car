@@ -331,8 +331,8 @@ as more are assigned. A same-day chip reads `start–end · place`.
   the second line (`กลับ 13 ส.ค.` / `ออก 10 ส.ค.`). A trip appears on **every** day
   it spans (overlap query, not start-in-day). Month grids still bucket via
   `daysSpanned` (`day-window.ts`), which the calendar pages use.
-- **Job-type tint**, both themes: ตจว blue, โอที amber, เวร emerald,
-  หลักสูตรนิสิตแพทย์ violet, and **ทั่วไป no fill at all** — colour means "not
+- **Job-type tint**, both themes: ตจว blue, โอที amber, เวร emerald, and
+  **ทั่วไป no fill at all** — colour means "not
   ordinary", and an outlined chip cannot be confused with dark-theme blue. A
   legend strip above the rows names each; its swatches reuse the chip and row
   classes, so the key cannot drift from what is painted.
@@ -347,12 +347,18 @@ as more are assigned. A same-day chip reads `start–end · place`.
   no conflict ring: a double-book is refused at the action, not drawn.
 - **Bulk assignment lives on `/admin/batch`** (`BatchRunForm` → `solveDay`), whose
   overflow list carries each booking's placement recommendation (§7b) with an
-  inline `AssignRecoButton`. The old board's `autoAssignAll` button went with the
-  board. Neither path auto-resolves an overlap among already-assigned trips — that
-  stays **manual** for P'Top. (An automatic loser-reassignment pass with WERN/duty
-  pinning — `conflict-resolve.ts` / `resolveScheduleConflictsAction` with
-  `findConflictLosers` / `pickConflictLoser` — was specced but is **not
-  implemented**; those symbols exist in no source file.)
+  inline `AssignRecoButton`. The timeline board ALSO has its own `autoAssignAll`
+  (`scheduler-board.tsx`, the จัดอัตโนมัติ button) — an earlier version of this
+  section said that button "went with the board", which stopped being true when the
+  timeline board was restored.
+
+  Neither path auto-resolves an overlap among already-assigned trips — that stays
+  **manual** for P'Top, deliberately. An automatic loser-reassignment pass with
+  WERN/duty pinning (`conflict-resolve.ts` / `resolveScheduleConflictsAction` /
+  `findConflictLosers` / `pickConflictLoser`) was specced and then **dropped**; those
+  symbols exist in no source file and are not pending work. Do not rebuild them from
+  this paragraph — if automatic conflict resolution is wanted, it needs a fresh
+  decision, not a resurrection.
 
 ---
 

@@ -35,7 +35,11 @@ changeable once. Dev mode has role "preview-as" buttons.
 - **Job types** (`JobType`, auto-classified from the trip): **TJW** (out-of-province
   + overnight, long-haul), **OT** (overtime / out-of-hours / overnight-in-area),
   **WERN** (on-call duty, from the `OnCallShift` roster — never auto-classified),
-  **NORMAL** (everything else). `SMUS` (external charter) is retired — the enum value survives for historical bookings only.
+  **NORMAL** (everything else), plus **SMUS** (external charter, หลักสูตรนิสิตแพทย์ — the
+  requester books outside buses/vans themselves, so it bypasses internal vehicle and
+  driver allocation entirely). SMUS is **live**: it was retired in `9ccc55a` and
+  restored, and `docs/scheduling-algorithm.md` §2 is the authority. It is never
+  produced by the classifier — the form sets it.
 - **Long trip** = `estimatedDistance > 400 km` → needs a relief **co-driver**.
 - **Fairness** is duration-weighted over a rolling 30-day window
   (`earningsScore`); rotation timestamps per category break ties.

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { addDays, startOfDay } from "date-fns";
 
 import { prisma } from "@/lib/db";
-import { dbDateKey, driverDayKey } from "@/lib/booking/db-date";
+import { dbDateKey, driverDayKey, localDayOfDbDate } from "@/lib/booking/db-date";
 
 /**
  * The real DB round trip on a `@db.Date` column that the suite never had.
@@ -63,6 +63,41 @@ describe("@db.Date round trip", () => {
 
     expect(dbDateKey(row.date)).not.toBe(dbDateKey(addDays(day, 1)));
     expect(dbDateKey(row.date)).not.toBe(dbDateKey(addDays(day, -1)));
+  });
+
+  it("localDayOfDbDate recovers the day a row was recorded for", async () => {
+    // The display sites need the DAY, not a key: the upcoming-leave list chains
+    // adjacent days into blocks and the driver calendar tints a cell, and both
+    // showed one day early because they read the stored value directly.
+    const driver = await prisma.driver.findFirstOrThrow({ select: { id: true } });
+    const localDay = startOfDay(new Date("2029-07-02T00:00:00"));
+    await prisma.driverUnavailability.create({
+      data: { driverId: driver.id, date: localDay, reason: REASON },
+    });
+    const row = await prisma.driverUnavailability.findFirstOrThrow({ where: { reason: REASON } });
+
+    expect(localDayOfDbDate(row.date).getTime(), "recovers the exact local midnight written").toBe(
+      localDay.getTime(),
+    );
+    // And it is a real local midnight, not a UTC one — the calendar formats it.
+    const recovered = localDayOfDbDate(row.date);
+    expect([recovered.getHours(), recovered.getMinutes()]).toEqual([0, 0]);
+  });
+
+  it("survives a month and year boundary, where an off-by-one is worst", async () => {
+    const driver = await prisma.driver.findFirstOrThrow({ select: { id: true } });
+    for (const iso of ["2029-01-01T00:00:00", "2029-03-01T00:00:00", "2029-12-31T00:00:00"]) {
+      const day = startOfDay(new Date(iso));
+      await prisma.driverUnavailability.create({
+        data: { driverId: driver.id, date: day, reason: REASON },
+      });
+      const row = await prisma.driverUnavailability.findFirstOrThrow({
+        where: { driverId: driver.id, date: day, reason: REASON },
+      });
+      expect(localDayOfDbDate(row.date).getTime(), `boundary ${iso}`).toBe(day.getTime());
+      expect(dbDateKey(row.date)).toBe(dbDateKey(day));
+      await prisma.driverUnavailability.deleteMany({ where: { reason: REASON } });
+    }
   });
 
   it("keys every day of a leave range distinctly and matches each back", async () => {

@@ -71,7 +71,14 @@ These four never auto-assign, today or after this change:
 | ตจว–ค้างคืน (TJW) | allocated by request order across **all** days, not per-day, via `assignTjwByRequestOrder` |
 | จองเร่งด่วน (`isEmergency`) | stays manual on purpose so an admin looks at it |
 | รถบัสเช่า (`BUS_OUTSOURCED`) | no internal car to assign |
-| SMUS | retired; guards kept for historical rows |
+| SMUS | external charter — no internal car to assign (see the note below) |
+
+> **Correction (2026-08-13).** This spec described SMUS as "retired". It is not:
+> SMUS was retired in `9ccc55a` and restored, and is live today. The row above has
+> been corrected because it was being read as current fact. The reason SMUS is
+> excluded from assignment is unchanged — an external charter has no internal car to
+> assign — only the stated reason was wrong. `docs/scheduling-algorithm.md` §2 is the
+> authority.
 
 ### 5. The nightly sweep widens
 

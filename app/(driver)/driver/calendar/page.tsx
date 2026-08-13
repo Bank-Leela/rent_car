@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
 import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
 import { formatTh } from "@/lib/format-date";
+import { dbDateKey } from "@/lib/booking/db-date";
 
 // Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
 // day, else the real start time.
@@ -134,7 +135,10 @@ export default async function DriverCalendar({
         select: { date: true },
       })
     : [];
-  const dutyDays = new Set(dutyShifts.map((s) => format(s.date, "yyyy-MM-dd")));
+  // dbDateKey, not format(s.date, …). `date` is @db.Date and comes back as the
+  // STORED date, which is a day off from the day the shift is about, while the
+  // cells below are built from local days — so the เวร tint landed one cell early.
+  const dutyDays = new Set(dutyShifts.map((s) => dbDateKey(s.date)));
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
   const prevMonth = format(subMonths(monthAnchor, 1), "yyyy-MM");

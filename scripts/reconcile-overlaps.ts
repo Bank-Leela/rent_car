@@ -14,6 +14,7 @@
 //       npx tsx scripts/reconcile-overlaps.ts --dry    (report only)
 
 import { PrismaClient, type JobType } from "@prisma/client";
+import { localDayOfDbDate } from "../lib/booking/db-date";
 
 const prisma = new PrismaClient();
 const DRY = process.argv.includes("--dry");
@@ -30,7 +31,9 @@ async function main() {
   // Duty driver per local day.
   const shifts = await prisma.onCallShift.findMany({ select: { date: true, driverId: true } });
   const dutyByDay = new Map<string, string>();
-  for (const s of shifts) dutyByDay.set(ymdLocal(s.date), s.driverId);
+  // ymdLocal() of a read-back @db.Date names the stored date, so the duty-driver
+  // exemption was applied to the wrong calendar day.
+  for (const s of shifts) dutyByDay.set(ymdLocal(localDayOfDbDate(s.date)), s.driverId);
 
   // All assigned trips, with both roles. A driver is occupied by a trip whether
   // they're its primary (driving their car) or its secondary (co-driver).
