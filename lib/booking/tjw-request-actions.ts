@@ -12,6 +12,7 @@ import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import type { DriverRotationState } from "@/lib/booking/rotations";
 import { solveTjwByRequest, type TjwRequestInput } from "@/lib/booking/tjw-request-solver";
+import { localDayOfDbDate } from "@/lib/booking/db-date";
 
 export type TjwAssignResult =
   | { ok: true; assigned: number; overflows: { bookingId: string; reason: string }[] }
@@ -93,7 +94,13 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     select: { driverId: true, date: true },
   });
   for (const o of offDays) {
-    const from = startOfDay(o.date);
+    // localDayOfDbDate, not startOfDay(o.date): `date` is @db.Date, so the value
+    // read back is the STORED date, a day off from the day the leave is about.
+    // This block therefore blocked the wrong 24 hours, and the regression the
+    // comment above says it exists to prevent still happened — a driver marked
+    // off Tuesday was treated as blocked on Monday, so a Mon–Wed ตจว was still
+    // handed to them.
+    const from = localDayOfDbDate(o.date);
     const to = new Date(from);
     to.setDate(to.getDate() + 1);
     existingCommitments.push({ driverId: o.driverId, startAt: from, endAt: to });
@@ -104,7 +111,14 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     where: { date: { gte: startOfDay(minStart), lte: startOfDay(maxEnd) } },
     select: { date: true, driverId: true },
   });
-  const dutyByDay = new Map<number, string>(shifts.map((s) => [startOfDay(s.date).getTime(), s.driverId]));
+  // The solver keys this by LOCAL midnight ms (tjw-request-solver.ts daysOf), so
+  // the map must too. Built from startOfDay(s.date) it was keyed by the stored
+  // date instead — a day off — so `dutyByDay.get(d)` never matched and the day's
+  // เวร driver was never excluded from TJW. The campus duty car could be sent out
+  // of province.
+  const dutyByDay = new Map<number, string>(
+    shifts.map((s) => [localDayOfDbDate(s.date).getTime(), s.driverId]),
+  );
 
   const requests: TjwRequestInput[] = pending.map((b) => ({
     bookingId: b.id,

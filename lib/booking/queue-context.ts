@@ -5,6 +5,7 @@ import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import { recommendOvertimePlacement } from "@/lib/booking/overtime-reco";
 import { dayHasRoomForMany } from "@/lib/booking/approval-capacity";
 import { triageFlags, waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/triage";
+import { dbDateKey, driverDayKey } from "@/lib/booking/db-date";
 
 // Derived signals for the admin queue: overtime-placement recommendations for
 // over-capacity WAITLIST bookings, per-booking triage flags, and the SLA-overdue
@@ -76,11 +77,20 @@ export async function loadQueueContext(opts: {
         select: { driverId: true, date: true },
       }),
     ]);
-    // Keyed by "driverId|yyyy-MM-dd" so the per-day match is TZ-robust.
-    const offByDay = new Set(unavailRows.map((u) => `${u.driverId}|${format(u.date, "yyyy-MM-dd")}`));
+    // Keyed with driverDayKey, not format(u.date, …). The old key was built from
+    // the value Prisma returns for a @db.Date, which is the stored date — a day
+    // off from the day the leave is about — while the lookup below was built from
+    // a LOCAL midnight. The two never matched, so this filter excluded nobody and
+    // the OT recommendation could name a driver who is on sick leave. The OT
+    // assign path deliberately skips the leave check, so it was one click to
+    // commit. (The old comment claimed this was "TZ-robust"; it was the opposite.)
+    const offByDay = new Set(unavailRows.map((u) => driverDayKey(u.driverId, u.date)));
     const driverName = new Map(allDrivers.map((d) => [d.id, d.user.name ?? d.user.email ?? d.id]));
     const vehicleReg = new Map(vehicles.map((v) => [v.id, v.registrationNumber]));
-    const dutyByDay = new Map(shifts.map((s) => [startOfDay(s.date).getTime(), s.driverId]));
+    // Same shift, same consequence: keyed off the read-back value this map was
+    // never hit, so every OT reco was computed with dutyDriverId null — the duty
+    // car offered as if free, on top of its own duty day.
+    const dutyByDay = new Map(shifts.map((s) => [dbDateKey(s.date), s.driverId]));
     // car=driver: driverId -> their assigned car.
     const driverCar = new Map<string, string>();
     for (const v of vehicles) if (v.assignedDriverId) driverCar.set(v.assignedDriverId, v.id);
@@ -99,12 +109,13 @@ export async function loadQueueContext(opts: {
           driverTrips.set(id, arr);
         }
       }
-      const dayKey = format(dayStart, "yyyy-MM-dd");
+      // Both lookups go through the same keying as the maps above, so a stored
+      // row and the day being asked about agree.
       const reco = recommendOvertimePlacement({
         booking: { startAt: b.startAt, endAt: b.endAt },
-        dutyDriverId: dutyByDay.get(dayStart.getTime()) ?? null,
+        dutyDriverId: dutyByDay.get(dbDateKey(dayStart)) ?? null,
         drivers: allDrivers
-          .filter((d) => !offByDay.has(`${d.id}|${dayKey}`))
+          .filter((d) => !offByDay.has(driverDayKey(d.id, dayStart)))
           .map((d) => ({
             driverId: d.id,
             vehicleId: driverCar.get(d.id) ?? null,

@@ -2,6 +2,7 @@ import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { pickAutoDutyDriver } from "@/lib/booking/duty-assignment";
+import { dbDateKey, localDayOfDbDate } from "@/lib/booking/db-date";
 
 // The เวร roster extends itself: whatever day you look at is already decided.
 //
@@ -52,8 +53,14 @@ export async function ensureOnCallRosterThrough(through: Date): Promise<number> 
   const lastOnCall = new Map<string, Date | null>(
     drivers.map((d) => [d.id, d.onCallShifts[0]?.date ?? null]),
   );
-  const offDays = new Map<string, Set<number>>(
-    drivers.map((d) => [d.id, new Set(d.unavailabilities.map((u) => startOfDay(u.date).getTime()))]),
+  // Keyed with dbDateKey, NOT startOfDay(u.date). The comment above says deriving
+  // a key from the value Prisma returns shifts a day — and this line used to do
+  // exactly that, so the set held the day BEFORE each leave day and the lookup at
+  // the bottom of the loop never matched. Auto-rotation could therefore make a
+  // driver เวร on a day they were already recorded off, and simultaneously treat
+  // them as away on the previous day, pushing that day's duty onto someone else.
+  const offDays = new Map<string, Set<string>>(
+    drivers.map((d) => [d.id, new Set(d.unavailabilities.map((u) => dbDateKey(u.date)))]),
   );
 
   // Start the day after the roster currently ends, so the rotation continues
@@ -62,7 +69,13 @@ export async function ensureOnCallRosterThrough(through: Date): Promise<number> 
     orderBy: { date: "desc" },
     select: { date: true },
   });
-  const from = new Date(Math.max(today.getTime(), latest ? startOfDay(latest.date).getTime() : today.getTime()));
+  // `latest.date` is a read-back @db.Date, so startOfDay() of it named the day
+  // before the roster actually reaches — the loop then re-examined an
+  // already-rostered day. Harmless (the alreadySet branch skips it) but it made
+  // the "start the day after the roster ends" comment untrue.
+  const from = new Date(
+    Math.max(today.getTime(), latest ? localDayOfDbDate(latest.date).getTime() : today.getTime()),
+  );
 
   const tjwSpanning = await prisma.booking.findMany({
     where: {
@@ -95,7 +108,7 @@ export async function ensureOnCallRosterThrough(through: Date): Promise<number> 
         if (t.secondaryDriverId) away.add(t.secondaryDriverId);
       }
     }
-    for (const d of drivers) if (offDays.get(d.id)?.has(current.getTime())) away.add(d.id);
+    for (const d of drivers) if (offDays.get(d.id)?.has(dbDateKey(current))) away.add(d.id);
 
     const chosen = pickAutoDutyDriver(
       drivers.map((d) => ({ driverId: d.id, lastOnCallAt: lastOnCall.get(d.id) ?? null })),
