@@ -22,7 +22,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
 import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
 import { formatTh } from "@/lib/format-date";
-import { dbDateKey } from "@/lib/booking/db-date";
+import { localDayOfDbDate } from "@/lib/booking/db-date";
 
 // Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
 // day, else the real start time.
@@ -54,7 +54,7 @@ function parseMonth(s?: string): Date {
 export default async function DriverCalendar({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; driver?: string }>;
 }) {
   const session = await requireRole("DRIVER");
   const t = await getTranslations("driverCalendar");
@@ -84,6 +84,41 @@ export default async function DriverCalendar({
   }
   const driverId = driver?.id ?? null;
   const qs = await searchParams;
+
+  // The kiosk's whole-fleet month answers "what is the fleet doing" but not
+  // "what is อาคม doing" — the cells name the CAR, so picking one person's month
+  // out of five cars' worth of chips meant reading the registration on every
+  // chip. A personal login already sees only itself, so the picker is kiosk-only
+  // and ?driver is ignored there rather than letting a URL widen what one driver
+  // can see.
+  const rosterForPicker = isStation
+    ? await prisma.driver.findMany({
+        where: { isActive: true, user: { is: { isActive: true } } },
+        select: {
+          id: true,
+          user: { select: { name: true, thaiName: true } },
+          assignedVehicle: { select: { registrationNumber: true } },
+        },
+      })
+    : [];
+  const isThai = localeCode.toLowerCase().startsWith("th");
+  const pickerDrivers = rosterForPicker
+    .map((d) => ({
+      id: d.id,
+      name: (isThai ? d.user.thaiName ?? d.user.name : d.user.name ?? d.user.thaiName) ?? d.id,
+      carReg: d.assignedVehicle?.registrationNumber ?? null,
+    }))
+    // Same order as the admin board's roster: by car, so the picker and the
+    // board list the fleet the same way round.
+    .sort((a, b) => (a.carReg ?? "~").localeCompare(b.carReg ?? "~") || a.name.localeCompare(b.name));
+
+  // Unknown or non-roster ids fall back to the whole fleet rather than silently
+  // rendering an empty month that looks like "this driver has no work".
+  const picked = isStation && qs.driver ? pickerDrivers.find((d) => d.id === qs.driver) ?? null : null;
+  // What the queries below key on: the driver's own id on a personal login, the
+  // picked one on the kiosk, null for the whole fleet.
+  const focusDriverId = driverId ?? picked?.id ?? null;
+
   const monthAnchor = parseMonth(qs.month);
   const gridStart = startOfWeek(startOfMonth(monthAnchor), { weekStartsOn: 0 });
   const gridEnd = endOfWeek(endOfMonth(monthAnchor), { weekStartsOn: 0 });
@@ -95,13 +130,14 @@ export default async function DriverCalendar({
       // Overlap the visible grid so a multi-day trip lands in every cell it spans.
       startAt: { lte: gridEnd },
       endAt: { gte: gridStart },
-      // Kiosk: every driver's trips. Personal login: only their own.
-      ...(driverId
+      // One driver's trips — their own on a personal login, the picked one on the
+      // kiosk. With nobody picked the kiosk shows every driver's.
+      ...(focusDriverId
         ? {
             OR: [
-              { primaryDriverId: driverId },
-              { secondaryDriverId: driverId },
-              { claims: { some: { driverId, status: "ACTIVE" } } },
+              { primaryDriverId: focusDriverId },
+              { secondaryDriverId: focusDriverId },
+              { claims: { some: { driverId: focusDriverId, status: "ACTIVE" } } },
             ],
           }
         : { primaryDriverId: { not: null } }),
@@ -129,53 +165,98 @@ export default async function DriverCalendar({
   // from auto-assignment, so their calendar would otherwise look empty).
   // On the kiosk every day has SOME duty driver, so tinting them all says
   // nothing — the เวร marking is only meaningful for one person's own calendar.
-  const dutyShifts = driverId
+  // Picking a driver makes it exactly that, so the tint comes back for them:
+  // "which days am I on เวร" is most of why you would filter to one person.
+  const dutyShifts = focusDriverId
     ? await prisma.onCallShift.findMany({
-        where: { driverId, date: { gte: gridStart, lte: gridEnd } },
+        where: { driverId: focusDriverId, date: { gte: gridStart, lte: gridEnd } },
         select: { date: true },
       })
     : [];
-  // dbDateKey, not format(s.date, …). `date` is @db.Date and comes back as the
-  // STORED date, which is a day off from the day the shift is about, while the
-  // cells below are built from local days — so the เวร tint landed one cell early.
-  const dutyDays = new Set(dutyShifts.map((s) => dbDateKey(s.date)));
+  // localDayOfDbDate, and this is the third attempt at this line — so, precisely:
+  // writing local midnight of day D into an @db.Date column stores D−1 (a local
+  // Monday goes in as the Sunday, measured: 2027-03-01 local → "2027-02-28"), and
+  // reading it back returns that stored day. dbDateKey() of the read-back value
+  // therefore names D−1, which is right only when it is compared against another
+  // equally-shifted key — as duty-roster.ts and queue-context.ts do. Here it was
+  // compared against format(day, "yyyy-MM-dd") of a real local day, so the เวร
+  // tint landed one cell EARLY: a Monday duty painted the Sunday, which is how a
+  // weekday-only roster still showed เวร on Saturdays and Sundays.
+  //
+  // localDayOfDbDate() undoes the shift and hands back the local day the shift is
+  // actually about, so both sides of the comparison are local days.
+  const dutyDays = new Set(dutyShifts.map((s) => format(localDayOfDbDate(s.date), "yyyy-MM-dd")));
 
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
   const prevMonth = format(subMonths(monthAnchor, 1), "yyyy-MM");
   const nextMonth = format(addMonths(monthAnchor, 1), "yyyy-MM");
   const today = new Date();
 
+  // The two axes are independent: changing month must keep the driver, and
+  // changing driver must keep the month, or every click resets the other.
+  const hrefFor = (opts: { month?: string | null; driver?: string | null }) => {
+    const p = new URLSearchParams();
+    const month = opts.month === undefined ? qs.month : opts.month;
+    const drv = opts.driver === undefined ? picked?.id ?? null : opts.driver;
+    if (month) p.set("month", month);
+    if (drv) p.set("driver", drv);
+    const s = p.toString();
+    return s ? `/driver/calendar?${s}` : "/driver/calendar";
+  };
+  const chip = (active: boolean) =>
+    `rounded-md border px-3 py-1.5 text-sm ${
+      active ? "border-primary bg-primary/10 font-medium text-foreground" : "bg-background hover:bg-muted"
+    }`;
+
   return (
     <div className="space-y-4">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          {/* The kiosk is shared, so "ของฉัน" would be a lie — it shows every car. */}
+          {/* The kiosk is shared, so "ของฉัน" would be a lie — it shows every car.
+              With a driver picked their name IS the title: the grid no longer
+              shows the fleet, and a heading still saying "ปฏิทินรถทั้งหมด" over
+              one person's month would be the same lie in the other direction. */}
           <h1 className="text-2xl font-semibold tracking-tight">
-            {isStation ? t("titleStation") : t("title")}
+            {isStation ? picked?.name ?? t("titleStation") : t("title")}
           </h1>
           <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy", { locale: loc })}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Link
-            href={`/driver/calendar?month=${prevMonth}`}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
-          >
+          <Link href={hrefFor({ month: prevMonth })} className={chip(false)}>
             ← {format(subMonths(monthAnchor, 1), "MMM", { locale: loc })}
           </Link>
-          <Link
-            href="/driver/calendar"
-            className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
-          >
+          {/* month:null, not a bare /driver/calendar — that dropped the picked
+              driver, so "this month" silently widened the view back to the fleet. */}
+          <Link href={hrefFor({ month: null })} className={chip(false)}>
             {tcal("thisMonth")}
           </Link>
-          <Link
-            href={`/driver/calendar?month=${nextMonth}`}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
-          >
+          <Link href={hrefFor({ month: nextMonth })} className={chip(false)}>
             {format(addMonths(monthAnchor, 1), "MMM", { locale: loc })} →
           </Link>
         </div>
       </div>
+
+      {/* Kiosk only. Links, not a <select>: this is a shared touch screen, so a
+          row of targets beats a dropdown that needs two taps and a steady hand,
+          and it keeps the page a server component. Each label carries the car
+          because the cells are labelled by car — car = driver, so the picker is
+          also how you read which registration belongs to whom. */}
+      {isStation && pickerDrivers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t("filterLabel")}</span>
+          <Link href={hrefFor({ driver: null })} className={chip(!picked)}>
+            {t("filterAll")}
+          </Link>
+          {pickerDrivers.map((d) => (
+            <Link key={d.id} href={hrefFor({ driver: d.id })} className={chip(picked?.id === d.id)}>
+              {d.name}
+              {d.carReg && (
+                <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{d.carReg}</span>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {LEGEND_KEYS.map((key) => (

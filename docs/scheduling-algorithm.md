@@ -16,7 +16,7 @@ and the duty-overlap rule.
 | Term | Meaning |
 |------|---------|
 | **Job type** | `TJW`, `OT`, `WERN`, `NORMAL` (`SMUS` = external charter — see §2). Auto-classified from the trip; `WERN` is duty — never produced by the classifier. It's forced at booking creation when `travelWithinChula` is set (in-Chula trip = a request for the duty car), and otherwise attaches via `OnCallShift`. |
-| **Duty / on-call / WERN driver** | The day's driver in `OnCallShift` for that date. Runs campus rounds 08:00–16:00. **Reserved all day** — excluded from every *non-WERN* pick (TJW/OT/NORMAL). A **WERN-typed booking is routed TO them** (matcher, solver, and reco all special-case it); if no duty driver is rostered, or they're away/returning mid-day, WERN falls back to the duty rotation (oldest `lastDutyAt`). |
+| **Duty / on-call / WERN driver** | The day's driver in `OnCallShift` for that date. Runs campus rounds 08:00–16:00, **Mon–Fri only** (see §3a). **Reserved all day** — excluded from every *non-WERN* pick (TJW/OT/NORMAL). A **WERN-typed booking is routed TO them** (matcher, solver, and reco all special-case it); if no duty driver is rostered, or they're away/returning mid-day, WERN falls back to the duty rotation (oldest `lastDutyAt`). |
 | **Long trip** | `estimatedDistance > 400 km` (`LONG_TRIP_KM`) **or** the admin's manual `needsSecondaryDriver` flag. Needs a **secondary** (co-)driver. Distance is usually unset in prod (Maps is env-gated), so the flag is the practical trigger — all three solvers (matcher, batch, TJW-request) OR the flag into the pairing condition. |
 | **Rotation** | Per-category "who went longest ago" ledger: `lastTjwAt`, `lastOtAt`, `lastDutyAt`. |
 | **Fairness ledger** | Duration-weighted `earningsScore` over a 30-day window (`FAIRNESS_WINDOW_DAYS`); tie-break after rotation. |
@@ -99,6 +99,50 @@ filters the type out upstream, so an entry there would be dead code.
 first, and everyone with 0 **NORMAL** trips today is served before anyone gets a
 2nd (`pickGeneralRank`, tier-0 before tier-1). The tier count is NORMAL-only, so
 an OT a driver already holds doesn't push them out of the NORMAL pick.
+
+---
+
+## 3a. The เวร roster is weekdays only (`duty-roster.ts`)
+
+`ensureOnCallRosterThrough()` **auto-rosters Mon–Fri and never Saturday or
+Sunday.** Campus rounds run 08:00–16:00 and the faculty does not run them at the
+weekend; the rotation previously had no notion of a week, filled all seven days,
+and so named a driver who was then "reserved all day" — excluded from every other
+pick — for a duty that did not exist. Opening a Saturday still tops the roster up
+**through the Friday before it**, so the days around the viewed one stay decided
+and the cheap "already rostered?" exit keeps working (a weekend never has a row,
+so testing the weekend itself would miss every time and re-run the fill loop on
+every render). The rotation simply carries across the gap: Friday's duty driver
+is followed by Monday's next-fairest, so the weekend costs nobody their turn.
+
+**A manual override is still honoured on any day.** The admin upsert
+(`matching-actions.ts`) writes whatever date it is given, and every reader keeps
+using whatever row exists — a weekend duty for a special event is a decision
+somebody made, not a gap the rotation filled. Only *auto*-rostering is bounded.
+`scripts/prune-weekend-duty.ts` clears weekend rows the old rotation already
+wrote (future days only — history is never backfilled, and it refuses any day
+that has a WERN booking on it).
+
+### The `@db.Date` trap that made this look worse than it was
+
+`OnCallShift.date` is `@db.Date`. Writing local midnight of day D stores **D−1**
+(measured: local `2027-03-01` → stored `2027-02-28`), and reading it back returns
+that stored day. So:
+
+- Comparing two **equally shifted** keys is correct — `dbDateKey(readBack)` vs
+  `dbDateKey(localDate)`, which is what `duty-roster.ts` (leave days) and
+  `queue-context.ts` (duty by day) do. Leave these alone.
+- Comparing a read-back-derived key against a **real local day** is off by one.
+  The driver calendar did this (`dbDateKey(s.date)` vs `format(day, "yyyy-MM-dd")`)
+  and painted every เวร badge one cell early — a Monday duty appeared on the
+  Sunday. Use `localDayOfDbDate()` to recover the true local day first.
+- Deciding a **weekday** from the stored value is off by one for the same reason:
+  `getDay()` of a Monday shift's stored value says Sunday. Any weekend check must
+  go through `localDayOfDbDate()` — the first version of the weekday test, and of
+  the prune script, both got this wrong and "found" weekend shifts that were
+  Mondays.
+
+Pinned by `lib/booking/duty-roster-weekday.test.ts`.
 
 ---
 

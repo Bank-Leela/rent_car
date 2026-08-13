@@ -936,6 +936,8 @@
     "titleStation": "ปฏิทินรถทั้งหมด",
     "onCall": "เวร",
     "onCallLegend": "เวร (อยู่เวร)",
+    "filterLabel": "ดูปฏิทินของ",
+    "filterAll": "ทุกคน",
     "noProfileTitle": "ไม่พบโปรไฟล์พนักงานขับรถ",
     "noProfileDescription": "ติดต่อผู้ดูแลระบบเพื่อเพิ่มบัญชีของคุณเข้ากลุ่มพนักงานขับรถ"
   },

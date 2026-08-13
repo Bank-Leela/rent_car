@@ -22,14 +22,36 @@ import { dbDateKey, localDayOfDbDate } from "@/lib/booking/db-date";
 // board simply shows no duty driver, which is honest for a date that far out.
 const MAX_LOOKAHEAD_DAYS = 370;
 
+// เวร is a weekday duty: the duty driver runs campus rounds 08:00–16:00, which
+// the faculty does not do on Saturday or Sunday. The auto-rotation had no notion
+// of a week at all and rostered all seven days, so every calendar showed a เวร
+// badge on weekends and the named driver was "reserved all day" — excluded from
+// every other pick — on days there was no duty to serve.
+//
+// This bounds AUTO-rostering only. An admin upsert (matching-actions.ts) still
+// writes whatever day it is given: a weekend duty for a special event is a real
+// thing to want, and it is a decision someone made rather than a gap the
+// rotation filled in. Readers therefore keep honouring any row that exists.
+const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+
 export async function ensureOnCallRosterThrough(through: Date): Promise<number> {
-  const target = startOfDay(through);
+  const requested = startOfDay(through);
   const today = startOfDay(new Date());
-  if (target < today) return 0; // history is whatever it was; never backfilled
+  if (requested < today) return 0; // history is whatever it was; never backfilled
 
   const horizon = new Date(today);
   horizon.setDate(horizon.getDate() + MAX_LOOKAHEAD_DAYS);
-  if (target > horizon) return 0;
+  if (requested > horizon) return 0;
+
+  // Roster through the last weekday at or before the requested day. Opening a
+  // Saturday still tops the roster up to that Friday — the point of the call is
+  // that the days AROUND the one you are viewing are decided too. Walking back
+  // also keeps the cheap "already rostered?" exit below working: a weekend never
+  // gets a row, so testing the weekend itself would miss every time and re-run
+  // the whole loop on every render of a Saturday.
+  const target = new Date(requested);
+  while (isWeekend(target)) target.setDate(target.getDate() - 1);
+  if (target < today) return 0;
 
   // Nothing to do when the viewed day is already rostered — the common case, and
   // one indexed lookup. Ask with the same value the write uses: `date` is
@@ -90,6 +112,10 @@ export async function ensureOnCallRosterThrough(through: Date): Promise<number> 
   let filled = 0;
   for (let day = new Date(from); day <= target; day.setDate(day.getDate() + 1)) {
     const current = new Date(day);
+    // No auto เวร at the weekend. The rotation simply carries across it, so
+    // Friday's duty driver is followed by Monday's next-fairest — the gap costs
+    // nobody their turn.
+    if (isWeekend(current)) continue;
     const alreadySet = await prisma.onCallShift.findUnique({
       where: { date: current },
       select: { driverId: true },
