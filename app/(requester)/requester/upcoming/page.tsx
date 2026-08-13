@@ -197,8 +197,10 @@ function TripCard({
               it — so it belongs on the admin surfaces only. Offering it to the
               requester invited them to submit their own copy, and made the card
               busier than the one thing it is for: where and when. */}
+          {/* ?from: the detail page's back arrow returns to THIS board rather
+              than dumping the requester in the request log they never opened. */}
           <Link
-            href={`/requester/${b.id}`}
+            href={`/requester/${b.id}?from=upcoming`}
             className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-primary hover:underline"
           >
             {t("detailLink")}

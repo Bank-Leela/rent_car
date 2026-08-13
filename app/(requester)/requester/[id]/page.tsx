@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
@@ -8,22 +9,33 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { CancelForm } from "@/components/forms/cancel-form";
 import { EvaluationForm } from "@/components/forms/evaluation-form";
-import { TimeChangeForm } from "@/components/forms/time-change-form";
 import { DetailField as Field } from "@/components/detail-field";
 import { InChulaChip } from "@/components/in-chula-chip";
 import { formatTh } from "@/lib/format-date";
 import { formatBaht } from "@/lib/format-money";
 
+// Where the back arrow returns to, keyed by the `?from` the linking page sets.
+// An allow-list, not the raw value: a path taken straight from the query string
+// is an open redirect waiting to happen.
+const BACK_TARGETS = {
+  upcoming: { href: "/requester/upcoming", labelKey: "upcoming" },
+  list: { href: "/requester", labelKey: "myBookings" },
+} as const;
+
 export default async function RequesterBookingDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const session = await requireRole("REQUESTER");
   const { id } = await params;
+  const { from } = await searchParams;
   const t = await getTranslations("bookingDetail");
-  const tc = await getTranslations("common");
+  const tnav = await getTranslations("nav");
   const tr = await getTranslations("requesterDetail");
+  const back = BACK_TARGETS[from as keyof typeof BACK_TARGETS] ?? BACK_TARGETS.list;
   // Reuse the booking-form field/value labels so the requester can review every
   // input they filled in (pickup, vehicle type, gender counts, one-way, etc.).
   const tf = await getTranslations("bookingForm");
@@ -49,12 +61,10 @@ export default async function RequesterBookingDetail({
   });
   if (!booking || booking.requesterId !== session.user.id) notFound();
   const canCancel = !["COMPLETED", "CANCELLED", "DENIED"].includes(booking.status);
-  // Times are editable until the trip runs. Editing an ASSIGNED trip releases
-  // its vehicle/driver back to the queue (see updateBookingTimeAction) — the
-  // warning below tells the requester before they commit.
-  const canEditTime =
-    ["PENDING_APPROVAL", "APPROVED", "ASSIGNED"].includes(booking.status) &&
-    booking.startAt > new Date();
+  // No time editing: a requester who got the times wrong cancels and files a new
+  // request. Editing in place had to release an ASSIGNED trip's vehicle/driver
+  // and re-queue it, which is P'Top's decision to make, not a side effect of a
+  // requester touching a datetime field.
   // CR-06 follow-up: legacy COMPLETED bookings predate the completeTripAction
   // flow and may have no Trip row. Allow evaluation whenever status=COMPLETED
   // and no Evaluation exists yet; the action will lazy-create the Trip.
@@ -63,6 +73,17 @@ export default async function RequesterBookingDetail({
 
   return (
     <div className="space-y-6">
+      {/* Back arrow first, above the title: the requester arrives here from a
+          board or the log, and the only exit used to be a corner button that
+          always went to the log. */}
+      <Link
+        href={back.href}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        {tnav(back.labelKey)}
+      </Link>
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -80,12 +101,6 @@ export default async function RequesterBookingDetail({
             {tr("rebook")}
           </Link>
         )}
-        <Link
-          href="/requester"
-          className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          {tc("back")}
-        </Link>
         </div>
       </div>
 
@@ -261,27 +276,6 @@ export default async function RequesterBookingDetail({
                 </Link>
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {canEditTime && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{tr("changeTimeTitle")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {booking.status === "ASSIGNED" && (
-              <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300">
-                {tr("changeTimeAssignedWarning")}
-              </p>
-            )}
-            <TimeChangeForm
-              bookingId={booking.id}
-              startAt={booking.startAt}
-              endAt={booking.endAt}
-              outOfHoursReason={booking.outOfHoursReason}
-            />
           </CardContent>
         </Card>
       )}

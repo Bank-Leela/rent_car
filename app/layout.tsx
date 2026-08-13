@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ValidationBubble } from "@/components/forms/validation-bubble";
 import "./globals.css";
 
 // Self-hosted (app/fonts) so the build never depends on fonts.gstatic.com —
@@ -58,6 +59,9 @@ export default async function RootLayout({
         <ThemeProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             {children}
+            {/* Replaces the browser's unstyleable English validation bubble
+                app-wide; see the component for why it lives at the root. */}
+            <ValidationBubble />
             <Toaster richColors closeButton />
           </NextIntlClientProvider>
         </ThemeProvider>

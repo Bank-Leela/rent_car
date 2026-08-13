@@ -698,8 +698,6 @@
     "tripEvaluation": "ประเมินการเดินทาง",
     "evaluationSubmittedNote": "ขอบคุณ — คุณได้ประเมินทริปนี้แล้ว ฟีดแบ็กถูกส่งให้ฝ่ายยานยนต์เรียบร้อย",
     "cancelTitle": "ยกเลิก",
-    "changeTimeTitle": "แก้ไขเวลาเดินทาง",
-    "changeTimeAssignedWarning": "งานนี้จัดรถแล้ว การเปลี่ยนเวลาจะปลดรถ/คนขับออก และงานจะกลับไปรอจัดรถใหม่ตามเวลาใหม่",
     "rebook": "จองซ้ำ",
     "outsourceTitle": "จ้างรถภายนอก",
     "outsourceVendor": "ผู้ให้บริการ",
@@ -784,16 +782,6 @@
     "markOutsourced": "ระบุว่าเช่าจากภายนอก",
     "quoteFile": "ไฟล์ใบเสนอราคา (ถ้ามี)",
     "quoteHint": "PDF/รูปภาพ ไม่เกิน 10MB"
-  },
-  "timeChangeForm": {
-    "workHoursNotice": "เวลาทำงานของพนักงานขับรถคือ {from}–{to} หากเดินทางนอกช่วงเวลาดังกล่าวต้องระบุเหตุผล",
-    "startLabel": "เวลาเริ่มใหม่",
-    "endLabel": "เวลาสิ้นสุดใหม่ (กลับถึงคณะ)",
-    "reasonLabel": "เหตุผลกรณีนอกเวลาทำการ",
-    "reasonWarning": "เวลาที่เปลี่ยนใหม่อยู่นอกเวลาทำการ ผู้อนุมัติจะเห็นเหตุผลที่กรอกไว้",
-    "reasonPlaceholder": "ตัวอย่าง: ส่งตัวผู้ป่วยช่วงเช้า 06:00 น.",
-    "saving": "กำลังบันทึก…",
-    "save": "บันทึกเวลาใหม่"
   },
   "cancelForm": {
     "cancelThisBooking": "ยกเลิกการจองนี้",
@@ -1264,6 +1252,22 @@
     "templateSaved": "บันทึกเทมเพลตแล้ว",
     "templateDeleted": "ลบเทมเพลตแล้ว"
   },
+  "validation": {
+    "required": "กรุณากรอกข้อมูลในช่องนี้",
+    "requiredNamed": "กรุณากรอก{field}",
+    "requiredSelect": "กรุณาเลือกรายการ",
+    "requiredChoice": "กรุณาเลือกอย่างน้อยหนึ่งรายการ",
+    "invalid": "รูปแบบข้อมูลไม่ถูกต้อง",
+    "email": "กรุณากรอกอีเมลให้ถูกต้อง เช่น name@chula.ac.th",
+    "url": "กรุณากรอกลิงก์ให้ถูกต้อง เช่น https://maps.app.goo.gl/…",
+    "pattern": "รูปแบบข้อมูลไม่ตรงตามที่กำหนด",
+    "tooShort": "ต้องมีอย่างน้อย {min} ตัวอักษร",
+    "tooLong": "ต้องไม่เกิน {max} ตัวอักษร",
+    "rangeUnderflow": "ต้องไม่น้อยกว่า {min}",
+    "rangeOverflow": "ต้องไม่เกิน {max}",
+    "step": "ค่าที่กรอกไม่อยู่ในช่วงที่เลือกได้",
+    "badInput": "กรอกข้อมูลไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง"
+  },
   "listSearch": {
     "placeholder": "ค้นหา…",
     "noMatches": "ไม่พบรายการ",
@@ -1271,19 +1275,10 @@
     "countShown": "แสดง {shown} จาก {total} บัญชี"
   },
   "historyFilters": {
-    "from": "ตั้งแต่",
-    "to": "ถึง",
     "status_COMPLETED": "เสร็จสิ้น",
     "status_DENIED": "ไม่อนุมัติ",
     "status_CANCELLED": "ยกเลิก",
-    "clear": "ล้างตัวกรอง",
-    "status_PENDING_APPROVAL": "รออนุมัติ",
-    "status_WAITLIST": "รอคิว",
-    "status_AWAITING_DOCUMENT": "รอเอกสารอนุมัติ",
-    "status_APPROVED": "อนุมัติแล้ว",
-    "status_ASSIGNED": "จัดรถแล้ว",
-    "status_OUTSOURCED": "รถเช่าภายนอก",
-    "jobTypeAll": "ทุกประเภท"
+    "clear": "ล้างตัวกรอง"
   },
   "maps": {
     "estimate": "ประเมินระยะทาง (Google Maps)",

@@ -299,15 +299,3 @@ export const denyBookingSchema = z.object({
 export const matchBookingSchema = z.object({
   bookingId: z.string().min(1),
 });
-
-export const updateBookingTimeSchema = z.object({
-  bookingId: z.string().min(1),
-  startAt: datetimeLocal,
-  endAt: datetimeLocal,
-  outOfHoursReason: z
-    .string()
-    .max(1000)
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v ? v.trim() : undefined)),
-});

@@ -34,7 +34,7 @@ export function ProfileMenu({
   name: string | null;
   email: string | null;
   roleLabel: string;
-  labels: { account: string; changePassword: string; signOut: string };
+  labels: { account: string; signature: string; changePassword: string; signOut: string };
   // Role-specific extra links (e.g. admin "Signature & delegation").
   extraItems?: { href: string; label: string }[];
   isDevImpersonation: boolean;
@@ -62,6 +62,12 @@ export function ProfileMenu({
           <DropdownMenuItem onClick={() => router.push("/account")}>
             <UserCog className="mr-2 h-4 w-4" aria-hidden />
             {labels.account}
+          </DropdownMenuItem>
+          {/* The signature lives inside the account page, several cards down —
+              a requester filling the official form should not have to hunt for it. */}
+          <DropdownMenuItem onClick={() => router.push("/account#signature")}>
+            <FileSignature className="mr-2 h-4 w-4" aria-hidden />
+            {labels.signature}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push("/account#password")}>
             <KeyRound className="mr-2 h-4 w-4" aria-hidden />

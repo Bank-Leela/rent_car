@@ -26,25 +26,61 @@ function navItemClass(active: boolean) {
   ].join(" ");
 }
 
-export function NavLinks({ items }: { items: NavItem[] }) {
+// `disabled`: the bar is shown but nothing in it navigates — the temp-password
+// lock (proxy.ts) bounces every other route back to /account, so live links
+// would ping-pong. Rendered as spans, not disabled links, so nothing is
+// focusable or clickable.
+// `disabledReason` is the text of the lock, surfaced on hover. Dimming answers
+// "is this clickable" but not "why isn't it" — the banner explaining the lock is
+// further down the page, so someone who goes straight for the nav clicks a dead
+// link and learns nothing. Passed in rather than named here: this component has
+// no business knowing about passwords.
+export function NavLinks({
+  items,
+  disabled,
+  disabledReason,
+}: {
+  items: NavItem[];
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
   const pathname = usePathname();
   return (
     <div className="hidden md:flex items-center gap-1">
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          aria-current={isActive(pathname, item.href) ? "page" : undefined}
-          className={navItemClass(isActive(pathname, item.href))}
-        >
-          {item.label}
-        </Link>
-      ))}
+      {items.map((item) =>
+        disabled ? (
+          <span
+            key={item.href}
+            aria-disabled
+            title={disabledReason}
+            className="inline-flex h-9 cursor-not-allowed items-center rounded-md px-3 text-sm font-medium text-muted-foreground/50"
+          >
+            {item.label}
+          </span>
+        ) : (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={isActive(pathname, item.href) ? "page" : undefined}
+            className={navItemClass(isActive(pathname, item.href))}
+          >
+            {item.label}
+          </Link>
+        ),
+      )}
     </div>
   );
 }
 
-export function MobileNav({ items }: { items: NavItem[] }) {
+export function MobileNav({
+  items,
+  disabled,
+  disabledReason,
+}: {
+  items: NavItem[];
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -67,25 +103,41 @@ export function MobileNav({ items }: { items: NavItem[] }) {
             aria-hidden
           />
           <div className="absolute left-0 right-0 top-14 z-50 border-b bg-background shadow-lg">
+            {/* Stated once at the top rather than per item: a title tooltip does
+                nothing on touch, and the reason is the same for every row. */}
+            {disabled && disabledReason && (
+              <p className="mx-auto max-w-7xl px-4 pt-3 text-xs text-amber-700 dark:text-amber-400">
+                {disabledReason}
+              </p>
+            )}
             <ul className="mx-auto max-w-7xl px-4 py-2">
               {items.map((item) => {
                 const active = isActive(pathname, item.href);
                 return (
                   <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      aria-current={active ? "page" : undefined}
-                      className={[
-                        "flex min-h-11 items-center rounded-md px-3 text-sm font-medium transition-colors",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        active
-                          ? "bg-muted text-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                    </Link>
+                    {disabled ? (
+                      <span
+                        aria-disabled
+                        className="flex min-h-11 cursor-not-allowed items-center rounded-md px-3 text-sm font-medium text-muted-foreground/50"
+                      >
+                        {item.label}
+                      </span>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        aria-current={active ? "page" : undefined}
+                        className={[
+                          "flex min-h-11 items-center rounded-md px-3 text-sm font-medium transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          active
+                            ? "bg-muted text-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        ].join(" ")}
+                      >
+                        {item.label}
+                      </Link>
+                    )}
                   </li>
                 );
               })}

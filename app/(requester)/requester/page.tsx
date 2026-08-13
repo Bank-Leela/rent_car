@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, FileText, Star } from "lucide-react";
+import { FileText, Star } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -57,19 +57,11 @@ export default async function RequesterHome() {
     hasPdf: !!b.pdfUrl,
   }));
 
-  const newBookingButton = (
-    <Link
-      href="/requester/new"
-      className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-    >
-      <Plus className="h-4 w-4" />
-      {t("newBooking")}
-    </Link>
-  );
-
   return (
     <div className="space-y-8">
-      <PageHeader title={t("historyTitle")} description={t("historyDescription")} actions={newBookingButton} />
+      {/* No จองใหม่ button here: it is the first item in the header bar on every
+          requester page, and this one is a log — a read-only view. */}
+      <PageHeader title={t("historyTitle")} description={t("historyDescription")} />
 
       {pendingEvalBookings.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">

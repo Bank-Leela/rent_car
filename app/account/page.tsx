@@ -2,14 +2,17 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireUser, homePathFor } from "@/lib/auth-helpers";
+import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { ChangeUsernameForm } from "@/components/forms/change-username-form";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { ChangeDepartmentForm } from "@/components/forms/change-department-form";
 import { SignatureForm } from "@/components/forms/signature-form";
 import { listDepartments } from "@/lib/departments";
+import { navForRoles } from "@/lib/nav/role-nav";
 import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
 import { signOutAction } from "@/lib/auth/credentials-actions";
 
@@ -21,6 +24,7 @@ export default async function AccountPage({
   const session = await requireUser();
   const t = await getTranslations("account");
   const tc = await getTranslations("common");
+  const tAll = await getTranslations();
   const locale = await getLocale();
   const homePath = homePathFor(session.user.roles);
   const { forceChange } = await searchParams;
@@ -45,15 +49,25 @@ export default async function AccountPage({
   // Surface the stronger banner so they know they can't navigate away.
   const forced = forceChange === "1" || user.mustChangePassword;
   // This page sits outside the (requester)/(driver)/(admin) route groups, so it
-  // never gets their AppShell — there is no nav here at all. When the user is
-  // NOT locked that is fine, the back link below covers it. When they ARE
-  // locked, withholding the back link is the point, but withholding EVERY exit
-  // left them with no way out of the app short of clearing cookies. Sign-out is
-  // the escape that does not defeat the lock.
+  // gets no AppShell of its own — it borrows the one for the user's role below,
+  // which is also the way back to the rest of the app. While the user is LOCKED
+  // (temp password) the bar still renders, but inert: proxy.ts bounces every
+  // other route back here, so live links would ping-pong. Sign-out stays the one
+  // escape that does not defeat the lock.
   const isDevImpersonation = DEV_ENABLED && !!(await cookies()).get(DEV_COOKIE);
+  const { badgeRole, routes } = navForRoles(session.user.roles, {
+    isStation: isStationEmail(session.user.email),
+  });
 
-  return (
-    <div className="min-h-screen p-6 max-w-2xl mx-auto space-y-6">
+  const body = (
+    // mx-auto, and it matters: AppShell centres <main> at max-w-7xl, so a bare
+    // max-w-2xl column sat hard against the left of a 1280 px shell and left
+    // ~690 px of dead space on a wide screen — it read as broken alignment
+    // rather than as a narrow form. Every other page fills the shell; this is
+    // the only page with a width of its own, so it has to centre itself.
+    // 3xl over 2xl so the centred column is not a thin ribbon at 1512 px wide,
+    // while staying narrow enough that the inputs are not absurdly long.
+    <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -119,7 +133,8 @@ export default async function AccountPage({
         </CardContent>
       </Card>
 
-      <Card>
+      {/* id: the profile menu's ลายเซ็น item links straight here. */}
+      <Card id="signature" className="scroll-mt-20">
         <CardHeader>
           <CardTitle>{ts("title")}</CardTitle>
         </CardHeader>
@@ -133,7 +148,7 @@ export default async function AccountPage({
         </CardContent>
       </Card>
 
-      <Card id="password" className={forced ? "border-primary/40 ring-1 ring-primary/30" : ""}>
+      <Card id="password" className={`scroll-mt-20 ${forced ? "border-primary/40 ring-1 ring-primary/30" : ""}`}>
         <CardHeader>
           <CardTitle>{t("passwordTitle")}</CardTitle>
         </CardHeader>
@@ -142,5 +157,20 @@ export default async function AccountPage({
         </CardContent>
       </Card>
     </div>
+  );
+
+  return (
+    <AppShell
+      badgeRole={badgeRole}
+      user={session.user}
+      nav={routes.map((r) => ({ href: r.href, label: tAll(r.labelKey) }))}
+      navDisabled={forced}
+      // Same sentence the banner shows, repeated where the click fails: the
+      // banner is below the header, so someone who reaches for the nav first
+      // hits a dead link with no reason given.
+      navDisabledReason={forced ? t("mustChangeBlocked") : undefined}
+    >
+      {body}
+    </AppShell>
   );
 }

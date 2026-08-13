@@ -252,24 +252,6 @@ export function requesterDriverOffEmail(b: BookingDetailed) {
   };
 }
 
-// Admin heads-up when a requester changes the time of an already-dispatched
-// (ASSIGNED) trip: the assignment was cleared and the trip is back in the
-// APPROVED queue for re-dispatch at the new time.
-export function adminTimeChangedEmail(b: BookingDetailed) {
-  const subject = `[เปลี่ยนเวลา ${tripName(b)}] ต้องจัดรถใหม่`;
-  const introTh = `ผู้ขอเปลี่ยนเวลาเดินทางของงานที่จัดรถแล้ว ระบบได้ปลดรถ/คนขับออก และย้ายงานกลับคิวรอจัดรถ`;
-  const url = viewUrl(`/admin/${b.id}`);
-  return {
-    subject,
-    text: `${introTh}\n\n${bookingFactsText(b)}${ctaButtonText(url, "จัดรถใหม่")}`,
-    html: wrapHtml(
-      introTh,
-      bookingFactsHtml(b),
-      ctaButtonHtml(url, "จัดรถใหม่"),
-    ),
-  };
-}
-
 export function requesterApprovedEmail(b: BookingDetailed) {
   const subject = `อนุมัติแล้ว · ${tripName(b)}`;
   const introTh = `การจองของคุณได้รับการอนุมัติจากหัวหน้าภาควิชาแล้ว · ผู้ดูแลระบบจะจัดรถให้ในขั้นตอนถัดไป`;

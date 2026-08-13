@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { REQUESTER_NAV, driverNav, ADMIN_SECTION_NAV } from "@/lib/nav/role-nav";
 
 // next-intl resolves message keys at RUNTIME, so a key that does not exist —
 // or one read from the wrong namespace — compiles cleanly and then renders the
@@ -77,8 +78,14 @@ describe("i18n message keys", () => {
   };
 
   it.each([
-    // DRAFT is deliberately absent from the filter row: a draft was never submitted.
-    ["historyFilters", "status_", "BookingStatus", ["DRAFT"]],
+    // The history filter offers the three TERMINAL statuses only — how a request
+    // ended. The live ones belong to the ที่จะมาถึง board and have no chip here.
+    [
+      "historyFilters",
+      "status_",
+      "BookingStatus",
+      ["DRAFT", "PENDING_APPROVAL", "WAITLIST", "AWAITING_DOCUMENT", "APPROVED", "ASSIGNED", "OUTSOURCED"],
+    ],
     ["status", "", "BookingStatus", []],
     ["jobType", "", "JobType", []],
   ] as const)("%s covers every %s{%s}", (namespace, prefix, enumName, skip) => {
@@ -88,5 +95,18 @@ describe("i18n message keys", () => {
       .filter((v) => !skip.includes(v as never))
       .filter((v) => !resolves(namespace, `${prefix}${v}`));
     expect(missing).toEqual([]);
+  });
+
+  // Header nav labels are fully-qualified keys resolved through a ROOT
+  // translator (t(r.labelKey)), which the literal walker also cannot see.
+  it("every header nav route has a label", () => {
+    const routes = [
+      ...REQUESTER_NAV,
+      ...driverNav(true),
+      ...driverNav(false),
+      ...ADMIN_SECTION_NAV,
+    ];
+    expect(routes.length).toBeGreaterThan(8);
+    expect(routes.filter((r) => !resolves("", r.labelKey)).map((r) => r.labelKey)).toEqual([]);
   });
 });

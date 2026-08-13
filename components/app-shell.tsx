@@ -18,6 +18,8 @@ export async function AppShell({
   desktopNav,
   headerActions,
   profileExtra,
+  navDisabled,
+  navDisabledReason,
   children,
 }: {
   /** The role to display in the header pill. */
@@ -34,6 +36,11 @@ export async function AppShell({
   headerActions?: React.ReactNode;
   /** Optional extra items appended to the avatar dropdown (e.g. admin signature). */
   profileExtra?: NavItem[];
+  /** Show the bar, but let nothing in it navigate — see NavLinks. Used by
+      /account while the user is locked on a temporary password. */
+  navDisabled?: boolean;
+  /** Why the bar is inert, shown on hover (desktop) / above the drawer (mobile). */
+  navDisabledReason?: string;
   children: React.ReactNode;
 }) {
   const t = await getTranslations();
@@ -45,19 +52,30 @@ export async function AppShell({
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-14 items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <MobileNav items={nav} />
-            <Link
-              href="/"
-              className="flex items-center gap-2 font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
-            >
-              <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
-                <Car className="h-4 w-4" aria-hidden />
+            <MobileNav items={nav} disabled={navDisabled} disabledReason={navDisabledReason} />
+            {navDisabled ? (
+              <span className="flex items-center gap-2 font-semibold tracking-tight">
+                <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
+                  <Car className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="inline">{t("brand.name")}</span>
               </span>
-              <span className="inline">{t("brand.name")}</span>
-            </Link>
+            ) : (
+              <Link
+                href="/"
+                className="flex items-center gap-2 font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
+              >
+                <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
+                  <Car className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="inline">{t("brand.name")}</span>
+              </Link>
+            )}
           </div>
           <nav className="flex items-center gap-1">
-            {desktopNav ?? <NavLinks items={nav} />}
+            {desktopNav ?? (
+              <NavLinks items={nav} disabled={navDisabled} disabledReason={navDisabledReason} />
+            )}
             {headerActions}
             <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
             <ThemeToggle />
@@ -67,6 +85,7 @@ export async function AppShell({
               roleLabel={roleLabel}
               labels={{
                 account: t("common.accountSettings"),
+                signature: t("signatureForm.title"),
                 changePassword: t("common.changePassword"),
                 signOut: t("common.signOut"),
               }}
