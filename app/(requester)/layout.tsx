@@ -11,8 +11,8 @@ export default async function RequesterLayout({ children }: { children: React.Re
       user={session.user}
       nav={[
         { href: "/requester/new", label: t("newBooking") },
-        { href: "/requester", label: t("myBookings") },
         { href: "/requester/upcoming", label: t("upcoming") },
+        { href: "/requester", label: t("myBookings") },
       ]}
     >
       {children}

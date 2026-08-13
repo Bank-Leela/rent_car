@@ -61,4 +61,32 @@ describe("i18n message keys", () => {
     expect(checked).toBeGreaterThan(500); // the walker still finds the app
     expect(missing).toEqual([]);
   });
+
+  // The walker above cannot see t(`status_${s}`), and that is exactly how
+  // AWAITING_DOCUMENT shipped as a raw key in the requester history filter:
+  // the enum grew, the message file did not. Every enum-derived namespace is
+  // pinned to schema.prisma here so the next added status fails a test instead
+  // of a page.
+  const schema = readFileSync("prisma/schema.prisma", "utf8");
+  const enumValues = (name: string): string[] => {
+    const body = new RegExp(`enum ${name} \\{([\\s\\S]*?)\\n\\}`).exec(schema)?.[1] ?? "";
+    return stripComments(body)
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => /^[A-Z_]+$/.test(l));
+  };
+
+  it.each([
+    // DRAFT is deliberately absent from the filter row: a draft was never submitted.
+    ["historyFilters", "status_", "BookingStatus", ["DRAFT"]],
+    ["status", "", "BookingStatus", []],
+    ["jobType", "", "JobType", []],
+  ] as const)("%s covers every %s{%s}", (namespace, prefix, enumName, skip) => {
+    const values = enumValues(enumName);
+    expect(values.length).toBeGreaterThan(3); // the enum was actually parsed
+    const missing = values
+      .filter((v) => !skip.includes(v as never))
+      .filter((v) => !resolves(namespace, `${prefix}${v}`));
+    expect(missing).toEqual([]);
+  });
 });

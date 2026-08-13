@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
 import {
   addAdHocRowAction,
   outsourceToRowAction,
-  setAdHocContactAction,
+  updateAdHocRowAction,
   unoutsourceAction,
 } from "@/lib/booking/adhoc-actions";
 
@@ -102,9 +102,12 @@ describe("outside-vehicle contact", () => {
 
     const setC = new FormData();
     setC.set("id", row.id);
+    // The label is required — an edit that blanked it would wipe the vendor name
+    // off every attached trip — so an unchanged one is resent.
+    setC.set("label", "บริษัท ข");
     setC.set("contactName", "วิชัย");
     setC.set("contactPhone", "089-999-0000");
-    expect((await setAdHocContactAction(setC)).ok).toBe(true);
+    expect((await updateAdHocRowAction(setC)).ok).toBe(true);
 
     const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
     expect(after.outsourceContactName).toBe("วิชัย");
@@ -112,6 +115,65 @@ describe("outside-vehicle contact", () => {
     // And the row itself keeps it, for the next trip attached to it.
     const rowAfter = await prisma.adHocVehicle.findUniqueOrThrow({ where: { id: row.id } });
     expect(rowAfter.contactPhone).toBe("089-999-0000");
+  });
+
+  it("renaming the vendor renames it on the attached trips too", async () => {
+    // outsourceVendor is a COPY of the label (the requester's page reads the
+    // booking, not the row), so a rename that stopped at the row would leave every
+    // attached trip — and the requester — naming the old company.
+    const row = await rowFor("บริษัท ผิด", { name: "สมหมาย", phone: "081-000-1111" });
+    const id = await makeApproved();
+    const attach = new FormData();
+    attach.set("bookingId", id);
+    attach.set("rowId", row.id);
+    expect((await outsourceToRowAction(attach)).ok).toBe(true);
+    expect((await prisma.booking.findUniqueOrThrow({ where: { id } })).outsourceVendor).toBe("บริษัท ผิด");
+
+    const fd = new FormData();
+    fd.set("id", row.id);
+    fd.set("label", "บริษัท ถูก");
+    fd.set("cost", "8500");
+    fd.set("contactName", "สมหมาย");
+    fd.set("contactPhone", "081-000-1111");
+    expect((await updateAdHocRowAction(fd)).ok).toBe(true);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.outsourceVendor, "the trip follows the rename").toBe("บริษัท ถูก");
+    const rowAfter = await prisma.adHocVehicle.findUniqueOrThrow({ where: { id: row.id } });
+    expect(rowAfter.label).toBe("บริษัท ถูก");
+    expect(Number(rowAfter.cost)).toBe(8500);
+  });
+
+  it("an empty cost means no price agreed, not zero", async () => {
+    const row = await rowFor("บริษัท ราคา", { name: "ก", phone: "1" });
+    const withCost = new FormData();
+    withCost.set("id", row.id);
+    withCost.set("label", "บริษัท ราคา");
+    withCost.set("cost", "1200");
+    expect((await updateAdHocRowAction(withCost)).ok).toBe(true);
+    expect(Number((await prisma.adHocVehicle.findUniqueOrThrow({ where: { id: row.id } })).cost)).toBe(1200);
+
+    const cleared = new FormData();
+    cleared.set("id", row.id);
+    cleared.set("label", "บริษัท ราคา");
+    cleared.set("cost", "");
+    expect((await updateAdHocRowAction(cleared)).ok).toBe(true);
+    expect(
+      (await prisma.adHocVehicle.findUniqueOrThrow({ where: { id: row.id } })).cost,
+      "cleared back to null, not 0",
+    ).toBeNull();
+  });
+
+  it("refuses to blank the vendor name", async () => {
+    const row = await rowFor("บริษัท คงอยู่");
+    const fd = new FormData();
+    fd.set("id", row.id);
+    fd.set("label", "   ");
+    expect((await updateAdHocRowAction(fd)).ok).toBe(false);
+    expect(
+      (await prisma.adHocVehicle.findUniqueOrThrow({ where: { id: row.id } })).label,
+      "the name survives a refused edit",
+    ).toBe("บริษัท คงอยู่");
   });
 
   it("clears the contact when a trip comes back in-house", async () => {

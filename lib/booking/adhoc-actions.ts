@@ -42,31 +42,56 @@ export async function addAdHocRowAction(formData: FormData): Promise<ActionResul
 }
 
 /**
- * Set (or change) the contact on an existing outside-vehicle row.
+ * Edit an existing outside-vehicle row: its name, its cost, and its contact.
  *
  * Needed because a row is normally created before the vendor has said who is
- * driving. Without this the only way to add a contact would be to delete the row
- * and make it again — and deleting a row un-outsources every trip on it, so
- * filling in a phone number would silently undo the day's arrangements.
+ * driving, and because the name and price get corrected — a company confirms its
+ * real name, a quote comes in higher. Without this the only way to change any of
+ * it was to delete the row and make it again, and deleting a row un-outsources
+ * every trip on it, so fixing a typo silently undid the day's arrangements.
  *
- * The trips already attached are updated in the same transaction: they hold their
- * own copy (see outsourceToRowAction), so leaving them alone would show the
- * requester a blank contact while the board showed a filled one.
+ * The attached trips are updated in the same transaction. They hold their OWN copy
+ * of the vendor name and contact (see outsourceToRowAction, and the requester's
+ * booking page reads the booking, not this row), so leaving them alone would show
+ * the requester the old company and a blank contact while the board showed the new
+ * ones.
+ *
+ * `cost` is intentionally nullable: an empty box means "no price agreed yet",
+ * which is different from zero.
  */
-export async function setAdHocContactAction(formData: FormData): Promise<ActionResult> {
+export async function updateAdHocRowAction(formData: FormData): Promise<ActionResult> {
   await requireRole("ADMIN");
   const id = String(formData.get("id") ?? "");
   if (!id) return { ok: false, error: "invalidInput" };
+  const label = String(formData.get("label") ?? "").trim();
+  // The label IS the vendor identity — it is what gets copied onto every booking
+  // and what the requester is shown — so an empty one is not an edit, it is data
+  // loss.
+  if (!label) return { ok: false, error: "invalidInput" };
+  const costRaw = String(formData.get("cost") ?? "").trim();
+  const parsedCost = costRaw === "" ? null : Number(costRaw);
+  const cost = parsedCost != null && Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : null;
   const contactName = String(formData.get("contactName") ?? "").trim() || null;
   const contactPhone = String(formData.get("contactPhone") ?? "").trim() || null;
+
   const row = await prisma.adHocVehicle.findUnique({ where: { id }, select: { id: true } });
   if (!row) return { ok: false, error: "invalidInput" };
 
   await prisma.$transaction(async (tx) => {
-    await tx.adHocVehicle.update({ where: { id }, data: { contactName, contactPhone } });
+    await tx.adHocVehicle.update({
+      where: { id },
+      data: { label, cost, contactName, contactPhone },
+    });
     await tx.booking.updateMany({
       where: { adHocVehicleId: id, status: "OUTSOURCED" },
-      data: { outsourceContactName: contactName, outsourceContactPhone: contactPhone },
+      data: {
+        // outsourceVendor is a copy of the label, so renaming the row without
+        // this left every attached trip — and the requester's page — naming the
+        // old company.
+        outsourceVendor: label,
+        outsourceContactName: contactName,
+        outsourceContactPhone: contactPhone,
+      },
     });
   });
   revalidatePath("/admin/schedule");

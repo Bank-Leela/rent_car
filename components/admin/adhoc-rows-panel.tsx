@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { CalendarPlus, Phone, Plus, Truck, X } from "lucide-react";
+import { CalendarPlus, Pencil, Phone, Plus, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBaht } from "@/lib/format-money";
@@ -13,7 +13,7 @@ import {
   addAdHocRowAction,
   removeAdHocRowAction,
   outsourceToRowAction,
-  setAdHocContactAction,
+  updateAdHocRowAction,
   carryVendorToSeriesAction,
 } from "@/lib/booking/adhoc-actions";
 
@@ -84,6 +84,8 @@ export function AdHocRowsPanel({
   // vendor says who is driving, so the contact has to be fillable afterwards —
   // deleting and re-adding the row would un-outsource every trip on it.
   const [editing, setEditing] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editCost, setEditCost] = useState("");
   const [editDriver, setEditDriver] = useState("");
   const [editPhone, setEditPhone] = useState("");
 
@@ -108,17 +110,22 @@ export function AdHocRowsPanel({
 
   const openEdit = (r: AdHocPanelRow) => {
     setEditing(r.id);
+    setEditLabel(r.label);
+    setEditCost(r.cost ?? "");
     setEditDriver(r.contactName ?? "");
     setEditPhone(r.contactPhone ?? "");
   };
 
-  const saveContact = (id: string) =>
+  const saveRow = (id: string) =>
     start(async () => {
       const fd = new FormData();
       fd.set("id", id);
+      fd.set("label", editLabel.trim());
+      fd.set("cost", editCost.trim());
       fd.set("contactName", editDriver.trim());
       fd.set("contactPhone", editPhone.trim());
-      await setAdHocContactAction(fd);
+      const res = await updateAdHocRowAction(fd);
+      if (!res.ok) return; // the name is required; leave the panel open to fix it
       setEditing(null);
       router.refresh();
     });
@@ -279,25 +286,40 @@ export function AdHocRowsPanel({
                 </div>
                 {/* The contact sits under the vendor name, not beside the trips —
                     it belongs to the vehicle, not to any one trip on it.
-                    min-w-0 on both this column and the button: `truncate` only
-                    clips when every flex ancestor is allowed to shrink below its
-                    content, otherwise a long vendor + phone widens the column. */}
-                <button
-                  type="button"
-                  onClick={() => openEdit(r)}
-                  className="flex min-w-0 items-center gap-1 self-start rounded text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Phone className="h-3 w-3 shrink-0" aria-hidden />
-                  {r.contactPhone || r.contactName ? (
-                    <span className="truncate">
-                      {[r.contactName, r.contactPhone].filter(Boolean).join(" · ")}
-                    </span>
-                  ) : (
-                    // Named as the missing thing, so a row without a contact
-                    // reads as unfinished rather than as having none.
-                    <span className="text-amber-700 dark:text-amber-400">{t("externalContactAdd")}</span>
-                  )}
-                </button>
+                    min-w-0 so `truncate` can actually clip: it only does when
+                    every flex ancestor may shrink below its content.
+
+                    An explicit แก้ไข button, not a clickable line of text. The
+                    contact used to be the only editable part and the only way in
+                    was clicking that small grey row, which nobody could be
+                    expected to discover — and the name and cost could not be
+                    changed at all without deleting the row, which un-outsources
+                    every trip on it. */}
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                    <Phone className="h-3 w-3 shrink-0" aria-hidden />
+                    {r.contactPhone || r.contactName ? (
+                      <span className="truncate">
+                        {[r.contactName, r.contactPhone].filter(Boolean).join(" · ")}
+                      </span>
+                    ) : (
+                      // Named as the missing thing, so a row without a contact
+                      // reads as unfinished rather than as having none.
+                      <span className="text-amber-700 dark:text-amber-400">{t("externalContactMissing")}</span>
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={pending}
+                    onClick={() => openEdit(r)}
+                  >
+                    <Pencil className="h-3 w-3" aria-hidden />
+                    {t("externalEditRow")}
+                  </Button>
+                </div>
               </div>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 {r.trips.length === 0 ? (
@@ -348,6 +370,23 @@ export function AdHocRowsPanel({
                <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-muted/40 p-2">
                  <Input
                    autoFocus
+                   value={editLabel}
+                   onChange={(e) => setEditLabel(e.target.value)}
+                   placeholder={t("externalNamePlaceholder")}
+                   aria-label={t("externalNamePlaceholder")}
+                   className="h-8 w-full text-xs sm:w-52"
+                 />
+                 <Input
+                   value={editCost}
+                   onChange={(e) => setEditCost(e.target.value)}
+                   type="number"
+                   step="0.01"
+                   min={0}
+                   placeholder={t("externalCostPlaceholder")}
+                   aria-label={t("externalCostPlaceholder")}
+                   className="h-8 w-full text-xs sm:w-32"
+                 />
+                 <Input
                    value={editDriver}
                    onChange={(e) => setEditDriver(e.target.value)}
                    placeholder={t("externalContactNamePlaceholder")}
@@ -363,7 +402,15 @@ export function AdHocRowsPanel({
                    aria-label={t("externalContactPhonePlaceholder")}
                    className="h-8 w-full text-xs sm:w-40"
                  />
-                 <Button type="button" size="sm" disabled={pending} onClick={() => saveContact(r.id)}>
+                 {/* Disabled on an empty name rather than silently refused by the
+                     server: the label is the vendor identity copied onto every
+                     attached trip, so blanking it is data loss, not an edit. */}
+                 <Button
+                   type="button"
+                   size="sm"
+                   disabled={pending || !editLabel.trim()}
+                   onClick={() => saveRow(r.id)}
+                 >
                    {t("externalContactSave")}
                  </Button>
                  <Button
