@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { FileText, Star } from "lucide-react";
+import { FileText, Star, Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { PageHeader } from "@/components/page-header";
+import { HeroBand } from "@/components/hero-band";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import {
   HISTORY_BOOKING_STATUSES,
@@ -61,7 +62,40 @@ export default async function RequesterHome() {
     <div className="space-y-8">
       {/* No จองใหม่ button here: it is the first item in the header bar on every
           requester page, and this one is a log — a read-only view. */}
-      <PageHeader title={t("historyTitle")} description={t("historyDescription")} />
+      <HeroBand
+        title={t("historyTitle")}
+        description={t("historyDescription")}
+        icon={FileText}
+        stats={
+          historyRows.length > 0
+            ? [
+                { label: t("historyTitle"), value: historyRows.length },
+                ...(pendingEvalBookings.length > 0
+                  ? [
+                      {
+                        label: t("pendingEvalDescription"),
+                        value: pendingEvalBookings.length,
+                        tone: "urgent" as const,
+                      },
+                    ]
+                  : []),
+              ]
+            : undefined
+        }
+        actions={
+          // nativeButton={false}: this renders as an <a>, and Base UI otherwise
+          // keeps native button semantics on a link.
+          <Button
+            size="xl"
+            variant="secondary"
+            nativeButton={false}
+            render={<Link href="/requester/new" />}
+          >
+            <Plus aria-hidden />
+            {t("newBooking")}
+          </Button>
+        }
+      />
 
       {pendingEvalBookings.length > 0 && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/30">
@@ -94,7 +128,20 @@ export default async function RequesterHome() {
       )}
 
       {historyRows.length === 0 ? (
-        <EmptyState icon={FileText} title={t("historyEmptyTitle")} description={t("historyEmptyDescription")} />
+        <EmptyState
+          icon={FileText}
+          title={t("historyEmptyTitle")}
+          description={t("historyEmptyDescription")}
+          action={
+            // A brand-new requester's first screen had no way forward on it at
+            // all — the only route to filing a request was the nav bar. `action`
+            // has existed on EmptyState since it was written and nothing passed it.
+            <Button size="xl" nativeButton={false} render={<Link href="/requester/new" />}>
+              <Plus aria-hidden />
+              {t("newBooking")}
+            </Button>
+          }
+        />
       ) : (
         <RequesterHistoryClient bookings={historyRows} />
       )}

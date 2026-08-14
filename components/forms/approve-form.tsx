@@ -36,8 +36,8 @@ export function ApproveForm({
   return (
     <form action={run} className="flex flex-1 flex-col gap-3">
       {!returnTrip && (
-        <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-400/40 dark:bg-amber-500/10">
-          <Label htmlFor="endAt" className="text-amber-900 dark:text-amber-200">
+        <div className="grid gap-2 rounded-md border border-urgent/40 bg-urgent-surface p-3">
+          <Label htmlFor="endAt" className="text-urgent-foreground">
             {t("setEndTimeLabel")}
             <span aria-hidden className="ml-0.5 text-destructive">*</span>
           </Label>
@@ -53,7 +53,7 @@ export function ApproveForm({
             placeholder={t("setEndTimeLabel")}
             timeLabel={t("confirmEndLabel")}
           />
-          <p className="text-xs text-amber-800/80 dark:text-amber-200/70">{t("setEndTimeHelper")}</p>
+          <p className="text-xs text-urgent-foreground/80">{t("setEndTimeHelper")}</p>
         </div>
       )}
       <div className="grid gap-2">

@@ -27,6 +27,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -39,6 +40,19 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-urgent: var(--urgent);
+  --color-urgent-foreground: var(--urgent-foreground);
+  --color-urgent-surface: var(--urgent-surface);
+  --color-bar: var(--bar);
+  --color-bar-foreground: var(--bar-foreground);
+  --color-bar-muted: var(--bar-muted);
+  --color-bar-accent: var(--bar-accent);
+  --color-bar-border: var(--bar-border);
+  /* shadow-e1 / shadow-e2 / shadow-e3 — one elevation vocabulary for the whole
+     app, so a card, a popover and a dragged chip cannot each invent their own. */
+  --shadow-e1: var(--elev-1);
+  --shadow-e2: var(--elev-2);
+  --shadow-e3: var(--elev-3);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,8 +63,13 @@
 }
 
 :root {
-  /* Surface */
-  --background: oklch(0.985 0.005 280);
+  /* Surface — a ladder, not a shade.
+     The ground was 0.985 and the card 1.0: a 1.5% step, which at a glance is no
+     step at all, so nine stacked cards read as one flat sheet ruled into
+     rectangles. Dropping the ground to 0.965 keeps the card pure white and gives
+     it something to sit ON. The slight blue in the ground (chroma at hue 265) is
+     what stops it reading as dirty grey. */
+  --background: oklch(0.965 0.006 265);
   --foreground: oklch(0.18 0.02 270);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.02 270);
@@ -66,6 +85,14 @@
   --accent: oklch(0.94 0.04 320);
   --accent-foreground: oklch(0.3 0.1 320);
   --destructive: oklch(0.58 0.22 25);
+  /* `text-destructive-foreground` was referenced by the notification badge and
+     DEFINED NOWHERE — no token, no @theme mapping — so the count inherited its
+     colour and measured 2.65:1 against the badge. A count nobody can read is the
+     one thing a notification badge exists to do.
+     `--destructive` itself is unchanged: it is used as `bg-destructive/10
+     text-destructive` by every destructive button, and darkening it would drag
+     those with it. This is the pairing colour only. */
+  --destructive-foreground: oklch(0.99 0.01 25);
   --border: oklch(0.91 0.012 280);
   --input: oklch(0.91 0.012 280);
   --ring: oklch(0.55 0.18 270);
@@ -75,6 +102,32 @@
   --chart-3: oklch(0.7 0.18 145);  /* green */
   --chart-4: oklch(0.72 0.18 70);  /* amber */
   --chart-5: oklch(0.62 0.2 25);   /* coral */
+  /* Urgency, as its own token. จองเร่งด่วน / SLA-overdue / capacity-full were
+     each reaching for an ad-hoc amber, so "this needs you NOW" was a slightly
+     different colour on every surface. One warm token, used only for that, is
+     how a booking product makes urgency findable without shouting everywhere. */
+  --urgent: oklch(0.68 0.17 52);
+  --urgent-foreground: oklch(0.28 0.09 52);
+  --urgent-surface: oklch(0.96 0.045 75);
+  /* The app bar is a BRANDED surface, not a page surface.
+     It was bg-background/80 — the same value as the page, separated by a
+     hairline — so the app opened with nothing on it and the header dissolved
+     into the content. It is now the deep indigo the hero band starts from, and
+     deliberately the SAME in both themes: a branded bar is the one element that
+     should not change identity when the lights go out (Agoda, Linear, Gmail all
+     do this). --bar matches the hero band's first gradient stop exactly, so
+     where a band hangs beneath the bar the seam is invisible. */
+  --bar: oklch(0.30 0.12 258);
+  --bar-foreground: oklch(0.99 0 0);
+  --bar-muted: oklch(0.99 0 0 / 0.68);
+  --bar-accent: oklch(1 0 0 / 0.14);
+  --bar-border: oklch(1 0 0 / 0.12);
+  /* Elevation. Two soft, tight shadows rather than one big blur: the near shadow
+     draws the edge, the far one gives the card weight. Light theme only needs
+     neutral black at low alpha; the dark theme overrides these entirely. */
+  --elev-1: 0 1px 2px oklch(0.2 0.03 270 / 0.06), 0 1px 3px oklch(0.2 0.03 270 / 0.08);
+  --elev-2: 0 2px 4px oklch(0.2 0.03 270 / 0.07), 0 4px 12px oklch(0.2 0.03 270 / 0.1);
+  --elev-3: 0 8px 20px oklch(0.2 0.03 270 / 0.12), 0 2px 6px oklch(0.2 0.03 270 / 0.08);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -87,12 +140,31 @@
 }
 
 .dark {
-  --background: oklch(0.165 0.008 270);
+  /* Dark needs the ladder MORE than light does, not less. A shadow cast on a
+     near-black ground is invisible, so on dark the separation has to be carried
+     by lightness and by a hairline top highlight (see --elev-* below) — the way
+     a raised surface actually catches light. Ground drops to 0.145 so the card
+     at 0.215 is unmistakably in front of it. */
+  --background: oklch(0.145 0.008 270);
   --foreground: oklch(0.97 0.005 280);
-  --card: oklch(0.235 0.012 270);
+  --card: oklch(0.215 0.012 270);
   --card-foreground: oklch(0.97 0.005 280);
-  --popover: oklch(0.235 0.012 270);
+  /* A popover floats ABOVE a card, so it cannot be the same value as one. */
+  --popover: oklch(0.245 0.013 270);
   --popover-foreground: oklch(0.97 0.005 280);
+  --urgent: oklch(0.78 0.16 62);
+  --urgent-foreground: oklch(0.9 0.1 70);
+  --urgent-surface: oklch(0.3 0.06 55);
+  /* A shade deeper than the light theme's bar so it still sits IN FRONT of a
+     0.145 ground rather than glowing off it. Same hue and chroma, so the brand
+     colour is recognisably one colour across both themes. */
+  --bar: oklch(0.255 0.105 258);
+  /* The inset hairline is the load-bearing part: on a dark ground a drop shadow
+     is nearly invisible, and it is the lit top edge that says "raised". The drop
+     shadows stay, deeper and softer, to seat the card rather than outline it. */
+  --elev-1: inset 0 1px 0 oklch(1 0 0 / 0.05), 0 1px 2px oklch(0 0 0 / 0.4);
+  --elev-2: inset 0 1px 0 oklch(1 0 0 / 0.07), 0 2px 6px oklch(0 0 0 / 0.45), 0 8px 20px oklch(0 0 0 / 0.3);
+  --elev-3: inset 0 1px 0 oklch(1 0 0 / 0.09), 0 10px 30px oklch(0 0 0 / 0.55);
   --primary: oklch(0.72 0.18 270);
   --primary-foreground: oklch(0.14 0.02 270);
   --secondary: oklch(0.3 0.018 270);
@@ -102,6 +174,9 @@
   --accent: oklch(0.34 0.04 320);
   --accent-foreground: oklch(0.96 0.04 320);
   --destructive: oklch(0.72 0.18 22);
+  /* Dark theme's --destructive is a LIGHT red, so its pairing colour has to be
+     dark or the badge is light-on-light. */
+  --destructive-foreground: oklch(0.2 0.06 22);
   --border: oklch(1 0 0 / 14%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.65 0.18 270);
@@ -124,20 +199,48 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* No corner gradient wash. Two magenta/indigo radial blobs bled across the
+     top of every page and did two bad things: they are the single most
+     recognisable "generated by a prompt" tell, and — worse here — they lifted
+     the ground unevenly so a card's own surface stopped reading as raised. The
+     depth now comes from an honest value ladder (ground → card → raised) plus
+     shadow, which is what makes a board of nine cards scannable. */
   body {
     @apply bg-background text-foreground antialiased;
-    background-image:
-      radial-gradient(at 0% 0%, oklch(0.93 0.05 320 / 0.4) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, oklch(0.93 0.06 270 / 0.35) 0px, transparent 50%);
-    background-repeat: no-repeat;
-  }
-  .dark body {
-    background-image:
-      radial-gradient(at 0% 0%, oklch(0.28 0.04 320 / 0.22) 0px, transparent 55%),
-      radial-gradient(at 100% 0%, oklch(0.28 0.06 270 / 0.22) 0px, transparent 55%);
   }
   html {
     @apply font-sans;
+  }
+  /* Tailwind v4's preflight sets buttons to `cursor: default` (v3 used pointer),
+     so EVERY button in this app — submit, filter, bulk-select, the date picker,
+     the sort select — showed an arrow rather than a hand. Measured across
+     /admin, /admin/schedule and /requester: every one failed.
+     Done here rather than in the Button variants because the misses were spread
+     across shadcn buttons, Base UI triggers and plain role="button" divs, and a
+     base rule catches all three without touching a dozen files. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(> input[type="checkbox"]:not(:disabled)) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  /* Headings get tighter tracking, not a size — size belongs to the component
+     that owns the heading (PageHeader, CardTitle). A base-layer size loses to
+     any utility class, so setting one here produced 32px on pages that named no
+     size and 24px on pages that did: the hierarchy applied in half the app,
+     which reads worse than not applying it at all. */
+  h1,
+  h2 {
+    @apply tracking-[-0.01em];
+  }
+  /* Numbers in a booking board are read in columns — times, distances, counts,
+     baht. Proportional digits make those columns ragged. */
+  time,
+  .tabular {
+    @apply tabular-nums;
   }
 }
 @media print {
@@ -169,34 +272,11 @@
   }
 }
 
-@keyframes mesh-shift {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(-2%, 1%, 0);
-  }
-}
 
 @layer utilities {
   .animate-fade-up {
     animation: fade-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  .stagger-children > * {
-    opacity: 0;
-    animation: fade-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  .stagger-children > *:nth-child(1)  { animation-delay: 20ms; }
-  .stagger-children > *:nth-child(2)  { animation-delay: 60ms; }
-  .stagger-children > *:nth-child(3)  { animation-delay: 100ms; }
-  .stagger-children > *:nth-child(4)  { animation-delay: 140ms; }
-  .stagger-children > *:nth-child(5)  { animation-delay: 180ms; }
-  .stagger-children > *:nth-child(6)  { animation-delay: 220ms; }
-  .stagger-children > *:nth-child(7)  { animation-delay: 260ms; }
-  .stagger-children > *:nth-child(8)  { animation-delay: 300ms; }
-  .stagger-children > *:nth-child(9)  { animation-delay: 340ms; }
-  .stagger-children > *:nth-child(10) { animation-delay: 380ms; }
-  .stagger-children > *:nth-child(n+11) { animation-delay: 420ms; }
 
   .card-lift {
     transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -207,39 +287,11 @@
     box-shadow: 0 12px 24px -16px rgb(0 0 0 / 0.18);
   }
 
-  .display-heading {
-    font-feature-settings: "ss01", "ss02";
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-  }
 }
 
-/* Animated background mesh — opt-in via .mesh-bg class so the whole site
-   isn't forced into it. Slow drift, fades out for reduced-motion users. */
-.mesh-bg::before {
-  content: "";
-  position: fixed;
-  inset: -10%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(at 20% 30%, oklch(0.88 0.12 320 / 0.35) 0px, transparent 45%),
-    radial-gradient(at 80% 20%, oklch(0.88 0.13 270 / 0.32) 0px, transparent 50%),
-    radial-gradient(at 60% 80%, oklch(0.9 0.1 200 / 0.28) 0px, transparent 55%);
-  filter: blur(40px);
-  animation: mesh-shift 24s ease-in-out infinite;
-}
-.dark .mesh-bg::before {
-  background:
-    radial-gradient(at 20% 30%, oklch(0.35 0.08 320 / 0.28) 0px, transparent 45%),
-    radial-gradient(at 80% 20%, oklch(0.35 0.1 270 / 0.28) 0px, transparent 50%),
-    radial-gradient(at 60% 80%, oklch(0.32 0.07 200 / 0.22) 0px, transparent 55%);
-}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
-  .stagger-children > *,
-  .mesh-bg::before,
   .animate-pulse {
     animation: none !important;
     opacity: 1 !important;

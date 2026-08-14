@@ -59,8 +59,13 @@ async function shiftsThrough(end: Date) {
 }
 
 beforeAll(async () => {
-  // The roster extends itself from wherever it currently ends, so this test has
-  // to work against whatever the seed left behind rather than a clean slate.
+  // Clear the window FIRST, and everything past it. The roster continues from
+  // wherever it currently ends (`from` = the later of today and the last shift),
+  // so a single row further out than this window — left by another test file,
+  // and the suite runs with --no-file-parallelism — makes `from` overshoot the
+  // target and the fill loop never runs. The test then reported "Friday not
+  // rostered" and looked like a product bug when it was fixture bleed.
+  await prisma.onCallShift.deleteMany({ where: { date: { gte: FRIDAY } } });
   await ensureOnCallRosterThrough(MONDAY);
 });
 
@@ -88,7 +93,7 @@ describe("เวร roster is weekdays only", () => {
   it("opening a Saturday tops the roster up to the Friday before it", async () => {
     // The point of the call is that the days around the viewed one are decided;
     // a weekend must not become a hole that stops the roster extending.
-    await prisma.onCallShift.deleteMany({ where: { date: { gte: FRIDAY, lte: MONDAY } } });
+    await prisma.onCallShift.deleteMany({ where: { date: { gte: FRIDAY } } });
     await ensureOnCallRosterThrough(SATURDAY);
     const keys = new Set((await shiftsThrough(MONDAY)).map((r) => dayKey(r.date)));
     expect(keys.has(dayKeyOfLocal(FRIDAY)), "Friday rostered from a Saturday view").toBe(true);

@@ -49,13 +49,19 @@ export async function AppShell({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-14 items-center justify-between gap-2 sm:gap-4">
+      {/* The branded bar. It was bg-background/80 — literally the page colour
+          behind a hairline — so the app opened with nothing on it and the header
+          dissolved into the first card. It is now the deep indigo the hero band
+          starts from, identical in both themes, so a band hanging beneath it
+          continues the same surface with no visible seam. No backdrop-blur: the
+          surface is opaque now, and blurring an opaque layer only costs paint. */}
+      <header className="sticky top-0 z-30 border-b border-bar-border bg-bar text-bar-foreground">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <MobileNav items={nav} disabled={navDisabled} disabledReason={navDisabledReason} />
             {navDisabled ? (
-              <span className="flex items-center gap-2 font-semibold tracking-tight">
-                <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
+              <span className="flex min-h-11 items-center gap-2 font-semibold tracking-tight">
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-bar-accent text-bar-foreground ring-1 ring-inset ring-bar-border">
                   <Car className="h-4 w-4" aria-hidden />
                 </span>
                 <span className="inline">{t("brand.name")}</span>
@@ -63,9 +69,11 @@ export async function AppShell({
             ) : (
               <Link
                 href="/"
-                className="flex items-center gap-2 font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
+                className="flex min-h-11 items-center gap-2 rounded-md font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
-                <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-primary-foreground shadow-sm">
+                {/* bg-primary on a --bar that IS primary-adjacent read as a
+                    barely-there smudge; a glass tile reads on any bar shade. */}
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-bar-accent text-bar-foreground ring-1 ring-inset ring-bar-border">
                   <Car className="h-4 w-4" aria-hidden />
                 </span>
                 <span className="inline">{t("brand.name")}</span>
@@ -77,7 +85,7 @@ export async function AppShell({
               <NavLinks items={nav} disabled={navDisabled} disabledReason={navDisabledReason} />
             )}
             {headerActions}
-            <Separator orientation="vertical" className="hidden md:block mx-1 h-6" />
+            <Separator orientation="vertical" className="mx-1 hidden h-6 bg-bar-border md:block" />
             <ThemeToggle />
             <ProfileMenu
               name={user.name ?? null}

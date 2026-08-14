@@ -36,7 +36,12 @@ export function ListSearch<T>({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder ?? t("placeholder")}
-          className="pl-9"
+          // h-11: Input's default is h-8 (32 px), well under the 44 px touch
+          // minimum, and this is the control people reach for first on a list of
+          // forty rows. Set here rather than on the primitive because changing
+          // Input globally would resize every field on the 30-field booking form
+          // and in the admin surfaces another session is editing.
+          className="h-11 pl-9 text-base sm:text-sm"
         />
       </div>
       {render(filtered)}

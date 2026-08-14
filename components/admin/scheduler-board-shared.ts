@@ -90,10 +90,30 @@ export const JOB_LEGEND = ["TJW", "OT", "WERN", "NORMAL"] as const;
 // Cars are shown as A, B, C… (index → letter) instead of plate numbers.
 export const carLabel = (i: number) => String.fromCharCode(65 + i);
 
-// The axis spans the full day, 00:00–24:00. (Kept as min/max bounds so a stray
-// out-of-range value can never clamp a block off-screen.)
-export const DEFAULT_START = 0;
-export const DEFAULT_END = 24;
+// The axis window.
+//
+// These are NOT a fixed 00:00–24:00 span. The board computes
+//   dayStart = min(DEFAULT_START, earliest booking)
+//   dayEnd   = max(DEFAULT_END,   latest end)
+// so they are the *narrowest* window the axis is allowed to be, and any trip
+// outside it still widens the axis rather than being clipped. At 0/24 that
+// arithmetic could never do anything: the window was always the whole day, so a
+// board whose work all happened between 08:00 and 14:00 spent three quarters of
+// its width on empty hours and squeezed every block into the middle third.
+//
+// 06–20 covers the 08:00–16:00 work day (WORK_DAY_START_HOUR / WORK_DAY_END_HOUR
+// in classification.ts) with two hours of margin each side for the early
+// departures and late returns that are ordinary here. An overnight trip, a 05:00
+// TJW departure or a 22:00 OT return all still expand the axis automatically —
+// verify by opening a day that has one.
+export const DEFAULT_START = 6;
+export const DEFAULT_END = 20;
+
+// The faculty work day, for shading the hours outside it. Kept here rather than
+// imported from classification.ts so this file stays free of server imports —
+// it is pulled into client components.
+export const WORK_START_HOUR = 8;
+export const WORK_END_HOUR = 16;
 // Small gutter on each side so the 00:00 / 24:00 edge labels (and end-of-day
 // blocks) don't collide with the rounded frame. Labels, gridlines, and blocks
 // all map through this, so they stay aligned.

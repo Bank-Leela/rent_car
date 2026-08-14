@@ -9,7 +9,7 @@ export default async function ForgotPage() {
   return (
     <div className="min-h-screen grid place-items-center p-4">
       <div className="absolute right-4 top-4 flex items-center gap-1">
-        <ThemeToggle />
+        <ThemeToggle tone="page" />
       </div>
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">

@@ -158,10 +158,10 @@ export default async function AdminCalendar({
   const today = new Date();
 
   return (
-    <div className="space-y-4 mesh-bg animate-fade-up">
+    <div className="space-y-4">
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-semibold display-heading">{t("title")}</h1>
+          <h1 className="text-[1.75rem] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[2rem]">{t("title")}</h1>
           <p className="text-muted-foreground mt-1">{format(monthAnchor, "MMMM yyyy", { locale: loc })}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

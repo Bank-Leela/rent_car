@@ -350,15 +350,33 @@ the co-driver at assign time.
 
 ## 8. Board rendering (`driver-rounds-board.tsx` + `driver-rounds.ts`)
 
-**Two boards, one page.** The whiteboard-style **rounds board** is the default on
-both `/admin/schedule` and `/driver/schedule`. The drag-and-drop **timeline**
-(`scheduler-board.tsx`, `-blocks.tsx`, `-shared.ts`, data in
-`timeline-board-data.ts`) was deleted mid-cycle and **restored in `1f731f4`**:
-the two answer different questions — the whiteboard says what is happening today,
-the timeline is how you change it — so they sit behind a view switch rather than
-one replacing the other. (This section previously said the timeline was gone; it
-is not.) The timeline carries its own unplaced-trip tray, which is why
-`/admin/schedule` hides the overflow bar while the timeline view is showing.
+**One board per audience.** The two boards no longer share a page behind a view
+switch — that arrangement is gone, and this section previously described it:
+
+| Surface | Board | Why |
+|---------|-------|-----|
+| `/driver/schedule` | rounds whiteboard (`driver-rounds-board.tsx`) | answers "what am I running today" — the driver's question. Read-only. |
+| `/admin/schedule` | drag-and-drop timeline (`scheduler-board.tsx`, `-blocks.tsx`, `-shared.ts`, data in `timeline-board-data.ts`) | answers "change the day" — the admin's question, and the hour axis is the only thing a เวร job's hours can be dragged against. |
+
+The rounds board was only ever on the admin page because both views were built
+before the driver kiosk existed. `/admin/schedule` no longer reads `?view=`; a
+bookmarked `?view=timeline` link still lands correctly because there is nothing
+else to land on.
+
+Consequences worth knowing before re-adding anything:
+
+- The **overflow bar** (`unassigned-bar.tsx`) and the **hired-vehicle panel**
+  (`adhoc-rows-panel.tsx`) were the *rounds* view's copies of things the timeline
+  already carries, so `/admin/schedule` no longer renders either, and the queries
+  behind them (the unassigned scan and `recommendForBookings`) no longer run on
+  this page. Removing the board without removing those left ~10 unused bindings
+  and their queries still executing — check for that if the split is revisited.
+- **`rounds-dnd.tsx` now has no caller.** It is prop-gated (`dnd`), the kiosk
+  never passes it, and it is left in place rather than deleted so the whiteboard
+  can be re-armed if it ever returns to an admin surface. Admin did not lose
+  drag-to-assign: `SchedulerBoard` brings its own `DndContext`.
+- The timeline is loaded unconditionally now, so `loadTimelineBoard` runs on
+  every `/admin/schedule` render rather than only when `?view=timeline` was set.
 
 `lib/booking/driver-rounds.ts` is a **pure** view-model builder: drivers + the
 viewed day's bookings → one row per car-paired driver, each holding that day's
@@ -389,29 +407,19 @@ as more are assigned. A same-day chip reads `start–end · place`.
   returns the conflicting trip(s) (`ReassignConflict`) **with their dates**, so a
   multi-day clash on a day that isn't on screen is still named. The board paints
   no conflict ring: a double-book is refused at the action, not drawn.
-- **Dragging one round**: the rounds board is ALSO drag-and-drop on `/admin/schedule`
-  (`rounds-dnd.tsx`), alongside the menu above — an earlier version of this section
-  said the menu was the only way to move a trip on this board, which stopped being
-  true. One `DndContext` spans the ยังไม่ได้จัดรถ bar, the driver rows and the hired
-  outside rows, so a trip can cross between all three. Draggable ids are namespaced
-  by where the trip currently sits (`p:` on a car, `q:` unplaced, `x:` on a hired
-  vehicle) and droppables by what they are (`car:<vehicleId>`, `adhoc:<rowId>`, the
-  queue) — the same vocabulary the timeline uses, deliberately.
+- **Dragging one round** (`rounds-dnd.tsx`): built for the whiteboard while it was
+  still an admin surface, and now **dormant** — the board moved to the driver
+  kiosk, which is read-only, so nothing passes the `dnd` prop. Kept rather than
+  deleted because it is fully prop-gated and costs nothing switched off. If the
+  whiteboard ever returns to an admin page: one `DndContext` spans the overflow
+  bar, the driver rows and the hired rows; draggable ids are namespaced by where
+  the trip sits (`p:` on a car, `q:` unplaced, `x:` on a hired vehicle) and
+  droppables by what they are (`car:<vehicleId>`, `adhoc:<rowId>`, the queue) —
+  the same vocabulary the timeline uses. It decided nothing new: every drop
+  posted to the action the menu posts to, so §5 held throughout. A co-driver
+  ghost was never draggable (it rides in the primary's car), and an outsourced
+  trip dropped on a car only came back in-house rather than landing on it.
 
-  It decides **nothing new**: every drop posts to the action the menu posts to, so
-  §5 still holds — overlap refused on every car including the duty car, the 2 h gap
-  still overridable — and a refused drop raises the conflict as a toast rather than
-  silently snapping back. As on the timeline, "dropped on neither a car nor a hired
-  row" means unassign, because the queue box is a thin strip on a tall page and was
-  unreliable to hit. Two deliberate exclusions: a **co-driver ghost** cannot be
-  picked up (it rides in the primary's car, so a drop could not honour it — move the
-  primary instead), and an **outsourced trip dropped on a car** only comes back
-  in-house rather than landing on that car, since un-outsourcing and assigning are
-  two decisions.
-
-  Dragging is **admin-only and off by default** (`dnd` prop): the same component is
-  the driver kiosk, and a driver reading their day must not be able to re-dispatch
-  it. The timeline view renders without this provider — it brings its own.
 - **Bulk assignment lives on `/admin/batch`** (`BatchRunForm` → `solveDay`), whose
   overflow list carries each booking's placement recommendation (§7b) with an
   inline `AssignRecoButton`. The timeline board ALSO has its own `autoAssignAll`

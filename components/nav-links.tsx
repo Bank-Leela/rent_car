@@ -16,13 +16,16 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// These render INSIDE the branded bar, so they take the bar's palette, not the
+// page's. bg-muted/text-muted-foreground on a deep indigo bar is dark-on-dark:
+// the active pill vanished and the inactive labels sat well under 4.5:1.
 function navItemClass(active: boolean) {
   return [
-    "inline-flex h-9 items-center rounded-md px-3 text-sm font-medium transition-colors",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+    "inline-flex h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
     active
-      ? "bg-muted text-foreground"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      ? "bg-bar-accent text-bar-foreground"
+      : "text-bar-muted hover:bg-white/10 hover:text-bar-foreground",
   ].join(" ");
 }
 
@@ -53,7 +56,7 @@ export function NavLinks({
             key={item.href}
             aria-disabled
             title={disabledReason}
-            className="inline-flex h-9 cursor-not-allowed items-center rounded-md px-3 text-sm font-medium text-muted-foreground/50"
+            className="inline-flex h-11 cursor-not-allowed items-center rounded-lg px-3 text-sm font-medium text-bar-foreground/40"
           >
             {item.label}
           </span>
@@ -91,7 +94,7 @@ export function MobileNav({
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-bar-muted hover:bg-white/10 hover:text-bar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>

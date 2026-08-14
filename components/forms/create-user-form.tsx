@@ -92,7 +92,10 @@ export function CreateUserForm({
                     cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r],
                   )
                 }
-                className={`inline-flex h-9 items-center rounded-md border px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                // 44px pill, matching the queue filter chips — these were h-9
+                // (36px) and rounded-md, so the app had two different shapes for
+                // "a small toggle you press".
+                className={`inline-flex h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
                 }`}
               >
@@ -106,7 +109,16 @@ export function CreateUserForm({
       {saved && !error && (
         <p className="text-sm text-emerald-600 dark:text-emerald-400 sm:col-span-2">{t("created")}</p>
       )}
-      <Button type="submit" disabled={pending} className="sm:col-span-2 w-full sm:w-auto">
+      {/* justify-self-start is the fix, not sm:w-auto — this is a GRID cell, and
+          grid items stretch to fill by default, so `w-auto` could never shrink it.
+          The result was a page-wide primary button that read as a banner.
+          size="xl" is the contract's primary action: a 48px pill. */}
+      <Button
+        type="submit"
+        size="xl"
+        disabled={pending}
+        className="w-full sm:col-span-2 sm:w-auto sm:justify-self-start"
+      >
         {pending ? t("creating") : t("create")}
       </Button>
     </form>

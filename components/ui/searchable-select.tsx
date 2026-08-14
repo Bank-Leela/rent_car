@@ -125,7 +125,7 @@ export function SearchableSelect({
           <div
             ref={panelRef}
             style={{ position: "fixed", left: rect.left, top: rect.top, width: rect.width }}
-            className="z-50 overflow-hidden rounded-md border bg-popover shadow-lg"
+            className="z-50 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-e3"
           >
             <div className="flex items-center gap-2 border-b px-3">
               <Search className="h-4 w-4 opacity-60" aria-hidden />

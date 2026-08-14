@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Route-level loading placeholder. Mirrors the common page shell (a PageHeader,
@@ -5,9 +6,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 // structure instantly instead of a blank while the RSC resolves. Each route
 // group's `loading.tsx` renders this inside the AppShell, so the nav/chrome
 // stays put and only the content area swaps to the skeleton.
-export function PageSkeleton() {
+export async function PageSkeleton() {
+  // `common.loading` already existed; the Thai here was hardcoded, so it was
+  // invisible to tests/i18n-keys.test.ts and could never be translated.
+  const t = await getTranslations("common");
   return (
-    <div className="space-y-8" role="status" aria-busy="true" aria-label="กำลังโหลด">
+    <div className="space-y-8" role="status" aria-busy="true" aria-label={t("loading")}>
       {/* PageHeader: title + description + an action button */}
       <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
         <div className="space-y-2.5">
@@ -31,7 +35,7 @@ export function PageSkeleton() {
         ))}
       </div>
 
-      <span className="sr-only">กำลังโหลด…</span>
+      <span className="sr-only">{t("loading")}</span>
     </div>
   );
 }

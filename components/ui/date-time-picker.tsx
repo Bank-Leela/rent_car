@@ -344,7 +344,7 @@ export function DateTimePicker({
             //
             // The viewport cap still wins on a narrow screen: there it wraps
             // again and scrolls internally rather than overflowing.
-            "fixed z-50 w-max max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-xl",
+            "fixed z-50 w-max max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-e3",
           )}
         >
           {/* Wraps rather than forcing one row: on a narrow window the extras

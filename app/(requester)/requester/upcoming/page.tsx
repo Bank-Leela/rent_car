@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { format, isSameDay, addDays, startOfDay } from "date-fns";
 import { th, enUS, type Locale } from "date-fns/locale";
-import { CalendarCheck, ChevronRight, MapPin, ArrowRight, ArrowRightLeft, Car, UserRound, Phone } from "lucide-react";
+import { CalendarCheck, ChevronRight, MapPin, ArrowRight, ArrowRightLeft, Car, UserRound, Phone, Plus } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import type { Prisma } from "@prisma/client";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
-import { PageHeader } from "@/components/page-header";
+import { HeroBand } from "@/components/hero-band";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { ACTIVE_BOOKING_STATUSES } from "@/components/requester-booking-list";
@@ -32,6 +33,9 @@ export default async function RequesterUpcoming() {
   const t = await getTranslations("requesterUpcoming");
   const tf = await getTranslations("bookingForm");
   const tv = await getTranslations("fleet");
+  // `requester.newBooking` ("จองใหม่") has existed in th.json all along and was
+  // rendered nowhere — the band CTA can use it without adding a key.
+  const tr = await getTranslations("requester");
   const locale = await getLocale();
   const isThai = locale.toLowerCase().startsWith("th");
   const now = new Date();
@@ -73,24 +77,73 @@ export default async function RequesterUpcoming() {
     }
   }
 
+  // Said in the band rather than discovered by scrolling. The page already holds
+  // every row, so these cost nothing — and "how much is coming, and is any of it
+  // already sorted" is the question this page exists to answer.
+  const withCar = trips.filter((b) => !!b.primaryDriver).length;
+  const stats = [
+    { label: t("title"), value: trips.length },
+    { label: t("driver"), value: `${withCar}/${trips.length}`, tone: "good" as const },
+  ];
+
   return (
+    // -space-y at the top would fight the band's bleed, so the band sits outside
+    // the rhythm and the sections keep their own.
     <div className="space-y-8">
-      <PageHeader title={t("title")} description={t("description")} />
+      <HeroBand
+        title={t("title")}
+        description={t("description")}
+        icon={CalendarCheck}
+        stats={trips.length > 0 ? stats : undefined}
+        actions={
+          // nativeButton={false} because this renders as an <a>: without it Base
+          // UI keeps native button semantics on a link, which it warns about and
+          // which breaks the element's real role.
+          <Button
+            size="xl"
+            variant="secondary"
+            nativeButton={false}
+            render={<Link href="/requester/new" />}
+          >
+            <Plus aria-hidden />
+            {tr("newBooking")}
+          </Button>
+        }
+      />
 
       {trips.length === 0 ? (
         <EmptyState icon={CalendarCheck} title={t("emptyTitle")} description={t("emptyDescription")} />
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-10">
           {todayTrips.length > 0 && (
-            <DaySection label={t("today")} trips={todayTrips} t={t} tf={tf} tv={tv} isThai={isThai} now={now} />
+            <DaySection
+              label={t("today")}
+              plate={{ day: format(now, "d"), month: format(now, "MMM", { locale: dfLocale }) }}
+              trips={todayTrips}
+              t={t}
+              tf={tf}
+              tv={tv}
+              isThai={isThai}
+              now={now}
+            />
           )}
           {tomorrowTrips.length > 0 && (
-            <DaySection label={t("tomorrow")} trips={tomorrowTrips} t={t} tf={tf} tv={tv} isThai={isThai} now={now} />
+            <DaySection
+              label={t("tomorrow")}
+              plate={{ day: format(tomorrow, "d"), month: format(tomorrow, "MMM", { locale: dfLocale }) }}
+              trips={tomorrowTrips}
+              t={t}
+              tf={tf}
+              tv={tv}
+              isThai={isThai}
+              now={now}
+            />
           )}
           {laterGroups.map((g) => (
             <DaySection
               key={g.key}
               label={format(g.date, "EEEE d MMMM", { locale: dfLocale })}
+              plate={{ day: format(g.date, "d"), month: format(g.date, "MMM", { locale: dfLocale }) }}
               trips={g.trips}
               t={t}
               tf={tf}
@@ -107,6 +160,7 @@ export default async function RequesterUpcoming() {
 
 function DaySection({
   label,
+  plate,
   trips,
   t,
   tf,
@@ -115,6 +169,8 @@ function DaySection({
   now,
 }: {
   label: string;
+  /** The date as a plate: big numeral + short month. */
+  plate: { day: string; month: string };
   trips: Trip[];
   t: Translator;
   tf: FormTranslator;
@@ -123,8 +179,27 @@ function DaySection({
   now: Date;
 }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{label}</h2>
+    <section className="space-y-4">
+      {/* The date is the emotional content of this page and it was 14px grey
+          uppercase — smaller than the metadata inside the cards below it. A plate
+          with a large tabular numeral gives each day an anchor you can find while
+          scrolling a month of trips, and the count says how heavy the day is
+          before you read it. */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/20">
+          <span className="text-lg font-semibold leading-none tabular-nums">{plate.day}</span>
+          <span className="text-[10px] font-medium uppercase leading-none tracking-wide opacity-80">
+            {plate.month}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <h2 className="truncate text-lg font-semibold tracking-[-0.01em]">{label}</h2>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {trips.length} {t("title")}
+          </p>
+        </div>
+        <div className="ml-1 hidden h-px flex-1 bg-border sm:block" />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {trips.map((b) => (
           <TripCard key={b.id} b={b} t={t} tf={tf} tv={tv} isThai={isThai} now={now} />
@@ -181,51 +256,57 @@ function TripCard({
   const hasDriver = !!b.primaryDriver;
 
   return (
+    // card-lift is already defined in globals.css (and already
+    // reduced-motion-guarded) but only two admin pages ever used it. shadow-e1 →
+    // e2 on hover is the same elevation vocabulary the Card primitive now uses.
     <div
-      className={`flex flex-col gap-3 rounded-xl border border-l-4 bg-card p-4 shadow-sm ${
-        hasDriver ? "border-l-emerald-500" : "border-l-border"
+      className={`card-lift flex flex-col gap-3 overflow-hidden rounded-xl border bg-card shadow-e1 hover:shadow-e2 ${
+        hasDriver ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-border"
       }`}
     >
-      {/* Header: job number + status, detail link */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <BookingStatusBadge status={b.status} />
+      {/* The card's own header strip. The time is the first thing a requester
+          looks for and it used to be a 12px grey run-on line UNDER the route, in
+          the same breath as "one-way / round trip". Here it leads, at display
+          size and tabular, so a column of cards can be scanned down the hour. */}
+      <div className="flex items-baseline justify-between gap-3 border-b bg-muted/40 px-4 py-2.5">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="text-xl font-semibold leading-none tracking-[-0.02em] tabular-nums">
+            {format(b.startAt, "HH:mm")}
+          </span>
+          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+            –{format(b.endAt, "HH:mm")}
+          </span>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* No document download here. The official form is the transport
-              office's paperwork — they print it, collect the signature and file
-              it — so it belongs on the admin surfaces only. Offering it to the
-              requester invited them to submit their own copy, and made the card
-              busier than the one thing it is for: where and when. */}
-          {/* ?from: the detail page's back arrow returns to THIS board rather
-              than dumping the requester in the request log they never opened. */}
-          <Link
-            href={`/requester/${b.id}?from=upcoming`}
-            className="inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-primary hover:underline"
-          >
-            {t("detailLink")}
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </div>
+        <BookingStatusBadge status={b.status} />
       </div>
 
-      {/* Route: pickup → destination, with a round-trip / one-way badge */}
-      <div className="space-y-1 rounded-lg bg-muted/30 p-2.5">
-        <div className="flex items-center gap-1.5 text-sm">
-          <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
+      {/* The detail link used to sit alone on the card's first row, right-aligned
+          above the destination, which left a visibly empty band across the top of
+          every card. It is a footer action, so it goes in the footer. */}
+
+      {/* The destination is why the trip exists, so it is the biggest thing in
+          the body — it used to sit at 14px inside a grey box, the same size as
+          the pickup point it was paired with, which made every card in the grid
+          look identical from arm's length. The pickup stays small underneath:
+          it is nearly always the same building. */}
+      <div className="min-w-0">
+        <p className="truncate text-base font-semibold leading-snug tracking-[-0.01em]">
+          {b.destination}
+        </p>
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="min-w-0 truncate">{b.pickupLocation || t("pickup")}</span>
           {b.returnTrip ? (
-            <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <ArrowRightLeft className="h-3.5 w-3.5 shrink-0" aria-hidden />
           ) : (
-            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
           )}
-          <span className="min-w-0 truncate font-medium">{b.destination}</span>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{formatTh(b.startAt, "EEE d MMM · HH:mm")}–{format(b.endAt, "HH:mm")}</span>
-          <span>·</span>
-          <span>{b.returnTrip ? tf("returnTripYes") : tf("returnTripNo")}</span>
-        </div>
+          <span className="shrink-0">{b.returnTrip ? tf("returnTripYes") : tf("returnTripNo")}</span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+          {formatTh(b.startAt, "EEE d MMM")}
+        </p>
       </div>
 
       {/* Driver + vehicle — assigned AND within a day of departure (see showCrew) */}
@@ -258,6 +339,21 @@ function TripCard({
           </div>
         </div>
       )}
+
+      {/* No document download here. The official form is the transport office's
+          paperwork — they print it, collect the signature and file it — so it
+          belongs on the admin surfaces only.
+          ?from: the detail page's back arrow returns to THIS board rather than
+          dumping the requester in the request log they never opened.
+          min-h-11 keeps the only tap target on the card at 44px. */}
+      <Link
+        href={`/requester/${b.id}?from=upcoming`}
+        className="-mb-1 mt-auto inline-flex min-h-11 items-center justify-end gap-0.5 self-end rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {t("detailLink")}
+        <ChevronRight className="h-4 w-4" aria-hidden />
+      </Link>
+      </div>
     </div>
   );
 }

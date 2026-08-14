@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, GripVertical, AlertTriangle, Link2, X, Truck, MapPin } from "lucide-react";
+import { GripVertical, AlertTriangle, Link2, X, Truck, MapPin } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
@@ -12,6 +12,8 @@ import {
   jobStyle,
   pctOf,
   LANE_PX,
+  WORK_START_HOUR,
+  WORK_END_HOUR,
   LANE_PAD,
 } from "@/components/admin/scheduler-board-shared";
 
@@ -367,6 +369,11 @@ export function CarRow({
   hours: number[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: vehicle.id });
+  // Read here rather than taken as a prop: every other label on this row is
+  // passed down from the board, but the board is LOCKED to another session right
+  // now and a new required prop would force an edit to it. This component is
+  // already a client component with next-intl available, so it can ask directly.
+  const freeLabel = useTranslations("scheduler")("roundsFree");
 
   // Row items = the car's own trips (draggable) + co-driver ghosts (read-only).
   // Both occupy time, so both feed the lane packing.
@@ -415,29 +422,69 @@ export function CarRow({
   // name, ลา badge. Anything already sitting on the row is what has to be moved.
   const off = vehicle.isOff === true;
   return (
-    <div className={`flex border-b last:border-b-0 ${off ? "border-l-4 border-l-amber-400 bg-amber-50/40 dark:bg-amber-950/20" : ""}`}>
+    // The เวร row is tinted here exactly as it is on the rounds whiteboard — same
+    // emerald edge stripe, same wash. The two boards showed the same fact in two
+    // different ways (badge only here, whole row there), so "who is on duty"
+    // needed re-learning when you switched surfaces. `off` still wins: a driver
+    // on leave is not running campus duty.
+    <div
+      className={`flex border-b last:border-b-0 ${
+        off
+          ? "border-l-4 border-l-amber-400 bg-amber-50/40 dark:bg-amber-950/20"
+          : isDuty
+            ? "border-l-4 border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+            : ""
+      }`}
+    >
       <div
         className="flex w-44 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium"
         title={vehicle.registrationNumber}
       >
-        <Car className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="shrink-0">{label}</span>
-        {vehicle.driverName ? (
-          <span
-            className={`truncate text-xs font-normal ${off ? "text-muted-foreground line-through" : "text-muted-foreground"}`}
-          >
-            · {vehicle.driverName}
+        {/* The car letter as a plate rather than a bare character. Six rows of
+            "A · name" with nothing else on them read as a list of labels; the
+            plate gives each row an anchor, and the registration underneath is
+            the thing anyone actually radios about. Both were already loaded —
+            registrationNumber sat in `vehicle` and was used only as a tooltip. */}
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-semibold ${
+            off
+              ? "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
+              : isDuty
+                ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
+                : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {label}
+        </span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          {vehicle.driverName ? (
+            <span className={`truncate text-xs ${off ? "text-muted-foreground line-through" : ""}`}>
+              {vehicle.driverName}
+            </span>
+          ) : (
+            <span className="truncate text-[10px] font-normal text-destructive">{noDriverLabel}</span>
+          )}
+          <span className="flex items-center gap-1.5 truncate text-[10px] font-normal text-muted-foreground">
+            <span className="tabular-nums">{vehicle.registrationNumber}</span>
+            {/* How loaded this driver is, at a glance. An empty row used to be
+                indistinguishable from a broken one; "ว่าง" says it is free on
+                purpose. Reuses scheduler.roundsFree — no new copy. */}
+            <span aria-hidden>·</span>
+            <span className="tabular-nums">
+              {bookings.length > 0 ? bookings.length : freeLabel}
+            </span>
           </span>
-        ) : (
-          <span className="truncate text-[10px] font-normal text-destructive">· {noDriverLabel}</span>
-        )}
+        </span>
         {off ? (
           <span className="ml-auto shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
             {offLabel}
           </span>
         ) : (
           isDuty && (
-            <span className="ml-auto shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            // Emerald, matching the row stripe. It was amber — the same chip the
+            // ลา badge uses — so after the row tinting went in, "on duty" and
+            // "on leave" were the same colour on differently-coloured rows.
+            <span className="ml-auto shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">
               {dutyLabel}
             </span>
           )
@@ -448,11 +495,35 @@ export function CarRow({
         className={`relative flex-1 transition-colors ${isOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : ""}`}
         style={{ height: laneCount * LANE_PX }}
       >
+        {/* Off-hours shading. Every hour column used to look identical, so the
+            eye had nothing to anchor on and an empty row was just a wide grey
+            band. Dimming the hours outside 08:00–16:00 makes the work day the
+            lit part of the row — the block positions then read as "early",
+            "mid-morning", "late" at a glance instead of needing the header.
+            Two panels rather than one striped background so the boundaries land
+            exactly on the axis scale the blocks use. */}
+        {dayStart < WORK_START_HOUR && (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 left-0 bg-foreground/[0.035] dark:bg-black/25"
+            style={{ width: `${pctOf(WORK_START_HOUR, dayStart, dayHours)}%` }}
+          />
+        )}
+        {dayStart + dayHours > WORK_END_HOUR && (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 right-0 bg-foreground/[0.035] dark:bg-black/25"
+            style={{ left: `${pctOf(WORK_END_HOUR, dayStart, dayHours)}%` }}
+          />
+        )}
         {hours.map((h) => (
           <div
             key={h}
             aria-hidden
-            className="absolute inset-y-0 w-px bg-border/40"
+            // The work-day boundaries get a real line; the rest stay hairlines.
+            className={`absolute inset-y-0 w-px ${
+              h === WORK_START_HOUR || h === WORK_END_HOUR ? "bg-border" : "bg-border/40"
+            }`}
             style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
           />
         ))}
@@ -614,11 +685,30 @@ export function AdHocRow({
         className={`relative flex-1 transition-colors ${isOver ? "bg-zinc-200/60 ring-1 ring-inset ring-zinc-400 dark:bg-zinc-700/40" : ""}`}
         style={{ height: laneCount * LANE_PX }}
       >
+        {/* Same off-hours shading as the car rows — a hired vehicle's row sat
+            on a flat track while the fleet rows above it were graded, so the
+            two halves of one board disagreed about what a work day looks like. */}
+        {dayStart < WORK_START_HOUR && (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 left-0 bg-foreground/[0.035] dark:bg-black/25"
+            style={{ width: `${pctOf(WORK_START_HOUR, dayStart, dayHours)}%` }}
+          />
+        )}
+        {dayStart + dayHours > WORK_END_HOUR && (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 right-0 bg-foreground/[0.035] dark:bg-black/25"
+            style={{ left: `${pctOf(WORK_END_HOUR, dayStart, dayHours)}%` }}
+          />
+        )}
         {hours.map((h) => (
           <div
             key={h}
             aria-hidden
-            className="absolute inset-y-0 w-px bg-border/40"
+            className={`absolute inset-y-0 w-px ${
+              h === WORK_START_HOUR || h === WORK_END_HOUR ? "bg-border" : "bg-border/40"
+            }`}
             style={{ left: `${pctOf(h, dayStart, dayHours)}%` }}
           />
         ))}

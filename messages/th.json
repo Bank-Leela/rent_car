@@ -104,7 +104,9 @@
     "theme": "ธีม",
     "apply": "ใช้",
     "inChula": "ในจุฬาฯ",
-    "outsideChula": "นอกจุฬาฯ"
+    "outsideChula": "นอกจุฬาฯ",
+    "showPassword": "แสดงรหัสผ่าน",
+    "hidePassword": "ซ่อนรหัสผ่าน"
   },
   "errorPage": {
     "title": "เกิดข้อผิดพลาด",
@@ -637,7 +639,10 @@
     "seriesMoreDates": "และอีก {count} วัน",
     "outsourcedPendingHeading": "ส่งรถนอก — ยังไม่ได้จัดรถเช่า",
     "outsourcedPendingBanner": "อนุมัติให้ใช้รถเช่าภายนอกแล้ว แต่ยังไม่ได้เลือกผู้ให้บริการ — เปิดกระดานของวันนั้น เพิ่มแถวรถเช่า แล้วลากงานนี้เข้าไป",
-    "outsourcedPendingAction": "เปิดกระดานวันนั้นเพื่อจัดรถเช่า"
+    "outsourcedPendingAction": "เปิดกระดานวันนั้นเพื่อจัดรถเช่า",
+    "filterJobTypeGroup": "ประเภทงาน",
+    "filterWaitGroup": "การรอ",
+    "filterClear": "ล้างตัวกรอง"
   },
   "bookingDetail": {
     "trip": "การเดินทาง",
@@ -1280,7 +1285,9 @@
     "status_COMPLETED": "เสร็จสิ้น",
     "status_DENIED": "ไม่อนุมัติ",
     "status_CANCELLED": "ยกเลิก",
-    "clear": "ล้างตัวกรอง"
+    "clear": "ล้างตัวกรอง",
+    "groupStatus": "สถานะ",
+    "groupJobType": "ประเภทงาน"
   },
   "maps": {
     "estimate": "ประเมินระยะทาง (Google Maps)",

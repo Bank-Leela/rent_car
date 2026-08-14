@@ -38,7 +38,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          // `cn-toast` was referenced here and defined in no stylesheet — grep found
+          // exactly this one occurrence — so toasts shipped with no elevation at all.
+          toast: "rounded-xl border border-border/70 shadow-e3",
         },
       }}
       {...props}

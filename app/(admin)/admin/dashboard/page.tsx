@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { IdCard, CalendarClock } from "lucide-react";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { PageHeader } from "@/components/page-header";
 import { licenseStatus, retirementStatus } from "@/lib/admin/roster-alerts";
 import {
   approvalFunnel,
@@ -18,7 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { VolumeBarChart, FunnelPieChart } from "@/components/dashboard/charts";
 import { RangeFilter } from "@/components/dashboard/range-filter";
-import { AnimatedNumber } from "@/components/animated-number";
 import { formatTh } from "@/lib/format-date";
 
 export default async function AdminDashboard({
@@ -75,20 +75,17 @@ export default async function AdminDashboard({
   };
 
   return (
-    <div className="space-y-6 print:space-y-3 mesh-bg animate-fade-up">
-      <div className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-semibold display-heading">{t("title")}</h1>
-          <p className="text-muted-foreground mt-1">
-            {formatTh(range.from, "d MMM yyyy")} – {formatTh(range.to, "d MMM yyyy")}
-          </p>
-        </div>
-        <div className="flex items-end gap-3">
-          <RangeFilter from={range.from} to={range.to} />
-        </div>
-      </div>
+    <div className="space-y-6 print:space-y-3">
+      {/* PageHeader, like every other page. This and /admin/calendar were the
+          only two carrying a 36px display-heading, so the type scale told you
+          which page you were on instead of the content doing it. */}
+      <PageHeader
+        title={t("title")}
+        description={`${formatTh(range.from, "d MMM yyyy")} – ${formatTh(range.to, "d MMM yyyy")}`}
+        actions={<RangeFilter from={range.from} to={range.to} />}
+      />
 
-      <div className="grid sm:grid-cols-3 gap-4 print:grid-cols-3 stagger-children">
+      <div className="grid sm:grid-cols-3 gap-4 print:grid-cols-3">
         <KpiCard label={t("totalRequests")} value={funnel.total} />
         <KpiCard label={t("approved")} value={funnel.approved} sub={pctText(funnel.approved)} />
         <KpiCard label={t("cancelled")} value={funnel.cancelled} sub={pctText(funnel.cancelled)} />
@@ -307,8 +304,8 @@ function KpiCard({ label, value, sub }: { label: string; value: number; sub?: st
     <Card className="card-lift">
       <CardContent className="pt-6">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className="text-3xl font-semibold mt-1 display-heading">
-          <AnimatedNumber value={value} />
+        <div className="mt-1 text-3xl font-semibold tracking-[-0.02em] tabular-nums">
+          {value.toLocaleString("th-TH")}
         </div>
         {sub && <div className="text-xs text-muted-foreground mt-1">{sub}</div>}
       </CardContent>

@@ -163,6 +163,19 @@ class Browser:
             raise RuntimeError(json.dumps(r["exceptionDetails"])[:600])
         return r.get("result", {}).get("value")
 
+    def emulate(self, width, height, mobile=False, dsf=1):
+        """Force a real viewport size.
+
+        Chrome headless on macOS refuses to make its WINDOW narrower than about
+        500 px, so `--window-size=375,…` silently renders at ~500 and every
+        "mobile" screenshot taken that way is a lie. Device-metrics override is
+        applied at the page level and honours any width.
+        """
+        self.call("Emulation.setDeviceMetricsOverride", {
+            "width": int(width), "height": int(height),
+            "deviceScaleFactor": dsf, "mobile": bool(mobile),
+        })
+
     def goto(self, url):
         self.call("Page.enable")
         self.call("Runtime.enable")
@@ -191,6 +204,15 @@ class Browser:
                 return True
             time.sleep(0.4)
         return False
+
+    def shot_viewport(self, out):
+        """Just what is on screen. A full-page capture of a long board is
+        thousands of pixels tall, and cropping it afterwards centres on the
+        middle — so judging the top of a page needs this."""
+        r = self.call("Page.captureScreenshot", {"format": "png"})
+        with open(out, "wb") as f:
+            f.write(base64.b64decode(r["data"]))
+        return out
 
     def shot(self, out):
         m = self.call("Page.getLayoutMetrics")
@@ -237,6 +259,10 @@ def main():
             b.call("Network.setCookie", {
                 "name": name, "value": val, "domain": "localhost", "path": "/",
             })
+        em = flag("--emulate")
+        if em:
+            w, _, h = em.partition("x")
+            b.emulate(int(w), int(h or 800), mobile=int(w) < 640)
         b.goto(url)
         out = {"url": url}
         if "--wait-hydrated" in a:
@@ -246,7 +272,7 @@ def main():
             out["result"] = b.evaluate(open(f, encoding="utf-8").read())
         s = flag("--shot")
         if s:
-            out["shot"] = b.shot(s)
+            out["shot"] = b.shot_viewport(s) if "--viewport" in a else b.shot(s)
         if "--console" in a:
             msgs = []
             for e in b.events:

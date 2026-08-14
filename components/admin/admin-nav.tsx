@@ -15,13 +15,16 @@ export type LabeledSection = {
   tabs: LabeledTab[];
 };
 
+// AdminPrimaryNav is injected into the app bar as `desktopNav`, so it takes the
+// BAR palette — the same treatment as NavLinks. AdminSubnav below sits on the
+// page instead and deliberately keeps the page palette.
 function primaryClass(active: boolean) {
   return [
-    "inline-flex h-9 items-center rounded-md px-3 text-sm font-medium transition-colors",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+    "inline-flex h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
     active
-      ? "bg-muted text-foreground"
-      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      ? "bg-bar-accent text-bar-foreground"
+      : "text-bar-muted hover:bg-white/10 hover:text-bar-foreground",
   ].join(" ");
 }
 
@@ -66,7 +69,7 @@ export function AdminSubnav({ sections }: { sections: LabeledSection[] }) {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={[
-              "inline-flex h-9 shrink-0 items-center border-b-2 px-3 text-sm font-medium transition-colors",
+              "inline-flex h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               active
                 ? "border-primary text-foreground"

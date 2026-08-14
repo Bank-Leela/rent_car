@@ -1,7 +1,9 @@
+import { CalendarPlus } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
 import { BookingForm, type BookingPrefill } from "@/components/forms/booking-form";
+import { HeroBand } from "@/components/hero-band";
 import { listDepartments } from "@/lib/departments";
 
 export default async function NewBookingPage({
@@ -65,7 +67,13 @@ export default async function NewBookingPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+      {/* Was a bare 24px h1 — this page bypassed PageHeader entirely, so the
+          busiest requester surface had the smallest title in the app sitting on
+          top of a thirty-field form with nothing to separate the two. The band
+          gives the form a lid, and matches the other two requester pages.
+          No `stats` and no `actions`: this page's only job is the form under it,
+          and a CTA here would compete with its own submit button. */}
+      <HeroBand title={t("title")} icon={CalendarPlus} />
       <BookingForm
         departments={departments}
         defaultDepartmentId={me?.departmentId ?? null}

@@ -48,22 +48,39 @@ export function RequesterBookingList({
   return (
     <ul className="space-y-2">
       {bookings.map((b) => (
-        <li key={b.id} className="rounded-xl border bg-card">
+        <li key={b.id} className="overflow-hidden rounded-xl border bg-card shadow-e1">
           <Link
             href={`/requester/${b.id}`}
-            className="group flex items-start justify-between gap-4 rounded-xl p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="group flex items-center gap-4 p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           >
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <BookingStatusBadge status={b.status} />
-              </div>
-              <div className="mt-1 font-medium truncate">{b.purpose}</div>
-              <div className="mt-0.5 text-sm text-muted-foreground">
-                {b.destination}, {b.province} · {format(b.startAt, "EEE d MMM yyyy HH:mm", { locale: th })}
+            {/* A date plate, so a log of forty rows can be scanned by when rather
+                than read line by line. The date was previously the third item in
+                one run-on grey sentence ("destination, province · EEE d MMM yyyy
+                HH:mm · registration"), which is the least findable place for the
+                thing people actually search a history by. */}
+            <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <span className="text-base font-semibold leading-none tabular-nums text-foreground">
+                {format(b.startAt, "d")}
+              </span>
+              <span className="text-[10px] font-medium uppercase leading-none tracking-wide">
+                {format(b.startAt, "MMM", { locale: th })}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{b.purpose}</div>
+              <div className="mt-0.5 truncate text-sm text-muted-foreground">
+                {b.destination}, {b.province}
+                <span className="tabular-nums"> · {format(b.startAt, "HH:mm", { locale: th })}</span>
                 {b.vehicle ? ` · ${b.vehicle.registrationNumber}` : ""}
               </div>
             </div>
-            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            {/* Status moves to the right rail where it lines up down the column,
+                instead of sitting above the title where it pushed the row's real
+                subject to second place. */}
+            <div className="flex shrink-0 items-center gap-2">
+              <BookingStatusBadge status={b.status} />
+              <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </div>
           </Link>
           {/* No official-form download on the requester's side. The form is the
               transport office's paperwork — printed, signed and filed by them —

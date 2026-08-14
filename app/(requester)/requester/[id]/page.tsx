@@ -293,11 +293,11 @@ export default async function RequesterBookingDetail({
 
 
       {booking.status === "WAITLIST" && (
-        <Card className="border-amber-300 ring-amber-300/50 dark:border-amber-900/40 dark:ring-amber-900/40">
+        <Card className="border-urgent/40 ring-urgent/25">
           <CardHeader>
-            <CardTitle className="text-amber-900 dark:text-amber-200">{t("waitlistTitle")}</CardTitle>
+            <CardTitle className="text-urgent-foreground">{t("waitlistTitle")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-amber-800 dark:text-amber-300/90">
+          <CardContent className="text-sm text-urgent-foreground/90">
             {t("waitlistExplain")}
           </CardContent>
         </Card>

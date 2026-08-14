@@ -45,7 +45,7 @@ export function UpcomingLeave({ blocks }: { blocks: LeaveBlock[] }) {
           {blocks.map((b) => (
             <li
               key={`${b.driverId}-${b.from}`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200"
+              className="inline-flex items-center gap-1.5 rounded-md border border-urgent/40 bg-urgent-surface px-2.5 py-1 text-xs text-urgent-foreground"
             >
               <span className="font-medium">{b.name}</span>
               <span className="tabular-nums">{b.label}</span>
@@ -55,7 +55,7 @@ export function UpcomingLeave({ blocks }: { blocks: LeaveBlock[] }) {
                 onClick={() => clear(b)}
                 aria-label={t("upcomingClear")}
                 title={t("upcomingClear")}
-                className="rounded p-0.5 hover:bg-amber-200/60 disabled:opacity-50 dark:hover:bg-amber-900/40"
+                className="rounded p-0.5 hover:bg-urgent/20 disabled:opacity-50"
               >
                 <X className="h-3 w-3" aria-hidden />
               </button>
