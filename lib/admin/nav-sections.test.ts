@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveActiveSection, ADMIN_SECTIONS } from "./nav-sections";
+import { resolveActiveSection, flatAdminRoutes, ADMIN_SECTIONS } from "./nav-sections";
 
 describe("resolveActiveSection", () => {
   it("maps the queue root to Requests / Pending", () => {
@@ -16,19 +16,29 @@ describe("resolveActiveSection", () => {
     });
   });
 
-  it("groups schedule, batch and simulate under Scheduling", () => {
+  it("keeps schedule, batch and simulate under Scheduling, with no tab strip", () => {
+    // Batch and the simulator lost their nav tabs; the routes still resolve to
+    // the section (so the primary nav stays lit when you reach them by URL),
+    // and Scheduling renders standalone — activeTabHref is null throughout.
     expect(resolveActiveSection("/admin/schedule")).toEqual({
       sectionKey: "scheduling",
-      activeTabHref: "/admin/schedule",
+      activeTabHref: null,
     });
     expect(resolveActiveSection("/admin/batch")).toEqual({
       sectionKey: "scheduling",
-      activeTabHref: "/admin/batch",
+      activeTabHref: null,
     });
     expect(resolveActiveSection("/admin/simulate")).toEqual({
       sectionKey: "scheduling",
-      activeTabHref: "/admin/simulate",
+      activeTabHref: null,
     });
+  });
+
+  it("drops batch and simulate from the flat (mobile) route list", () => {
+    const hrefs = flatAdminRoutes().map((r) => r.href);
+    expect(hrefs).toContain("/admin/schedule");
+    expect(hrefs).not.toContain("/admin/batch");
+    expect(hrefs).not.toContain("/admin/simulate");
   });
 
   it("does NOT let the '/admin' prefix swallow sibling sections", () => {

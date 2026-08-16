@@ -5,14 +5,17 @@ import { type ReactNode } from "react";
 export function Section({
   title,
   icon,
+  id,
   children,
 }: {
   title: string;
   icon?: ReactNode;
+  /** Anchor target, so something elsewhere can link straight to this section. */
+  id?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-3">
+    <section id={id} className="scroll-mt-20 space-y-3">
       <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {icon}
         {title}

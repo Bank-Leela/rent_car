@@ -38,12 +38,12 @@ export const ADMIN_SECTIONS: NavSection[] = [
     key: "scheduling",
     href: "/admin/schedule",
     labelKey: "scheduling",
+    // Batch (/admin/batch) and the placement simulator (/admin/simulate) are no
+    // longer linked from the nav — the routes still work by URL, they just don't
+    // get a tab. That leaves one page here, so Scheduling is standalone (no tab
+    // strip); `match` still lists both so those URLs keep the section lit.
     match: ["/admin/schedule", "/admin/batch", "/admin/simulate"],
-    tabs: [
-      { href: "/admin/schedule", labelKey: "schedule" },
-      { href: "/admin/batch", labelKey: "batch" },
-      { href: "/admin/simulate", labelKey: "simulate" },
-    ],
+    tabs: [],
   },
   {
     key: "calendar",
@@ -123,8 +123,8 @@ export function resolveActiveSection(
 }
 
 // Flat leaf-route list (for the mobile drawer, which has room for everything and
-// shouldn't hide Batch/Simulate/etc. behind the desktop grouping). One entry per
-// tab, or the section itself when it has no tabs.
+// shouldn't hide tabs behind the desktop grouping). One entry per tab, or the
+// section itself when it has no tabs.
 export function flatAdminRoutes(
   sections: NavSection[] = ADMIN_SECTIONS,
 ): { href: string; labelKey: string }[] {

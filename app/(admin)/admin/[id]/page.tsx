@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { loadBookingDetailContext } from "@/lib/booking/detail-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
+import { JobTypeChip } from "@/components/job-type-chip";
 import { AssignForm, DenyForm } from "@/components/forms/assign-form";
 import { ApproveForm, ApproverDenyForm } from "@/components/forms/approve-form";
 import { OutsourceForm } from "@/components/forms/outsource-form";
@@ -83,8 +84,9 @@ export default async function AdminBookingDetail({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <BookingStatusBadge status={booking.status} />
+            <JobTypeChip jobType={booking.jobType} />
             {booking.isEmergency && (
               <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
                 {(await getTranslations("bookingForm"))("urgentBadge")}

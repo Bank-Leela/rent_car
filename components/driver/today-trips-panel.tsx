@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { Clock, FileDown } from "lucide-react";
 
 export type TodayTripRow = {
   id: string;
@@ -11,6 +11,8 @@ export type TodayTripRow = {
   // The next trip departing within the coming hour — highlighted so a driver
   // glancing at the kiosk sees what's about to leave.
   isNext: boolean;
+  /** The official form exists (set at approval) — offer it straight off the card. */
+  hasPdf: boolean;
 };
 
 // Kiosk "today at a glance": the day's dispatched trips in leave order, above
@@ -20,7 +22,15 @@ export function TodayTripsPanel({
   labels,
 }: {
   rows: TodayTripRow[];
-  labels: { title: string; empty: string; upcoming: string; inProgress: string; done: string; next: string };
+  labels: {
+    title: string;
+    empty: string;
+    upcoming: string;
+    inProgress: string;
+    done: string;
+    next: string;
+    document: string;
+  };
 }) {
   const stateChip: Record<TodayTripRow["state"], string> = {
     upcoming: "bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200",
@@ -38,12 +48,24 @@ export function TodayTripsPanel({
       ) : (
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((r) => (
-            <li key={r.id}>
+            <li key={r.id} className="relative">
+              {/* Sibling of the card link, not a child: an <a> inside an <a> is
+                  invalid, and the whole card is one big link to the trip. */}
+              {r.hasPdf && (
+                <a
+                  href={`/api/files/booking-pdf/${r.id}`}
+                  aria-label={labels.document}
+                  title={labels.document}
+                  className="absolute bottom-2 right-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <FileDown className="h-4 w-4" aria-hidden />
+                </a>
+              )}
               <Link
                 href={`/driver/${r.id}`}
                 className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   r.isNext ? "border-primary ring-2 ring-primary/40" : ""
-                } ${r.state === "done" ? "opacity-60" : ""}`}
+                } ${r.state === "done" ? "opacity-60" : ""} ${r.hasPdf ? "pr-12" : ""}`}
               >
                 <span className="text-xl font-bold tabular-nums">{r.startLabel}</span>
                 <span className="min-w-0 flex-1">

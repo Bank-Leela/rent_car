@@ -10,6 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { InChulaChip } from "@/components/in-chula-chip";
+import { JobTypeChip } from "@/components/job-type-chip";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { ApproverQueueActions } from "@/components/forms/approver-queue-actions";
@@ -23,10 +24,10 @@ import { waitingHours, SLA_WARN_HOURS, type TriageFlag } from "@/lib/booking/tri
 import { Section } from "@/components/section";
 import { formatTh } from "@/lib/format-date";
 import { groupBySeries } from "@/lib/booking/series";
+import { QUEUE_JOB_TYPES } from "@/lib/admin/queue-job-types";
 import { BookingDocumentLink } from "@/components/booking-document-link";
 import { DocumentApproveButton } from "@/components/admin/document-approve-button";
 
-const JOB_TYPES: JobType[] = ["NORMAL", "OT", "TJW", "WERN", "SMUS"];
 // Five cards, then "แสดงเพิ่ม" adds five more. A hundred approve/deny cards at
 // once is a wall, not a queue — and each carries its own controls, so the page
 // was rendering far more interactive markup than anyone works through in a
@@ -67,7 +68,7 @@ export default async function AdminQueue({
   // Faceted pending-queue filters (URL-persisted via QueueFilterBar): job type,
   // "overdue only" (waiting past the SLA), sort, and a hard cap so a runaway
   // backlog can't load unbounded rows.
-  const jobTypeFilter = (sp.jobType ?? "").split(",").filter((x): x is JobType => (JOB_TYPES as string[]).includes(x));
+  const jobTypeFilter = (sp.jobType ?? "").split(",").filter((x): x is JobType => (QUEUE_JOB_TYPES as string[]).includes(x));
   const overdueOnly = sp.overdue === "1";
   const sort = parseQueueSort(sp.sort);
   const pendingLimit = Math.min(Math.max(parseInt(sp.limit ?? "", 10) || PENDING_DEFAULT_LIMIT, 1), PENDING_MAX_LIMIT);
@@ -80,6 +81,38 @@ export default async function AdminQueue({
   const pendingFilter: Prisma.BookingWhereInput = {
     ...(jobTypeFilter.length ? { jobType: { in: jobTypeFilter } } : {}),
     ...(overdueOnly ? { createdAt: { lte: subHours(now, SLA_WARN_HOURS) } } : {}),
+  };
+
+  // Counts for the filter panel, so each option says how many rows it would
+  // leave BEFORE you spend a click on it. Faceted: the job-type counts obey the
+  // overdue toggle and the search, but not the job-type selection itself —
+  // counting a facet against itself would show (0) beside the box you just
+  // ticked. Two cheap grouped aggregates, not a second fetch of the rows.
+  const queueScope: Prisma.BookingWhereInput = {
+    status: { in: ["PENDING_APPROVAL", "WAITLIST"] },
+    ...searchFilter,
+  };
+  const overdueWhere = { createdAt: { lte: subHours(now, SLA_WARN_HOURS) } };
+  const [jobTypeGroups, overdueCount] = await Promise.all([
+    prisma.booking.groupBy({
+      by: ["jobType"],
+      where: { ...queueScope, ...(overdueOnly ? overdueWhere : {}) },
+      _count: { _all: true },
+    }),
+    prisma.booking.count({
+      where: {
+        ...queueScope,
+        ...overdueWhere,
+        ...(jobTypeFilter.length ? { jobType: { in: jobTypeFilter } } : {}),
+      },
+    }),
+  ]);
+  const queueCounts = {
+    jobType: Object.fromEntries(jobTypeGroups.map((g) => [g.jobType, g._count._all])) as Record<
+      string,
+      number
+    >,
+    overdue: overdueCount,
   };
 
   // Shared console for ADMIN + APPROVER. Both see the full pipeline; the
@@ -241,8 +274,9 @@ export default async function AdminQueue({
           opened, so there was nothing left to press; who is on เวร reads off the
           board's tinted row. */}
 
-      <Section title={t("pendingHeading")} icon={<ClipboardCheck className="h-4 w-4" />}>
-        <QueueBulkProvider filters={<QueueFilterBar />} showToolbar={pendingRows.length > 0}>
+      {/* id: the header bell links here. */}
+      <Section id="pending" title={t("pendingHeading")} icon={<ClipboardCheck className="h-4 w-4" />}>
+        <QueueBulkProvider filters={<QueueFilterBar counts={queueCounts} />} showToolbar={pendingRows.length > 0}>
         {pendingRows.length === 0 ? (
           <EmptyState
             icon={ClipboardCheck}
@@ -294,6 +328,7 @@ export default async function AdminQueue({
                                   {ta("seriesBadge", { count: g.items.length })}
                                 </span>
                               )}
+                              <JobTypeChip jobType={b.jobType} />
                               <InChulaChip travelWithinChula={b.travelWithinChula} />
                               {b.isEmergency && (
                                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
@@ -387,6 +422,7 @@ export default async function AdminQueue({
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                        <JobTypeChip jobType={b.jobType} />
                         <InChulaChip travelWithinChula={b.travelWithinChula} />
                         {b.isEmergency && (
                           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-300">
@@ -469,6 +505,7 @@ export default async function AdminQueue({
                             {ta("seriesBadge", { count: g.items.length })}
                           </span>
                         )}
+                        <JobTypeChip jobType={b.jobType} />
                         <InChulaChip travelWithinChula={b.travelWithinChula} />
                       </div>
                     </div>
@@ -536,6 +573,7 @@ export default async function AdminQueue({
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span className="truncate">{b.requester.name ?? b.requester.email}</span>
+                        <JobTypeChip jobType={b.jobType} />
                         <InChulaChip travelWithinChula={b.travelWithinChula} />
                       </div>
                     </div>

@@ -113,6 +113,37 @@ export type BookingPrefill = Pick<
   | "needsOutsourcing"
 >;
 
+// Fields a template never carries — the requester picks the dates and the
+// repeat rule fresh each time, so leaving them empty is not "forgetting".
+const TEMPLATE_EXEMPT_FIELDS = new Set(["startAt", "endAt", "recurrenceUntil"]);
+
+/**
+ * Required-but-empty controls in the form, with the label the requester reads,
+ * in document order. Hidden controls are skipped: a field inside a branch that
+ * is not currently shown (waitingLocation when not waiting, say) is not
+ * something anyone forgot.
+ */
+type FormControl = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+function missingRequiredFields(form: HTMLFormElement): { el: FormControl; label: string }[] {
+  const out: { el: FormControl; label: string }[] = [];
+  for (const el of form.querySelectorAll<FormControl>(
+    "input[required], select[required], textarea[required]",
+  )) {
+    if (el.disabled || el.type === "hidden") continue;
+    if (TEMPLATE_EXEMPT_FIELDS.has(el.name)) continue;
+    if (el.offsetParent === null) continue; // not rendered / collapsed branch
+    if (el.value.trim() !== "") continue;
+    const labelEl = el.id ? form.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+    const label =
+      labelEl?.textContent?.replace(/\*/g, "").trim() ||
+      el.getAttribute("aria-label") ||
+      el.name;
+    out.push({ el, label });
+  }
+  return out;
+}
+
 export function BookingForm({
   departments,
   defaultDepartmentId,
@@ -246,6 +277,9 @@ export function BookingForm({
   // requester can see which of several saved presets they last loaded.
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [templateBusy, startTemplateTransition] = useTransition();
+  // Set once the "you left these empty" warning has been shown, so the next
+  // click on Save goes through. Cleared on every successful save.
+  const templateWarnedRef = useRef(false);
 
   // Fill the form's trip fields — everything except the dates, which the
   // requester still picks. Uncontrolled inputs are set on the DOM; the few
@@ -312,6 +346,21 @@ export function BookingForm({
       setTemplateMsg(t("templateNameRequired"));
       return;
     }
+
+    // A template saved with holes in it is only discovered on the day someone
+    // applies it and the submit refuses — so name the empty fields here, at the
+    // moment they are still on screen. It WARNS rather than blocks: a preset for
+    // half a trip is legitimate, so a second click saves it as-is.
+    const missing = missingRequiredFields(form);
+    if (missing.length > 0 && !templateWarnedRef.current) {
+      templateWarnedRef.current = true;
+      setTemplateMsg(t("templateMissingFields", { fields: missing.map((m) => m.label).join(", ") }));
+      // Same themed bubble the submit button raises, on the first empty field.
+      missing[0]!.el.reportValidity();
+      return;
+    }
+    templateWarnedRef.current = false;
+
     // Reuse the live form fields; the schema ignores the date/recurrence keys.
     const fd = new FormData(form);
     fd.set("name", name);

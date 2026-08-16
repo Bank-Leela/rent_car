@@ -52,7 +52,7 @@ export default async function DriverSchedule({
       orderBy: { startAt: "asc" },
       select: {
         id: true, purpose: true, destination: true, startAt: true, endAt: true,
-        vehicleId: true, jobType: true, estimatedDistance: true,
+        vehicleId: true, jobType: true, estimatedDistance: true, pdfUrl: true,
         primaryDriverId: true, secondaryDriverId: true,
         coordinatorName: true, coordinatorPhone: true, ajarnName: true, ajarnPhone: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
@@ -133,6 +133,9 @@ export default async function DriverSchedule({
       registrationNumber: b.vehicleId ? regByVehicle.get(b.vehicleId) ?? null : null,
       state: b.trip?.endedAt ? "done" : b.trip ? "inProgress" : "upcoming",
       isNext: b.id === nextId,
+      // The driver carries the printed form for the passenger to sign, so the
+      // download belongs on the card they read before leaving — not one page in.
+      hasPdf: !!b.pdfUrl,
     }));
   }
 
@@ -162,6 +165,7 @@ export default async function DriverSchedule({
             inProgress: td("todayStateInProgress"),
             done: td("todayStateDone"),
             next: td("todayNext"),
+            document: td("todayDocument"),
           }}
         />
       )}
