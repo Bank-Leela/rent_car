@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Coffee } from "lucide-react";
 import { daySpan, daysSpanned, type DaySpan } from "@/lib/booking/day-window";
 import { formatTh } from "@/lib/format-date";
+import { STATUS_STYLE } from "@/lib/booking/status-style";
 import { localDayOfDbDate } from "@/lib/booking/db-date";
 
 // Compact month-cell time: ↩<return> on a return day, ↪↩ when away the whole
@@ -32,15 +33,9 @@ function cellTime(startAt: Date, endAt: Date, span: DaySpan): string {
   return format(startAt, "HH:mm");
 }
 
-const STATUS_TINT: Record<string, string> = {
-  APPROVED:
-    "bg-blue-100 text-blue-900 border-blue-300 dark:bg-blue-500/15 dark:text-blue-200 dark:border-blue-400/30",
-  ASSIGNED:
-    "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-400/30",
-  COMPLETED:
-    "bg-muted text-muted-foreground border-border dark:bg-violet-500/10 dark:text-violet-200 dark:border-violet-400/25",
-};
-
+// Only these three can appear — the query below pins status to them — so unlike
+// the admin calendar this page was never missing a colour. It was still a third
+// copy of the same table; the colours now come from the one shared source.
 const LEGEND_KEYS = ["APPROVED", "ASSIGNED", "COMPLETED"] as const;
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -203,8 +198,11 @@ export default async function DriverCalendar({
     const s = p.toString();
     return s ? `/driver/calendar?${s}` : "/driver/calendar";
   };
+  // h-11, was py-1.5 (~34px). Every other surface got the 44px minimum and this
+  // one needed it most: the comment below says out loud that this is a shared
+  // touch screen, and these were the smallest touch targets in the app.
   const chip = (active: boolean) =>
-    `rounded-md border px-3 py-1.5 text-sm ${
+    `inline-flex h-11 items-center rounded-lg border px-3 text-sm transition-colors ${
       active ? "border-primary bg-primary/10 font-medium text-foreground" : "bg-background hover:bg-muted"
     }`;
 
@@ -221,16 +219,26 @@ export default async function DriverCalendar({
           </h1>
           <p className="text-muted-foreground">{format(monthAnchor, "MMMM yyyy", { locale: loc })}</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link href={hrefFor({ month: prevMonth })} className={chip(false)}>
+        {/* One segmented control, matching the admin calendar. */}
+        <div className="inline-flex h-11 items-stretch divide-x overflow-hidden rounded-lg border bg-background">
+          <Link
+            href={hrefFor({ month: prevMonth })}
+            className="inline-flex items-center px-3 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
             ← {format(subMonths(monthAnchor, 1), "MMM", { locale: loc })}
           </Link>
           {/* month:null, not a bare /driver/calendar — that dropped the picked
               driver, so "this month" silently widened the view back to the fleet. */}
-          <Link href={hrefFor({ month: null })} className={chip(false)}>
+          <Link
+            href={hrefFor({ month: null })}
+            className="inline-flex items-center px-3 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
             {tcal("thisMonth")}
           </Link>
-          <Link href={hrefFor({ month: nextMonth })} className={chip(false)}>
+          <Link
+            href={hrefFor({ month: nextMonth })}
+            className="inline-flex items-center px-3 text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
             {format(addMonths(monthAnchor, 1), "MMM", { locale: loc })} →
           </Link>
         </div>
@@ -258,13 +266,22 @@ export default async function DriverCalendar({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 text-xs">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         {LEGEND_KEYS.map((key) => (
-          <span key={key} className={`rounded border px-1.5 py-0.5 ${STATUS_TINT[key]}`}>
+          <span key={key} className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_STYLE[key].dot}`} aria-hidden />
             {tcal(`legend.${key}`)}
           </span>
         ))}
-        <span className="rounded border border-emerald-300 bg-emerald-100 px-1.5 py-0.5 text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/40 dark:text-emerald-200">
+        {/* A filled square, not a dot: เวร is a property of the whole DAY and is
+            drawn as a wash across the cell, while the dots above are trips
+            inside it. Both are emerald — ASSIGNED and on-duty genuinely are the
+            same green in this app — so the shapes have to carry the difference. */}
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-sm bg-emerald-500/20 ring-1 ring-emerald-500/50"
+            aria-hidden
+          />
           {t("onCallLegend")}
         </span>
       </div>
@@ -282,16 +299,28 @@ export default async function DriverCalendar({
             const inMonth = isSameMonth(day, monthAnchor);
             const isToday = isSameDay(day, today);
             const isDuty = dutyDays.has(key);
+            // เวร used to be a 2px emerald left border on the cell. The trip rows
+            // inside it are now 2px coloured left borders too — and ASSIGNED is
+            // emerald — so the day marker and a row marker would have been the
+            // same mark in the same colour at the same edge. A wash over the
+            // whole cell says "this day" instead of "this row", which is what it
+            // actually means.
             const surface = inMonth
-              ? "bg-card"
-              : "bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
+              ? "min-h-24 bg-card"
+              : "min-h-14 bg-muted/40 text-muted-foreground/70 dark:bg-white/[0.02] dark:text-muted-foreground/60";
             return (
-              <div
-                key={key}
-                className={`relative min-h-20 border-t border-l p-1 ${surface} ${
-                  isDuty ? "border-l-2 border-l-emerald-400 dark:border-l-emerald-600" : ""
-                }`}
-              >
+              <div key={key} className={`relative border-t border-l p-1 ${surface}`}>
+                {/* An overlay rather than a background on the cell: this and
+                    bg-card both set background-color, so on one element they do
+                    not layer — the wash simply replaced the card surface and the
+                    เวร day composited onto the page instead. -z-10 puts it above
+                    the cell background and below its contents. */}
+                {inMonth && isDuty && (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 -z-10 bg-emerald-500/[0.07] dark:bg-emerald-500/[0.10]"
+                  />
+                )}
                 <div className="flex items-center justify-between gap-1">
                   <span
                     className={
@@ -320,15 +349,15 @@ export default async function DriverCalendar({
                     <Link
                       key={b.id}
                       href={`/driver/${b.id}`}
-                      className={`block rounded border px-1.5 py-0.5 text-[11px] leading-tight hover:opacity-80 ${
-                        STATUS_TINT[b.status] ?? ""
+                      className={`block rounded-sm border-l-2 bg-muted/50 px-1.5 py-0.5 text-[11px] leading-tight transition-colors hover:bg-muted ${
+                        STATUS_STYLE[b.status].rail
                       }`}
                       title={`${formatTh(b.startAt, "EEE HH:mm")}–${formatTh(b.endAt, "EEE HH:mm")} · ${b.destination}`}
                     >
-                      <div className="font-medium truncate">
+                      <div className="truncate font-medium tabular-nums text-foreground">
                         {cellTime(b.startAt, b.endAt, span)} {b.vehicle?.registrationNumber ?? "—"}
                       </div>
-                      <div className="truncate opacity-80">{b.destination}</div>
+                      <div className="truncate text-muted-foreground">{b.destination}</div>
                     </Link>
                   ))}
                   {items.length > 3 && (
