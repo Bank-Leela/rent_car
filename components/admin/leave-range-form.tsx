@@ -85,7 +85,7 @@ export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; de
             name="driverId"
             value={driverId}
             onValueChange={setDriverId}
-            className="h-9 w-52"
+            className="h-11 w-52"
             options={drivers.map((d) => ({ value: d.driverId, label: d.name }))}
           />
         </div>
@@ -101,7 +101,7 @@ export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; de
             <DateTimePicker name="" dateOnly defaultValue={to ? `${to}T00:00` : ""} onChange={(v) => setTo(v.slice(0, 10))} />
           </div>
         </div>
-        <Button type="button" size="sm" disabled={pending || !driverId} onClick={submit}>
+        <Button type="button" size="lg" disabled={pending || !driverId} onClick={submit}>
           {pending ? t("rangeSaving") : t("rangeSubmit")}
         </Button>
       </div>

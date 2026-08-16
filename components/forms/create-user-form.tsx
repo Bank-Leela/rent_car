@@ -16,6 +16,13 @@ export function CreateUserForm({
   departments: Array<{ id: string; nameEn: string; nameTh: string }>;
 }) {
   const t = useTranslations("adminUsers");
+  // One role per account. The schema models roles as a many-to-many
+  // (UserRole[] with @@unique([userId, role])) so it CAN hold several, and one
+  // comment in lib/auth/station.ts anticipates an ADMIN+DRIVER account — but no
+  // seeded or live user has ever had more than one, and multi-select let an
+  // account be built that no screen is designed for. Kept as an array so the
+  // wire format and the server action are unchanged, and so re-enabling
+  // multi-select later is a one-line change here rather than a migration.
   const [pickedRoles, setPickedRoles] = useState<string[]>(["REQUESTER"]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -78,20 +85,20 @@ export function CreateUserForm({
         <p className="text-xs text-muted-foreground">{t("initialPasswordNote")}</p>
       </div>
       <div className="grid gap-1.5 sm:col-span-2">
-        <Label>{t("roles")}</Label>
-        <div className="flex flex-wrap gap-2">
+        <Label id="role-label">{t("roles")}</Label>
+        <div role="radiogroup" aria-labelledby="role-label" className="flex flex-wrap gap-2">
           {ROLES.map((r) => {
             const active = pickedRoles.includes(r);
             return (
               <button
                 key={r}
                 type="button"
-                aria-pressed={active}
-                onClick={() =>
-                  setPickedRoles((cur) =>
-                    cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r],
-                  )
-                }
+                role="radio"
+                aria-checked={active}
+                // Radio semantics: picking one replaces the selection rather
+                // than adding to it. Never clears to empty — an account with no
+                // role can sign in and see nothing.
+                onClick={() => setPickedRoles([r])}
                 // 44px pill, matching the queue filter chips — these were h-9
                 // (36px) and rounded-md, so the app had two different shapes for
                 // "a small toggle you press".

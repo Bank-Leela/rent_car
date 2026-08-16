@@ -65,7 +65,14 @@ export function CreateDriverForm() {
           ]}
         />
       </div>
-      <Button type="submit" disabled={pending} className="sm:col-span-2 w-full sm:w-auto">
+      {/* justify-self-start, not sm:w-auto — grid items stretch by default, so the
+          submit rendered as a page-wide banner. Same fix as create-user-form. */}
+      <Button
+        type="submit"
+        size="xl"
+        disabled={pending}
+        className="w-full sm:col-span-2 sm:w-auto sm:justify-self-start"
+      >
         {pending ? t("creating") : t("addDriver")}
       </Button>
     </form>

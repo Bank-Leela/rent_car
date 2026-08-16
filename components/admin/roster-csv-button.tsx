@@ -46,7 +46,7 @@ export function RosterCsvButton({ rows }: { rows: DriverRow[] }) {
     <button
       type="button"
       onClick={download}
-      className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:hidden"
+      className="inline-flex h-11 items-center gap-1.5 rounded-lg border px-3.5 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:hidden"
     >
       <Download className="h-3.5 w-3.5" aria-hidden />
       {t("exportCsv")}
