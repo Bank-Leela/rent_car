@@ -18,7 +18,18 @@ import { ensureOnCallRosterThrough } from "@/lib/booking/duty-roster";
  */
 const REASON = "LEAVE-RESPECTED-TEST";
 // Far enough out to be past the rostered horizon, inside MAX_LOOKAHEAD_DAYS (370).
-const TARGET = startOfDay(addDays(new Date(), 300));
+//
+// Nudged onto a Tue–Fri, because a bare +300 made this suite fail on the calendar
+// rather than on the code. เวร is not rostered at the weekend (duty-roster.ts
+// skips Sat/Sun), so on any real-world day where today+300 landed on Sat or Sun —
+// two days in seven — the first two tests asserted "the day should get rostered"
+// about a day that correctly has no เวร. The third test needs TARGET-1 rostered
+// as well, so Monday is out too: the window is Tue–Fri.
+const TARGET = (() => {
+  const d = startOfDay(addDays(new Date(), 300));
+  while (d.getDay() < 2 || d.getDay() > 5) d.setDate(d.getDate() + 1);
+  return d;
+})();
 
 let driverIds: string[] = [];
 
