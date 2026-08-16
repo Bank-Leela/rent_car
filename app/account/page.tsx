@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
+import { KeyRound } from "lucide-react";
 import { requireUser, homePathFor } from "@/lib/auth-helpers";
-import { isStationEmail } from "@/lib/auth/station";
 import { prisma } from "@/lib/db";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AppShell } from "@/components/app-shell";
+import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { UrgentNote } from "@/components/urgent-note";
+import { AccountSectionNav } from "@/components/account/account-section-nav";
+import { AccountSection } from "@/components/account/account-section";
 import { ChangeUsernameForm } from "@/components/forms/change-username-form";
 import { ChangePasswordForm } from "@/components/forms/change-password-form";
 import { ChangeDepartmentForm } from "@/components/forms/change-department-form";
-import { SignatureForm } from "@/components/forms/signature-form";
+import { accountSections } from "@/lib/account/sections";
 import { listDepartments } from "@/lib/departments";
-import { navForRoles } from "@/lib/nav/role-nav";
 import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
 import { signOutAction } from "@/lib/auth/credentials-actions";
 
@@ -24,7 +25,6 @@ export default async function AccountPage({
   const session = await requireUser();
   const t = await getTranslations("account");
   const tc = await getTranslations("common");
-  const tAll = await getTranslations();
   const locale = await getLocale();
   const homePath = homePathFor(session.user.roles);
   const { forceChange } = await searchParams;
@@ -34,57 +34,31 @@ export default async function AccountPage({
     select: {
       email: true,
       username: true,
-      name: true,
       mustChangePassword: true,
       usernameChangedAt: true,
       departmentId: true,
-      signatureName: true,
-      signatureImageUrl: true,
     },
   });
   const departments = await listDepartments(locale);
-  const ts = await getTranslations("signatureForm");
+  const sections = await accountSections();
 
   // proxy.ts redirects mustChangePassword users here with ?forceChange=1.
   // Surface the stronger banner so they know they can't navigate away.
   const forced = forceChange === "1" || user.mustChangePassword;
-  // This page sits outside the (requester)/(driver)/(admin) route groups, so it
-  // gets no AppShell of its own — it borrows the one for the user's role below,
-  // which is also the way back to the rest of the app. While the user is LOCKED
-  // (temp password) the bar still renders, but inert: proxy.ts bounces every
-  // other route back here, so live links would ping-pong. Sign-out stays the one
-  // escape that does not defeat the lock.
+  // Mirrors the layout's nav lock, and it is narrower than `forced` on purpose:
+  // dev-cookie sessions are exempt from proxy.ts's redirect (proxy.ts:36-37), so
+  // for them the bar stays live and "back" is the honest action. The banner
+  // still follows `forced` — telling someone their password is temporary is
+  // right either way; only the escape hatch follows what the server enforces.
   const isDevImpersonation = DEV_ENABLED && !!(await cookies()).get(DEV_COOKIE);
-  // The nav lock tracks what proxy.ts ACTUALLY enforces, which is narrower than
-  // `forced` in two ways that both left the bar dead for no reason:
-  //
-  //  * `?forceChange=1` is only the label proxy.ts puts on its own redirect
-  //    (proxy.ts:41) — it carries no authority. A stale link, a back button, or
-  //    a reload after the password was changed all keep the param, and the bar
-  //    stayed inert for someone the server would happily let navigate.
-  //  * dev-cookie sessions are exempt from the redirect outright
-  //    (proxy.ts:36-37), yet this page read mustChangePassword straight from the
-  //    row — so impersonating a seeded user whose flag is set locked the bar
-  //    while every route was in fact reachable.
-  //
-  // The banner, the autofocus and the ring still follow `forced`: telling
-  // someone their password is temporary is right either way. Only navigation
-  // follows the redirect, so the bar is dead exactly when clicking it would
-  // bounce and live whenever clicking it works.
   const navLocked = user.mustChangePassword && !isDevImpersonation;
-  const { badgeRole, routes } = navForRoles(session.user.roles, {
-    isStation: isStationEmail(session.user.email),
-  });
 
-  const body = (
-    // mx-auto, and it matters: AppShell centres <main> at max-w-7xl, so a bare
-    // max-w-2xl column sat hard against the left of a 1280 px shell and left
-    // ~690 px of dead space on a wide screen — it read as broken alignment
-    // rather than as a narrow form. Every other page fills the shell; this is
-    // the only page with a width of its own, so it has to centre itself.
-    // 3xl over 2xl so the centred column is not a thin ribbon at 1512 px wide,
-    // while staying narrow enough that the inputs are not absurdly long.
-    <div className="mx-auto max-w-3xl space-y-6">
+  return (
+    // max-w-5xl, was 3xl: the rail needs a column of its own beside the content,
+    // and at 3xl the two together squeezed the inputs narrower than they were.
+    // mx-auto matters — AppShell centres <main> at max-w-7xl, so a bare column
+    // sat hard against the left and left ~690px of dead space on a wide screen.
+    <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title={t("title")}
         description={t("description")}
@@ -94,10 +68,13 @@ export default async function AccountPage({
           // the bar is live again, "back" is the honest action — offering only
           // sign-out beside a working nav made leaving look harder than it is.
           navLocked ? (
-            <form action={isDevImpersonation ? "/api/dev/sign-out" : signOutAction} method={isDevImpersonation ? "post" : undefined}>
+            <form
+              action={isDevImpersonation ? "/api/dev/sign-out" : signOutAction}
+              method={isDevImpersonation ? "post" : undefined}
+            >
               <button
                 type="submit"
-                className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+                className="inline-flex h-11 items-center justify-center rounded-lg border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
               >
                 {tc("signOut")}
               </button>
@@ -105,7 +82,7 @@ export default async function AccountPage({
           ) : (
             <Link
               href={homePath}
-              className="inline-flex items-center justify-center rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-muted"
+              className="inline-flex h-11 items-center justify-center rounded-lg border bg-background px-4 text-sm font-medium transition-colors hover:bg-muted"
             >
               {tc("back")}
             </Link>
@@ -113,85 +90,48 @@ export default async function AccountPage({
         }
       />
 
+      {/* UrgentNote, not a sixth hand-rolled amber block. This one predates the
+          component and kept its own border-amber-300/bg-amber-50 pair with a
+          hand-synced dark: override — the exact thing the --urgent tokens were
+          added to end. */}
       {forced && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-          <p className="font-medium">{t("mustChangeBanner")}</p>
-          <p className="mt-1 text-xs opacity-80">{t("mustChangeBlocked")}</p>
-        </div>
+        <UrgentNote icon={KeyRound} title={t("mustChangeBanner")}>
+          <p className="mt-1 text-xs opacity-90">{t("mustChangeBlocked")}</p>
+        </UrgentNote>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("emailTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          <div className="text-sm font-mono">{user.email}</div>
-          <p className="text-xs text-muted-foreground">{t("emailNote")}</p>
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-[190px_minmax(0,1fr)] lg:items-start">
+        <AccountSectionNav sections={sections} label={t("title")} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("usernameTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChangeUsernameForm
-            currentUsername={user.username ?? ""}
-            alreadyChanged={!!user.usernameChangedAt}
-          />
-        </CardContent>
-      </Card>
+        {/* One card, sections divided by hairlines — rather than one card per
+            setting with a 24px gutter between each. Settings are one object.
+            gap-0/py-0 because Card's own padding would double up on theirs. */}
+        <Card className="gap-0 py-0">
+          <div className="divide-y">
+            <AccountSection id="email" title={t("emailTitle")} description={t("emailNote")}>
+              <p className="font-mono text-sm break-all">{user.email}</p>
+            </AccountSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("departmentTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChangeDepartmentForm
-            departments={departments}
-            currentDepartmentId={user.departmentId}
-          />
-        </CardContent>
-      </Card>
+            <AccountSection id="username" title={t("usernameTitle")}>
+              <ChangeUsernameForm
+                currentUsername={user.username ?? ""}
+                alreadyChanged={!!user.usernameChangedAt}
+              />
+            </AccountSection>
 
-      {/* id: the profile menu's ลายเซ็น item links straight here. */}
-      <Card id="signature" className="scroll-mt-20">
-        <CardHeader>
-          <CardTitle>{ts("title")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-3 text-sm text-muted-foreground">{ts("description")}</p>
-          <SignatureForm
-            userId={session.user.id}
-            signatureName={user.signatureName}
-            hasSignature={!!user.signatureImageUrl}
-          />
-        </CardContent>
-      </Card>
+            <AccountSection id="department" title={t("departmentTitle")}>
+              <ChangeDepartmentForm
+                departments={departments}
+                currentDepartmentId={user.departmentId}
+              />
+            </AccountSection>
 
-      <Card id="password" className={`scroll-mt-20 ${forced ? "border-primary/40 ring-1 ring-primary/30" : ""}`}>
-        <CardHeader>
-          <CardTitle>{t("passwordTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChangePasswordForm autoFocus={forced} />
-        </CardContent>
-      </Card>
+            <AccountSection id="password" title={t("passwordTitle")} highlight={forced}>
+              <ChangePasswordForm autoFocus={forced} />
+            </AccountSection>
+          </div>
+        </Card>
+      </div>
     </div>
-  );
-
-  return (
-    <AppShell
-      badgeRole={badgeRole}
-      user={session.user}
-      nav={routes.map((r) => ({ href: r.href, label: tAll(r.labelKey) }))}
-      navDisabled={navLocked}
-      // Same sentence the banner shows, repeated where the click fails: the
-      // banner is below the header, so someone who reaches for the nav first
-      // hits a dead link with no reason given.
-      navDisabledReason={navLocked ? t("mustChangeBlocked") : undefined}
-    >
-      {body}
-    </AppShell>
   );
 }

@@ -56,7 +56,13 @@ export function ChangeUsernameForm({
       className="space-y-3"
     >
       <div className="grid gap-1.5">
-        <Label htmlFor="username">{t("usernameLabel")}</Label>
+        {/* sr-only: the section heading above this form is already the word
+            "ชื่อผู้ใช้", so a visible label repeated it verbatim, one line
+            apart. The label element stays — the input still needs a
+            programmatic name — it just stops being said twice on screen. */}
+        <Label htmlFor="username" className="sr-only">
+          {t("usernameLabel")}
+        </Label>
         <Input
           id="username"
           name="username"

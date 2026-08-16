@@ -65,7 +65,7 @@ export function ProfileMenu({
           </DropdownMenuItem>
           {/* The signature lives inside the account page, several cards down —
               a requester filling the official form should not have to hunt for it. */}
-          <DropdownMenuItem onClick={() => router.push("/account#signature")}>
+          <DropdownMenuItem onClick={() => router.push("/account/signature")}>
             <FileSignature className="mr-2 h-4 w-4" aria-hidden />
             {labels.signature}
           </DropdownMenuItem>

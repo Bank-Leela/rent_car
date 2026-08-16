@@ -38,7 +38,12 @@ export function ChangeDepartmentForm({
       className="space-y-3"
     >
       <div className="grid gap-1.5">
-        <Label htmlFor="departmentId">{t("departmentLabel")}</Label>
+        {/* sr-only for the same reason as the username field: the section
+            heading "หน่วยงานผู้ขอใช้รถ" already says it. The select carries its
+            own ariaLabel below, so nothing is lost to assistive tech. */}
+        <Label htmlFor="departmentId" className="sr-only">
+          {t("departmentLabel")}
+        </Label>
         <SearchableSelect
           id="departmentId"
           name="departmentId"
