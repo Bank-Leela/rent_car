@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Car } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { ForgotPasswordForm } from "@/components/forms/forgot-password-form";
+import { BrandTile } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default async function ForgotPage() {
@@ -13,9 +13,7 @@ export default async function ForgotPage() {
       </div>
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
-            <Car className="h-6 w-6" aria-hidden />
-          </div>
+          <BrandTile size="lg" tone="brand" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("tagline")}</p>
         </div>

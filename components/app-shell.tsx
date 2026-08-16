@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Car } from "lucide-react";
+import { BrandTile } from "@/components/brand-mark";
 import { getTranslations } from "next-intl/server";
 import { Separator } from "@/components/ui/separator";
 import { DEV_COOKIE, DEV_ENABLED } from "@/lib/dev-auth";
@@ -61,9 +61,7 @@ export async function AppShell({
             <MobileNav items={nav} disabled={navDisabled} disabledReason={navDisabledReason} />
             {navDisabled ? (
               <span className="flex min-h-11 items-center gap-2 font-semibold tracking-tight">
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-bar-accent text-bar-foreground ring-1 ring-inset ring-bar-border">
-                  <Car className="h-4 w-4" aria-hidden />
-                </span>
+                <BrandTile />
                 <span className="inline">{t("brand.name")}</span>
               </span>
             ) : (
@@ -73,9 +71,7 @@ export async function AppShell({
               >
                 {/* bg-primary on a --bar that IS primary-adjacent read as a
                     barely-there smudge; a glass tile reads on any bar shade. */}
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-bar-accent text-bar-foreground ring-1 ring-inset ring-bar-border">
-                  <Car className="h-4 w-4" aria-hidden />
-                </span>
+                <BrandTile />
                 <span className="inline">{t("brand.name")}</span>
               </Link>
             )}

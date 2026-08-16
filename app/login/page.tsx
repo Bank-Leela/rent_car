@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Car } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { homePathFor } from "@/lib/auth-helpers";
 import { getSession } from "@/lib/session";
 import { DEV_ENABLED } from "@/lib/dev-auth";
 import { prisma } from "@/lib/db";
+import { BrandTile } from "@/components/brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignInForm } from "@/components/forms/sign-in-form";
 
@@ -45,9 +45,7 @@ export default async function LoginPage({
       </div>
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
-            <Car className="h-6 w-6" aria-hidden />
-          </div>
+          <BrandTile size="lg" tone="brand" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">{t("login.title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t("login.tagline")}</p>
         </div>
