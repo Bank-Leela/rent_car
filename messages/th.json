@@ -106,7 +106,8 @@
     "inChula": "ในจุฬาฯ",
     "outsideChula": "นอกจุฬาฯ",
     "showPassword": "แสดงรหัสผ่าน",
-    "hidePassword": "ซ่อนรหัสผ่าน"
+    "hidePassword": "ซ่อนรหัสผ่าน",
+    "chooseFile": "เลือกไฟล์…"
   },
   "errorPage": {
     "title": "เกิดข้อผิดพลาด",
@@ -346,7 +347,7 @@
     "type_SEDAN": "เก๋ง",
     "type_PICKUP": "กระบะ",
     "type_VAN": "ตู้",
-    "type_OTHER": "อื่น ๆ",
+    "type_OTHER": "รถ 6 ล้อ",
     "addVehicle": "เพิ่มรถ",
     "add": "เพิ่ม",
     "adding": "กำลังเพิ่ม…",
@@ -356,6 +357,8 @@
     "remove": "ลบ",
     "removeVehicleAria": "ลบยานพาหนะ {reg}",
     "confirmRemove": "ยืนยันลบ",
+    "offCalendarTitle": "ปฏิทินรถที่ไม่พร้อมใช้ (คนขับลา)",
+    "offCalendarEmpty": "เดือนนี้ไม่มีคนขับลา — รถพร้อมใช้ทุกคัน",
     "vehicleRemoved": "ลบยานพาหนะแล้ว"
   },
   "notifications": {
@@ -515,7 +518,8 @@
     "customFieldLabel": "ชื่อช่อง",
     "customFieldValue": "ข้อมูล",
     "customFieldAdd": "เพิ่มช่องข้อมูล",
-    "customFieldRemove": "ลบช่องข้อมูล"
+    "customFieldRemove": "ลบช่องข้อมูล",
+    "leaveCalendarEmpty": "เดือนนี้ไม่มีคนขับลา"
   },
   "adminUsers": {
     "title": "บัญชีผู้ใช้",
@@ -607,6 +611,9 @@
     "paxCount": "{count} คน",
     "coDriverNeeded": "ต้องมีคนขับเสริม",
     "filterOverdue": "รอเกิน 24 ชม.",
+    "filterJobTypeGroup": "ประเภทงาน",
+    "filterWaitGroup": "การรอ",
+    "filterClear": "ล้างตัวกรอง",
     "sortLabel": "เรียงตาม",
     "sortStart": "เวลาเดินทาง",
     "sortOldest": "ส่งคำขอก่อน",
@@ -639,10 +646,7 @@
     "seriesMoreDates": "และอีก {count} วัน",
     "outsourcedPendingHeading": "ส่งรถนอก — ยังไม่ได้จัดรถเช่า",
     "outsourcedPendingBanner": "อนุมัติให้ใช้รถเช่าภายนอกแล้ว แต่ยังไม่ได้เลือกผู้ให้บริการ — เปิดกระดานของวันนั้น เพิ่มแถวรถเช่า แล้วลากงานนี้เข้าไป",
-    "outsourcedPendingAction": "เปิดกระดานวันนั้นเพื่อจัดรถเช่า",
-    "filterJobTypeGroup": "ประเภทงาน",
-    "filterWaitGroup": "การรอ",
-    "filterClear": "ล้างตัวกรอง"
+    "outsourcedPendingAction": "เปิดกระดานวันนั้นเพื่อจัดรถเช่า"
   },
   "bookingDetail": {
     "trip": "การเดินทาง",
@@ -871,7 +875,9 @@
       "ASSIGNED": "จัดรถแล้ว",
       "COMPLETED": "เสร็จสิ้น",
       "CANCELLED": "ยกเลิก",
-      "DENIED": "ไม่อนุมัติ"
+      "DENIED": "ไม่อนุมัติ",
+      "WAITLIST": "รอคิว",
+      "OUTSOURCED": "ส่งรถนอก"
     }
   },
   "calendarDay": {
@@ -1052,6 +1058,7 @@
     "templateSaved": "บันทึกเทมเพลต “{name}” แล้ว",
     "templateApplied": "กรอกข้อมูลจาก “{name}” แล้ว — เหลือเลือกวันที่",
     "templateNameRequired": "กรุณาตั้งชื่อเทมเพลตก่อนบันทึก",
+    "templateMissingFields": "ยังไม่ได้กรอก: {fields} — กด “บันทึกเทมเพลต” อีกครั้งเพื่อบันทึกทั้งที่ยังไม่ครบ",
     "templateRenamePrompt": "ตั้งชื่อเทมเพลตใหม่",
     "templateRename": "แก้ไขชื่อ “{name}”",
     "templateDelete": "ลบ “{name}”",
@@ -1210,6 +1217,7 @@
     "todayStateInProgress": "กำลังเดินทาง",
     "todayStateDone": "เสร็จแล้ว",
     "todayNext": "คิวถัดไป",
+    "todayDocument": "ดาวน์โหลดแบบฟอร์มขออนุญาตใช้รถ",
     "kioskUpdated": "อัปเดต {time}",
     "kioskRefresh": "รีเฟรช"
   },
@@ -1285,9 +1293,9 @@
     "status_COMPLETED": "เสร็จสิ้น",
     "status_DENIED": "ไม่อนุมัติ",
     "status_CANCELLED": "ยกเลิก",
-    "clear": "ล้างตัวกรอง",
     "groupStatus": "สถานะ",
-    "groupJobType": "ประเภทงาน"
+    "groupJobType": "ประเภทงาน",
+    "clear": "ล้างตัวกรอง"
   },
   "maps": {
     "estimate": "ประเมินระยะทาง (Google Maps)",

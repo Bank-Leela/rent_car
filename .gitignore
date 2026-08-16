@@ -45,3 +45,9 @@ uploads/
 
 # Claude Code local settings (per-machine perms, never share)
 .claude/settings.local.json
+
+# Python bytecode from scripts/devtools
+__pycache__/
+
+# Scratch space for probe scripts and screenshots — not build output, not source
+scripts/tmp/
