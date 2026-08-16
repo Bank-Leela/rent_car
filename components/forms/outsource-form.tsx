@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { Label } from "@/components/ui/label";
 import { recordOutsourcingAction } from "@/lib/booking/extra-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
@@ -29,7 +30,7 @@ export function OutsourceForm({ bookingId }: { bookingId: string }) {
       </div>
       <div className="grid gap-2">
         <Label htmlFor="quote">{t("quoteFile")}</Label>
-        <Input id="quote" name="quote" type="file" accept="application/pdf,image/png,image/jpeg" />
+        <FileInput id="quote" name="quote" accept="application/pdf,image/png,image/jpeg" />
         <p className="text-xs text-muted-foreground">{t("quoteHint")}</p>
       </div>
       <label className="flex items-center gap-2 text-sm">

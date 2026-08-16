@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/file-input";
 import { uploadSignatureAction } from "@/lib/booking/approval-actions";
 import { useFormAction } from "@/components/forms/use-form-action";
 import { FormError } from "@/components/forms/form-error";
@@ -44,10 +45,9 @@ export function SignatureForm({
       </div>
       <div className="grid gap-2">
         <Label htmlFor="signature">{t("imageLabel")}</Label>
-        <Input
+        <FileInput
           id="signature"
           name="signature"
-          type="file"
           accept="image/png,image/jpeg"
           required={!hasSignature}
           onChange={onFileChange}
