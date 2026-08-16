@@ -1,4 +1,14 @@
-import { addDays, format, parse, startOfDay } from "date-fns";
+import {
+  addDays,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  parse,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -10,13 +20,26 @@ import { CreateDriverForm } from "@/components/forms/create-driver-form";
 import { licenseStatus, retirementStatus } from "@/lib/admin/roster-alerts";
 import { LeaveRangeForm } from "@/components/admin/leave-range-form";
 import { UpcomingLeave, type LeaveBlock } from "@/components/admin/upcoming-leave";
+import { LeaveCalendar, type LeaveDay } from "@/components/admin/leave-calendar";
 import { formatTh } from "@/lib/format-date";
 import { localDayOfDbDate } from "@/lib/booking/db-date";
 
-export default async function AdminDriversPage() {
+function parseMonth(s?: string): Date {
+  if (!s) return startOfMonth(new Date());
+  const d = parse(s, "yyyy-MM", new Date());
+  return Number.isNaN(d.getTime()) ? startOfMonth(new Date()) : startOfMonth(d);
+}
+
+export default async function AdminDriversPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ leaveMonth?: string }>;
+}) {
   await requireRole("ADMIN");
   const t = await getTranslations("adminDrivers");
   const now = new Date();
+  const { leaveMonth } = await searchParams;
+  const monthAnchor = parseMonth(leaveMonth);
 
   const drivers = await prisma.driver.findMany({
     orderBy: { user: { name: "asc" } },
@@ -85,8 +108,38 @@ export default async function AdminDriversPage() {
     const tt = parse(b.to, "yyyy-MM-dd", new Date());
     b.label = b.from === b.to ? formatTh(f, "d MMM") : `${formatTh(f, "d MMM")}–${formatTh(tt, "d MMM")}`;
   }
+  // The same rows again over the visible grid rather than the 30-day window: the
+  // chips above answer "what is coming up", the grid answers "what does next
+  // month look like", and a month you page back to is not in the 30 days. The
+  // whole grid is queried, neighbouring months included, so those cells are not
+  // wrongly blank.
+  const gridStart = startOfWeek(startOfMonth(monthAnchor), { weekStartsOn: 0 });
+  const gridEnd = endOfWeek(endOfMonth(monthAnchor), { weekStartsOn: 0 });
+  const monthLeave = await prisma.driverUnavailability.findMany({
+    where: { date: { gte: gridStart, lte: gridEnd } },
+    orderBy: [{ date: "asc" }],
+    select: { driverId: true, date: true },
+  });
+  const offByDay = new Map<string, string[]>();
+  for (const row of monthLeave) {
+    // localDayOfDbDate first, as above — a read-back @db.Date is a UTC midnight,
+    // and formatting it directly lands every leave day one cell early.
+    const iso = format(localDayOfDbDate(row.date), "yyyy-MM-dd");
+    // Names, not plates: this page is about the people. Same label as the chips
+    // directly above, so one absence never reads as two different drivers.
+    const label = nameByDriver.get(row.driverId) ?? row.driverId;
+    const at = offByDay.get(iso);
+    if (at) at.push(label);
+    else offByDay.set(iso, [label]);
+  }
+  const offDays: LeaveDay[] = [...offByDay.entries()].map(([iso, names]) => ({
+    iso,
+    names: names.sort((a, b) => a.localeCompare(b)),
+  }));
+
   // Only a driver who can actually be dispatched can be marked off.
   const schedulable = rows.filter((r) => r.isActive).map((r) => ({ driverId: r.id, name: r.name }));
+
 
   return (
     <div className="space-y-6">
@@ -98,6 +151,15 @@ export default async function AdminDriversPage() {
         <CardContent className="space-y-3">
           <LeaveRangeForm drivers={schedulable} defaultFrom={format(today, "yyyy-MM-dd")} />
           <UpcomingLeave blocks={leaveBlocks} />
+          <LeaveCalendar
+            days={eachDayOfInterval({ start: gridStart, end: gridEnd })}
+            monthAnchor={monthAnchor}
+            leave={offDays}
+            basePath="/admin/drivers"
+            param="leaveMonth"
+            anchorId="driver-leave-calendar"
+            emptyLabel={t("leaveCalendarEmpty")}
+          />
         </CardContent>
       </Card>
       <Card>
