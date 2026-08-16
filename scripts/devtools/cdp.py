@@ -267,6 +267,18 @@ def main():
         out = {"url": url}
         if "--wait-hydrated" in a:
             out["hydrated"] = b.wait_hydrated()
+        # Real Tab presses, not synthetic KeyboardEvents. `:focus-visible` only
+        # matches when Chrome's last-interaction modality is the keyboard, and an
+        # untrusted dispatchEvent() never sets it — so a focus ring can only be
+        # verified through Input.dispatchKeyEvent.
+        n = flag("--tab")
+        if n:
+            for _ in range(int(n)):
+                for ty in ("rawKeyDown", "keyUp"):
+                    b.call("Input.dispatchKeyEvent", {
+                        "type": ty, "key": "Tab", "code": "Tab",
+                        "windowsVirtualKeyCode": 9, "nativeVirtualKeyCode": 9,
+                    })
         f = flag("--eval-file")
         if f:
             out["result"] = b.evaluate(open(f, encoding="utf-8").read())
