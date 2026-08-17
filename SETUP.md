@@ -56,7 +56,8 @@ Open http://localhost:3000.
 
 ## Demo logins
 
-Sign in at `/login` with **username or email + password** (the field is labeled
+Sign in at `/` — the site root *is* the sign-in screen, and `/login` just
+redirects there — with **username or email + password** (the field is labeled
 "Email or username"). All seeded accounts share one temporary password that
 `prisma db seed` **prints once when it finishes** — it is generated per run and
 is not stored anywhere, so copy it from that output. Every account is flagged
@@ -73,7 +74,7 @@ environment before seeding.
 | DRIVERS (×6, car=driver) | `driverA` … `driverF` | driver@ and driver2@–driver6@chula.ac.th |
 
 > The six driver logins are renamed to `driverA`–`driverF` by the seed (one per
-> vehicle A–F); in dev, the `/login` "Preview as" buttons skip the password.
+> vehicle A–F); in dev, the "Preview as" buttons on `/` skip the password.
 
 ## Useful commands
 

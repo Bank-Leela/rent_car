@@ -21,7 +21,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           {t("doneNote")}
         </div>
         <Link
-          href="/login"
+          href="/"
           className="block w-full rounded-md bg-primary py-2 text-center text-sm font-medium text-primary-foreground hover:opacity-90"
         >
           {t("backToSignIn")}

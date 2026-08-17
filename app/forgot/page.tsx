@@ -20,7 +20,7 @@ export default async function ForgotPage() {
         <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-4">
           <ForgotPasswordForm />
           <Link
-            href="/login"
+            href="/"
             className="block text-center text-xs text-primary hover:underline"
           >
             {t("backToSignIn")}

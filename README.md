@@ -49,7 +49,8 @@ npm run db:seed
 npm run dev
 ```
 
-Open <http://localhost:3000/login>. In dev mode, a "Preview as" button is shown
+Open <http://localhost:3000> — the root path is the sign-in screen. In dev mode,
+a "Preview as" button is shown
 for each seeded user (one per `seed-user-*` account) to preview that role view
 without entering credentials.
 
