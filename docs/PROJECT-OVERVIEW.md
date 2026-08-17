@@ -199,6 +199,7 @@ npx tsx scripts/simulate-cr07.ts --scenario=<mixed|tjw|chain|tight|reclaim|…>
 | **This file** | High-level project overview. |
 | [`SETUP.md`](../SETUP.md) / [`README.md`](../README.md) | First-run setup, stack, deploy. |
 | [`AGENTS.md`](../AGENTS.md) | Agent rules: Next-16 caveat, scheduling source-of-truth + verification. |
-| [`HANDOFF.md`](../HANDOFF.md) | Rolling state snapshot for resuming work. |
+| [`HANDOFF.md`](../HANDOFF.md) | What a fresh session needs first: invariants, open items, conventions. |
+| [`docs/session-log.md`](session-log.md) | The chronological record — read for the history of one decision, not to start work. |
 | [`docs/scheduling-algorithm.md`](./scheduling-algorithm.md) | The assignment rules, solver/matcher, source map. |
 | `docs/superpowers/specs/*`, `plans/*` | Point-in-time design/decision records. |

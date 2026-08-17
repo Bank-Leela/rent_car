@@ -75,8 +75,14 @@ export interface ScheduledTrip {
 //     TJW/WERN are gated by the solver (away / duty) — here they only obey gap.
 const minuteOfDay = (d: Date) => d.getHours() * 60 + d.getMinutes();
 const NOON_MIN = MORNING_END_HOUR * 60;
-const endsByNoon = (t: { endAt: Date }) => minuteOfDay(t.endAt) <= NOON_MIN;
-const startsAfterNoon = (t: { startAt: Date }) => minuteOfDay(t.startAt) >= NOON_MIN;
+// Exported so the simulation harness checks the SAME predicates the solver
+// applies. It re-derived them once and got the boundary wrong (`< 12:00`
+// instead of `≤ 12:00`), which made every ordinary 08:00–12:00 trip count as
+// neither morning nor afternoon — the rule-check reported 28 violations against
+// a run the solver had placed correctly. A verifier that restates the rule is a
+// second rule.
+export const endsByNoon = (t: { endAt: Date }) => minuteOfDay(t.endAt) <= NOON_MIN;
+export const startsAfterNoon = (t: { startAt: Date }) => minuteOfDay(t.startAt) >= NOON_MIN;
 
 type TimedJob = {
   startAt: Date;

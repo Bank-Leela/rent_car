@@ -21,7 +21,7 @@
 
 import type { JobType } from "@prisma/client";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "../lib/booking/batch-solver";
-import type { DriverRotationState } from "../lib/booking/rotations";
+import { endsByNoon, startsAfterNoon, type DriverRotationState } from "../lib/booking/rotations";
 
 const argv = Object.fromEntries(
   process.argv.slice(2).map((a) => {
@@ -342,10 +342,25 @@ for (let day = 0; day < TOTAL_DAYS; day++) {
     outcomes.overflow[o.reason] += 1;
   }
 
-  // Rule violation checks (job-type-aware: NORMAL capped at 2, OT is extra hours
-  // on top; the 2h gap is universal across every pair).
+  // Rule violation checks (job-type-aware: NORMAL is one MORNING + one
+  // AFTERNOON, OT is extra hours on top; the 2h gap is universal across every
+  // pair).
+  //
+  // The cap check was `NORMALs > 2`, a plain count — but the rule
+  // (docs/scheduling-algorithm.md §"NORMAL cap") is not "at most two", it is one
+  // morning (ends ≤ 12:00) plus one afternoon (starts ≥ 12:00). Two mornings,
+  // two afternoons, or a midday straddler plus anything are all violations that
+  // a count of 2 waves through — so the gate this script now fails CI on would
+  // have passed the very shape the rule exists to forbid.
   for (const trips of result.driverDay.values()) {
-    if (trips.filter((t) => t.jobType === "NORMAL").length > 2) outcomes.capViolations += 1;
+    const normals = trips.filter((t) => t.jobType === "NORMAL");
+    if (normals.length > 2) outcomes.capViolations += 1;
+    else if (normals.length === 2) {
+      // The solver's OWN predicates, imported — not a restatement of them.
+      if (normals.filter(endsByNoon).length !== 1 || normals.filter(startsAfterNoon).length !== 1) {
+        outcomes.capViolations += 1;
+      }
+    }
     const sorted = [...trips].sort((x, y) => x.startAt.getTime() - y.startAt.getTime());
     for (let i = 0; i < sorted.length; i++) {
       for (let j = i + 1; j < sorted.length; j++) {
@@ -440,4 +455,25 @@ if (detail) {
     }
   }
   console.log("");
+}
+
+// ---- the verdict ----
+//
+// AGENTS.md declares this script part of the verification for any scheduling
+// change ("rule-check counters must stay 0"), but it used to exit 0 no matter
+// what those counters said — so the gate could only ever be a human squinting at
+// stdout, and `make sim` in CI would have passed a run that violated the rule on
+// every day it simulated. The exit code is what makes it a verifier.
+//
+// It runs LAST, after the whole report: a failing run is exactly when you want
+// the per-driver totals and the fairness spread on screen, not truncated by an
+// early exit.
+const ruleViolations =
+  outcomes.capViolations + outcomes.bufferViolations + outcomes.wernConflictDays;
+if (ruleViolations > 0) {
+  console.error(
+    `FAILED — ${ruleViolations} rule-check violation(s): ` +
+      `cap=${outcomes.capViolations} buffer=${outcomes.bufferViolations} duty=${outcomes.wernConflictDays}`,
+  );
+  process.exit(1);
 }

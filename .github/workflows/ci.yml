@@ -50,3 +50,15 @@ jobs:
       # vitest.config.ts sets fileParallelism: false, so bare `npm test` is
       # serialized here exactly as `make test` runs it locally.
       - run: npm test
+
+      # The scheduling gate AGENTS.md declares mandatory. It ran nowhere: the
+      # script printed "rule checks (all should be 0)" and exited 0 regardless,
+      # so the rule was enforced by a human reading stdout. simulate-cr07.ts now
+      # exits non-zero on any violation, which is what makes this line a gate.
+      - run: make sim
+
+      # `next build` is the only thing that compiles the RSC/client boundary.
+      # tsc and eslint both pass on a page that fails to build (a Server
+      # Component passing a non-serializable prop, a bad next.config), so
+      # without this a build-only break reaches main green.
+      - run: npm run build

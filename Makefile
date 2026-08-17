@@ -25,8 +25,18 @@ seed:
 migrate:
 	npx prisma migrate deploy
 # Scheduling scenario check — rule-check counters must stay 0 (AGENTS.md).
+# All seven scenarios, not just `mixed`: AGENTS.md names the whole set, and the
+# ones that actually stress the rule are `tight`, `chain` and `reclaim`. The
+# script exits non-zero on any violation, so `set -e` in make stops at the first
+# failing scenario.
+# NOT piped into tail: a pipeline's exit status is the LAST command's, so
+# `... | tail -5 || exit 1` would report tail's success and swallow every
+# violation — the exact failure this target was just fixed to stop.
 sim:
-	npx tsx scripts/simulate-cr07.ts --scenario=mixed
+	@for s in mixed normal ot tjw tight chain reclaim; do \
+		echo "── scenario=$$s"; \
+		npx tsx scripts/simulate-cr07.ts --scenario=$$s || exit 1; \
+	done
 
 help:
 	@echo "make check    - typecheck + lint + test (the verifier)"

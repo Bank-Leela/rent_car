@@ -4,46 +4,34 @@
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+There is a knowledge graph of this repo, kept current by a PostToolUse hook
+(`.claude/settings.json`). It answers *structural* questions — who calls this,
+what breaks if I change it, what tests cover it — from an index, without reading
+the files. It does not answer "where is the string X", and it is not a search
+engine: **it holds no embeddings** (`semantic_search_nodes` returns empty), so
+finding code by name or keyword is still Grep's job.
 
-### When to use graph tools FIRST
-
-- **Exploring code**: `query_graph` instead of Grep (`semantic_search_nodes`
-  needs embeddings — currently 0 embedded; install `sentence-transformers`
-  to enable, otherwise it degrades to empty results)
-- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
-- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
-
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
-
-### Key Tools
+This section used to say ALWAYS use the graph before Grep/Glob/Read. That rule
+was followed once in 2060 tool calls, because it is not how the work actually
+goes — so it is now scoped to the three questions the graph genuinely answers
+better, and Grep/Read are the ordinary way to read this codebase.
 
 | Tool | Use when |
 | ------ | ---------- |
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword (requires embeddings; not installed) |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
+| `query_graph` | callers_of / callees_of / imports_of / **tests_for** — beats grepping for a symbol's uses |
+| `get_impact_radius` | blast radius before changing a shared helper |
+| `get_affected_flows` | which execution paths a change touches |
+| `detect_changes` + `get_review_context` | reviewing a diff without reading whole files |
+| `get_architecture_overview` / `list_communities` | orienting in an unfamiliar area |
+| `refactor_tool` | planning a rename, finding dead code |
 
-### Workflow
-
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
+`semantic_search_nodes` is non-functional until someone runs
+`pip install sentence-transformers && code-review-graph embed --repo .`.
 
 ## Verify before done
 
-Run `npm run typecheck && npm test` after `.ts`/`.tsx` changes. Full
-risk-tier + verification rules: `@HARNESS_PROTOCOL.md` §5. Scope/boundary
-(what needs per-turn auth): §2 risk tiers.
+Run `make check` (typecheck + lint + test) after `.ts`/`.tsx` changes — lint is
+part of the gate and CI runs all three. Scheduling changes additionally need
+`make sim` (all seven scenarios; it exits non-zero on any rule violation). Full
+risk-tier + verification rules: `@HARNESS_PROTOCOL.md` §5. Scope/boundary (what
+needs per-turn auth): §2 risk tiers.
