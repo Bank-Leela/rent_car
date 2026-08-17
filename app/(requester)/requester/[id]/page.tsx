@@ -13,6 +13,7 @@ import { DetailField as Field } from "@/components/detail-field";
 import { InChulaChip } from "@/components/in-chula-chip";
 import { formatTh } from "@/lib/format-date";
 import { formatBaht } from "@/lib/format-money";
+import { auditActionLabel } from "@/lib/booking/audit-labels";
 
 // Where the back arrow returns to, keyed by the `?from` the linking page sets.
 // An allow-list, not the raw value: a path taken straight from the query string
@@ -87,7 +88,7 @@ export default async function RequesterBookingDetail({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <BookingStatusBadge status={booking.status} />
+            <BookingStatusBadge status={booking.status} audience="requester" />
             <InChulaChip travelWithinChula={booking.travelWithinChula} />
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{booking.purpose}</h1>
@@ -324,7 +325,7 @@ export default async function RequesterBookingDetail({
                   {formatTh(log.createdAt, "d MMM HH:mm")}
                 </span>
                 <span>
-                  <span className="font-medium">{log.action.replace(/_/g, " ").toLowerCase()}</span>
+                  <span className="font-medium">{auditActionLabel(log.action)}</span>
                   <span className="text-muted-foreground">
                     {" "}
                     {t("decidedBy", { name: log.actor.name ?? log.actor.email ?? "" })}

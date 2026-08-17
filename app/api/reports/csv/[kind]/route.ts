@@ -10,15 +10,31 @@ import {
   vehicleUtilisation,
 } from "@/lib/reporting/metrics";
 
+/**
+ * Excel ignores the HTTP `charset=utf-8` for a .csv it opens from disk and falls
+ * back to the local ANSI code page, so without a byte-order mark every Thai cell
+ * — department names, driver names, and the license plates that identify a
+ * vehicle row — arrived as mojibake. These files exist to be opened in Excel, so
+ * the BOM is not optional. CRLF for the same reason: it is what RFC 4180 and
+ * Excel expect.
+ */
+const UTF8_BOM = "﻿";
+
 function csv(rows: Array<Array<string | number>>): string {
-  return rows
-    .map((r) =>
-      r.map((cell) => {
-        const s = String(cell);
-        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      }).join(","),
-    )
-    .join("\n");
+  return (
+    UTF8_BOM +
+    rows
+      .map((r) =>
+        r.map((cell) => {
+          const s = String(cell);
+          // A leading =, +, - or @ makes Excel treat the cell as a formula.
+          // Prefix with a tab so it stays text — the value still reads the same.
+          const safe = /^[=+\-@]/.test(s) ? `\t${s}` : s;
+          return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+        }).join(","),
+      )
+      .join("\r\n")
+  );
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ kind: string }> }) {

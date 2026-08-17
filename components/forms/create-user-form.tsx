@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,10 +103,20 @@ export function CreateUserForm({
                 // 44px pill, matching the queue filter chips — these were h-9
                 // (36px) and rounded-md, so the app had two different shapes for
                 // "a small toggle you press".
-                className={`inline-flex h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                  active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
+                //
+                // Selected is TINTED, not solid: solid bg-primary is the submit
+                // button's treatment, and the two sit a row apart, so a picked
+                // role read as a fourth button ("สร้างบัญชี" looked like one more
+                // chip). Same selected treatment the booking form's trip-area
+                // radiogroup uses. The check also means the state isn't carried
+                // by colour alone.
+                className={`inline-flex h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  active
+                    ? "border-primary bg-primary/10 text-primary ring-1 ring-primary"
+                    : "border-input bg-background text-foreground hover:bg-muted"
                 }`}
               >
+                {active && <Check className="h-4 w-4" aria-hidden />}
                 {t(`role.${r}`)}
               </button>
             );

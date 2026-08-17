@@ -7,7 +7,11 @@ import { logTransition } from "@/lib/booking/audit";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
-import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
+import { COMMITTED_STATUSES, DISPATCHABLE_STATUSES } from "@/lib/booking/booking-status";
+import { LONG_TRIP_KM } from "@/lib/booking/classification";
+import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
+import { sendEmail } from "@/lib/email/client";
+import { requesterTimeChangedEmail } from "@/lib/email/templates";
 
 // Adapt a booking row to the leg helper (no-wait trips free their middle).
 type LegRow = { startAt: Date; endAt: Date; waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null };
@@ -41,6 +45,15 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: "bookingNotFound" };
+  // A dead booking is not dispatchable. This action used to read no status at
+  // all: cancelBookingAction and the deny paths leave `overflowReason` set, and
+  // the /admin/batch overflow list is keyed on `overflowReason: { not: null }`,
+  // so a CANCELLED or DENIED trip stayed on the "ทริปที่จัดไม่ได้" list with a
+  // live assign button — one click committed a car and a driver to a trip
+  // nobody wanted, and the occupancy row it wrote then blocked a real one.
+  if (!DISPATCHABLE_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "cannotAssignInStatus" };
+  }
   // External charter (SMUS) — outside buses/vans, not placed on an internal car.
   if (booking.jobType === "SMUS") return { ok: false, error: "externalCharterNoMatch" };
   // Outsourced-rental bus — same as SMUS, never placed on an internal car.
@@ -160,6 +173,25 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
     const bookingLeg = toLegSrc(booking);
     if (secCandidates.some((c) => legsOverlap(bookingLeg, toLegSrc(c)))) secondary = null;
   }
+
+  // One person cannot hold both seats. Dropping a trip onto the car of the
+  // driver who is ALREADY its co-driver made `driverId === booking.secondaryDriverId`:
+  // the incoming-secondary guard above only looks at `secondaryDriverIdIn` (empty
+  // on a plain drag), and both overlap queries carry `id: { not: bookingId }` so
+  // neither can see this booking's own co-driver seat. The row was written with
+  // primaryDriverId === secondaryDriverId, which paints a co-driver ghost, leaves
+  // `needsCoDriver` false, and credits that driver twice in loadWeightedEarnings —
+  // a >400 km trip dispatched with one driver while looking fully staffed.
+  //
+  // Vacate the seat rather than refusing the drop (P'Top's move is legitimate —
+  // they are promoting the co-driver to primary), and re-raise the overflow flag
+  // when the trip still legally needs two, so it comes back as unfinished work
+  // instead of passing as complete. reassignSecondaryAction refuses the mirror
+  // case outright because there the co-driver is what is being chosen.
+  const secondaryCollides = booking.secondaryDriverId === driverId;
+  const stillNeedsCoDriver =
+    booking.needsSecondaryDriver || (booking.estimatedDistance ?? 0) > LONG_TRIP_KM;
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.booking.update({
@@ -168,6 +200,7 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
           vehicleId,
           primaryDriverId: driverId,
           ...(secondary ? { secondaryDriverId: secondary } : {}),
+          ...(secondaryCollides && !secondary ? { secondaryDriverId: null } : {}),
           status: "ASSIGNED",
           driverScheduleStatus: "CONFIRMED",
           decidedAt: new Date(),
@@ -175,7 +208,12 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
           // placed, or was frozen for review, stops being true here. Without
           // this the trip returns to the day's overflow bar the moment the page
           // refreshes, with no way left to dismiss it but unassigning again.
-          overflowReason: null,
+          //
+          // Except when the move just emptied the co-driver seat on a trip that
+          // legally needs one: clearing the flag there would file a half-staffed
+          // long-haul as resolved.
+          overflowReason:
+            secondaryCollides && !secondary && stillNeedsCoDriver ? "NO_SECONDARY_DRIVER" : null,
         },
       });
       await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
@@ -209,10 +247,15 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
     select: {
       id: true, primaryDriverId: true, startAt: true, endAt: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
-      overflowReason: true,
+      overflowReason: true, status: true,
     },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
+  // Same gate as the primary path: a cancelled/denied/completed trip takes no
+  // more crew. This one could also be reached from a stale board.
+  if (!DISPATCHABLE_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "cannotAssignInStatus" };
+  }
 
   // Drop off a row → remove the co-driver.
   if (!vehicleId) {
@@ -294,6 +337,13 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
     select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, status: true },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
+  // A COMPLETED trip's crew is history, not an assignment to undo — stripping it
+  // would erase who actually drove, and the same board control reaches it.
+  // CANCELLED / DENIED never reach here with a driver, but the gate is the same
+  // question, so it is asked the same way.
+  if (!DISPATCHABLE_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "cannotAssignInStatus" };
+  }
   // Nothing assigned → already in the queue.
   if (!booking.primaryDriverId) return { ok: true };
 
@@ -337,32 +387,41 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
   return { ok: true };
 }
 
+/** "HH:mm" onto the calendar day of `ref` — the date is kept, the clock replaced. */
+function withTimeOfDay(ref: Date, hhmm: string): Date | null {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!m) return null;
+  const d = new Date(ref);
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d;
+}
+
 /**
- * Move a เวร job's hours.
+ * Move a trip's hours — any job type, TIME ONLY.
  *
- * เวร work is campus errands run by the duty driver — the hour is negotiable in
- * a way a meeting pickup is not, so P'Top routinely needs to slide one to make
- * room. Every other trip's time is the requester's booking and is not the
- * dispatcher's to change; this action therefore refuses anything that is not
- * WERN rather than becoming a general-purpose time editor.
+ * This was WERN-only: เวร is campus errands the duty driver runs, so its hour is
+ * negotiable in a way a meeting pickup is not. In practice P'Top has to slide
+ * every kind of job (a car comes back late, a meeting moves an hour), and the
+ * refusal just meant editing the row in the database. So the gate is gone and
+ * the guards below carry the weight instead.
  *
- * The car keeps its existing occupancy rules: moving a เวร into another trip's
- * window is refused by the same per-leg overlap check a drag uses, and the DB
- * exclusion constraint is the backstop if two admins move at once.
+ * The DATE cannot move here: each timestamp keeps its own calendar day and only
+ * its clock is replaced, so an overnight TJW still spans the same nights and a
+ * one-day board can never fling a job into a day you can't see. Moving a trip to
+ * another date stays a booking edit, not a dispatch action.
+ *
+ * The car keeps its existing occupancy rules: moving into another trip's window
+ * is refused by the same per-leg overlap check a drag uses, the driver's own
+ * commitments on other cars are checked too (the per-vehicle DB exclusion can't
+ * see those), and the exclusion constraint is the backstop if two admins move at
+ * once. A trip that has already departed is not re-timed at all.
  */
-export async function setWernTimeAction(formData: FormData): Promise<ReassignResult> {
+export async function setBookingTimeAction(formData: FormData): Promise<ReassignResult> {
   const session = await requireRole("ADMIN");
   const bookingId = String(formData.get("bookingId") ?? "");
-  const startRaw = String(formData.get("startAt") ?? "");
-  const endRaw = String(formData.get("endAt") ?? "");
-  if (!bookingId || !startRaw || !endRaw) return { ok: false, error: "invalidInput" };
-
-  const startAt = new Date(startRaw);
-  const endAt = new Date(endRaw);
-  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
-    return { ok: false, error: "invalidInput" };
-  }
-  if (endAt <= startAt) return { ok: false, error: "endBeforeStart" };
+  const startHHmm = String(formData.get("startHHmm") ?? "");
+  const endHHmm = String(formData.get("endHHmm") ?? "");
+  if (!bookingId || !startHHmm || !endHHmm) return { ok: false, error: "invalidInput" };
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
@@ -370,10 +429,36 @@ export async function setWernTimeAction(formData: FormData): Promise<ReassignRes
       id: true, jobType: true, vehicleId: true, status: true, startAt: true, endAt: true,
       primaryDriverId: true, secondaryDriverId: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      trip: { select: { startedAt: true } },
     },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
-  if (booking.jobType !== "WERN") return { ok: false, error: "onlyWernTimeEditable" };
+  // Departed (or finished) is history — §9b of the scheduling doc keeps such a
+  // trip out of re-dispatch, and re-timing it would rewrite what happened.
+  if (booking.trip?.startedAt) return { ok: false, error: "tripAlreadyStarted" };
+  if (!COMMITTED_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "cannotEditTimeInStatus" };
+  }
+
+  // Dates preserved per-timestamp: the end keeps ITS day, so an overnight trip
+  // stays overnight instead of collapsing onto the start day.
+  const startAt = withTimeOfDay(booking.startAt, startHHmm);
+  const endAt = withTimeOfDay(booking.endAt, endHHmm);
+  if (!startAt || !endAt) return { ok: false, error: "invalidInput" };
+  if (endAt <= startAt) return { ok: false, error: "endBeforeStart" };
+
+  // A no-wait trip is two legs, and its split points (dropOffDone, and the
+  // pickupReturnTime that starts leg 2) are NOT edited here. Shifting the outer
+  // window past them would invert a leg — the overlap math would then read as
+  // "free" a stretch the car is actually out on. Refuse instead of silently
+  // dragging the split times along.
+  if (!booking.waitAtDestination && booking.dropOffDone && booking.pickupReturnTime) {
+    const leg2Start = withTimeOfDay(startAt, booking.pickupReturnTime);
+    const dropOff = booking.dropOffDone;
+    if (!leg2Start || startAt >= dropOff || leg2Start <= dropOff || leg2Start >= endAt) {
+      return { ok: false, error: "timeBreaksLegs" };
+    }
+  }
 
   // The window being moved TO, in leg terms.
   const movedLeg = toLegSrc({
@@ -455,8 +540,11 @@ export async function setWernTimeAction(formData: FormData): Promise<ReassignRes
         actorUserId: session.user.id,
         fromStatus: booking.status,
         toStatus: booking.status,
-        action: "WERN_TIME_CHANGED",
+        // One action name for every job type — WERN_TIME_CHANGED rows written
+        // before this became general are still in the log and still readable.
+        action: "TIME_CHANGED",
         metadata: {
+          jobType: booking.jobType,
           from: { startAt: booking.startAt.toISOString(), endAt: booking.endAt.toISOString() },
           to: { startAt: startAt.toISOString(), endAt: endAt.toISOString() },
         },
@@ -469,8 +557,31 @@ export async function setWernTimeAction(formData: FormData): Promise<ReassignRes
     throw err;
   }
 
+  // เวร is the dispatcher's own errand and has no waiting requester; every other
+  // job type IS somebody's booking, and a silently moved pickup is somebody
+  // standing outside at the old time. Mail is best-effort: the move is already
+  // committed, so a mail failure must not report the move as failed.
+  if (booking.jobType !== "WERN") {
+    const detailed = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: bookingDetailInclude,
+    });
+    if (detailed?.requester.email) {
+      try {
+        await sendEmail({
+          to: detailed.requester.email,
+          ...requesterTimeChangedEmail(detailed, { startAt: booking.startAt, endAt: booking.endAt }),
+        });
+      } catch {
+        // Logged by the mail client; the schedule change stands either way.
+      }
+    }
+  }
+
   revalidatePath("/admin/schedule");
   revalidatePath(`/admin/${bookingId}`);
   revalidatePath("/driver/schedule");
+  revalidatePath("/requester");
+  revalidatePath(`/requester/${bookingId}`);
   return { ok: true };
 }

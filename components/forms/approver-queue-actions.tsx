@@ -18,8 +18,9 @@ import { DenyPresetChips } from "@/components/forms/deny-preset-chips";
 // approver clears the queue without opening each detail page. Approve is one
 // tap; deny expands in place (canned chips + editable reason). The server
 // actions enforce the real permission (canApprove) and status guards — these
-// buttons render only for approvers, and Deny only on PENDING_APPROVAL
-// (denyByApproverAction rejects WAITLIST), so `canDeny` mirrors that.
+// buttons render only for approvers, and both actions accept the same two
+// statuses (PENDING_APPROVAL and WAITLIST), so `canDeny` is about the surface,
+// not the status.
 export function ApproverQueueActions({
   bookingId,
   canDeny,

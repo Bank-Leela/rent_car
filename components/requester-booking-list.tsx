@@ -78,7 +78,7 @@ export function RequesterBookingList({
                 instead of sitting above the title where it pushed the row's real
                 subject to second place. */}
             <div className="flex shrink-0 items-center gap-2">
-              <BookingStatusBadge status={b.status} />
+              <BookingStatusBadge status={b.status} audience="requester" />
               <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
             </div>
           </Link>

@@ -11,15 +11,12 @@ import { conflictingBookingIds } from "@/lib/booking/calendar-conflicts";
 import { daySpan, type DaySpan } from "@/lib/booking/day-window";
 import type { Prisma } from "@prisma/client";
 import { formatTh } from "@/lib/format-date";
-
-const BAR_COLOR: Record<string, string> = {
-  PENDING_APPROVAL: "bg-amber-200 border-amber-400 text-amber-950 dark:bg-amber-500/30 dark:text-amber-100 dark:border-amber-400/40",
-  APPROVED: "bg-blue-200 border-blue-400 text-blue-950 dark:bg-blue-500/30 dark:text-blue-100 dark:border-blue-400/40",
-  ASSIGNED: "bg-emerald-200 border-emerald-400 text-emerald-950 dark:bg-emerald-500/30 dark:text-emerald-100 dark:border-emerald-400/40",
-  COMPLETED: "bg-violet-200 border-violet-300 text-violet-950 dark:bg-violet-500/25 dark:text-violet-100 dark:border-violet-400/30",
-  CANCELLED: "bg-muted border-border text-muted-foreground line-through",
-  DENIED: "bg-rose-200 border-rose-400 text-rose-950 dark:bg-rose-500/30 dark:text-rose-100 dark:border-rose-400/40",
-};
+// The exhaustive Record<BookingStatus, …>, not a local partial map. The local
+// one held 6 of 10 statuses and was read as `MAP[status] ?? fallback`, so
+// AWAITING_DOCUMENT, WAITLIST and OUTSOURCED trips drew in the same grey as
+// CANCELLED — the third recurrence of the exact bug status-style.ts exists to
+// end. Keyed on BookingStatus, the next added status fails the build instead.
+import { STATUS_STYLE } from "@/lib/booking/status-style";
 
 type View = "agenda" | "timeline";
 
@@ -341,7 +338,7 @@ function TimelineView({
                         "EEE HH:mm",
                       )} · ${b.purpose} · ${b.destination}`}
                       className={`absolute flex items-center gap-1 overflow-hidden rounded border px-1.5 text-[11px] leading-none hover:opacity-90 ${
-                        BAR_COLOR[b.status] ?? "bg-muted border-border"
+                        STATUS_STYLE[b.status].bar
                       } ${conflict ? "ring-2 ring-rose-500" : ""} ${
                         span.continuesBefore ? "rounded-l-none border-l-2 border-l-foreground/50" : ""
                       } ${span.continuesAfter ? "rounded-r-none border-r-2 border-r-foreground/50" : ""}`}

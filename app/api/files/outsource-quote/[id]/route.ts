@@ -30,11 +30,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const bytes = await readOutsourceQuote(booking.outsourceQuoteUrl);
   if (!bytes) return new NextResponse("Not found", { status: 404 });
 
-  const name = booking.outsourceQuoteFilename ?? "quote";
+  // Same two-parameter header as the booking-attachment route (see its comment).
+  // This one percent-encoded into the PLAIN `filename=`, which RFC 6266 says is
+  // never decoded — so a Thai quote (ใบเสนอราคา-....pdf) saved as a literal
+  // "%E0%B9%83%E0%B8%9A…" string. The extended form is the one that carries UTF-8.
+  const rawName = booking.outsourceQuoteFilename ?? "quote";
+  const asciiFallback = rawName.replace(/[^\x20-\x7E]/g, "_");
+  const encodedName = encodeURIComponent(rawName);
+
   return new NextResponse(new Uint8Array(bytes) as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(name)}"`,
+      "Content-Disposition": `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`,
     },
   });
 }

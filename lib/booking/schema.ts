@@ -17,6 +17,40 @@ const datetimeLocal = z
   .transform((v) => new Date(v))
   .refine((d) => !Number.isNaN(d.getTime()), "Invalid date");
 
+/**
+ * An optional number from an HTML form, where "left blank" must stay blank.
+ *
+ * The shape this replaces looked right and was not:
+ *
+ *   z.coerce.number().nonnegative().optional().or(z.literal(""))
+ *     .transform((v) => (v === "" || v === undefined ? undefined : Number(v)))
+ *
+ * A union tries its branches in order, and in zod 4 the FIRST branch already
+ * accepts "": `z.coerce.number()` runs `Number("")`, which is **0**, and 0 is a
+ * nonnegative number, so the parse succeeds there. `z.literal("")` is never
+ * reached and the transform receives 0, not "". Verified against this repo's
+ * zod 4.4.3: `safeParse("")` → `{ success: true, data: 0 }`.
+ *
+ * The consequence was silent and on paper: a driver who bought no fuel left the
+ * boxes empty and the trip was written with fuelCost 0, tollwayCost 0,
+ * parkingCost 0 — and the official form that gets printed, signed and filed
+ * then asserted ค่าน้ำมัน 0 instead of leaving the box blank.
+ *
+ * `preprocess` runs BEFORE any branch, so the empty string is turned into
+ * `undefined` while it still is an empty string.
+ */
+export const optionalNumber = (opts?: { int?: boolean; min?: number; max?: number }) =>
+  z.preprocess(
+    (v) => (v === "" || v === null ? undefined : v),
+    (() => {
+      let n = z.coerce.number();
+      if (opts?.int) n = n.int();
+      n = n.min(opts?.min ?? 0);
+      if (opts?.max !== undefined) n = n.max(opts.max);
+      return n.optional();
+    })(),
+  );
+
 // True only when both timestamps survived their field-level parse as real Dates.
 const bothDates = (d: { startAt: unknown; endAt: unknown }): d is { startAt: Date; endAt: Date } =>
   d.startAt instanceof Date && d.endAt instanceof Date;
@@ -28,15 +62,23 @@ export const newBookingSchema = z
     purpose: z.string().min(3, "Describe the trip purpose"),
     destination: z.string().min(2, "Required"),
     province: z.string().min(2, "Required"),
-    // Sub-project A: stored Maps link. Required on the requester flow; any host
-    // (so maps.app.goo.gl / goo.gl/maps shortened links work). No distance pull.
-    // http(s) only — the value is rendered as a clickable href elsewhere, so a
-    // javascript:/data: scheme (which z.url() would accept) must be rejected.
+    // Sub-project A: stored Maps link. OPTIONAL — plenty of trips go to a place
+    // the driver already knows (in-campus rounds, the usual hospitals), and
+    // making every requester hunt for a share link to submit at all was a wall
+    // in front of the form. Any host, so maps.app.goo.gl / goo.gl/maps
+    // shortened links work. No distance pull.
+    //
+    // Still validated WHEN GIVEN, and http(s) only: the value is rendered as a
+    // clickable href elsewhere, so a javascript:/data: scheme (which z.url()
+    // would accept) must be rejected. Empty ⇒ undefined, not "".
     googleMapsUrl: z
       .string()
       .trim()
       .url("Add a valid Google Maps link")
-      .refine((v) => /^https?:\/\//i.test(v), "Add a valid Google Maps link"),
+      .refine((v) => /^https?:\/\//i.test(v), "Add a valid Google Maps link")
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
     startAt: datetimeLocal,
     endAt: datetimeLocal,
     // "ผู้ขอใช้รถ" — the requester/secretary who submits on the ajarn's behalf.
@@ -79,13 +121,7 @@ export const newBookingSchema = z
       .transform((v) => (v ? v.trim() : undefined)),
     passengerCount: z.coerce.number().int().min(1).max(60),
     passengerNotes: z.string().max(2000).optional().or(z.literal("")).transform((v) => v || undefined),
-    estimatedDistance: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    estimatedDistance: optionalNumber({ int: true }),
     needsOutsourcing: z.coerce.boolean().optional().default(false),
     isEmergency: z.coerce.boolean().optional().default(false),
     emergencyReason: z
@@ -94,20 +130,8 @@ export const newBookingSchema = z
       .optional()
       .or(z.literal(""))
       .transform((v) => (v ? v.trim() : undefined)),
-    maleCount: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
-    femaleCount: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    maleCount: optionalNumber({ int: true }),
+    femaleCount: optionalNumber({ int: true }),
     pickupLocation: z.string().trim().min(1, "Pickup point is required").max(500),
     // One-way ("ไม่เดินทางกลับ"): the requester leaves the end time to the admin.
     // The form still sends a provisional endAt so the data model stays simple;
@@ -135,22 +159,8 @@ export const newBookingSchema = z
     preferredVehicleType,
     // External charter (SMUS) vehicle counts — outside buses/vans. Optional in
     // general; the SMUS refinement below requires a non-zero total.
-    externalBusCount: z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(99)
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
-    externalVanCount: z.coerce
-      .number()
-      .int()
-      .min(0)
-      .max(99)
-      .optional()
-      .or(z.literal(""))
-      .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+    externalBusCount: optionalNumber({ int: true, max: 99 }),
+    externalVanCount: optionalNumber({ int: true, max: 99 }),
     recurringWeekdays: z
       .string()
       .optional()
@@ -232,13 +242,9 @@ export type NewBookingInput = z.infer<typeof newBookingSchema>;
 // A saved trip template: a named snapshot of the booking form minus the
 // dates/recurrence. Fields are lenient (a template may be partially filled);
 // the booking form re-validates on actual submit.
-const optInt = z.coerce
-  .number()
-  .int()
-  .nonnegative()
-  .optional()
-  .or(z.literal(""))
-  .transform((v) => (v === "" || v === undefined ? null : Number(v)));
+// Same empty-string trap as optionalNumber (see its comment), but a template
+// field stores null rather than leaving the key out.
+const optInt = optionalNumber({ int: true }).transform((v) => v ?? null);
 const optStr = (max: number) =>
   z
     .string()

@@ -20,6 +20,7 @@ import { isMapsConfigured } from "@/lib/maps/distance";
 import { DetailField as Field } from "@/components/detail-field";
 import { formatTh } from "@/lib/format-date";
 import { formatBaht } from "@/lib/format-money";
+import { auditActionLabel } from "@/lib/booking/audit-labels";
 
 export default async function AdminBookingDetail({
   params,
@@ -537,7 +538,7 @@ export default async function AdminBookingDetail({
                   {formatTh(log.createdAt, "d MMM HH:mm")}
                 </span>
                 <span>
-                  <span className="font-medium">{log.action.replace(/_/g, " ").toLowerCase()}</span>
+                  <span className="font-medium">{auditActionLabel(log.action)}</span>
                   <span className="text-muted-foreground">
                     {" "}
                     {t("decidedBy", { name: log.actor.name ?? log.actor.email ?? "" })}

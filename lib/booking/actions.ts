@@ -137,7 +137,10 @@ export async function denyBookingAction(formData: FormData): Promise<ActionResul
   await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
-      data: { status: "DENIED", denialReason: reason, decidedAt: new Date() },
+      // overflowReason cleared: see the same line in cancelBookingAction — a
+      // denied trip is not unplaced work, and leaving the flag kept it on the
+      // batch page's overflow list.
+      data: { status: "DENIED", denialReason: reason, decidedAt: new Date(), overflowReason: null },
     });
     await logTransition({
       bookingId,

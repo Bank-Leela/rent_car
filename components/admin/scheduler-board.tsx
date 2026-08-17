@@ -157,7 +157,12 @@ export function SchedulerBoard({
           router.refresh();
           return;
         }
-        const key = res.error === "noAssignedDriver" ? "noAssignedDriver" : "dropFailed";
+        const key =
+          res.error === "noAssignedDriver"
+            ? "noAssignedDriver"
+            : res.error === "cannotAssignInStatus"
+              ? "assignBadStatus"
+              : "dropFailed";
         setDropError(t(key));
       } else {
         toastResult(res, { success: tt("assigned") });
@@ -186,7 +191,9 @@ export function SchedulerBoard({
             ? "noAssignedDriver"
             : res.error === "coDriverSamePrimary"
               ? "coDriverSamePrimary"
-              : "dropFailed";
+              : res.error === "cannotAssignInStatus"
+                ? "assignBadStatus"
+                : "dropFailed";
         setDropError(t(key));
       } else {
         toastResult(res, { success: vehicleId ? tt("assigned") : tt("unassigned") });

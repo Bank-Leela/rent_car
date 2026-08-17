@@ -277,7 +277,7 @@ function TripCard({
             –{format(b.endAt, "HH:mm")}
           </span>
         </div>
-        <BookingStatusBadge status={b.status} />
+        <BookingStatusBadge status={b.status} audience="requester" />
       </div>
 
       <div className="flex flex-col gap-3 px-4 pb-4 pt-3">

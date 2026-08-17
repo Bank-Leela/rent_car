@@ -33,7 +33,7 @@ export function DriverRoundsBoard({
    * Off by default because this same component IS the driver kiosk — a driver
    * reading their day must not be able to re-dispatch it. Requires a
    * `RoundsDnd` provider above it, and `reassignTargets` for the car of each
-   * row (car = driver, and the row model carries only the registration).
+   * row (car = driver, and the row model carries no vehicle id).
    */
   dnd?: boolean;
   labels: {
@@ -75,8 +75,8 @@ export function DriverRoundsBoard({
   // this row is a person who is NOT available, the opposite of a เวร row.
   const offRowStyle = "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20";
 
-  // car = driver, but the row view-model carries only the registration number —
-  // the vehicle id lives in the move-control's target list, which is the same
+  // car = driver, but the row view-model carries only the car's TYPE — the
+  // vehicle id lives in the move-control's target list, which is the same
   // admin-only prop that gates dragging.
   const carOf = new Map((reassignTargets ?? []).map((tg) => [tg.driverId, tg.vehicleId]));
 
@@ -112,12 +112,22 @@ export function DriverRoundsBoard({
           const rowInner = (
             <>
             {/* Driver identity — fixed-width column, like the whiteboard's name column. */}
-            <div className="flex shrink-0 items-center gap-2 sm:w-56">
+            <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 sm:w-56">
               <span
                 className={`truncate text-sm font-semibold ${r.isOff ? "text-muted-foreground line-through" : ""}`}
               >
                 {r.driverName ?? "—"}
               </span>
+              {/* The car they run today, by TYPE (เก๋ง / ตู้ / …), not by plate:
+                  "can this job take 10 people" is answerable from the type, and
+                  a registration number is noise on a board you read across the
+                  room. Muted + smaller so the name still leads the row. */}
+              {r.vehicleTypeLabel && (
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                  <Car className="h-3 w-3 shrink-0" aria-hidden />
+                  {r.vehicleTypeLabel}
+                </span>
+              )}
               {r.isOff && (
                 <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
                   {labels.off}

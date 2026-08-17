@@ -20,7 +20,11 @@ vi.mock("@/lib/pdf/generate", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { approveBookingAction, approveDocumentAction } from "@/lib/booking/approval-actions";
+import {
+  approveBookingAction,
+  approveDocumentAction,
+  denyByApproverAction,
+} from "@/lib/booking/approval-actions";
 
 const REQUESTER_ID = "seed-user-requester";
 const cleanup: string[] = [];
@@ -215,8 +219,8 @@ describe("approval capacity gate", () => {
     expect(res.ok).toBe(false);
     expect(res.dayFull, "the queue needs this flag to reveal its Deny button").toBe(true);
 
-    // Must stay PENDING_APPROVAL — the only status denyByApproverAction accepts,
-    // so the refusal leaves the approver able to act on it.
+    // Must stay PENDING_APPROVAL: a refusal that also moved the status would
+    // take the decision away from the approver it was handed back to.
     const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
     expect(after.status).toBe("PENDING_APPROVAL");
   });
@@ -339,6 +343,40 @@ describe("approval capacity gate", () => {
 
     await prisma.booking.update({ where: { id }, data: { adHocVehicleId: null } });
     await prisma.adHocVehicle.delete({ where: { id: row.id } });
+  });
+
+  // A WAITLIST row IS the over-capacity case, so refusing it is the commonest
+  // decision it gets. The queue card used to offer อนุมัติ and nothing else,
+  // which the capacity gate then refused — the row could only be left to rot.
+  it("denies a WAITLIST booking, which is the whole point of that queue", async () => {
+    const id = await bookingOn(offDay, { status: "WAITLIST" });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    fd.append("comment", "รถเต็มทั้งวัน ขอปฏิเสธ");
+    expect((await denyByApproverAction(fd)).ok).toBe(true);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("DENIED");
+    expect(after.denialReason).toBe("รถเต็มทั้งวัน ขอปฏิเสธ");
+
+    // The history has to say it was refused OFF the waitlist, not as an
+    // ordinary pending request — that is why it was refused.
+    const log = await prisma.auditLog.findFirstOrThrow({
+      where: { bookingId: id, action: "BOOKING_DENIED" },
+    });
+    expect(log.fromStatus).toBe("WAITLIST");
+  });
+
+  it("still refuses to deny a status that is past the decision", async () => {
+    const id = await bookingOn(freeDay, { status: "ASSIGNED" });
+    const fd = new FormData();
+    fd.append("bookingId", id);
+    fd.append("comment", "ไม่ควรทำได้");
+    const res = await denyByApproverAction(fd);
+    expect(res.ok).toBe(false);
+
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe("ASSIGNED");
   });
 
   it("does not gate a เวร booking — the duty car serves it, so the recommender always says none", async () => {

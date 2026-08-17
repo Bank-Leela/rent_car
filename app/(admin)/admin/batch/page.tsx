@@ -165,6 +165,12 @@ export default async function AdminBatchPage({
         // froze (DRIVER_OFF_NEEDS_REVIEW), which would let one click undo the
         // "never re-dispatch an in-flight trip" decision.
         primaryDriverId: null,
+        // …and it has to still be alive. Cancelling or denying a booking leaves
+        // its overflowReason set, so without this a dead trip stayed listed as
+        // unplaced work with a live assign button beside it. The write side is
+        // guarded too (DISPATCHABLE_STATUSES in reassignVehicleAction); this
+        // keeps it off the screen in the first place.
+        status: "APPROVED",
         startAt: { gte: dayStart, lt: dayEnd },
       },
       orderBy: { createdAt: "asc" },
@@ -219,9 +225,14 @@ export default async function AdminBatchPage({
             <ul className="divide-y">
               {pending.map((b) => (
                 <li key={b.id} className="py-3 text-sm">
+                  {/* The purpose IS the link. Taking the job number off every
+                      screen removed this anchor's only child and left a
+                      zero-width, unlabelled link: nothing to click through to
+                      the booking, and a bare "link" announced by screen readers. */}
                   <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
+                    {b.purpose}
                   </Link>
-                  <span className="mx-2 text-muted-foreground">{b.purpose}</span>
+                  <span className="mx-2 text-muted-foreground">{b.destination}</span>
                   <span className="text-xs text-muted-foreground">
                     {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {tjt(b.jobType)}
                     {b.outOfProvince ? " · ตจว" : ""}
@@ -253,8 +264,9 @@ export default async function AdminBatchPage({
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
+                          {b.purpose}
                         </Link>
-                        <span className="ml-2">{b.purpose}</span>
+                        <span className="ml-2 text-muted-foreground">{b.destination}</span>
                       </div>
                       <span className="font-mono text-[10px] uppercase tracking-wide">
                         {reason}
@@ -273,7 +285,12 @@ export default async function AdminBatchPage({
                       const car = r.registrationNumber ?? "";
                       const name = r.driverName ?? "";
                       const msg = r.kind === "reclaim" ? t("recoReclaim", { car, name }) : t("recoFit", { car, name });
-                      const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
+                      // Flag OR distance — the flag is the trigger that actually
+                      // fires in prod (Maps is env-gated), and drawing no
+                      // co-driver warning was how a flagged >400 km trip got a
+                      // one-click solo assign that looked healthy.
+                      const longTrip =
+                        b.needsSecondaryDriver || (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
                       const sec = r.secondaryDriverName
                         ? " " + t("recoCoDriver", { name: r.secondaryDriverName })
                         : longTrip
@@ -320,8 +337,9 @@ export default async function AdminBatchPage({
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
                       <Link href={`/admin/${b.id}`} className="font-medium hover:underline">
+                        {b.purpose}
                       </Link>
-                      <span className="ml-2">{b.purpose}</span>
+                      <span className="ml-2 text-muted-foreground">{b.destination}</span>
                       <div className="text-xs text-muted-foreground">
                         {format(b.startAt, "HH:mm")} → {endLabel(b.startAt, b.endAt)} · {tjt(b.jobType)}
                       </div>

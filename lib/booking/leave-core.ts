@@ -7,6 +7,7 @@ import { pickAutoDutyDriver } from "@/lib/booking/duty-assignment";
 import { canTakeTrip } from "@/lib/booking/driver-capacity";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
+import { isExclusionViolation } from "@/lib/booking/db-errors";
 
 /**
  * One day of leave for one driver, and everything that has to follow from it.
@@ -63,7 +64,25 @@ export function daysInRange(from: Date, to: Date): Date[] {
 
 type HandOffOutcome = "handedOff" | "released" | "coDriverReplaced" | "coDriverLost";
 
-/** Can this driver absorb the trip without colliding with what they already hold? */
+/**
+ * Can this driver absorb the trip without colliding with what they already hold?
+ *
+ * The window is the trip's WHOLE SPAN, widened to whole days at both ends — not
+ * the calendar day of `startAt`. It used to be day 1 only, which meant a
+ * multi-day TJW (depart Monday, return Wednesday) was checked against Monday and
+ * handed to the เวร driver without anyone looking at Tuesday or Wednesday.
+ *
+ * Both failure modes were real. If the เวร driver's Tuesday commitment is on
+ * their own car, Postgres refuses the write on `vehicle_occupancy_no_overlap`
+ * and the admin gets a 500 (see the catch in handOffToDuty). If it is a
+ * CO-DRIVER seat in someone else's car, their own car is free, no constraint
+ * fires, and they are silently booked in two places at once — out of province
+ * Monday to Wednesday while also co-driving on Tuesday.
+ *
+ * The day-widening is deliberate and only ever widens: `canTakeTrip` applies the
+ * 2h gap and the morning/afternoon cap, which are day-relative questions, so a
+ * trip ending at 08:00 must still see what that whole day holds.
+ */
 async function dutyCanAbsorb(
   dutyDriverId: string,
   booking: { id: string; jobType: JobType; startAt: Date; endAt: Date },
@@ -72,7 +91,7 @@ async function dutyCanAbsorb(
     where: {
       status: { in: COMMITTED_STATUSES },
       id: { not: booking.id },
-      startAt: { lt: endOfDay(booking.startAt) },
+      startAt: { lt: endOfDay(booking.endAt) },
       endAt: { gt: startOfDay(booking.startAt) },
       OR: [{ primaryDriverId: dutyDriverId }, { secondaryDriverId: dutyDriverId }],
     },
@@ -197,43 +216,67 @@ async function handOffToDuty(
   const freed = [awayDriverId, booking.secondaryDriverId]
     .filter((x): x is string => !!x && x !== keptSecondary);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.booking.update({
-      where: { id: bookingId },
-      data: target
-        ? {
-            vehicleId: target.vehicleId,
-            primaryDriverId: target.driverId,
-            secondaryDriverId: keptSecondary,
-            status: "ASSIGNED",
-          }
-        : {
-            vehicleId: null,
-            primaryDriverId: null,
-            secondaryDriverId: null,
-            status: "APPROVED",
-            driverScheduleStatus: "UNCLAIMED",
-            decidedAt: null,
-          },
+  // One write, parameterised by who (if anyone) is catching the trip.
+  const write = async (to: { driverId: string; vehicleId: string } | null) => {
+    const kept = to ? keptSecondary : null;
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: to
+          ? {
+              vehicleId: to.vehicleId,
+              primaryDriverId: to.driverId,
+              secondaryDriverId: kept,
+              status: "ASSIGNED",
+            }
+          : {
+              vehicleId: null,
+              primaryDriverId: null,
+              secondaryDriverId: null,
+              status: "APPROVED",
+              driverScheduleStatus: "UNCLAIMED",
+              decidedAt: null,
+            },
+      });
+      await logTransition({
+        bookingId,
+        actorUserId: adminId,
+        fromStatus: booking.status,
+        toStatus: to ? "ASSIGNED" : "APPROVED",
+        action: to ? "DRIVER_OFF_HANDOFF_WERN" : "DRIVER_OFF_RELEASE",
+        metadata: {
+          reason,
+          freedDrivers: freed,
+          ...(to ? { toDriverId: to.driverId, keptCoDriverId: kept } : {}),
+        },
+        tx,
+      });
     });
-    await logTransition({
-      bookingId,
-      actorUserId: adminId,
-      fromStatus: booking.status,
-      toStatus: target ? "ASSIGNED" : "APPROVED",
-      action: target ? "DRIVER_OFF_HANDOFF_WERN" : "DRIVER_OFF_RELEASE",
-      metadata: {
-        reason,
-        freedDrivers: freed,
-        ...(target ? { toDriverId: target.driverId, keptCoDriverId: keptSecondary } : {}),
-      },
-      tx,
-    });
-  });
+  };
 
-  for (const id of freed) await recomputeRotationStamp(id, booking.jobType);
-  if (target) await recomputeRotationStamp(target.driverId, booking.jobType);
-  return target ? "handedOff" : "released";
+  // A hand-off can still be refused by the DB: dutyCanAbsorb applies the app's
+  // rules, but the occupancy EXCLUDE is the last word. Uncaught, its 23P01 came
+  // out of applyLeaveDay as a 500 — and because the leave row and the เวร
+  // re-pick were committed by earlier statements, every retry threw again and
+  // the driver could never be marked off at all. Fall back to the release
+  // branch, which is what "nobody can take it" already means here.
+  let landed = target;
+  if (target) {
+    try {
+      await write(target);
+    } catch (err) {
+      if (!isExclusionViolation(err)) throw err;
+      landed = null;
+      await write(null);
+    }
+  } else {
+    await write(null);
+  }
+
+  const finalFreed = landed ? freed : [awayDriverId, booking.secondaryDriverId].filter((x): x is string => !!x);
+  for (const id of finalFreed) await recomputeRotationStamp(id, booking.jobType);
+  if (landed) await recomputeRotationStamp(landed.driverId, booking.jobType);
+  return landed ? "handedOff" : "released";
 }
 
 /**

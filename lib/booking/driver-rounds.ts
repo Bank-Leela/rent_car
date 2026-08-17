@@ -28,7 +28,16 @@ export interface RoundsBookingInput {
 export interface RoundsDriverInput {
   driverId: string;
   driverName: string | null;
-  registrationNumber: string | null;
+  /**
+   * What KIND of car this driver runs today (เก๋ง / กระบะ / ตู้ / รถ 6 ล้อ),
+   * already translated by the caller — this module stays free of i18n.
+   *
+   * The registration number used to ride here instead. It was never rendered,
+   * and it is the wrong fact for this board anyway: a driver reading the
+   * whiteboard, or an admin sizing up a job, wants to know a van is available,
+   * not that the van is 2ขข 2222. car=driver, so the type is stable for the day.
+   */
+  vehicleTypeLabel: string | null;
 }
 
 /**
@@ -73,7 +82,8 @@ export interface DriverRound {
 export interface DriverRoundsRow {
   driverId: string;
   driverName: string | null;
-  registrationNumber: string | null;
+  /** Translated car type for the day (see RoundsDriverInput). */
+  vehicleTypeLabel: string | null;
   isDuty: boolean;
   /** Marked off sick/leave for this day — excluded from the day's auto-assign. */
   isOff: boolean;
@@ -165,7 +175,7 @@ export function buildDriverRounds(input: {
   return drivers.map((d) => ({
     driverId: d.driverId,
     driverName: d.driverName,
-    registrationNumber: d.registrationNumber,
+    vehicleTypeLabel: d.vehicleTypeLabel,
     isDuty: d.driverId === dutyDriverId,
     isOff: offDriverIds.includes(d.driverId),
     // Two rounds leaving at the same minute are ordered by where they go —

@@ -21,6 +21,7 @@ import {
   reassignVehicleAction,
   reassignSecondaryAction,
   unassignBookingAction,
+  setBookingTimeAction,
 } from "@/lib/booking/schedule-actions";
 
 const REQ_ID = "seed-user-requester";
@@ -215,5 +216,94 @@ describe("unassignBookingAction", () => {
     expect(after?.primaryDriverId).toBeNull();
     expect(after?.status).toBe("APPROVED");
     expect(after?.driverScheduleStatus).toBe("UNCLAIMED");
+  });
+});
+
+// A third quiet day, so the time-edit fixtures can't collide with the reassign
+// ones above (which park trips on the same two cars).
+const DAY3 = startOfDay(addDays(new Date(), 150));
+const at3 = (h: number, m = 0) => {
+  const d = new Date(DAY3);
+  d.setHours(h, m, 0, 0);
+  return d;
+};
+
+describe("setBookingTimeAction — hours move, the date never does", () => {
+  it("re-times a NORMAL trip (not just เวร) and keeps its calendar day", async () => {
+    const b = await mkBooking({
+      startAt: at3(9), endAt: at3(11),
+      vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+
+    const res = await setBookingTimeAction(
+      fd({ bookingId: b.id, startHHmm: "13:00", endHHmm: "15:30" }),
+    );
+
+    expect(res.ok).toBe(true);
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id: b.id } });
+    expect(after.startAt.getTime()).toBe(at3(13).getTime());
+    expect(after.endAt.getTime()).toBe(at3(15, 30).getTime());
+  });
+
+  it("keeps an overnight trip overnight — each end keeps ITS own day", async () => {
+    const start = at3(6);
+    const end = new Date(at3(18));
+    end.setDate(end.getDate() + 2); // 2-night TJW
+    const b = await mkBooking({
+      startAt: start, endAt: end, jobType: "TJW",
+      vehicleId: vB.id, primaryDriverId: vB.driverId, status: "ASSIGNED",
+    });
+
+    const res = await setBookingTimeAction(
+      fd({ bookingId: b.id, startHHmm: "07:30", endHHmm: "20:00" }),
+    );
+
+    expect(res.ok).toBe(true);
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id: b.id } });
+    expect(after.startAt.getDate()).toBe(start.getDate());
+    expect(after.endAt.getDate()).toBe(end.getDate());
+    expect(after.startAt.getHours()).toBe(7);
+    expect(after.endAt.getHours()).toBe(20);
+  });
+
+  it("REFUSES a move that collides with another trip on the same car", async () => {
+    const kept = await mkBooking({
+      startAt: at3(8), endAt: at3(10),
+      vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+    const mover = await mkBooking({
+      startAt: at3(16), endAt: at3(17),
+      vehicleId: vA.id, primaryDriverId: vA.driverId, status: "ASSIGNED",
+    });
+
+    const res = await setBookingTimeAction(
+      fd({ bookingId: mover.id, startHHmm: "09:00", endHHmm: "09:30" }),
+    );
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error).toBe("vehicleBusy");
+      expect(res.conflicts?.map((c) => c.startAt.getTime())).toContain(kept.startAt.getTime());
+    }
+    const after = await prisma.booking.findUniqueOrThrow({ where: { id: mover.id } });
+    expect(after.startAt.getTime()).toBe(at3(16).getTime()); // untouched
+  });
+
+  it("rejects a backwards window and a malformed clock", async () => {
+    // No car: the input guards run before any occupancy query, and an unassigned
+    // trip can't collide with the overnight fixture parked on vB above.
+    const b = await mkBooking({ startAt: at3(20), endAt: at3(21) });
+
+    const backwards = await setBookingTimeAction(
+      fd({ bookingId: b.id, startHHmm: "14:00", endHHmm: "13:00" }),
+    );
+    expect(backwards.ok).toBe(false);
+    if (!backwards.ok) expect(backwards.error).toBe("endBeforeStart");
+
+    const junk = await setBookingTimeAction(
+      fd({ bookingId: b.id, startHHmm: "25:99", endHHmm: "13:00" }),
+    );
+    expect(junk.ok).toBe(false);
+    if (!junk.ok) expect(junk.error).toBe("invalidInput");
   });
 });

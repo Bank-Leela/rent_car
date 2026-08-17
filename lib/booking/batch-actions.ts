@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { startOfDay } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -8,6 +9,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import { runBatchForDay, type BatchStats } from "@/lib/booking/batch-core";
+import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 import type { ActionResult } from "@/lib/booking/actions";
 
 const runBatchSchema = z.object({
@@ -78,14 +80,44 @@ export async function resolveReclaimAction(formData: FormData): Promise<ActionRe
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
 
-  await prisma.booking.update({
-    where: { id: bookingId },
-    data: {
-      overflowReason: null,
-      escalatedToKhunTop: decision === "OUTSOURCE",
-      needsOutsourcing: decision === "OUTSOURCE",
-    },
-  });
+  // RECLAIM_WERN has to actually move the duty driver onto the trip. It used to
+  // write `overflowReason: null` and nothing else — no driver, no car — so the
+  // >400 km trip simply lost the flag that was surfacing it: it dropped out of
+  // the overflow card (keyed on `overflowReason: { not: null }`) into the plain
+  // pending list, losing both the AssignRecoButton and the ReclaimDecisionForm,
+  // i.e. every control that could still place it. The button's own label
+  // ("ย้ายคนขับเวรมา"), this file's comment above, and
+  // docs/scheduling-algorithm.md all say it assigns; only the code did not.
+  if (decision === "RECLAIM_WERN") {
+    const dayStart = startOfDay(booking.startAt);
+    const shift = await prisma.onCallShift.findUnique({
+      where: { date: dayStart },
+      select: { driver: { select: { id: true, assignedVehicle: { select: { id: true } } } } },
+    });
+    const vehicleId = shift?.driver?.assignedVehicle?.id;
+    if (!vehicleId) return { ok: false, error: te("noDutyDriverToReclaim") };
+
+    // Reuse the dispatch path rather than writing the row here: it carries the
+    // per-leg overlap checks on the car AND on the driver's other commitments,
+    // the active-driver check, the co-driver re-validation, the occupancy
+    // backstop, and the lastAssignedAt/rotation bookkeeping. It also clears
+    // overflowReason itself — but only once the assignment has actually landed.
+    const fd = new FormData();
+    fd.set("bookingId", bookingId);
+    fd.set("vehicleId", vehicleId);
+    if (booking.secondaryDriverId) fd.set("secondaryDriverId", booking.secondaryDriverId);
+    const res = await reassignVehicleAction(fd);
+    if (!res.ok) return { ok: false, error: te("reclaimAssignFailed") };
+  } else {
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        overflowReason: null,
+        escalatedToKhunTop: true,
+        needsOutsourcing: true,
+      },
+    });
+  }
   await logTransition({
     bookingId,
     actorUserId: adminId,

@@ -26,6 +26,12 @@ export type SchedulerBooking = {
   // No-wait split: leg 2 (return pickup) rendered as a read-only ghost; the
   // primary block above is clamped to leg 1. null for waiting/single-interval trips.
   returnLeg?: { startHour: number; endHour: number; timeLabel: string; endLabel: string } | null;
+  // The trip's REAL clock times + its day(s), for the time editor. Distinct from
+  // the labels below, which are clamped to the viewed day and decorated with
+  // arrows — the editor has to round-trip actual "HH:mm" values, and it states
+  // the date to make clear the date is the one thing it will not move.
+  // Optional so non-admin board construction sites needn't set it.
+  editTime?: { startHHmm: string; endHHmm: string; dateLabel: string } | null;
   // Start as "HH:mm", or "↪ <date>" when the trip began on an earlier day.
   timeLabel: string;
   // End time as "HH:mm", with "↩ <return date>" when it ends on a later day.

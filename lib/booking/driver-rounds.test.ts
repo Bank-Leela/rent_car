@@ -5,10 +5,12 @@ const D = (s: string) => new Date(s);
 const dayStart = D("2026-08-10T00:00:00");
 const dayEnd = D("2026-08-11T00:00:00");
 
+// The board shows the car by type, not by plate — the rows carry a translated
+// type label (the caller resolves it; this module is i18n-free).
 const drivers = [
-  { driverId: "A", driverName: "สมชาย", registrationNumber: "1กก 1111" },
-  { driverId: "B", driverName: "สุนีย์", registrationNumber: "2ขข 2222" },
-  { driverId: "C", driverName: "ประเสริฐ", registrationNumber: null },
+  { driverId: "A", driverName: "สมชาย", vehicleTypeLabel: "ตู้" },
+  { driverId: "B", driverName: "สุนีย์", vehicleTypeLabel: "เก๋ง" },
+  { driverId: "C", driverName: "ประเสริฐ", vehicleTypeLabel: null },
 ];
 
 const bk = (over: Partial<RoundsBookingInput> & { id: string }): RoundsBookingInput => ({
@@ -29,6 +31,14 @@ describe("buildDriverRounds", () => {
     const rows = build([bk({ id: "1" })]);
     expect(rows.map((r) => r.driverId)).toEqual(["A", "B", "C"]);
     expect(rows.find((r) => r.driverId === "C")!.rounds).toEqual([]);
+  });
+
+  it("carries the car TYPE onto the row, and no plate", () => {
+    const rows = build([bk({ id: "1" })]);
+    expect(rows.map((r) => r.vehicleTypeLabel)).toEqual(["ตู้", "เก๋ง", null]);
+    // The plate is not part of this view model at all — the board is read across
+    // a room, and a registration number is not what a driver acts on.
+    expect(rows[0]).not.toHaveProperty("registrationNumber");
   });
 
   it("orders a driver's rounds by departure time", () => {

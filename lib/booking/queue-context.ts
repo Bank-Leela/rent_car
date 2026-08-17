@@ -29,6 +29,10 @@ type QueueBooking = {
   jobType: JobType;
   preferredVehicleType: PreferredVehicleType | null;
   estimatedDistance: number | null;
+  // Part of the same question: a day with a free car but no second driver cannot
+  // serve a trip that needs two, and the flag is what says so when Maps (which
+  // is env-gated) left estimatedDistance null.
+  needsSecondaryDriver: boolean;
 };
 
 type QueueDriver = {

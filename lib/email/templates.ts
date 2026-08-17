@@ -252,6 +252,27 @@ export function requesterDriverOffEmail(b: BookingDetailed) {
   };
 }
 
+// Sent when the dispatcher moves a trip's HOURS (the date is never moved this
+// way). The old window leads the message: the requester's plan was built around
+// it, so "it changed from X to Y" is the fact they act on, and the booking facts
+// below already carry the new one.
+export function requesterTimeChangedEmail(
+  b: BookingDetailed,
+  previous: { startAt: Date; endAt: Date },
+) {
+  const subject = `เปลี่ยนเวลา · ${tripName(b)}`;
+  const introTh =
+    `ผู้ดูแลระบบเปลี่ยนเวลาเดินทางของการจองนี้ (วันเดิม) ` +
+    `จาก ${fmt(previous.startAt)} – ${fmt(previous.endAt)} ` +
+    `เป็น ${fmt(b.startAt)} – ${fmt(b.endAt)}`;
+  const url = viewUrl(`/requester/${b.id}`);
+  return {
+    subject,
+    text: `${introTh}\n\n${bookingFactsText(b)}${ctaButtonText(url, "ดูรายละเอียดการจอง")}`,
+    html: wrapHtml(introTh, bookingFactsHtml(b), ctaButtonHtml(url, "ดูรายละเอียดการจอง")),
+  };
+}
+
 export function requesterApprovedEmail(b: BookingDetailed) {
   const subject = `อนุมัติแล้ว · ${tripName(b)}`;
   const introTh = `การจองของคุณได้รับการอนุมัติจากหัวหน้าภาควิชาแล้ว · ผู้ดูแลระบบจะจัดรถให้ในขั้นตอนถัดไป`;

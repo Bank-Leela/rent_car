@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth-helpers";
 import { isStationEmail } from "@/lib/auth/station";
 import { logTransition } from "@/lib/booking/audit";
+import { optionalNumber } from "@/lib/booking/schema";
 import { sendEmail } from "@/lib/email/client";
 import { requesterCompletedEmail } from "@/lib/email/templates";
 import type { ActionResult } from "@/lib/booking/actions";
@@ -21,45 +22,18 @@ const endSchema = z.object({
   // Drivers record the whole trip in one go at the station — both odometer
   // readings come off the same log sheet — so the start reading rides along and
   // the trip row is created here when it doesn't exist yet.
-  startMileage: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(10_000_000)
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+  startMileage: optionalNumber({ int: true, max: 10_000_000 }),
   endMileage: z.coerce.number().int().min(0).max(10_000_000),
-  fuelCost: z.coerce
-    .number()
-    .nonnegative()
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
-  fuelLiters: z.coerce
-    .number()
-    .nonnegative()
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+  fuelCost: optionalNumber(),
+  fuelLiters: optionalNumber(),
   fuelType: z
     .string()
     .max(40)
     .optional()
     .or(z.literal(""))
     .transform((v) => (v ? v : undefined)),
-  parkingCost: z.coerce
-    .number()
-    .nonnegative()
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
-  tollwayCost: z.coerce
-    .number()
-    .nonnegative()
-    .optional()
-    .or(z.literal(""))
-    .transform((v) => (v === "" || v === undefined ? undefined : Number(v))),
+  parkingCost: optionalNumber(),
+  tollwayCost: optionalNumber(),
   usedExpressway: z.coerce.boolean().optional().default(false),
   driverNotes: z
     .string()

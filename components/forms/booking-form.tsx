@@ -499,7 +499,8 @@ export function BookingForm({
     ...(returnTrip ? [{ name: "endAt", labelKey: "endLabel" }] : []),
     { name: "purpose", labelKey: "purpose" },
     { name: "destination", labelKey: "destination" },
-    { name: "googleMapsUrl", labelKey: "mapsLinkLabel" },
+    // googleMapsUrl is deliberately NOT here: the link is optional (see
+    // newBookingSchema). It is still validated as a URL when one is typed.
     // waitingLocation only renders (and is required) when waiting at the
     // destination; a no-wait ("ไม่คอย") booking has no such field, so requiring
     // it unconditionally made no-wait bookings unsubmittable. Server schema
@@ -938,16 +939,17 @@ export function BookingForm({
                 {t("destinationMapsLink")}
               </button>
             </div>
-            {/* Google Maps link is required server-side (origin/main): the
-                dispatcher relies on a precise pin, not just a typed place name. */}
+            {/* Optional. A precise pin helps the dispatcher, but many trips go
+                where the driver already goes weekly, and requiring a share link
+                blocked the whole form over a nice-to-have. Validated as an
+                http(s) URL only when one is actually given. */}
             <div className="grid gap-2">
-              <ReqLabel htmlFor="googleMapsUrl">{t("mapsLinkLabel")}</ReqLabel>
+              <Label htmlFor="googleMapsUrl">{t("mapsLinkLabel")}</Label>
               <Input
                 id="googleMapsUrl"
                 name="googleMapsUrl"
                 type="url"
                 inputMode="url"
-                required
                 placeholder="https://maps.app.goo.gl/…"
               />
               <span className="text-xs text-muted-foreground">{t("mapsLinkHelper")}</span>

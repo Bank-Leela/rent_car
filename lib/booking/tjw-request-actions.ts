@@ -6,7 +6,9 @@ import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
+import type { OverflowReason } from "@prisma/client";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
+import { isExclusionViolation } from "@/lib/booking/db-errors";
 import type { TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
@@ -137,56 +139,84 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     dutyByDay,
   });
 
-  await prisma.$transaction(async (tx) => {
-    for (const a of result.assignments) {
-      const vehicleId = driverCar.get(a.primaryDriverId)!; // solver only picks car-paired drivers
-      const stamp = requests.find((r) => r.bookingId === a.bookingId)!.startAt;
-      await tx.booking.update({
-        where: { id: a.bookingId },
-        data: {
-          primaryDriverId: a.primaryDriverId,
-          secondaryDriverId: a.secondaryDriverId,
-          vehicleId,
-          status: "ASSIGNED",
-          driverScheduleStatus: "CONFIRMED",
-          decidedAt: new Date(),
-          overflowReason: null,
-          escalatedToKhunTop: false,
-        },
-      });
-      // Provisional rotation stamp (TJW): a re-run won't double-pick the driver.
-      await tx.driver.update({
-        where: { id: a.primaryDriverId },
-        data: { lastTjwAt: stamp, lastAssignedAt: stamp },
-      });
-      if (a.secondaryDriverId) {
+  // ONE TRANSACTION PER ASSIGNMENT, not one for the whole batch — the same
+  // decision batch-core.ts:198 documents for the day solver, and for the same
+  // reason. This was a single transaction wrapping every assignment AND every
+  // overflow row, with no exclusion handling: `committed` filters on
+  // `primaryDriverId: { not: null }`, so a car allocated with no driver yet is
+  // invisible to solveTjwByRequest, and the Nth write could hit
+  // vehicle_occupancy_no_overlap. That 23P01 rolled back assignments 1..N-1 and
+  // every overflow row with it, then threw — P'Top got an error boundary, the
+  // board looked untouched, and no overflowReason said why. Because the blocking
+  // allocation persists, pressing the button again reproduced it forever.
+  const overflows: { bookingId: string; reason: OverflowReason }[] = [...result.overflows];
+  for (const a of result.assignments) {
+    const vehicleId = driverCar.get(a.primaryDriverId)!; // solver only picks car-paired drivers
+    const stamp = requests.find((r) => r.bookingId === a.bookingId)!.startAt;
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: a.bookingId },
+          data: {
+            primaryDriverId: a.primaryDriverId,
+            secondaryDriverId: a.secondaryDriverId,
+            vehicleId,
+            status: "ASSIGNED",
+            driverScheduleStatus: "CONFIRMED",
+            decidedAt: new Date(),
+            overflowReason: null,
+            escalatedToKhunTop: false,
+          },
+        });
+        // Provisional rotation stamp (TJW): a re-run won't double-pick the driver.
         await tx.driver.update({
-          where: { id: a.secondaryDriverId },
+          where: { id: a.primaryDriverId },
           data: { lastTjwAt: stamp, lastAssignedAt: stamp },
         });
-      }
-      await logTransition({
-        bookingId: a.bookingId,
-        actorUserId: session.user.id,
-        fromStatus: "APPROVED",
-        toStatus: "ASSIGNED",
-        action: "TJW_REQUEST_ORDER_MATCHED",
-        metadata: {
-          primaryDriverId: a.primaryDriverId,
-          secondaryDriverId: a.secondaryDriverId,
-          jobType: "TJW",
-        },
-        tx,
+        if (a.secondaryDriverId) {
+          await tx.driver.update({
+            where: { id: a.secondaryDriverId },
+            data: { lastTjwAt: stamp, lastAssignedAt: stamp },
+          });
+        }
+        await logTransition({
+          bookingId: a.bookingId,
+          actorUserId: session.user.id,
+          fromStatus: "APPROVED",
+          toStatus: "ASSIGNED",
+          action: "TJW_REQUEST_ORDER_MATCHED",
+          metadata: {
+            primaryDriverId: a.primaryDriverId,
+            secondaryDriverId: a.secondaryDriverId,
+            jobType: "TJW",
+          },
+          tx,
+        });
       });
+    } catch (err) {
+      if (!isExclusionViolation(err)) throw err;
+      // The car was taken by something the solver could not see. Record it as
+      // unplaced work — which is what it is — and keep going: the rest of the
+      // batch is unaffected and must not be discarded with it.
+      overflows.push({ bookingId: a.bookingId, reason: "NO_SLOT" });
     }
-    for (const o of result.overflows) {
-      await tx.booking.update({ where: { id: o.bookingId }, data: { overflowReason: o.reason } });
-    }
-  });
+  }
+
+  // Independent single-row writes, so one bad row cannot take the others down.
+  for (const o of overflows) {
+    await prisma.booking.update({
+      where: { id: o.bookingId },
+      data: { overflowReason: o.reason },
+    });
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/batch");
   revalidatePath("/admin/schedule");
 
-  return { ok: true, assigned: result.assignments.length, overflows: result.overflows };
+  return {
+    ok: true,
+    assigned: result.assignments.length - (overflows.length - result.overflows.length),
+    overflows,
+  };
 }

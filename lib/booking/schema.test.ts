@@ -109,12 +109,19 @@ describe("newBookingSchema googleMapsUrl", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects an empty Maps URL", () => {
+  it("accepts an empty Maps URL — the link is optional", () => {
+    // Many trips go where the driver already goes; requiring a share link made
+    // the whole form unsubmittable over a nice-to-have. Empty ⇒ undefined, so
+    // nothing writes an empty string into the column.
     const result = newBookingSchema.safeParse({ ...baseInput, googleMapsUrl: "" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues.map((i) => i.path.join("."))).toContain("googleMapsUrl");
-    }
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.googleMapsUrl).toBeUndefined();
+  });
+
+  it("accepts a booking with no Maps field at all", () => {
+    const withoutMaps = { ...(baseInput as Record<string, unknown>) };
+    delete withoutMaps.googleMapsUrl;
+    expect(newBookingSchema.safeParse(withoutMaps).success).toBe(true);
   });
 
   it("rejects a non-URL Maps value", () => {

@@ -4,6 +4,7 @@ import { GripVertical, AlertTriangle, Link2, X, Truck, MapPin } from "lucide-rea
 import { useTranslations } from "next-intl";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AssignRecoButton } from "@/components/forms/assign-reco-button";
+import { BookingTimeEditor } from "@/components/admin/booking-time-editor";
 
 import { formatBaht } from "@/lib/format-money";
 import {
@@ -84,6 +85,17 @@ function TimelineBlock({
       >
         <X className="h-3 w-3" aria-hidden />
       </button>
+      {/* Re-time this trip (hours only). Sits beside the ✕ on hover; the editor
+          itself opens as a modal because this block clips its own overflow. */}
+      {b.editTime && (
+        <BookingTimeEditor
+          bookingId={b.id}
+          dateLabel={b.editTime.dateLabel}
+          startHHmm={b.editTime.startHHmm}
+          endHHmm={b.editTime.endHHmm}
+          className="absolute right-5 top-0.5 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+        />
+      )}
       <div className="flex items-center gap-1 font-medium">
         <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
         {b.continuesBefore || b.continuesAfter ? (
@@ -215,6 +227,17 @@ export function QueueCard({ b }: { b: SchedulerBooking }) {
         <GripVertical className="h-3 w-3 text-muted-foreground" aria-hidden />
         <span className={`h-2 w-2 shrink-0 rounded-full ${jobStyle(b.jobType).dot}`} aria-hidden />
         <span className="font-medium">{b.timeLabel}–{b.endLabel}</span>
+        {/* A queue trip can be re-timed before it ever gets a car — that is
+            often exactly what makes it placeable. */}
+        {b.editTime && (
+          <BookingTimeEditor
+            bookingId={b.id}
+            dateLabel={b.editTime.dateLabel}
+            startHHmm={b.editTime.startHHmm}
+            endHHmm={b.editTime.endHHmm}
+            className="ml-auto"
+          />
+        )}
       </div>
       <div className="truncate text-muted-foreground">
         {b.purpose} → {b.destination}

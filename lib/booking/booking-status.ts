@@ -19,3 +19,21 @@ export const COMMITTED_STATUSES: BookingStatus[] = [
   BookingStatus.ASSIGNED,
   BookingStatus.COMPLETED,
 ];
+
+/**
+ * A booking a dispatch action may still put a car and driver on.
+ *
+ * COMMITTED_STATUSES is the wrong list for that question — it includes
+ * COMPLETED, which already happened and must not be re-dispatched (§9b), and it
+ * is about "does this count against availability", not "may I write to it".
+ *
+ * The gap this closes: `reassignVehicleAction` read no status at all, so a
+ * CANCELLED or DENIED booking that still carried an `overflowReason` was listed
+ * on /admin/batch with a one-click assign that committed a real car and driver
+ * to a trip nobody wanted — and the VehicleOccupancy row it wrote then blocked a
+ * real booking on that car.
+ */
+export const DISPATCHABLE_STATUSES: BookingStatus[] = [
+  BookingStatus.APPROVED,
+  BookingStatus.ASSIGNED,
+];

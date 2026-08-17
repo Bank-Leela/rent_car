@@ -6,12 +6,24 @@ import { recommendForBookings } from "@/lib/booking/placement-reco-data";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
 import { daySpan, daySuperscript } from "@/lib/booking/day-window";
 import { getTranslations } from "next-intl/server";
-import { th, enUS } from "date-fns/locale";
+import { th, enUS, type Locale } from "date-fns/locale";
 import { tripLegs } from "@/lib/booking/trip-legs";
 
 // Compact clock for the board's narrow blocks: drop ":00" so a 2h block fits its
 // own start–end ("08:00–12:00" → "08–12"); keep the minutes only when non-zero.
 const hm = (d: Date) => (d.getMinutes() === 0 ? format(d, "HH") : format(d, "HH:mm"));
+// Unabbreviated "HH:mm" — `hm` drops ":00", which an <input type="time"> rejects.
+const hhmm = (d: Date) => format(d, "HH:mm");
+
+// The day(s) a trip occupies, for the time editor's "date stays put" line. An
+// overnight trip names both ends, because its two clock fields land on two
+// different days and a single date would misdescribe one of them.
+function dayRangeLabel(startAt: Date, endAt: Date, locale: Locale): string {
+  const day = (d: Date) => format(d, "EEE d MMM yyyy", { locale });
+  const a = day(startAt);
+  const b = day(endAt);
+  return a === b ? a : `${a} – ${b}`;
+}
 
 /**
  * Everything the drag-and-drop timeline board needs for one day.
@@ -74,6 +86,13 @@ export async function loadTimelineBoard(
         vehicleId: true,
         jobType: true,
         estimatedDistance: true,
+        // See the note on the other booking select in this file: the flag, not
+        // only the distance, decides whether a trip needs two drivers.
+        needsSecondaryDriver: true,
+        // Whether the trip has physically left. setBookingTimeAction refuses to
+        // re-time a departed trip (§9b), so without this the board offered a
+        // clock on trips where every save is guaranteed to fail.
+        trip: { select: { startedAt: true } },
         createdAt: true,
         primaryDriverId: true,
         secondaryDriverId: true,
@@ -103,6 +122,12 @@ export async function loadTimelineBoard(
         id: true, purpose: true, destination: true, startAt: true, endAt: true,
         travelWithinChula: true, googleMapsUrl: true,
         vehicleId: true, jobType: true, estimatedDistance: true, createdAt: true,
+        // The manual two-drivers flag, not just the distance: Maps is env-gated
+        // so estimatedDistance is usually null, which makes this the only signal
+        // the board has that a trip is short-crewed.
+        needsSecondaryDriver: true,
+        // See the other select: departed trips cannot be re-timed.
+        trip: { select: { startedAt: true } },
         primaryDriverId: true, secondaryDriverId: true,
         primaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
         secondaryDriver: { select: { user: { select: { name: true, thaiName: true } } } },
@@ -139,7 +164,14 @@ export async function loadTimelineBoard(
   const smusDayBookings = dayBookings.filter((b) => b.jobType === "SMUS");
   const queueRaw = internalDayBookings
     .filter((b) => !b.vehicleId)
-    .map((b) => ({ id: b.id, startAt: b.startAt, endAt: b.endAt, estimatedDistance: b.estimatedDistance, jobType: b.jobType }));
+    .map((b) => ({
+      id: b.id,
+      startAt: b.startAt,
+      endAt: b.endAt,
+      estimatedDistance: b.estimatedDistance,
+      needsSecondaryDriver: b.needsSecondaryDriver,
+      jobType: b.jobType,
+    }));
   const recos = await recommendForBookings(dayStart, queueRaw, isThai);
   const dutyTag = t("duty");
   const assignReco = t("assignReco");
@@ -168,7 +200,12 @@ export async function loadTimelineBoard(
           })()
         : null;
     const r = recos.get(b.id);
-    const longTrip = (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
+    // The flag counts too: a trip P'Top ticked as needing two drivers is
+    // long-haul for staffing purposes even when Maps never filled in a distance
+    // (it is env-gated, so estimatedDistance is usually null in production).
+    // Without this the board drew no "needs a co-driver" card for exactly the
+    // trips where the flag is the only signal there is.
+    const longTrip = b.needsSecondaryDriver || (b.estimatedDistance ?? 0) > LONG_TRIP_KM;
     const reco =
       r && r.kind !== "none"
         ? {
@@ -188,6 +225,15 @@ export async function loadTimelineBoard(
       travelWithinChula: b.travelWithinChula,
       googleMapsUrl: b.googleMapsUrl,
       returnLeg,
+      // Whole-trip times, not the day-clamped ones: editing sets the clock on
+      // the trip's own days, so a multi-day job keeps its span.
+      editTime: b.trip?.startedAt
+        ? null
+        : {
+            startHHmm: hhmm(b.startAt),
+            endHHmm: hhmm(b.endAt),
+            dateLabel: dayRangeLabel(b.startAt, b.endAt, dfLocale),
+          },
       // On its departure day a trip shows its start time; on a later (return or
       // middle) day it shows "↪ <departure date>" so it's clear it's continuing.
       // pStart/pEnd are leg 1's bounds (= the whole trip when waiting).
@@ -230,6 +276,13 @@ export async function loadTimelineBoard(
       destination: b.destination,
       travelWithinChula: b.travelWithinChula,
       googleMapsUrl: b.googleMapsUrl,
+      editTime: b.trip?.startedAt
+        ? null
+        : {
+            startHHmm: hhmm(b.startAt),
+            endHHmm: hhmm(b.endAt),
+            dateLabel: dayRangeLabel(b.startAt, b.endAt, dfLocale),
+          },
       timeLabel: span.continuesBefore ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.startAt),
       endLabel: span.continuesAfter ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.endAt),
       departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),
@@ -281,6 +334,13 @@ export async function loadTimelineBoard(
       destination: b.destination,
       travelWithinChula: b.travelWithinChula,
       googleMapsUrl: b.googleMapsUrl,
+      editTime: b.trip?.startedAt
+        ? null
+        : {
+            startHHmm: hhmm(b.startAt),
+            endHHmm: hhmm(b.endAt),
+            dateLabel: dayRangeLabel(b.startAt, b.endAt, dfLocale),
+          },
       timeLabel: span.continuesBefore ? `↪ ${format(b.startAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.startAt),
       endLabel: span.continuesAfter ? `${hm(b.endAt)} ↩ ${format(b.endAt, "EEE d MMM", { locale: dfLocale })}` : hm(b.endAt),
       departLabel: hm(b.startAt) + daySuperscript(b.startAt, dayStart),

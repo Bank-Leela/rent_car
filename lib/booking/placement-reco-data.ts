@@ -13,7 +13,23 @@ import { recommendPlacement, type Placement, type RecoDriver } from "@/lib/booki
  */
 export async function recommendForBookings(
   date: Date,
-  bookings: Array<{ id: string; startAt: Date; endAt: Date; estimatedDistance: number | null; jobType: JobType }>,
+  bookings: Array<{
+    id: string;
+    startAt: Date;
+    endAt: Date;
+    estimatedDistance: number | null;
+    /**
+     * The manual "this trip needs two drivers" flag. Required, not optional: it
+     * was simply absent here while every other pairing site
+     * (matching.ts, batch-solver.ts, tjw-request-solver.ts, leave-core.ts) ORs
+     * it with the distance — and since Google Maps is env-gated,
+     * `estimatedDistance` is usually null in production, which makes this flag
+     * the ONLY trigger that fires. A required field means the next caller
+     * cannot forget it the way these three did.
+     */
+    needsSecondaryDriver: boolean;
+    jobType: JobType;
+  }>,
   isThai: boolean,
 ): Promise<Map<string, Placement>> {
   if (bookings.length === 0) return new Map();
@@ -88,7 +104,7 @@ export async function recommendForBookings(
       b.id,
       recommendPlacement({
         booking: { startAt: b.startAt, endAt: b.endAt, jobType: b.jobType },
-        needsSecondary: (b.estimatedDistance ?? 0) > LONG_TRIP_KM,
+        needsSecondary: b.needsSecondaryDriver || (b.estimatedDistance ?? 0) > LONG_TRIP_KM,
         dutyDriverId,
         drivers: recoDrivers,
       }),

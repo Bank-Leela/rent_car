@@ -33,6 +33,10 @@ export type Candidate = {
   startAt: Date;
   endAt: Date;
   estimatedDistance: number | null;
+  // Whether the trip needs two drivers — the flag as well as the distance. With
+  // Maps env-gated, the flag is the trigger that actually fires in production,
+  // and the capacity question is "can the fleet crew this", not "is there a car".
+  needsSecondaryDriver: boolean;
   jobType: JobType;
   isEmergency: boolean;
   preferredVehicleType: PreferredVehicleType | null;
@@ -98,6 +102,7 @@ export async function dayHasRoomForMany(
         startAt: b.startAt,
         endAt: b.endAt,
         estimatedDistance: b.estimatedDistance,
+        needsSecondaryDriver: b.needsSecondaryDriver,
         jobType: b.jobType,
       })),
       true,

@@ -347,8 +347,8 @@ export default async function AdminQueue({
                         request the fleet cannot serve has to be refusable where
                         it is read, and the inline deny collects its reason
                         (preset chips + free text) without leaving the queue.
-                        WAITLIST rows below still cannot: denyByApproverAction
-                        accepts PENDING_APPROVAL only. */}
+                        The WAITLIST rows below carry the same actions —
+                        denyByApproverAction takes both statuses. */}
                     {isAdmin &&
                       (isSeries ? (
                         <SeriesQueueActions
@@ -454,9 +454,23 @@ export default async function AdminQueue({
                       )}
                     </div>
                   )}
+                  {/* Same three moves as a pending card, and for the same
+                      reason: a WAITLIST row is over the day's capacity, so a
+                      lone อนุมัติ was an offer the capacity gate then refused.
+                      Go rearrange that day's board, refuse it, or override with
+                      a written reason — dayFull decides which set renders, and
+                      it clears itself once the day has room. */}
                   {isAdmin && <ApproverQueueActions
                         bookingId={b.id}
-                        canDeny={false}
+                        canDeny
+                        dayFull={
+                          !b.needsOutsourcing &&
+                          (triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")
+                        }
+                        outsourcingOnFullDay={
+                          b.needsOutsourcing &&
+                          (triageByBooking.get(b.id) ?? []).some((f) => f.key === "dayFull")
+                        }
                         returnTrip={b.returnTrip}
                         startAt={format(b.startAt, "yyyy-MM-dd'T'HH:mm")}
                         endAt={format(b.endAt, "yyyy-MM-dd'T'HH:mm")}

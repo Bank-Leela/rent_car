@@ -6,7 +6,9 @@ export type TodayTripRow = {
   startLabel: string;
   destination: string;
   driverName: string | null;
-  registrationNumber: string | null;
+  /** Translated car type (เก๋ง / กระบะ / ตู้ / รถ 6 ล้อ) — the plate was here
+   *  before, and it told a driver nothing they could act on. */
+  vehicleTypeLabel: string | null;
   state: "upcoming" | "inProgress" | "done";
   // The next trip departing within the coming hour — highlighted so a driver
   // glancing at the kiosk sees what's about to leave.
@@ -71,7 +73,7 @@ export function TodayTripsPanel({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{r.destination}</span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {r.registrationNumber ?? "—"}
+                    {r.vehicleTypeLabel ?? "—"}
                     {r.driverName ? ` · ${r.driverName}` : ""}
                   </span>
                 </span>

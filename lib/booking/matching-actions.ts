@@ -17,6 +17,7 @@ import {
   type TripWindow,
 } from "@/lib/booking/driver-capacity";
 import { match } from "@/lib/booking/matching";
+import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { resolveWernDriver, pickAutoDutyDriver } from "@/lib/booking/duty-assignment";
 import { WORK_DAY_START_HOUR, WORK_DAY_END_HOUR } from "@/lib/booking/classification";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
@@ -216,7 +217,16 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   }
   const { vehicleId, primaryDriverId, secondaryDriverId } = decision.result;
 
-  await prisma.$transaction(async (tx) => {
+  // The matcher's conflict model is DRIVER-based: it builds tripsByDriver from
+  // primaryDriverId/secondaryDriverId, so a car allocated with no driver yet
+  // (assignBookingAction sets vehicleId alone — the intended CR-02 state) is
+  // invisible to it, and the derived `vehicleId = driverCar.get(primaryDriverId)`
+  // can land on a car the occupancy EXCLUDE already holds. Uncaught, its 23P01
+  // threw straight through the server action and the admin detail page was
+  // replaced by the error boundary. lib/booking/actions.ts:96 documents this
+  // exact bug being fixed on the sibling path; this was the one that was missed.
+  try {
+    await prisma.$transaction(async (tx) => {
     await tx.booking.update({
       where: { id: bookingId },
       data: {
@@ -252,7 +262,11 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       metadata: { vehicleId, primaryDriverId, secondaryDriverId },
       tx,
     });
-  });
+    });
+  } catch (err) {
+    if (!isExclusionViolation(err)) throw err;
+    return { ok: false, field: "vehicleId", error: te("vehicleConflict") };
+  }
 
   revalidatePath("/admin");
   revalidatePath(`/admin/${bookingId}`);

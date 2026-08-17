@@ -130,6 +130,7 @@ export default async function SchedulePage({
         : null,
       startHHmm: formatTh(b.startAt, "HH:mm"),
       endHHmm: formatTh(b.endAt, "HH:mm"),
+      dateLabel: formatTh(b.startAt, "EEE d MMM yyyy"),
     }));
 
   // The only board on this page.
@@ -164,11 +165,7 @@ export default async function SchedulePage({
       <DriverRosterControl drivers={roster} date={isoOf(dayStart)} />
 
 
-      <WernStrip
-        jobs={wernJobs}
-        date={isoOf(dayStart)}
-        labels={{ title: t("wernStripTitle"), empty: "" }}
-      />
+      <WernStrip jobs={wernJobs} labels={{ title: t("wernStripTitle"), empty: "" }} />
 
       <SchedulerBoard
         vehicles={timelineData.vehicles}

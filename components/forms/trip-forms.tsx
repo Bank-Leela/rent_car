@@ -53,7 +53,20 @@ export function EndTripForm({
     return run(fd);
   };
   return (
-    <form action={runWithCapture} className="space-y-4">
+    // onSubmit, NOT the `action` prop — the same reason booking-form.tsx:526
+    // gives. React 19 auto-resets a form submitted through `action`, so a
+    // server rejection (transposed odometer digits, say) left the driver
+    // looking at an error message above seven empty boxes, with the mileage,
+    // fuel type, litres, cost, tollway, parking and notes they had just typed
+    // all gone. They are standing at a station kiosk with a paper log sheet;
+    // re-keying the lot is exactly the friction that stops trips being closed.
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        runWithCapture(new FormData(e.currentTarget));
+      }}
+      className="space-y-4"
+    >
       <div className={needsStart ? "grid gap-4 sm:grid-cols-2" : "grid gap-2"}>
         {needsStart && (
           <div className="grid gap-2">

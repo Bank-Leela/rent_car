@@ -24,6 +24,7 @@ export default async function DriverSchedule({
   const t = await getTranslations("scheduler");
   const td = await getTranslations("driver");
   const tj = await getTranslations("jobType");
+  const tf = await getTranslations("fleet");
   const locale = await getLocale();
   const isThai = locale.toLowerCase().startsWith("th");
 
@@ -43,6 +44,9 @@ export default async function DriverSchedule({
       select: {
         id: true,
         registrationNumber: true,
+        // The kiosk shows the car by type, not by plate; the registration is
+        // still selected because it is the stable A–F ordering key.
+        type: true,
         assignedDriverId: true,
         assignedDriver: { select: { user: { select: { name: true, thaiName: true } } } },
       },
@@ -71,9 +75,13 @@ export default async function DriverSchedule({
   const nameOf = (u: { name: string | null; thaiName: string | null } | null | undefined) =>
     u ? (isThai ? u.thaiName ?? u.name : u.name ?? u.thaiName) ?? null : null;
 
+  // เก๋ง / กระบะ / ตู้ / รถ 6 ล้อ — the fleet namespace already owns these names
+  // (they're what /admin/fleet edits), so the board can't drift from the roster.
+  const typeLabel = (type: (typeof vehicles)[number]["type"]) => tf(`type_${type}`);
+
   const vehicleRows = vehicles.map((v) => ({
     id: v.id,
-    registrationNumber: v.registrationNumber,
+    vehicleTypeLabel: typeLabel(v.type),
     driverName: nameOf(v.assignedDriver?.user),
   }));
 
@@ -85,7 +93,7 @@ export default async function DriverSchedule({
       .map((v) => ({
         driverId: v.assignedDriverId!,
         driverName: nameOf(v.assignedDriver?.user),
-        registrationNumber: v.registrationNumber,
+        vehicleTypeLabel: typeLabel(v.type),
       })),
     bookings: dayBookings.map((b) => ({
       id: b.id,
@@ -115,7 +123,7 @@ export default async function DriverSchedule({
   // rendered when the kiosk is actually showing today, where "next within the
   // hour" means something.
   const viewingToday = dayStart.getTime() === startOfDay(new Date()).getTime();
-  const regByVehicle = new Map(vehicleRows.map((v) => [v.id, v.registrationNumber]));
+  const typeByVehicle = new Map(vehicleRows.map((v) => [v.id, v.vehicleTypeLabel]));
   let todayRows: TodayTripRow[] = [];
   if (viewingToday) {
     const nowMs = new Date().getTime();
@@ -130,7 +138,7 @@ export default async function DriverSchedule({
       startLabel: format(b.startAt, "HH:mm"),
       destination: b.destination,
       driverName: nameOf(b.primaryDriver?.user),
-      registrationNumber: b.vehicleId ? regByVehicle.get(b.vehicleId) ?? null : null,
+      vehicleTypeLabel: b.vehicleId ? typeByVehicle.get(b.vehicleId) ?? null : null,
       state: b.trip?.endedAt ? "done" : b.trip ? "inProgress" : "upcoming",
       isNext: b.id === nextId,
       // The driver carries the printed form for the passenger to sign, so the

@@ -49,7 +49,11 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
     });
     await tx.booking.update({
       where: { id: bookingId },
-      data: { status: "CANCELLED", decidedAt: new Date() },
+      // overflowReason cleared with the cancellation: it means "the solver could
+      // not place this", which stops being a question the moment the trip is
+      // dead. Left set, the trip kept appearing on /admin/batch's "ทริปที่จัดไม่ได้"
+      // list as outstanding work.
+      data: { status: "CANCELLED", decidedAt: new Date(), overflowReason: null },
     });
     await logTransition({
       bookingId,
@@ -191,7 +195,15 @@ const outsourceSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((v) => v || undefined),
-  notify: z.coerce.boolean().optional().default(true),
+  // NOT z.coerce.boolean(): that coerces every non-empty string to true, so the
+  // checkbox was inert in both directions — absent (unticked) fell through to
+  // `.default(true)`, and any value at all was also true. There was no input the
+  // admin could give that suppressed the email. An explicit "on"/"true" test
+  // reads an unticked box as what it is.
+  notify: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "on"),
 });
 
 export async function recordOutsourcingAction(formData: FormData): Promise<ActionResult> {

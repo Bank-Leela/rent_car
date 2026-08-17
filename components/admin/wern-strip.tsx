@@ -1,4 +1,4 @@
-import { WernTimeEditor } from "@/components/admin/wern-time-editor";
+import { BookingTimeEditor } from "@/components/admin/booking-time-editor";
 
 export type WernJob = {
   id: string;
@@ -6,26 +6,22 @@ export type WernJob = {
   driverName: string | null;
   startHHmm: string;
   endHHmm: string;
+  /** The trip's day, for the editor's "date does not move" line. */
+  dateLabel: string;
 };
 
 // เวร jobs, with their hours editable in place.
 //
-// These are campus errands the duty driver runs, and their hour is negotiable in
-// a way a meeting pickup is not — P'Top routinely slides one to make room. Every
-// other trip's time is the requester's booking and is not the dispatcher's to
-// change, so only เวร appears here.
-//
-// It is a strip above the board rather than a control inside each timeline
-// block: a block is ~40px wide at this zoom, which is no place for two time
-// fields, and a control you have to hover a 40px target to discover is a
-// control nobody finds.
+// These are campus errands the duty driver runs, and their hour is the one
+// P'Top slides most often, so they keep a strip of their own above the board —
+// a control you have to hover a ~40px block to discover is a control nobody
+// finds. Every other job type is now re-timeable too, from the clock on its own
+// block; this strip is the shortcut for the common case, not the only door.
 export function WernStrip({
   jobs,
-  date,
   labels,
 }: {
   jobs: WernJob[];
-  date: string;
   labels: { title: string; empty: string };
 }) {
   if (jobs.length === 0) return null;
@@ -46,9 +42,9 @@ export function WernStrip({
             <span className="tabular-nums text-muted-foreground">
               {j.startHHmm}–{j.endHHmm}
             </span>
-            <WernTimeEditor
+            <BookingTimeEditor
               bookingId={j.id}
-              date={date}
+              dateLabel={j.dateLabel}
               startHHmm={j.startHHmm}
               endHHmm={j.endHHmm}
             />

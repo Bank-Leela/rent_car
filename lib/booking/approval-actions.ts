@@ -307,7 +307,13 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
-  if (booking.status !== "PENDING_APPROVAL") {
+  // WAITLIST as well as PENDING_APPROVAL — the same two statuses approve takes.
+  // A WAITLIST row is over the day's capacity, so refusing it is the commonest
+  // decision it gets, and it used to be the one decision the queue could not
+  // make: the card offered อนุมัติ (which the capacity gate then refused) and
+  // nothing else. Denying is not a capacity question, so there is nothing here
+  // to gate on.
+  if (booking.status !== "PENDING_APPROVAL" && booking.status !== "WAITLIST") {
     return { ok: false, error: te("cannotDenyInStatus", { status: ts(booking.status) }) };
   }
   if (!(await canApprove(userId))) {
@@ -326,12 +332,22 @@ export async function denyByApproverAction(formData: FormData): Promise<ActionRe
     });
     await tx.booking.update({
       where: { id: bookingId },
-      data: { status: "DENIED", denialReason: comment, decidedAt: new Date() },
+      // overflowReason cleared alongside the status: a denied trip is not
+      // unplaced work waiting for a car (see cancelBookingAction).
+      data: {
+        status: "DENIED",
+        denialReason: comment,
+        decidedAt: new Date(),
+        overflowReason: null,
+      },
     });
     await logTransition({
       bookingId,
       actorUserId: userId,
-      fromStatus: "PENDING_APPROVAL",
+      // The real prior status, not a hardcoded one: a denied WAITLIST row would
+      // otherwise read in the history as if it had been an ordinary pending
+      // request, hiding that it was refused because the day was over capacity.
+      fromStatus: booking.status,
       toStatus: "DENIED",
       action: "BOOKING_DENIED",
       metadata: { comment },
@@ -495,8 +511,9 @@ export async function denySeriesAction(formData: FormData): Promise<SeriesApprov
   if (!parentId) return { ok: false, error: te("invalidInput") };
   if (comment.length < 3) return { ok: false, error: te("invalidInput") };
 
-  // denyByApproverAction accepts PENDING_APPROVAL only, so a WAITLIST occurrence
-  // in the series is reported as blocked rather than silently skipped.
+  // Both statuses the per-booking deny accepts, so an occurrence that fell to
+  // WAITLIST is denied with the rest of its series instead of being reported as
+  // blocked and left behind.
   const series = await prisma.booking.findMany({
     where: {
       status: { in: ["PENDING_APPROVAL", "WAITLIST"] },

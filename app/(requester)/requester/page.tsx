@@ -40,14 +40,20 @@ export default async function RequesterHome() {
     }),
   ]);
 
-  // A past-due booking nobody formally closed out reads as done from the
-  // requester's point of view; anything still ahead keeps its real status so a
-  // waiting request is plainly still waiting.
+  // A past-due booking that HAD a car and simply never got closed out reads as
+  // done from the requester's point of view. One that was never decided does
+  // not: relabelling it hid the office's real failure mode — a request that
+  // fell through the queue, its date came and went, and the requester was shown
+  // "เสร็จสิ้น" for a trip that never happened. Those keep their true status, so
+  // an undecided request stays visibly undecided however old it is.
+  const wasDispatched = (s: string) => s === "APPROVED" || s === "ASSIGNED" || s === "OUTSOURCED";
   const historyRows: RequesterBookingCard[] = history.map((b) => ({
     id: b.id,
     jobType: b.jobType,
     status:
-      (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) || b.endAt >= now
+      (HISTORY_BOOKING_STATUSES as readonly string[]).includes(b.status) ||
+      b.endAt >= now ||
+      !wasDispatched(b.status)
         ? b.status
         : "COMPLETED",
     purpose: b.purpose,

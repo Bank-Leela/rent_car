@@ -37,7 +37,20 @@ export async function approvalFunnel(range: DateRange, departmentId?: string) {
   };
   const [total, approved, denied, cancelled, completed, outsourced] = await Promise.all([
     prisma.booking.count({ where: baseWhere }),
-    prisma.booking.count({ where: { ...baseWhere, status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] } } }),
+    // AWAITING_DOCUMENT counts as approved: it IS approved — the department head
+    // has decided, and the booking sits there only until an admin confirms the
+    // signed form. Leaving it out made every such booking count as neither
+    // approved nor denied nor cancelled, so the slices did not sum to `total`
+    // and the approval rate read low — worst at the start of a month, which is
+    // exactly when this report is read. OUTSOURCED is likewise an approval, just
+    // one served by a hired vehicle; it keeps its own slice below but has to be
+    // inside the approved total for the funnel to add up.
+    prisma.booking.count({
+      where: {
+        ...baseWhere,
+        status: { in: ["AWAITING_DOCUMENT", "APPROVED", "ASSIGNED", "COMPLETED", "OUTSOURCED"] },
+      },
+    }),
     prisma.booking.count({ where: { ...baseWhere, status: "DENIED" } }),
     prisma.booking.count({ where: { ...baseWhere, status: "CANCELLED" } }),
     prisma.booking.count({ where: { ...baseWhere, status: "COMPLETED" } }),
