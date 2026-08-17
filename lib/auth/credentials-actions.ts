@@ -60,7 +60,7 @@ export async function signInAction(formData: FormData): Promise<ActionResult> {
 
 export async function signOutAction(): Promise<void> {
   await nextAuthSignOut({ redirect: false });
-  redirect("/login");
+  redirect("/");
 }
 
 // ---- Self-service: change own password ----

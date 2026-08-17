@@ -2,6 +2,10 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/forgot", "/reset", "/api/auth", "/api/dev", "/api/line", "/api/cron"];
+// The sign-in screen is the site root, so "/" has to be public too. It is matched
+// by equality and deliberately kept OUT of PUBLIC_PATHS: those are prefixes, and
+// a "/" prefix would make startsWith() true for every path in the app — the whole
+// gate, silently open. "/login" stays public because it now redirects to "/".
 // Paths a user on a temp password can reach without being bounced back to
 // /account. They need access to set the new password and to sign out;
 // everything else is blocked until the password is rotated.
@@ -12,13 +16,14 @@ const DEV_ENABLED =
 
 export default auth((req) => {
   const { nextUrl } = req;
-  const isPublic = PUBLIC_PATHS.some((p) => nextUrl.pathname.startsWith(p));
+  const isPublic =
+    nextUrl.pathname === "/" || PUBLIC_PATHS.some((p) => nextUrl.pathname.startsWith(p));
 
   if (isPublic) return NextResponse.next();
 
   const hasDevCookie = DEV_ENABLED && !!req.cookies.get(DEV_COOKIE)?.value;
   if (!req.auth && !hasDevCookie) {
-    const loginUrl = new URL("/login", nextUrl.origin);
+    const loginUrl = new URL("/", nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -26,9 +31,10 @@ export default auth((req) => {
   // A user deactivated mid-session keeps a live JWT until expiry; the token
   // refreshes isActive from the DB each request (auth.ts), so bounce them the
   // moment it flips false — closes any middleware-gated route with no
-  // server-side requireUser call. /login is public → no redirect loop.
+  // server-side requireUser call. "/" is public and renders the sign-in form
+  // for a deactivated session rather than forwarding it on → no redirect loop.
   if (req.auth?.user && req.auth.user.isActive === false) {
-    return NextResponse.redirect(new URL("/login", nextUrl.origin));
+    return NextResponse.redirect(new URL("/", nextUrl.origin));
   }
 
   // CR-08: force users on a temp password to /account before they can

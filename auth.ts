@@ -106,8 +106,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   pages: {
-    signIn: "/login",
-    error: "/login",
+    // The sign-in screen is the site root, not /login.
+    signIn: "/",
+    error: "/",
   },
   callbacks: {
     async jwt({ token, user }) {

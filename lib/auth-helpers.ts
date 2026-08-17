@@ -4,13 +4,14 @@ import { getSession } from "@/lib/session";
 
 export async function requireUser() {
   const session = await getSession();
-  if (!session?.user) redirect("/login");
+  if (!session?.user) redirect("/");
   // A user deactivated mid-session keeps a live JWT until expiry; the token
   // refreshes isActive from the DB each request (auth.ts), so enforce it at the
-  // single choke point every RSC/server action funnels through. /login is public.
-  // `=== false` (not `!isActive`): prod always sets a concrete boolean (auth.ts
-  // `?? false`), so this blocks deactivated users identically while matching proxy.ts.
-  if (session.user.isActive === false) redirect("/login");
+  // single choke point every RSC/server action funnels through. "/" is public and
+  // holds the sign-in form. `=== false` (not `!isActive`): prod always sets a
+  // concrete boolean (auth.ts `?? false`), so this blocks deactivated users
+  // identically while matching proxy.ts.
+  if (session.user.isActive === false) redirect("/");
   return session;
 }
 
