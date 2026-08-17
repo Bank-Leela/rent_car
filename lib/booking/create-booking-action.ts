@@ -10,7 +10,11 @@ import { newBookingSchema } from "@/lib/booking/schema";
 import { bucketFromStart } from "@/lib/booking/slot-allocation";
 import { dayWindow, dayCapacity, submitStatus, SLOT_HOLDING_STATUSES } from "@/lib/booking/slot-capacity";
 import { classifyJobType } from "@/lib/booking/classification";
-import { checkLeadTime, isBlockedByPendingEvaluation } from "@/lib/booking/rules";
+import {
+  checkLeadTime,
+  isBlockedByPendingEvaluation,
+  EVALUATION_GATE_ENABLED,
+} from "@/lib/booking/rules";
 import { sendEmail } from "@/lib/email/client";
 import { adminNewBookingEmail } from "@/lib/email/templates";
 import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
@@ -81,14 +85,17 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   const outOfHoursReason = data.outOfHoursReason ?? null;
 
   // Evaluation gate: prior unevaluated COMPLETED trips block new bookings.
-  const pendingEvals = await prisma.trip.count({
-    where: {
-      booking: { requesterId: userId, status: "COMPLETED" },
-      evaluation: null,
-    },
-  });
-  if (isBlockedByPendingEvaluation(pendingEvals)) {
-    return { ok: false, error: te("pendingEvaluation") };
+  // Disabled via EVALUATION_GATE_ENABLED — skip the count query too while off.
+  if (EVALUATION_GATE_ENABLED) {
+    const pendingEvals = await prisma.trip.count({
+      where: {
+        booking: { requesterId: userId, status: "COMPLETED" },
+        evaluation: null,
+      },
+    });
+    if (isBlockedByPendingEvaluation(pendingEvals)) {
+      return { ok: false, error: te("pendingEvaluation") };
+    }
   }
 
   // Department is locked to the requester's own profile (edited on /account),

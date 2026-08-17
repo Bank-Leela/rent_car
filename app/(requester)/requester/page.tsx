@@ -11,6 +11,7 @@ import {
   type RequesterBookingCard,
 } from "@/components/requester-booking-list";
 import { RequesterHistoryClient } from "@/components/requester-history-client";
+import { EVALUATION_GATE_ENABLED } from "@/lib/booking/rules";
 
 // The requester's full request log: everything they have ever asked for, newest
 // first — still waiting for approval, approved, out on the road, and finished.
@@ -24,15 +25,19 @@ export default async function RequesterHome() {
   const t = await getTranslations("requester");
   const now = new Date();
 
+  // The nudge below only makes sense while the evaluation gate is on — its whole
+  // point is "you can't book until you evaluate". Gate off: don't even ask.
   const [pendingEvalBookings, history] = await Promise.all([
-    prisma.booking.findMany({
-      where: {
-        requesterId: session.user.id,
-        status: "COMPLETED",
-        trip: { is: { evaluation: null } },
-      },
-      select: { id: true, purpose: true, destination: true },
-    }),
+    EVALUATION_GATE_ENABLED
+      ? prisma.booking.findMany({
+          where: {
+            requesterId: session.user.id,
+            status: "COMPLETED",
+            trip: { is: { evaluation: null } },
+          },
+          select: { id: true, purpose: true, destination: true },
+        })
+      : [],
     prisma.booking.findMany({
       where: { requesterId: session.user.id },
       orderBy: { startAt: "desc" },

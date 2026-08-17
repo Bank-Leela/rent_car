@@ -155,6 +155,13 @@ export function isBlockedByPendingEvaluation(unevaluatedCompletedTrips: number):
   return unevaluatedCompletedTrips > 0;
 }
 
+/**
+ * Kill switch for the gate above: turned off for now, so an unevaluated trip no
+ * longer stops a new booking and the requester log no longer says it does. The
+ * rule itself is untouched — flip this back to `true` to reinstate it.
+ */
+export const EVALUATION_GATE_ENABLED: boolean = false;
+
 export type DepartmentAuthInfo = {
   representativeUserId: string | null;
 };
