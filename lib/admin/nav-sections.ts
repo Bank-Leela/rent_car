@@ -28,9 +28,13 @@ export const ADMIN_SECTIONS: NavSection[] = [
     key: "requests",
     href: "/admin",
     labelKey: "requests",
-    match: ["/admin", "/admin/decisions"],
+    match: ["/admin", "/admin/decisions", "/admin/new"],
     tabs: [
       { href: "/admin", labelKey: "queue" },
+      // Filing a booking belongs with the queue it lands in: an admin-entered
+      // trip goes through the same approval flow as any other, so it is a
+      // request, not a scheduling action.
+      { href: "/admin/new", labelKey: "newBooking" },
       { href: "/admin/decisions", labelKey: "decisions" },
     ],
   },

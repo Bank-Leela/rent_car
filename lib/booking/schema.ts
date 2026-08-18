@@ -124,6 +124,25 @@ export const newBookingSchema = z
     estimatedDistance: optionalNumber({ int: true }),
     needsOutsourcing: z.coerce.boolean().optional().default(false),
     isEmergency: z.coerce.boolean().optional().default(false),
+    // ---- ADMIN-ONLY fields. Declared HERE because a plain z.object runs in
+    // strip mode: an undeclared FormData key is dropped silently, so a field
+    // the client faithfully submits arrives as undefined and the feature looks
+    // broken with nothing to debug. createBookingAction is what enforces the
+    // role — reaching this schema proves only that the key was sent.
+    //
+    // Book on behalf of someone else: the booking is filed under THEM
+    // (requesterId + their department), because reporting is per-department and
+    // a dean's-office trip logged against P'Top's own department is a wrong
+    // number in every usage report.
+    onBehalfOfUserId: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
+    // Record a trip that has already happened. Waives the lead-time floor only;
+    // everything else about the booking is unchanged, and it still goes through
+    // the ordinary approval queue.
+    backdated: z.coerce.boolean().optional().default(false),
     emergencyReason: z
       .string()
       .max(1000)

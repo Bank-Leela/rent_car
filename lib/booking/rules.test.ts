@@ -268,3 +268,67 @@ describe("canSubmitForDepartment", () => {
     expect(canSubmitForDepartment(requester, deptWithoutRep)).toBe(false);
   });
 });
+
+// ---- Same-day urgent + the backdate waiver ----
+//
+// These two are the whole point of the admin booking form: the ผอ asks for a
+// car on the morning they need it, and the dean's office sends the paper form
+// after the trip. Both were refused outright before.
+describe("urgent is same-day, and backdating waives the floor", () => {
+  const NOW_MID_MORNING = new Date("2026-08-18T09:30:00"); // a Tuesday
+
+  it("accepts a trip LATER TODAY when urgent", () => {
+    const res = checkLeadTime({
+      startAt: new Date("2026-08-18T14:00:00"),
+      province: BANGKOK_PROVINCE,
+      urgent: true,
+      now: NOW_MID_MORNING,
+    });
+    expect(res.ok, "ขอวันนี้ใช้วันนี้ is the request urgent exists to serve").toBe(true);
+  });
+
+  it("still refuses YESTERDAY when only urgent", () => {
+    const res = checkLeadTime({
+      startAt: new Date("2026-08-17T14:00:00"),
+      province: BANGKOK_PROVINCE,
+      urgent: true,
+      now: NOW_MID_MORNING,
+    });
+    expect(res.ok, "urgent lowers the floor to today; it does not remove it").toBe(false);
+  });
+
+  it("accepts a past date when backdating", () => {
+    const res = checkLeadTime({
+      startAt: new Date("2026-08-11T08:00:00"), // a week ago
+      province: BANGKOK_PROVINCE,
+      urgent: false,
+      now: NOW_MID_MORNING,
+      allowPast: true,
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("backdating overrides even the 30-day SMUS floor", () => {
+    // SMUS returns early on its own branch, so the waiver has to come first.
+    const res = checkLeadTime({
+      startAt: new Date("2026-08-11T08:00:00"),
+      province: BANGKOK_PROVINCE,
+      jobType: "SMUS",
+      now: NOW_MID_MORNING,
+      allowPast: true,
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("without the waiver a past date is refused for every tier", () => {
+    for (const jobType of [undefined, "SMUS", "NORMAL"]) {
+      const res = checkLeadTime({
+        startAt: new Date("2026-08-11T08:00:00"),
+        province: BANGKOK_PROVINCE,
+        jobType,
+        now: NOW_MID_MORNING,
+      });
+      expect(res.ok, `jobType=${jobType} must still refuse the past`).toBe(false);
+    }
+  });
+});

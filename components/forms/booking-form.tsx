@@ -154,6 +154,7 @@ export function BookingForm({
   prefill,
   prefillLabel,
   locale,
+  requesters,
 }: {
   departments: BookingFormDepartment[];
   defaultDepartmentId: string | null;
@@ -163,6 +164,18 @@ export function BookingForm({
   defaultAjarnPhone: string;
   defaultAjarnEmail: string;
   templates: TripTemplate[];
+  /**
+   * ADMIN ONLY — the requesters this form may file on behalf of. Present on
+   * /admin/new and absent everywhere else, and its presence is what turns on
+   * both admin powers: the "book for" picker and the backdate switch. The
+   * server re-checks the role either way (createBookingAction); this prop only
+   * decides what is drawn.
+   *
+   * The dean's office and the ผอ do not use the system themselves — the form
+   * arrives on paper, often after the trip — so the booking has to be filed
+   * under THEM for per-department reporting to mean anything.
+   */
+  requesters?: { id: string; label: string; department: string | null }[];
   // "Book again": trip fields of a past booking, applied once on mount.
   prefill?: BookingPrefill | null;
   // Shown in the applied-notice (the source booking's job number).
@@ -237,6 +250,15 @@ export function BookingForm({
   // the date picker's min + the lead-time notice, and is toggled from inside
   // the start picker.
   const [isEmergency, setIsEmergency] = useState(false);
+  // Admin-only. Turning it on drops the lead-time floor from the picker
+  // entirely so a past date can be chosen; the server still re-checks the role.
+  const isAdminForm = !!requesters;
+  const [backdated, setBackdated] = useState(false);
+  const [onBehalfOfUserId, setOnBehalfOfUserId] = useState("");
+  // The department the booking will really be filed under, once a requester is
+  // chosen. null on the requester's own form and before a choice is made.
+  const onBehalfDepartment =
+    (onBehalfOfUserId && requesters?.find((r) => r.id === onBehalfOfUserId)?.department) || null;
   // Controlled (default true) so an unchecked box reliably sends "false" —
   // an unchecked native checkbox sends nothing at all, which would fall back
   // to the schema default (true) and silently ignore the uncheck.
@@ -416,7 +438,11 @@ export function BookingForm({
   // counts every calendar day, including weekends; the other tiers skip
   // Saturdays and Sundays. Any time on that day is fine.
   const earliestStart = earliestStartFor(tripArea, isEmergency, now);
-  const minStart = datetimeLocalValue(earliestStart);
+  // Backdating removes the floor rather than lowering it: the whole point is a
+  // trip that already happened, and there is no sensible "N days before today".
+  // `undefined` (not a min in the past) so the picker draws no lower bound at
+  // all and every earlier month stays reachable.
+  const minStart = backdated ? undefined : datetimeLocalValue(earliestStart);
   // Cap typed year so the browser can't accept "20251" or longer.
   const maxStart = datetimeLocalValue(addYears(now, 5));
 
@@ -583,6 +609,28 @@ export function BookingForm({
           }}
           className="space-y-4"
         >
+          {/* ADMIN ONLY — who this booking is FOR. First thing on the form
+              because it decides whose department the trip is filed against, and
+              filling the rest before choosing invites getting it wrong. The
+              dean's office and the ผอ send the form on paper; P'Top types it in
+              on their behalf, and the booking has to belong to them. */}
+          {isAdminForm && (
+            <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <Label htmlFor="onBehalfOf" className="text-sm font-semibold">
+                {t("bookForLabel")}
+              </Label>
+              <SelectField
+                id="onBehalfOf"
+                value={onBehalfOfUserId}
+                onValueChange={setOnBehalfOfUserId}
+                placeholder={t("bookForPlaceholder")}
+                options={(requesters ?? []).map((r) => ({ value: r.id, label: r.label }))}
+                aria-label={t("bookForLabel")}
+              />
+              <p className="text-xs text-muted-foreground">{t("bookForHelper")}</p>
+            </div>
+          )}
+
           <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <Bookmark aria-hidden className="h-4 w-4 text-primary" />
@@ -739,6 +787,18 @@ export function BookingForm({
                     yesLabel: t("overnightYes"),
                     noLabel: t("overnightNo"),
                   }}
+                  backdate={
+                    isAdminForm
+                      ? {
+                          value: backdated,
+                          onChange: setBackdated,
+                          label: t("backdatedLabel"),
+                          helper: t("backdatedHelper"),
+                          yesLabel: t("overnightYes"),
+                          noLabel: t("overnightNo"),
+                        }
+                      : undefined
+                  }
                 />
               </div>
               {/* เดินทางกลับ / ไม่เดินทางกลับ (เที่ยวเดียว) — its own compact
@@ -1155,20 +1215,28 @@ export function BookingForm({
               <Input
                 id="departmentDisplay"
                 value={
-                  defaultDepartment
-                    ? isThai
-                      ? defaultDepartment.nameTh
-                      : defaultDepartment.nameTh
-                    : t("departmentNotSet")
+                  // On the admin form this must show the department the booking
+                  // will ACTUALLY be filed under — the chosen requester's, which
+                  // is what the server resolves. Showing P'Top's own department
+                  // here while writing someone else's would be the field
+                  // contradicting the row above it and the stored row below it.
+                  onBehalfDepartment ??
+                  (defaultDepartment ? defaultDepartment.nameTh : t("departmentNotSet"))
                 }
                 readOnly
                 disabled
               />
               <p className="text-xs text-muted-foreground">
-                {t("departmentLockedHint")}{" "}
-                <a href="/account" className="font-medium text-primary hover:underline">
-                  {t("departmentEditLink")}
-                </a>
+                {onBehalfDepartment ? (
+                  t("departmentOnBehalfHint")
+                ) : (
+                  <>
+                    {t("departmentLockedHint")}{" "}
+                    <a href="/account" className="font-medium text-primary hover:underline">
+                      {t("departmentEditLink")}
+                    </a>
+                  </>
+                )}
               </p>
             </div>
             <div className="grid sm:grid-cols-2 gap-4">
@@ -1223,6 +1291,14 @@ export function BookingForm({
               It rides along as a hidden field — "true"/"" only, never "false",
               because z.coerce.boolean treats any non-empty string as true. */}
           <input type="hidden" name="isEmergency" value={isEmergency ? "true" : ""} />
+          {/* Same "true"/"" contract as isEmergency — z.coerce.boolean treats
+              any non-empty string as true, so "false" would read as true. */}
+          {isAdminForm && (
+            <>
+              <input type="hidden" name="backdated" value={backdated ? "true" : ""} />
+              <input type="hidden" name="onBehalfOfUserId" value={onBehalfOfUserId} />
+            </>
+          )}
 
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

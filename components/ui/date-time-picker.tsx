@@ -55,14 +55,13 @@ interface DateTimePickerProps {
   // Optional "urgent booking" Yes/No toggle, also rendered inside the popover.
   // Turning it on waives the lead-time floor (the parent shortens `min`), so
   // there is no warning/block here — it only relaxes the rules.
-  urgent?: {
-    value: boolean;
-    onChange: (next: boolean) => void;
-    label: string;
-    helper: string;
-    yesLabel: string;
-    noLabel: string;
-  };
+  urgent?: DisclosureToggleProps;
+  // Optional "record a past trip" Yes/No toggle, rendered directly under the
+  // urgent one and identical in shape — the dean's office sends the paper form
+  // days after the trip, and this is what lets an admin enter it at all.
+  // ADMIN-only: the parent decides whether to pass it. Like `urgent` it only
+  // RELAXES the floor (the parent drops `min`), so there is nothing to warn about.
+  backdate?: DisclosureToggleProps;
   // Optional คอย/ไม่คอย (wait-at-destination) toggle, rendered inside the
   // popover — belongs on the End picker since it's about what happens before
   // the return trip. When `wait` is false, a plain time input for the
@@ -100,6 +99,65 @@ function parseValue(v: string | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * One collapsed Yes/No switch inside the popover.
+ *
+ * Both switches that live here — "ต้องการจองเร่งด่วน" and "ต้องการจองย้อนหลัง" —
+ * do the same thing to the same field: they unlock a start date the lead-time
+ * floor would otherwise refuse. So they are one component rather than two
+ * copies of forty lines of markup, and they cannot drift apart.
+ *
+ * Collapsed by default, behind a plain chevron: neither is a normal option, and
+ * an expanded pair of Yes/No switches sitting under the calendar invites being
+ * clicked out of habit.
+ */
+type DisclosureToggleProps = {
+  value: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  helper: string;
+  yesLabel: string;
+  noLabel: string;
+};
+
+function DisclosureToggle({ value, onChange, label, helper, yesLabel, noLabel }: DisclosureToggleProps) {
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
+        <span>{label}</span>
+        <ChevronDown aria-hidden className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+        <p className="text-[11px] leading-snug text-muted-foreground">{helper}</p>
+        <div className="inline-flex rounded-md border border-input p-0.5">
+          <button
+            type="button"
+            onClick={() => onChange(false)}
+            aria-pressed={!value}
+            className={cn(
+              "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              !value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {noLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(true)}
+            aria-pressed={value}
+            className={cn(
+              "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              value ? "bg-muted-foreground/70 text-background shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {yesLabel}
+          </button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export function DateTimePicker({
   name,
   defaultValue,
@@ -113,6 +171,7 @@ export function DateTimePicker({
   timeLabel,
   overnight,
   urgent,
+  backdate,
   pickupReturn,
 }: DateTimePickerProps) {
   const locale = useLocale();
@@ -289,7 +348,7 @@ export function DateTimePicker({
   // The left column (time + overnight + urgent) only exists when there's
   // something to put in it. dateOnly pickers with no toggles render the
   // calendar alone.
-  const hasExtras = !dateOnly || !!overnight || !!urgent || !!pickupReturn;
+  const hasExtras = !dateOnly || !!overnight || !!urgent || !!backdate || !!pickupReturn;
 
   // Parse the pickup-return time ("HH:mm") into editable hour/minute parts so
   // it can reuse the same two-box number inputs as the arrival time instead of
@@ -435,48 +494,8 @@ export function DateTimePicker({
                     deliberately low-key (collapsed, muted colors) so it isn't
                     mistaken for a normal option and clicked out of habit. A
                     plain chevron marks it as expandable. */}
-                {urgent && (
-                  <details className="group">
-                    <summary className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden">
-                      <span>{urgent.label}</span>
-                      <ChevronDown
-                        aria-hidden
-                        className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
-                      />
-                    </summary>
-                    <div className="mt-2 space-y-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-                      <p className="text-[11px] leading-snug text-muted-foreground">{urgent.helper}</p>
-                      <div className="inline-flex rounded-md border border-input p-0.5">
-                        <button
-                          type="button"
-                          onClick={() => urgent.onChange(false)}
-                          aria-pressed={!urgent.value}
-                          className={cn(
-                            "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            !urgent.value
-                              ? "bg-background text-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {urgent.noLabel}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => urgent.onChange(true)}
-                          aria-pressed={urgent.value}
-                          className={cn(
-                            "rounded px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            urgent.value
-                              ? "bg-muted-foreground/70 text-background shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {urgent.yesLabel}
-                        </button>
-                      </div>
-                    </div>
-                  </details>
-                )}
+                {urgent && <DisclosureToggle {...urgent} />}
+                {backdate && <DisclosureToggle {...backdate} />}
 
                 {pickupReturn && (
                   <div className="space-y-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">

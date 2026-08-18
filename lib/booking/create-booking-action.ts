@@ -34,12 +34,57 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   }
   const data = parsed.data;
 
+  // WHO SUBMITTED vs WHOSE BOOKING IT IS. They are the same person for a
+  // requester filing their own trip, and different when P'Top books on behalf
+  // of an office that sent the paper form — the dean's office and the ผอ do not
+  // use the system themselves. Both admin powers are gated on the ROLE, not on
+  // the field being present: the schema will happily parse either key off any
+  // payload (see its comment), so this is the only thing standing between a
+  // requester and filing a trip under someone else's department.
+  const isAdmin = session.user.roles.includes("ADMIN");
+  const wantsOnBehalf = !!data.onBehalfOfUserId && data.onBehalfOfUserId !== userId;
+  const wantsBackdate = data.backdated;
+  if ((wantsOnBehalf || wantsBackdate) && !isAdmin) {
+    return { ok: false, error: te("notAuthorizedToActOnBooking") };
+  }
+
+  // The booking belongs to the person it is FOR. Verified to exist, to be
+  // active, and to actually be a requester — an admin id typo must not create a
+  // booking owned by nobody, and the picker is not the security boundary.
+  let requesterId = userId;
+  if (wantsOnBehalf) {
+    const target = await prisma.user.findFirst({
+      where: {
+        id: data.onBehalfOfUserId,
+        isActive: true,
+        roles: { some: { role: "REQUESTER" } },
+      },
+      select: { id: true },
+    });
+    if (!target) {
+      return { ok: false, field: "onBehalfOfUserId", error: te("requesterNotFound") };
+    }
+    requesterId = target.id;
+  }
+  const backdated = wantsBackdate && isAdmin;
+  // A distinct action per variant, not a metadata boolean: the booking history
+  // renders `action` and never renders `metadata`, so "this trip was entered
+  // after it happened" would otherwise be stored and still invisible to
+  // everyone reading the page — on exactly the bookings where the paper trail
+  // is the point. Same reasoning as BOOKING_APPROVED_FORCED_DAY_FULL.
+  const submitAction = backdated
+    ? "BOOKING_SUBMITTED_BACKDATED"
+    : wantsOnBehalf
+      ? "BOOKING_SUBMITTED_ON_BEHALF"
+      : "BOOKING_SUBMITTED";
+
   const lead = checkLeadTime({
     startAt: data.startAt,
     province: data.province,
     urgent: data.isEmergency,
     jobType: data.jobType,
     now: new Date(),
+    allowPast: backdated,
   });
   if (!lead.ok) {
     return {
@@ -81,22 +126,32 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   const outOfHoursReason = data.outOfHoursReason ?? null;
 
   // Evaluation gate: prior unevaluated COMPLETED trips block new bookings.
-  const pendingEvals = await prisma.trip.count({
-    where: {
-      booking: { requesterId: userId, status: "COMPLETED" },
-      evaluation: null,
-    },
-  });
-  if (isBlockedByPendingEvaluation(pendingEvals)) {
-    return { ok: false, error: te("pendingEvaluation") };
+  //
+  // Skipped when an admin is filing on someone's behalf: the gate exists to
+  // make a requester close out their own past trips before booking again, and
+  // P'Top typing in a form that arrived on paper is not that person forgetting.
+  // Blocking here would leave the office unable to record a trip at all.
+  if (!wantsOnBehalf) {
+    const pendingEvals = await prisma.trip.count({
+      where: {
+        booking: { requesterId: userId, status: "COMPLETED" },
+        evaluation: null,
+      },
+    });
+    if (isBlockedByPendingEvaluation(pendingEvals)) {
+      return { ok: false, error: te("pendingEvaluation") };
+    }
   }
 
   // Department is locked to the requester's own profile (edited on /account),
   // not chosen per booking. Resolve it server-side and block if it's unset so
   // a tampered or empty payload can't slip a foreign department through. Also
   // pull name/phone to backfill the profile from the ajarn fields below.
+  // ...and it is the REQUESTER's department, not the submitter's — a
+  // dean's-office trip logged against P'Top's department is a wrong number in
+  // every per-department usage report.
   const me = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: requesterId },
     select: { departmentId: true, name: true, phone: true },
   });
   if (!me?.departmentId) {
@@ -107,13 +162,19 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
   // Backfill the requester's own profile from the ajarn fields when it was
   // missing them — the booking form is often the first place this data gets
   // typed in. Never overwrites existing profile data.
+  // Only when filing your own — the ajarn fields on an on-behalf booking
+  // describe whoever the office wrote on the paper form, which is not
+  // necessarily the account holder, and writing it into their profile would be
+  // editing someone else's record from a form they never saw.
   const profileBackfill: { name?: string; phone?: string } = {};
-  if (!me.name && data.ajarnName) profileBackfill.name = data.ajarnName;
-  if (!me.phone && data.ajarnPhone) profileBackfill.phone = data.ajarnPhone;
+  if (!wantsOnBehalf) {
+    if (!me.name && data.ajarnName) profileBackfill.name = data.ajarnName;
+    if (!me.phone && data.ajarnPhone) profileBackfill.phone = data.ajarnPhone;
+  }
 
   const created = await prisma.$transaction(async (tx) => {
     if (Object.keys(profileBackfill).length > 0) {
-      await tx.user.update({ where: { id: userId }, data: profileBackfill });
+      await tx.user.update({ where: { id: requesterId }, data: profileBackfill });
     }
     // #1 capacity gate: a day's slots = morning + afternoon per non-duty
     // vehicle, plus one spare for the เวร/duty car. When full, waitlist.
@@ -143,7 +204,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     // values (startAt/endAt, jobType, timeBucket, status) are spread in at
     // each create.
     const sharedData = {
-      requesterId: userId,
+      requesterId,
       departmentId,
       purpose: data.purpose,
       destination: data.destination,
@@ -204,7 +265,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       actorUserId: userId,
       fromStatus: null,
       toStatus: parentStatus,
-      action: "BOOKING_SUBMITTED",
+      action: submitAction,
       tx,
     });
 
@@ -256,7 +317,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
           actorUserId: userId,
           fromStatus: null,
           toStatus: childStatus,
-          action: "BOOKING_SUBMITTED",
+          action: submitAction,
           metadata: { recurrenceParentId: parent.id, occurrence: seq },
           tx,
         });
