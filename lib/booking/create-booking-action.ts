@@ -355,5 +355,11 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
 
   revalidatePath("/requester");
   revalidatePath("/admin");
-  redirect(`/requester/${created.id}`);
+  // Land on a page the submitter can actually open. /requester/[id] is
+  // requireRole("REQUESTER"), so an admin filing on someone's behalf was
+  // bounced to "/" — the booking saved correctly and they were dropped on the
+  // home page with no confirmation and no link to what they had just created.
+  // Found by submitting the form in a browser; every unit test in this file
+  // asserts on the thrown NEXT_REDIRECT and never on where it points.
+  redirect(isAdmin ? `/admin/${created.id}` : `/requester/${created.id}`);
 }

@@ -114,6 +114,27 @@ describe("admin files a booking on someone's behalf", () => {
     expect(b!.auditLogs.map((l) => l.action)).toContain("BOOKING_SUBMITTED_ON_BEHALF");
   });
 
+  it("sends the admin to a page they can actually open", async () => {
+    // /requester/[id] is requireRole("REQUESTER"): redirecting an admin there
+    // bounced them to "/" with the booking saved but nothing on screen to show
+    // for it. The other tests here only assert that NEXT_REDIRECT was thrown,
+    // which is exactly how that shipped unnoticed — so this one reads the url.
+    who.user = { id: "seed-user-admin", roles: ["ADMIN"] };
+    const tomorrow = startOfDay(addDays(new Date(), 1));
+    tomorrow.setHours(10, 0, 0, 0);
+
+    let thrown: { url?: string } | null = null;
+    try {
+      await createBookingAction(
+        payload({ purpose: "redirect-target", onBehalfOfUserId: REQUESTER_ID, isEmergency: "true" }, tomorrow),
+      );
+    } catch (e) {
+      thrown = e as { url?: string };
+    }
+    expect(thrown?.url).toMatch(/^\/admin\//);
+    expect(thrown?.url, "never the requester-gated page").not.toMatch(/^\/requester\//);
+  });
+
   it("records a BACKDATED trip and says so in the history", async () => {
     who.user = { id: "seed-user-admin", roles: ["ADMIN"] };
     const lastWeek = startOfDay(addDays(new Date(), -7));
