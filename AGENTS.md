@@ -4,6 +4,14 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Where things live
+
+[`docs/PROJECT-OVERVIEW.md`](docs/PROJECT-OVERVIEW.md) is the high-level map of
+this project: the roles, the booking lifecycle, the subsystems, the stack, and a
+document index. Read it first in an unfamiliar area — it is the only file that
+describes the whole shape, and nothing else here links to it, so it was
+invisible to anyone reading only the instruction files.
+
 ## Scheduling rules (source of truth)
 
 The driver/vehicle assignment rules live in **`docs/scheduling-algorithm.md`** —

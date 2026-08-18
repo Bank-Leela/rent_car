@@ -1,6 +1,6 @@
 # rent_car — Project Overview
 
-A bilingual (Thai / English) **vehicle booking, approval, and dispatch** system
+A Thai-language **vehicle booking, approval, and dispatch** system
 for a Chulalongkorn University medical faculty. Staff request a faculty vehicle;
 the fleet admin (P'Top) approves it and assigns a driver + car; the driver
 runs the trip; the requester evaluates it. The hard part — and the bulk of the
@@ -49,11 +49,18 @@ changeable once. Dev mode has role "preview-as" buttons.
 ## 3. Booking lifecycle
 
 ```
-DRAFT → PENDING_APPROVAL → APPROVED → ASSIGNED → COMPLETED
-                              │            │
-                              ├→ DENIED    └→ (drag/✕) back to APPROVED (unassigned)
-                              └→ CANCELLED          ·  WAITLIST (submit-time overflow)
+PENDING_APPROVAL → AWAITING_DOCUMENT → APPROVED → ASSIGNED → COMPLETED
+        │                                             │
+        ├→ DENIED                                     └→ (drag/✕) back to APPROVED
+        ├→ CANCELLED                                        (unassigned)
+        ├→ WAITLIST    (submit-time overflow)
+        └→ OUTSOURCED  (fleet full + requester accepted an outside rental)
 ```
+
+**AWAITING_DOCUMENT is the stage that trips people up.** Approving no longer
+hands out a car: the booking waits there until the signed official form is back
+and an ADMIN confirms it (`approveDocumentAction`) — and confirming it is what
+runs จัด. DRAFT exists in the enum but is never written.
 
 1. **Request** (`requester/new`) — form (react-hook-form + zod), lead-time +
    work-hours + buffer rules, optional recurrence. Out-of-province is an explicit
@@ -69,8 +76,11 @@ DRAFT → PENDING_APPROVAL → APPROVED → ASSIGNED → COMPLETED
    - **Batch solver** (`/admin/batch` → Run Batch): solves the whole day at once.
    - **Single matcher** (board auto-assign / `/admin/[id]`): one booking.
    - **Manual** drag-drop on the **schedule board** (`/admin/schedule`).
-4. **Dispatch** — driver sees it on `/driver` + `/driver/board`, claims it, then
-   **starts** (start mileage) and **completes** (end mileage → distance) the trip.
+4. **Dispatch** — the shared station kiosk shows the day's work at `/driver` and
+   `/driver/schedule`, and the driver **starts** (start mileage) and **completes**
+   (end mileage → distance) the trip. There is no claim step and no
+   `/driver/board`: both went with the passive-driver change described in §1,
+   which this section used to contradict.
    The requester gets a read-only confirmation of their assigned driver for
    today/tomorrow at `/requester/upcoming`.
 5. **Evaluation** — requester rates the completed trip (`EvaluationRating`); a
@@ -121,10 +131,13 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 - **Reporting** — admin dashboard with monthly KPI buckets (recharts), department
   usage, cancellations; CSV export (`/api/reports/csv/[kind]`).
 - **PDF** — request document via `@react-pdf/renderer` (`/api/files/booking-pdf/[id]`).
-- **Email** — Resend, with a console fallback when no API key (bilingual templates).
+- **Email** — Resend, with a console fallback when no API key (Thai templates).
 - **LINE** — driver-only push (`lib/line`); code paths exist, channel **pending**.
-- **i18n** — next-intl, Thai + English (`messages/{en,th}.json`); Buddhist-era
-  dates in the Thai UI.
+- **i18n** — next-intl with a single locale: Thai (`messages/th.json`), plus
+  Buddhist-era dates. English was removed 2026-08-05 (`i18n/config.ts`) — the
+  app serves one audience and a parallel string set doubled the review surface
+  of every screen. Keys still resolve at RUNTIME, so a missing one is a runtime
+  failure no build can catch; `tests/i18n-keys.test.ts` is the guard.
 - **Error handling** — per-route-group `error.tsx` + `not-found.tsx`, a root
   `global-error.tsx`; themed + translated.
 

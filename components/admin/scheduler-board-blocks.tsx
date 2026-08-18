@@ -450,15 +450,30 @@ export function CarRow({
     // different ways (badge only here, whole row there), so "who is on duty"
     // needed re-learning when you switched surfaces. `off` still wins: a driver
     // on leave is not running campus duty.
+    // The stripe is an OVERLAY, not a border. As `border-l-4` it consumed 4px of
+    // the row's content box, so a ลา/เวร row's label column — and with it the
+    // whole percentage-positioned hour track — started 4px right of every plain
+    // row's and of the header. The hour gridlines then stepped sideways at each
+    // tinted row and the axis read as bent. An absolutely-positioned 4px bar
+    // paints the same stripe with no width of its own, so every row shares one
+    // geometry.
     <div
-      className={`flex border-b last:border-b-0 ${
+      className={`relative flex border-b last:border-b-0 ${
         off
-          ? "border-l-4 border-l-amber-400 bg-amber-50/40 dark:bg-amber-950/20"
+          ? "bg-amber-50/40 dark:bg-amber-950/20"
           : isDuty
-            ? "border-l-4 border-l-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20"
+            ? "bg-emerald-50/50 dark:bg-emerald-950/20"
             : ""
       }`}
     >
+      {(off || isDuty) && (
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-1 ${
+            off ? "bg-amber-400" : "bg-emerald-500"
+          }`}
+        />
+      )}
       <div
         className="flex w-44 shrink-0 items-center gap-2 border-r px-3 py-2 text-sm font-medium"
         title={vehicle.registrationNumber}
