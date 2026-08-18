@@ -1,5 +1,8 @@
 import { FileDown } from "lucide-react";
 
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
 // Download the official form for one booking.
 //
 // The PDF is generated at approval and stored as `pdfUrl`, so there is nothing
@@ -25,10 +28,12 @@ export function BookingDocumentLink({
       href={`/api/files/booking-pdf/${bookingId}`}
       target="_blank"
       rel="noopener noreferrer"
-      className={
-        "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
-        className
-      }
+      // buttonVariants, not a hand-rolled copy of one. This carried its own
+      // `rounded-md border border-input bg-background`, which was a passable
+      // imitation of the old button and became an obvious odd-one-out the moment
+      // buttons turned into borderless pills — a bordered square sitting in a row
+      // of capsules, on cards all over the admin queue.
+      className={cn(buttonVariants({ variant: "outline", size: "xs" }), "shrink-0", className)}
     >
       <FileDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
       {label}

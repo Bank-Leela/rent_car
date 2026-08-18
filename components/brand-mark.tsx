@@ -57,20 +57,34 @@ export function BrandMark({
           128px side by side against the other candidates, this was the only one
           still unmistakably a vehicle in the bar. */}
       {/* Drawn to centre on the 24 grid: ink spans x 3–21 and y 6.5–17.5 (the
-          wheels' lowest point), so both midpoints land on 12. The previous cut
+          wheels' lowest point), so both midpoints land on 12. An earlier cut
           measured 12.65 vertically — it hung 0.65 units low, which is half a
           pixel in the bar and nothing you would catch there, but the tile is
           also rendered at 48px on the login card and blown up in review, and at
           that size a 2.7% drop reads as a mark sitting on the floor of its box.
 
+          WHEEL CLEARANCE is why the wheels are r2 at cx 8/16 rather than r2.5 at
+          7.5/16.5. A circle's stroke reaches cx ± (r + 1) — at r2.5 that put the
+          rear wheel's edge at x 4.0, exactly touching the rear face's stroke
+          (x 2–4), and the front wheel's edge at x 20.0, OVERLAPPING the front
+          face (x 20–22). Both ends of the silhouette fused into a blob: harmless
+          at 300px, but by 28px the front of the van was a solid lump with no
+          wheel in it. r2 at 8/16 leaves a full unit of daylight at each end,
+          which survives every size the mark is drawn at.
+
+          The axle line moved with them, 15 → 15.5. Shrinking the wheels lifted
+          the ink's lowest point from 17.5 to 17.0 and so pulled the midpoint to
+          11.75; dropping the axle half a unit puts the bottom back at 17.5 and
+          the midpoint back on 12, without touching the roof.
+
           The front is a windscreen, a short bonnet, then the front face. The
           first cut ran one diagonal from roof to bottom-right, which is a wedge,
           not a vehicle — the step is what makes the silhouette read as a van. */}
-      <path d="M3 15V8.2a1.7 1.7 0 0 1 1.7-1.7h8.4a1.7 1.7 0 0 1 1.33.65L17.6 10.6h1.7a1.7 1.7 0 0 1 1.7 1.7V15" />
+      <path d="M3 15.5V8.2a1.7 1.7 0 0 1 1.7-1.7h8.4a1.7 1.7 0 0 1 1.33.65L17.6 10.6h1.7a1.7 1.7 0 0 1 1.7 1.7V15.5" />
       {/* Chassis, broken where each wheel interrupts it. */}
-      <path d="M3 15h2M10 15h4M19 15h2" />
-      <circle cx="7.5" cy="15" r="2.5" />
-      <circle cx="16.5" cy="15" r="2.5" />
+      <path d="M3 15.5h1M11 15.5h2M20 15.5h1" />
+      <circle cx="8" cy="15.5" r="2" />
+      <circle cx="16" cy="15.5" r="2" />
     </svg>
   );
 }
