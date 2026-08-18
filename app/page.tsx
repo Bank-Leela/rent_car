@@ -18,9 +18,9 @@ const ROLE_TINT: Record<string, string> = {
     "border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 text-sky-950 dark:border-sky-400/30 dark:bg-sky-500/15 dark:hover:bg-sky-500/20 dark:text-sky-100",
 };
 
-// The sign-in screen IS the site root — there is no /login path any more, so an
-// unauthenticated visitor to the bare domain gets the form with no redirect hop
-// (/login itself now just redirects here, for old bookmarks).
+// The sign-in screen IS the site root: an unauthenticated visitor to the bare
+// domain gets the form with no redirect hop. /login survives only as a redirect
+// to here, so old bookmarks and saved links still work.
 export default async function Home({
   searchParams,
 }: {
