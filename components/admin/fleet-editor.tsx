@@ -9,6 +9,7 @@ import { VehicleType } from "@prisma/client";
 import { SelectField } from "@/components/ui/select-field";
 import { ListSearch } from "@/components/list-search";
 import { EmptyState } from "@/components/empty-state";
+import { AddVehicleForm } from "@/components/admin/add-vehicle-form";
 import { setVehicleDriverAction, updateVehicleSpecAction, removeVehicleAction } from "@/lib/booking/fleet-actions";
 
 export type FleetCar = {
@@ -57,14 +58,18 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
   }
 
   return (
-    <ListSearch
-      items={cars}
-      keys={["registrationNumber", "driverName"]}
-      render={(rows) =>
+    // "เพิ่มรถ" lives with the table it appends to, not in the page header: the
+    // leave calendar sits between the two, so a button up there is off-screen by
+    // the time you are reading the car list and looking for how to add one.
+    <div className="max-w-3xl space-y-3">
+      <ListSearch
+        items={cars}
+        keys={["registrationNumber", "driverName"]}
+        render={(rows) =>
         rows.length === 0 ? (
           <EmptyState icon={Car} title={ts("noMatches")} />
         ) : (
-          <table className="w-full max-w-3xl text-sm">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="py-2 font-medium">{t("car")}</th>
@@ -130,8 +135,12 @@ export function FleetEditor({ cars, drivers }: { cars: FleetCar[]; drivers: Flee
             </tbody>
           </table>
         )
-      }
-    />
+        }
+      />
+      {/* Outside the ListSearch render so a filtered-to-nothing list still
+          offers it — "no matches" is exactly when you want to add the car. */}
+      <AddVehicleForm drivers={drivers} />
+    </div>
   );
 }
 
