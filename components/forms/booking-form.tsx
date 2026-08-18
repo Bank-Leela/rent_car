@@ -272,7 +272,13 @@ export function BookingForm({
 
   // ---- Trip templates (saved presets) ----
   const [templateName, setTemplateName] = useState("");
-  const [templateMsg, setTemplateMsg] = useState<string | null>(null);
+  // Two messages, because the two halves of this feature now sit at opposite
+  // ends of the form: picking a template happens at the top (before filling
+  // anything), saving one happens at the bottom (after). One shared string
+  // would have printed "applied X" under the save button, several screens
+  // below the row the requester just clicked.
+  const [applyMsg, setApplyMsg] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
   // The template most recently applied to the form — highlighted so the
   // requester can see which of several saved presets they last loaded.
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
@@ -324,7 +330,7 @@ export function BookingForm({
   const applyTemplate = (tpl: TripTemplate) => {
     applyFields(tpl);
     setActiveTemplateId(tpl.id);
-    setTemplateMsg(t("templateApplied", { name: tpl.name }));
+    setApplyMsg(t("templateApplied", { name: tpl.name }));
   };
 
   // "Book again": apply the source booking's trip fields once on mount. Runs
@@ -334,7 +340,7 @@ export function BookingForm({
     if (!prefill || prefillApplied.current) return;
     prefillApplied.current = true;
     applyFields(prefill);
-    setTemplateMsg(t("rebookApplied", { job: prefillLabel ?? "" }));
+    setApplyMsg(t("rebookApplied", { job: prefillLabel ?? "" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only by design
   }, []);
 
@@ -343,7 +349,7 @@ export function BookingForm({
     if (!form) return;
     const name = templateName.trim();
     if (!name) {
-      setTemplateMsg(t("templateNameRequired"));
+      setSaveMsg(t("templateNameRequired"));
       return;
     }
 
@@ -354,7 +360,7 @@ export function BookingForm({
     const missing = missingRequiredFields(form);
     if (missing.length > 0 && !templateWarnedRef.current) {
       templateWarnedRef.current = true;
-      setTemplateMsg(t("templateMissingFields", { fields: missing.map((m) => m.label).join(", ") }));
+      setSaveMsg(t("templateMissingFields", { fields: missing.map((m) => m.label).join(", ") }));
       // Same themed bubble the submit button raises, on the first empty field.
       missing[0]!.el.reportValidity();
       return;
@@ -369,9 +375,9 @@ export function BookingForm({
       toastResult(res, { success: tt("templateSaved") });
       if (res.ok) {
         setTemplateName("");
-        setTemplateMsg(t("templateSaved", { name }));
+        setSaveMsg(t("templateSaved", { name }));
       } else {
-        setTemplateMsg(res.error);
+        setSaveMsg(res.error);
       }
     });
   };
@@ -386,7 +392,7 @@ export function BookingForm({
     fd.set("name", name);
     startTemplateTransition(async () => {
       const res = await renameTripTemplateAction(fd);
-      setTemplateMsg(res.ok ? null : res.error);
+      setApplyMsg(res.ok ? null : res.error);
     });
   };
 
@@ -398,7 +404,7 @@ export function BookingForm({
       const res = await deleteTripTemplateAction(fd);
       toastResult(res, { success: tt("templateDeleted") });
       if (res.ok && activeTemplateId === tpl.id) setActiveTemplateId(null);
-      setTemplateMsg(res.ok ? null : res.error);
+      setApplyMsg(res.ok ? null : res.error);
     });
   };
 
@@ -653,34 +659,9 @@ export function BookingForm({
               </p>
             )}
 
-            <div className="space-y-2 border-t pt-3">
-              <Label htmlFor="templateName" className="text-xs text-muted-foreground">
-                {t("templateSaveHeading")}
-              </Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  id="templateName"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder={t("templateNamePlaceholder")}
-                  aria-label={t("templateNamePlaceholder")}
-                  className="h-9 min-w-0 flex-1 sm:flex-none sm:w-72"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={saveTemplate}
-                  disabled={templateBusy}
-                  className="h-9"
-                >
-                  <BookmarkPlus aria-hidden className="h-4 w-4" />
-                  {t("saveTemplate")}
-                </Button>
-              </div>
-              {templateMsg && (
-                <p className="text-xs font-medium text-muted-foreground">{templateMsg}</p>
-              )}
-            </div>
+            {applyMsg && (
+              <p className="text-xs font-medium text-muted-foreground">{applyMsg}</p>
+            )}
           </div>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
@@ -1252,6 +1233,48 @@ export function BookingForm({
           <Button type="submit" disabled={pending} className="w-full sm:w-auto">
             {pending ? t("submitting") : t("submit")}
           </Button>
+
+          {/* Saving a template belongs AFTER the form, not above it: you can only
+              name a trip you have already described, and saveTemplate reads the
+              live fields off formRef. It sat in the picker card at the top, where
+              it asked for a name before a single field had been filled — and its
+              "you left these empty" warning pointed at controls a screen and a
+              half further down. Picking a template stays at the top, because that
+              is what you do first. */}
+          <div className="space-y-2 border-t pt-4">
+            <Label htmlFor="templateName" className="text-xs text-muted-foreground">
+              {t("templateSaveHeading")}
+            </Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                id="templateName"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                // Enter in a text input submits the form via its first submit
+                // button — which is now directly above this one. Naming a
+                // template and pressing Enter would file the booking instead.
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  saveTemplate();
+                }}
+                placeholder={t("templateNamePlaceholder")}
+                aria-label={t("templateNamePlaceholder")}
+                className="h-9 min-w-0 flex-1 sm:flex-none sm:w-72"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={saveTemplate}
+                disabled={templateBusy}
+                className="h-9"
+              >
+                <BookmarkPlus aria-hidden className="h-4 w-4" />
+                {t("saveTemplate")}
+              </Button>
+            </div>
+            {saveMsg && <p className="text-xs font-medium text-muted-foreground">{saveMsg}</p>}
+          </div>
         </form>
       </CardContent>
     </Card>
