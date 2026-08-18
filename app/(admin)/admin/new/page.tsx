@@ -74,7 +74,6 @@ export default async function AdminNewBookingPage() {
         defaultAjarnEmail={me?.email ?? ""}
         templates={templates}
         requesters={requesters}
-        locale={locale}
       />
     </div>
   );

@@ -43,7 +43,6 @@ import {
   Paperclip,
   X,
 } from "lucide-react";
-import { isThaiLocale } from "@/i18n/config";
 import { useActionToast } from "@/components/hooks/use-action-toast";
 import { ReqLabel, RecurrenceWeekdays, PassengerStepper } from "@/components/forms/booking-form-fields";
 
@@ -153,7 +152,6 @@ export function BookingForm({
   templates,
   prefill,
   prefillLabel,
-  locale,
   requesters,
 }: {
   departments: BookingFormDepartment[];
@@ -180,7 +178,6 @@ export function BookingForm({
   prefill?: BookingPrefill | null;
   // Shown in the applied-notice (the source booking's job number).
   prefillLabel?: string;
-  locale: string;
 }) {
   const t = useTranslations("bookingForm");
   const tt = useTranslations("toast");
@@ -287,7 +284,6 @@ export function BookingForm({
   // FormData the submit handler builds.
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const isThai = isThaiLocale(locale);
   const defaultDepartment = departments.find((d) => d.id === defaultDepartmentId) ?? null;
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -631,86 +627,6 @@ export function BookingForm({
             </div>
           )}
 
-          <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Bookmark aria-hidden className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">{t("templatesTitle")}</span>
-              {templates.length > 0 && (
-                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">
-                  {templates.length}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">{t("templatesHelper")}</p>
-
-            {templates.length > 0 ? (
-              <ul className="grid gap-2 sm:grid-cols-2">
-                {templates.map((tpl) => {
-                  const active = activeTemplateId === tpl.id;
-                  return (
-                    <li
-                      key={tpl.id}
-                      data-active={active}
-                      className="group flex items-stretch overflow-hidden rounded-lg border bg-background transition-colors data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:ring-1 data-[active=true]:ring-primary"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => applyTemplate(tpl)}
-                        aria-pressed={active}
-                        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                      >
-                        <span
-                          aria-hidden
-                          className={
-                            active
-                              ? "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
-                              : "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
-                          }
-                        >
-                          {active ? <Check className="h-3 w-3" /> : <Bookmark className="h-3 w-3" />}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate font-medium">{tpl.name}</span>
-                        {active && (
-                          <span className="shrink-0 text-[11px] font-medium text-primary">
-                            {t("templateActiveBadge")}
-                          </span>
-                        )}
-                      </button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          aria-label={t("templateActions", { name: tpl.name })}
-                          className="grid w-9 shrink-0 place-items-center border-l text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => renameTemplate(tpl)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                            {t("templateRenameAction")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={() => deleteTemplate(tpl)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            {t("templateDeleteAction")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
-                {t("templatesEmpty")}
-              </p>
-            )}
-
-            {applyMsg && (
-              <p className="text-xs font-medium text-muted-foreground">{applyMsg}</p>
-            )}
-          </div>
 
           <fieldset className="space-y-3 rounded-md border bg-muted/30 p-4">
             <legend className="px-1 text-sm font-semibold">{t("scheduleSectionTitle")}</legend>
@@ -1310,13 +1226,99 @@ export function BookingForm({
             {pending ? t("submitting") : t("submit")}
           </Button>
 
-          {/* Saving a template belongs AFTER the form, not above it: you can only
-              name a trip you have already described, and saveTemplate reads the
-              live fields off formRef. It sat in the picker card at the top, where
-              it asked for a name before a single field had been filled — and its
-              "you left these empty" warning pointed at controls a screen and a
-              half further down. Picking a template stays at the top, because that
-              is what you do first. */}
+          {/* THE WHOLE TEMPLATE FEATURE LIVES HERE, after the form.
+              Saving has to: you can only name a trip you have already
+              described, and saveTemplate reads the live fields off formRef —
+              from the top it asked for a name before a single field was filled,
+              and its "you left these empty" warning pointed at controls a screen
+              and a half further down.
+              Picking moved down to join it. It is a shortcut used on a minority
+              of bookings, and at the top it was the first thing between the
+              requester and the form they came to fill — two cards deep on the
+              admin page, which also opens with "who is this for". Both halves of
+              one feature now sit in one place, and the form starts with the form. */}
+
+          <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Bookmark aria-hidden className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">{t("templatesTitle")}</span>
+              {templates.length > 0 && (
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary/10 px-1.5 text-xs font-semibold text-primary">
+                  {templates.length}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{t("templatesHelper")}</p>
+
+            {templates.length > 0 ? (
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {templates.map((tpl) => {
+                  const active = activeTemplateId === tpl.id;
+                  return (
+                    <li
+                      key={tpl.id}
+                      data-active={active}
+                      className="group flex items-stretch overflow-hidden rounded-lg border bg-background transition-colors data-[active=true]:border-primary data-[active=true]:bg-primary/5 data-[active=true]:ring-1 data-[active=true]:ring-primary"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => applyTemplate(tpl)}
+                        aria-pressed={active}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      >
+                        <span
+                          aria-hidden
+                          className={
+                            active
+                              ? "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
+                              : "grid h-5 w-5 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+                          }
+                        >
+                          {active ? <Check className="h-3 w-3" /> : <Bookmark className="h-3 w-3" />}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{tpl.name}</span>
+                        {active && (
+                          <span className="shrink-0 text-[11px] font-medium text-primary">
+                            {t("templateActiveBadge")}
+                          </span>
+                        )}
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          aria-label={t("templateActions", { name: tpl.name })}
+                          className="grid w-9 shrink-0 place-items-center border-l text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => renameTemplate(tpl)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t("templateRenameAction")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => deleteTemplate(tpl)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t("templateDeleteAction")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="rounded-lg border border-dashed bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">
+                {t("templatesEmpty")}
+              </p>
+            )}
+
+            {applyMsg && (
+              <p className="text-xs font-medium text-muted-foreground">{applyMsg}</p>
+            )}
+          </div>
+
           <div className="space-y-2 border-t pt-4">
             <Label htmlFor="templateName" className="text-xs text-muted-foreground">
               {t("templateSaveHeading")}
