@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { JobType, Prisma } from "@prisma/client";
 import { format, subHours } from "date-fns";
 import { tripWhen, tripWhenRecurring } from "@/lib/booking/trip-when";
-import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle, FileClock, Bus } from "lucide-react";
+import { ClipboardCheck, CalendarClock, ChevronRight, Zap, AlertTriangle, FileClock, Bus, Inbox } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { BookingStatusBadge } from "@/components/booking-status-badge";
 import { InChulaChip } from "@/components/in-chula-chip";
 import { JobTypeChip } from "@/components/job-type-chip";
-import { PageHeader } from "@/components/page-header";
+import { HeroBand } from "@/components/hero-band";
 import { EmptyState } from "@/components/empty-state";
 import { ApproverQueueActions } from "@/components/forms/approver-queue-actions";
 import { SeriesQueueActions } from "@/components/forms/series-queue-actions";
@@ -232,9 +232,34 @@ export default async function AdminQueue({
 
   return (
     <div className="space-y-8">
-      <PageHeader
+      {/* The band the requester pages open with, now on the queue too — this is
+          the page P'Top has open all day and it began with a bare heading on flat
+          ground. The stats are the ones the sections below are already counting,
+          surfaced before you scroll: the whole point of a landing page is
+          answering "how much is waiting for me" without reading it. `urgent` only
+          when the number is non-zero, so a quiet day stays quiet. */}
+      <HeroBand
         title={t("title")}
         description={t("description", { count: approved.length })}
+        icon={Inbox}
+        stats={[
+          { label: t("heroPending"), value: allPendingGroups.length },
+          {
+            label: t("heroWaitlist"),
+            value: waitlistRows.length,
+            tone: waitlistRows.length > 0 ? "urgent" : "default",
+          },
+          // Groups, not rows — the same unit as รออนุมัติ beside it. The section
+          // below renders one card per SERIES (a 24-day recurring booking is one
+          // decision, not 24), so counting rows here would print "24" over a list
+          // showing a single card.
+          { label: t("heroAwaitingDoc"), value: allDocGroups.length },
+          {
+            label: t("heroOverdue"),
+            value: slaOverdue,
+            tone: slaOverdue > 0 ? "urgent" : "good",
+          },
+        ]}
       />
 
       <form action="/admin" className="flex flex-wrap items-center gap-2">
