@@ -83,7 +83,6 @@ export default async function NewBookingPage({
         templates={templates}
         prefill={prefill}
         prefillLabel={prefillLabel}
-        locale={locale}
       />
     </div>
   );

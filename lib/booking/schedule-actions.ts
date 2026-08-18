@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
-import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
+import { recomputeRotationStamp, stampRotationForward } from "@/lib/booking/rotation-stamp";
 import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { COMMITTED_STATUSES, DISPATCHABLE_STATUSES } from "@/lib/booking/booking-status";
@@ -216,8 +216,8 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
             secondaryCollides && !secondary && stillNeedsCoDriver ? "NO_SECONDARY_DRIVER" : null,
         },
       });
-      await tx.driver.update({ where: { id: driverId }, data: { lastAssignedAt: booking.startAt } });
-      if (secondary) await tx.driver.update({ where: { id: secondary }, data: { lastAssignedAt: booking.startAt } });
+      await stampRotationForward(tx, driverId, booking.startAt);
+      if (secondary) await stampRotationForward(tx, secondary, booking.startAt);
     });
   } catch (e) {
     // DB backstop: the no-double-book EXCLUDE caught an overlap the per-leg
@@ -317,7 +317,7 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
         ...(booking.overflowReason === "NO_SECONDARY_DRIVER" ? { overflowReason: null } : {}),
       },
     });
-    await tx.driver.update({ where: { id: newSecondary }, data: { lastAssignedAt: booking.startAt } });
+    await stampRotationForward(tx, newSecondary, booking.startAt);
   });
   revalidatePath("/admin/schedule");
   return { ok: true };

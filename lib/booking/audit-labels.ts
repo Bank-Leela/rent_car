@@ -16,6 +16,8 @@
 const AUDIT_ACTION_TH: Record<string, string> = {
   // Booking lifecycle
   BOOKING_SUBMITTED: "ส่งคำขอ",
+  BOOKING_SUBMITTED_ON_BEHALF: "ส่งคำขอแทนผู้ขอ (โดยผู้ดูแล)",
+  BOOKING_SUBMITTED_BACKDATED: "บันทึกย้อนหลัง (โดยผู้ดูแล)",
   BOOKING_APPROVED: "อนุมัติ",
   BOOKING_APPROVED_FORCED_DAY_FULL: "อนุมัติทั้งที่รถเต็ม (ผู้ดูแลยืนยัน)",
   BOOKING_APPROVED_OUTSOURCED_DAY_FULL: "อนุมัติ — ใช้รถเช่าภายนอก (รถเต็ม)",

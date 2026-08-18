@@ -13,7 +13,12 @@ export const LEAD_TIME_SMUS_DAYS = 30;
 // Urgent ("จองเร่งด่วน") requests waive the normal lead time down to this
 // floor. They are also excluded from auto-assign so an admin handles them by
 // hand (lib/booking/batch-actions.ts).
-export const LEAD_TIME_URGENT_DAYS = 1;
+// Zero, not one: "จองเร่งด่วน" is the ผอ ringing up on the morning they need the
+// car, and a one-business-day floor made the earliest possible urgent trip
+// TOMORROW — which is precisely the request it exists to serve, refused. The
+// day itself is still the floor, so yesterday stays blocked for everyone but an
+// admin holding the backdate override (see allowPast).
+export const LEAD_TIME_URGENT_DAYS = 0;
 
 // The >400 km "needs a co-driver" threshold has one source of truth:
 // classification.ts's LONG_TRIP_KM. Re-exported under the rules-domain name so
@@ -49,6 +54,13 @@ export type LeadTimeInput = {
   urgent?: boolean;
   /** External charter (SMUS) gets its own 30-calendar-day floor. */
   jobType?: string | null;
+  /**
+   * Waive the floor entirely — a booking being RECORDED after the trip already
+   * happened. The dean's office routinely sends the paper form in days late,
+   * and until this existed there was no way to enter one at all. ADMIN-only,
+   * and the caller is responsible for proving that: nothing here checks a role.
+   */
+  allowPast?: boolean;
   /** "now" injected so it's testable. */
   now: Date;
 };
@@ -59,13 +71,15 @@ export type LeadTimeResult =
 
 /**
  * Lead time check (plan §5.2). Bangkok/within-Chula = ≥3 business days,
- * upcountry = ≥7 business days, urgent = ≥1 (waives the above), external
+ * upcountry = ≥7 business days, urgent = same day (waives the above), external
  * charter (SMUS) = ≥30 calendar days (weekends included — outside vendors
  * need the longer, uninterrupted runway). The business-day tiers skip
  * Saturdays and Sundays; the SMUS tier counts every day. The earliest allowed
  * start is midnight on that day; any time on it is fine.
  */
-export function checkLeadTime({ startAt, province, urgent, jobType, now }: LeadTimeInput): LeadTimeResult {
+export function checkLeadTime({ startAt, province, urgent, jobType, now, allowPast }: LeadTimeInput): LeadTimeResult {
+  // A backdated record is not a request for a future trip, so no floor applies.
+  if (allowPast) return { ok: true };
   if (!urgent && jobType === "SMUS") {
     const minimumStartAt = startOfDay(addDays(now, LEAD_TIME_SMUS_DAYS));
     if (startAt.getTime() < minimumStartAt.getTime()) {

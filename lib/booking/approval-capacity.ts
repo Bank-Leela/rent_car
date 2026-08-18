@@ -54,7 +54,15 @@ function skipsCapacityGate(b: Candidate): boolean {
     b.jobType === "TJW" || // placed by the TJW request solver, not solveDay
     b.jobType === "SMUS" || // external charter — never touches the internal fleet
     b.isEmergency || // จองเร่งด่วน is deliberately manual
-    b.preferredVehicleType === "BUS_OUTSOURCED" // always an outside rental
+    b.preferredVehicleType === "BUS_OUTSOURCED" || // always an outside rental
+    // A trip that already departed. The gate asks "can the fleet still serve
+    // this?", which has no meaning once it has been served: the car went, and a
+    // backdated record of it is being entered afterwards. Worse, the answer is
+    // reliably NO — the day's real trips are on the board, so the fleet reads as
+    // full — which would have put a red วันเต็ม on every backdated booking and
+    // forced P'Top through the force-approve override, with a written
+    // justification, to file ordinary paperwork.
+    b.startAt < new Date()
   );
 }
 

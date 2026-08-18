@@ -9,6 +9,7 @@ import { logTransition } from "@/lib/booking/audit";
 import type { OverflowReason } from "@prisma/client";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
+import { stampRotationForward } from "@/lib/booking/rotation-stamp";
 import type { TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
@@ -169,15 +170,11 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
           },
         });
         // Provisional rotation stamp (TJW): a re-run won't double-pick the driver.
-        await tx.driver.update({
-          where: { id: a.primaryDriverId },
-          data: { lastTjwAt: stamp, lastAssignedAt: stamp },
-        });
+        // Forward-only — a clock that can move backwards reorders the whole
+        // fairness queue (see stampRotationForward).
+        await stampRotationForward(tx, a.primaryDriverId, stamp, "TJW");
         if (a.secondaryDriverId) {
-          await tx.driver.update({
-            where: { id: a.secondaryDriverId },
-            data: { lastTjwAt: stamp, lastAssignedAt: stamp },
-          });
+          await stampRotationForward(tx, a.secondaryDriverId, stamp, "TJW");
         }
         await logTransition({
           bookingId: a.bookingId,

@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
+import { stampRotationForward } from "@/lib/booking/rotation-stamp";
 import { logTransition } from "@/lib/booking/audit";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
@@ -63,6 +64,22 @@ export async function runBatchForDay(
   const dayStart = startOfDay(date);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
+
+  // A day that has already been and gone is not dispatchable. จัด answers "who
+  // SHOULD drive this", and for a trip that already happened the answer is a
+  // matter of record, not of fairness — the office knows who drove; the solver
+  // would pick somebody by rotation and write them into the history as the
+  // driver, then stamp their fairness clock with the trip's own past date.
+  //
+  // Reachable as soon as backdating existed: approveDocumentAction calls this
+  // with `booking.startAt`, so confirming the paperwork on a trip recorded after
+  // the fact ran the solver on that past day. Measured on a nine-day-old trip —
+  // it assigned a driver and a car and moved one driver's lastAssignedAt
+  // backwards. A backdated booking carries the real driver from the form
+  // instead (createBookingAction), so there is nothing here left to solve.
+  if (dayStart < startOfDay(new Date())) {
+    return { ok: true, stats: { pendingCount: 0, matchedCount: 0, overflowByReason: {} } };
+  }
 
   // --- Pending bookings for the day (APPROVED, no primary yet). ---
   const pending = await prisma.booking.findMany({
@@ -304,13 +321,9 @@ async function stampPrimary(
   jobType: JobType,
   stamp: Date,
 ) {
-  const data: { lastAssignedAt: Date; lastTjwAt?: Date; lastOtAt?: Date; lastDutyAt?: Date } = {
-    lastAssignedAt: stamp,
-  };
-  if (jobType === "TJW") data.lastTjwAt = stamp;
-  else if (jobType === "OT") data.lastOtAt = stamp;
-  else if (jobType === "WERN") data.lastDutyAt = stamp;
-  await tx.driver.update({ where: { id: driverId }, data });
+  // Forward-only: see stampRotationForward. A backdated trip must never drag a
+  // driver's fairness clock into the past.
+  await stampRotationForward(tx, driverId, stamp, jobType);
 }
 
 async function stampSecondary(

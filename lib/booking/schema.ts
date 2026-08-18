@@ -124,6 +124,35 @@ export const newBookingSchema = z
     estimatedDistance: optionalNumber({ int: true }),
     needsOutsourcing: z.coerce.boolean().optional().default(false),
     isEmergency: z.coerce.boolean().optional().default(false),
+    // ---- ADMIN-ONLY fields. Declared HERE because a plain z.object runs in
+    // strip mode: an undeclared FormData key is dropped silently, so a field
+    // the client faithfully submits arrives as undefined and the feature looks
+    // broken with nothing to debug. createBookingAction is what enforces the
+    // role — reaching this schema proves only that the key was sent.
+    //
+    // Book on behalf of someone else: the booking is filed under THEM
+    // (requesterId + their department), because reporting is per-department and
+    // a dean's-office trip logged against P'Top's own department is a wrong
+    // number in every usage report.
+    onBehalfOfUserId: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
+    // Record a trip that has already happened. Waives the lead-time floor only;
+    // everything else about the booking is unchanged, and it still goes through
+    // the ordinary approval queue.
+    backdated: z.coerce.boolean().optional().default(false),
+    // Who ACTUALLY drove it. Only meaningful with `backdated`: for a trip that
+    // has already run, จัด has no useful opinion — the office knows who went, and
+    // letting the solver pick by rotation would write the wrong person into the
+    // history and skew the fairness queue with a past-dated stamp. car=driver, so
+    // naming the driver names the vehicle.
+    actualDriverId: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
     emergencyReason: z
       .string()
       .max(1000)
