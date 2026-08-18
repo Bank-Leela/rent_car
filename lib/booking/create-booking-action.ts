@@ -67,6 +67,26 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     requesterId = target.id;
   }
   const backdated = wantsBackdate && isAdmin;
+
+  // Who actually drove, for a trip being recorded after the fact. car=driver, so
+  // the driver names the car. Verified active and car-paired: the picker is a
+  // convenience, not the boundary, and a driver with no car cannot have driven.
+  let actualCrew: { driverId: string; vehicleId: string } | null = null;
+  if (backdated && data.actualDriverId) {
+    const drv = await prisma.driver.findFirst({
+      where: {
+        id: data.actualDriverId,
+        isActive: true,
+        user: { is: { isActive: true } },
+        assignedVehicle: { is: { isActive: true } },
+      },
+      select: { id: true, assignedVehicle: { select: { id: true } } },
+    });
+    if (!drv?.assignedVehicle) {
+      return { ok: false, field: "actualDriverId", error: te("driverNotAvailable") };
+    }
+    actualCrew = { driverId: drv.id, vehicleId: drv.assignedVehicle.id };
+  }
   // A distinct action per variant, not a metadata boolean: the booking history
   // renders `action` and never renders `metadata`, so "this trip was entered
   // after it happened" would otherwise be stored and still invisible to
@@ -198,7 +218,10 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       });
       return submitStatus(used, capacity);
     };
-    const parentStatus = await slotStatusFor(data.startAt);
+    // A backdated trip is not competing for a slot: the day it names is over, and
+    // whatever it used it has already used. Running the submit-time capacity gate
+    // on it would WAITLIST the paperwork for a trip that demonstrably ran.
+    const parentStatus = backdated ? "PENDING_APPROVAL" : await slotStatusFor(data.startAt);
 
     // Everything the parent and its recurrence children share. Per-occurrence
     // values (startAt/endAt, jobType, timeBucket, status) are spread in at
@@ -206,6 +229,11 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     const sharedData = {
       requesterId,
       departmentId,
+      // Recorded, not dispatched: the crew comes off the paper form. จัด is told
+      // to leave past days alone (runBatchForDay), so nothing will overwrite it.
+      ...(actualCrew
+        ? { primaryDriverId: actualCrew.driverId, vehicleId: actualCrew.vehicleId }
+        : {}),
       purpose: data.purpose,
       destination: data.destination,
       province: data.province,

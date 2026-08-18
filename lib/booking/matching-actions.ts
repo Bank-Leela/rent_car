@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
+import { stampRotationForward } from "@/lib/booking/rotation-stamp";
 import { requireRole } from "@/lib/auth-helpers";
 import { logEvent, logTransition } from "@/lib/booking/audit";
 import { matchBookingSchema } from "@/lib/booking/schema";
@@ -249,9 +250,9 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       });
     }
     const stamp = booking.startAt;
-    await tx.driver.update({ where: { id: primaryDriverId }, data: { lastAssignedAt: stamp } });
+    await stampRotationForward(tx, primaryDriverId, stamp);
     if (secondaryDriverId) {
-      await tx.driver.update({ where: { id: secondaryDriverId }, data: { lastAssignedAt: stamp } });
+      await stampRotationForward(tx, secondaryDriverId, stamp);
     }
     await logTransition({
       bookingId,

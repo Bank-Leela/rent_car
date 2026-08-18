@@ -153,6 +153,7 @@ export function BookingForm({
   prefill,
   prefillLabel,
   requesters,
+  drivers,
 }: {
   departments: BookingFormDepartment[];
   defaultDepartmentId: string | null;
@@ -174,6 +175,11 @@ export function BookingForm({
    * under THEM for per-department reporting to mean anything.
    */
   requesters?: { id: string; label: string; department: string | null }[];
+  /**
+   * ADMIN ONLY — the drivers a backdated booking may name as having actually
+   * driven. car=driver, so choosing the driver chooses the vehicle.
+   */
+  drivers?: { id: string; label: string }[];
   // "Book again": trip fields of a past booking, applied once on mount.
   prefill?: BookingPrefill | null;
   // Shown in the applied-notice (the source booking's job number).
@@ -252,6 +258,7 @@ export function BookingForm({
   const isAdminForm = !!requesters;
   const [backdated, setBackdated] = useState(false);
   const [onBehalfOfUserId, setOnBehalfOfUserId] = useState("");
+  const [actualDriverId, setActualDriverId] = useState("");
   // The department the booking will really be filed under, once a requester is
   // chosen. null on the requester's own form and before a choice is made.
   const onBehalfDepartment =
@@ -624,6 +631,28 @@ export function BookingForm({
                 aria-label={t("bookForLabel")}
               />
               <p className="text-xs text-muted-foreground">{t("bookForHelper")}</p>
+
+              {/* Only once backdating is on. For a trip that already ran, จัด has
+                  no useful opinion about who should drive — the office knows who
+                  did, and the solver picking by rotation would write the wrong
+                  person into the history and drag their fairness clock into the
+                  past. car=driver, so this names the vehicle too. */}
+              {backdated && (
+                <div className="mt-3 space-y-2 border-t border-primary/20 pt-3">
+                  <Label htmlFor="actualDriver" className="text-sm font-semibold">
+                    {t("actualDriverLabel")}
+                  </Label>
+                  <SelectField
+                    id="actualDriver"
+                    value={actualDriverId}
+                    onValueChange={setActualDriverId}
+                    placeholder={t("actualDriverPlaceholder")}
+                    options={(drivers ?? []).map((d) => ({ value: d.id, label: d.label }))}
+                    aria-label={t("actualDriverLabel")}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("actualDriverHelper")}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -1213,6 +1242,7 @@ export function BookingForm({
             <>
               <input type="hidden" name="backdated" value={backdated ? "true" : ""} />
               <input type="hidden" name="onBehalfOfUserId" value={onBehalfOfUserId} />
+              <input type="hidden" name="actualDriverId" value={backdated ? actualDriverId : ""} />
             </>
           )}
 

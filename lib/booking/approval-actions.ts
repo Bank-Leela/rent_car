@@ -9,6 +9,7 @@ import { runBatchForDay } from "@/lib/booking/batch-core";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { dayHasRoomFor } from "@/lib/booking/approval-capacity";
 import { logTransition } from "@/lib/booking/audit";
+import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { sendEmail } from "@/lib/email/client";
 import {
   requesterApprovedEmail,
@@ -261,17 +262,29 @@ export async function approveDocumentAction(formData: FormData): Promise<ActionR
     return { ok: false, error: te("cannotApproveInStatus", { status: ts(booking.status) }) };
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.booking.update({ where: { id: bookingId }, data: { status: "APPROVED" } });
-    await logTransition({
-      bookingId,
-      actorUserId: userId,
-      fromStatus: "AWAITING_DOCUMENT",
-      toStatus: "APPROVED",
-      action: "DOCUMENT_APPROVED",
-      tx,
+  // Moving to APPROVED is what creates the VehicleOccupancy row (the booking
+  // status trigger fires on APPROVED|ASSIGNED|COMPLETED), so this write can be
+  // refused by vehicle_occupancy_no_overlap. It became reachable with backdated
+  // bookings: those carry a car from the moment they are filed, named by hand
+  // off a paper form, so a mis-picked driver whose car already has a recorded
+  // trip in that window collides here. Uncaught it is a 500 on the document
+  // button; caught, it is the same friendly refusal the other write paths give.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({ where: { id: bookingId }, data: { status: "APPROVED" } });
+      await logTransition({
+        bookingId,
+        actorUserId: userId,
+        fromStatus: "AWAITING_DOCUMENT",
+        toStatus: "APPROVED",
+        action: "DOCUMENT_APPROVED",
+        tx,
+      });
     });
-  });
+  } catch (err) {
+    if (!isExclusionViolation(err)) throw err;
+    return { ok: false, field: "vehicleId", error: te("vehicleConflict") };
+  }
 
   // จัด, moved here from approval. Same solver the manual button and the nightly
   // sweep use; it only touches APPROVED bookings with no primary driver, so it is

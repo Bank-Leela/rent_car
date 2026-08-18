@@ -143,6 +143,16 @@ export const newBookingSchema = z
     // everything else about the booking is unchanged, and it still goes through
     // the ordinary approval queue.
     backdated: z.coerce.boolean().optional().default(false),
+    // Who ACTUALLY drove it. Only meaningful with `backdated`: for a trip that
+    // has already run, จัด has no useful opinion — the office knows who went, and
+    // letting the solver pick by rotation would write the wrong person into the
+    // history and skew the fairness queue with a past-dated stamp. car=driver, so
+    // naming the driver names the vehicle.
+    actualDriverId: z
+      .string()
+      .optional()
+      .or(z.literal(""))
+      .transform((v) => (v ? v : undefined)),
     emergencyReason: z
       .string()
       .max(1000)

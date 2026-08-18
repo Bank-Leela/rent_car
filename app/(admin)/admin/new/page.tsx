@@ -27,7 +27,7 @@ export default async function AdminNewBookingPage() {
   const locale = await getLocale();
   const isThai = locale.toLowerCase().startsWith("th");
 
-  const [departments, me, templates, requesterRows] = await Promise.all([
+  const [departments, me, templates, requesterRows, driverRows] = await Promise.all([
     listDepartments(locale),
     prisma.user.findUnique({
       where: { id: session.user.id },
@@ -52,6 +52,21 @@ export default async function AdminNewBookingPage() {
         department: { select: { nameTh: true, nameEn: true } },
       },
     }),
+    // For a backdated booking: who actually drove. car=driver, so only drivers
+    // WITH a car can have driven one, and the action re-checks the same thing.
+    prisma.driver.findMany({
+      where: {
+        isActive: true,
+        user: { is: { isActive: true } },
+        assignedVehicle: { is: { isActive: true } },
+      },
+      select: {
+        id: true,
+        nickname: true,
+        user: { select: { name: true, thaiName: true } },
+        assignedVehicle: { select: { registrationNumber: true } },
+      },
+    }),
   ]);
 
   // "ชื่อ — หน่วยงาน", because the department is the reason the picker exists:
@@ -61,6 +76,15 @@ export default async function AdminNewBookingPage() {
       (isThai ? r.thaiName ?? r.name : r.name ?? r.thaiName) ?? r.username ?? r.email ?? r.id;
     const dept = (isThai ? r.department?.nameTh : r.department?.nameEn ?? r.department?.nameTh) ?? null;
     return { id: r.id, label: dept ? `${person} — ${dept}` : person, department: dept };
+  });
+
+  // "ชื่อ · ทะเบียน" — the plate is how the office refers to a car, and it is the
+  // half that confirms the right driver was picked.
+  const drivers = driverRows.map((d) => {
+    const person =
+      d.nickname ?? (isThai ? d.user.thaiName ?? d.user.name : d.user.name ?? d.user.thaiName) ?? d.id;
+    const reg = d.assignedVehicle?.registrationNumber;
+    return { id: d.id, label: reg ? `${person} · ${reg}` : person };
   });
 
   return (
@@ -74,6 +98,7 @@ export default async function AdminNewBookingPage() {
         defaultAjarnEmail={me?.email ?? ""}
         templates={templates}
         requesters={requesters}
+        drivers={drivers}
       />
     </div>
   );
