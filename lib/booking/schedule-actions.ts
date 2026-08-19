@@ -8,6 +8,7 @@ import { recomputeRotationStamp, stampRotationForward } from "@/lib/booking/rota
 import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { COMMITTED_STATUSES, DISPATCHABLE_STATUSES } from "@/lib/booking/booking-status";
+import { sharesCarWith } from "@/lib/booking/rotations";
 import { LONG_TRIP_KM } from "@/lib/booking/classification";
 import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
 import { sendEmail } from "@/lib/email/client";
@@ -102,12 +103,17 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
       },
       orderBy: { startAt: "asc" },
       select: {
-        destination: true, startAt: true, endAt: true,
+        destination: true, startAt: true, endAt: true, travelWithinChula: true,
         waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
       },
     });
     const bookingLeg = toLegSrc(booking);
     const conflicts = candidates
+      // §5c: two in-Chula errands starting within ten minutes may share the car.
+      // Without this the manual drop would still refuse what the database now
+      // permits and what จัด now does on its own — the board contradicting the
+      // solver is worse than either rule alone.
+      .filter((c) => !sharesCarWith(booking, c))
       .filter((c) => legsOverlap(bookingLeg, toLegSrc(c)))
       .slice(0, 3)
       .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));

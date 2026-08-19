@@ -254,6 +254,74 @@ on the admin booking detail as an amber note and **nothing more**: the office
 knows its own vehicles, and the decision stays with P'Top. No engine filters or
 ranks on it.
 
+## 5c. In-Chula errands may share a car — the one exception to §5
+
+§5 says no car may EVER be double-booked and calls it the one constraint a
+manual override cannot relax. There is now exactly one exception, added
+2026-08-19 at the office's request:
+
+> **Two bookings with `travelWithinChula = true` whose starts are within
+> `IN_CHULA_PAIR_WINDOW_MINUTES` (10) of each other may occupy the same car at
+> the same time.**
+
+Campus is small and the errands are short, so one car genuinely runs both. The
+predicate is `rotations.ts:sharesCarWith`, beside `MIN_GAP_MINUTES` so the two
+windows cannot drift apart in different modules.
+
+**Keyed on `travelWithinChula`, not `jobType === "WERN"`.** The flag is what
+"in Chula" means; `createBookingAction` only *defaults* jobType from it, so a
+payload carrying an explicit jobType could otherwise slip the rule.
+
+**Measured start-to-start.** The office pairs errands that set off together.
+Comparing end times would pair a ten-minute drop-off with an all-afternoon
+booking that merely started nearby.
+
+### What the exemption buys — three things, precisely
+
+1. The two trips' occupancy intervals may overlap **each other**.
+2. The 2 h gap is not applied **between them**. `canChain` `continue`s past a
+   partner and keeps checking the rest, so each still owes the full gap and the
+   no-overlap rule to every *other* trip that day. Pairing two campus runs must
+   never quietly buy a driver past the gap before an afternoon TJW.
+3. Nothing is merged: two bookings, two occupancy rows, two cards on the board.
+
+It does **not** let an in-Chula trip overlap a normal one (that one may be
+leaving the province), and every non-Chula pair is refused exactly as before.
+
+### Why it takes TWO database constraints
+
+The obvious implementation — making the existing EXCLUDE partial with
+`WHERE (NOT "inChula")` — is wrong in a way that is easy to miss: a partial index
+does not *contain* in-Chula rows, so a campus errand could be stacked onto a car
+away on a 400 km TJW. The wanted semantics are "conflict UNLESS BOTH rows are
+in-Chula", which no single EXCLUDE expresses:
+
+| Constraint | Covers |
+|---|---|
+| `vehicle_occupancy_no_overlap` — partial, `WHERE (NOT "inChula")` | normal vs normal |
+| `vehicle_occupancy_chula_vs_normal` — adds `"inChula" WITH <>` | in-Chula vs normal |
+| *(neither matches)* | in-Chula vs in-Chula → **permitted** |
+
+`VehicleOccupancy.inChula` is copied off the booking by the occupancy trigger; an
+exclusion constraint can only read columns of its own table. Verified against
+this database before the design was written, and again as an integration test
+(`in-chula-shared-car.test.ts`) that writes real bookings rather than asserting
+on `canChain`.
+
+### Accepted risk
+
+**There is no ceiling.** Five in-Chula bookings at 09:00 will all stack on the
+duty car; the app warns and nothing stops it. That was the office's explicit
+choice — P'Top decides each time — made after being shown that Postgres would no
+longer refuse it. If that turns out to bite, the place to add a bound is the
+`sharesCarWith` caller in `canChain`, not the constraints: the database can only
+see one pair at a time.
+
+**Where the rule is applied.** `canChain` (so the solver and the single matcher
+both inherit it), and `schedule-actions.ts:reassignVehicleAction` for the manual
+drop — a board that refused what จัด does on its own would be worse than either
+rule alone.
+
 ## 6. Two assignment paths
 
 ### 6a. Single-booking matcher — `match()` (`matching.ts`, driven by `matching-actions.ts`)

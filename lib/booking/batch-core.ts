@@ -140,6 +140,8 @@ export async function runBatchForDay(
     // The category the requester asked for. The solver treats it as a first
     // choice and falls back, so this never turns a placeable trip into overflow.
     preferredVehicleType: b.preferredVehicleType,
+    // §5c — lets two campus errands starting within ten minutes share a car.
+    travelWithinChula: b.travelWithinChula,
     outOfProvince: b.outOfProvince,
     submittedAt: b.createdAt,
     waitAtDestination: b.waitAtDestination,
@@ -180,13 +182,16 @@ export async function runBatchForDay(
     select: {
       id: true, startAt: true, endAt: true, jobType: true, primaryDriverId: true, secondaryDriverId: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
+      // A trip already on the car has to carry the flag too, or a second errand
+      // could not pair with one the solver did not place itself this run.
+      travelWithinChula: true,
     },
   });
   const existingByDriver = new Map<string, ScheduledTrip[]>();
   const addTrip = (
     driverId: string | null,
     t: {
-      id: string; startAt: Date; endAt: Date; jobType: JobType;
+      id: string; startAt: Date; endAt: Date; jobType: JobType; travelWithinChula: boolean;
       waitAtDestination: boolean; dropOffDone: Date | null; pickupReturnTime: string | null;
     },
   ) => {
@@ -194,6 +199,7 @@ export async function runBatchForDay(
     const list = existingByDriver.get(driverId) ?? [];
     list.push({
       id: t.id, startAt: t.startAt, endAt: t.endAt, jobType: t.jobType,
+      travelWithinChula: t.travelWithinChula,
       waitAtDestination: t.waitAtDestination, dropOffDone: t.dropOffDone, pickupReturnTime: t.pickupReturnTime,
     });
     existingByDriver.set(driverId, list);

@@ -22,6 +22,16 @@ import { legsOverlap, minLegGapMinutes, type LegSource } from "./trip-legs";
 // `120` below, so the documented constant and the actual rule could drift apart
 // on the single most rule-critical line in the codebase.
 export const MIN_GAP_MINUTES = 120;
+
+/**
+ * How far apart two in-Chula errands may start and still share one car.
+ *
+ * Lives beside MIN_GAP_MINUTES on purpose: they are the two time windows this
+ * rule balances, and keeping them in one file is what stops them being
+ * re-derived slightly differently in three modules — which is the failure this
+ * subsystem's history is made of.
+ */
+export const IN_CHULA_PAIR_WINDOW_MINUTES = 10;
 export const MAX_JOBS_PER_DAY = 2;
 export const MORNING_END_HOUR = 12;
 
@@ -42,6 +52,8 @@ export interface ScheduledTrip {
   startAt: Date;
   endAt: Date;
   jobType: JobType;
+  /** In-Chula errand — may pair with another one (§5c). */
+  travelWithinChula?: boolean;
   // No-wait split fields (optional; absent ⇒ single interval). Let canChain free
   // the middle of a no-wait trip when checking overlap/gap against this trip.
   waitAtDestination?: boolean;
@@ -88,6 +100,9 @@ type TimedJob = {
   startAt: Date;
   endAt: Date;
   jobType?: JobType;
+  /** In-Chula campus errand. Two of these starting within
+   *  IN_CHULA_PAIR_WINDOW_MINUTES may share one car — see sharesCarWith. */
+  travelWithinChula?: boolean;
   // No-wait split fields (optional; absent ⇒ single interval, back-compat).
   waitAtDestination?: boolean;
   dropOffDone?: Date | null;
@@ -103,6 +118,26 @@ const legSrc = (j: TimedJob): LegSource => ({
   pickupReturnTime: j.pickupReturnTime ?? null,
 });
 
+/**
+ * The one deliberate exception to §5's no-double-book rule.
+ *
+ * Two IN-CHULA errands whose starts are within ten minutes of each other may
+ * ride on the same car at the same time: campus is small, the trips are short,
+ * and the office would rather send one car twice over than refuse the second
+ * booking. Both halves of the condition matter — one in-Chula trip and one
+ * normal trip never pair, however close their times, because the normal one may
+ * be leaving the province.
+ *
+ * Measured start-to-start, deliberately: the office pairs errands that set off
+ * together, and comparing end times would pair a ten-minute drop-off with an
+ * all-afternoon booking that merely started nearby.
+ */
+export function sharesCarWith(a: TimedJob, b: TimedJob): boolean {
+  if (!a.travelWithinChula || !b.travelWithinChula) return false;
+  const minutes = Math.abs(a.startAt.getTime() - b.startAt.getTime()) / 60_000;
+  return minutes <= IN_CHULA_PAIR_WINDOW_MINUTES;
+}
+
 export function canChain(next: TimedJob, existing: TimedJob[]): boolean {
   if (existing.length === 0) return true;
 
@@ -111,6 +146,12 @@ export function canChain(next: TimedJob, existing: TimedJob[]): boolean {
   // may sit in the gap (lib/booking/trip-legs.ts is the single source of truth).
   // See docs/scheduling-algorithm.md §4–5.
   for (const e of existing) {
+    // A paired in-Chula errand is exempt from BOTH checks — but only against
+    // its partner. The loop continues, so this trip still owes the full gap and
+    // the no-overlap rule to every OTHER trip on the day: pairing two campus
+    // runs must never quietly buy a driver their way past the 2h gap before an
+    // afternoon TJW.
+    if (sharesCarWith(next, e)) continue;
     if (legsOverlap(legSrc(next), legSrc(e))) return false; // overlap on any leg
     if (minLegGapMinutes(legSrc(next), legSrc(e)) < MIN_GAP_MINUTES) return false;
   }

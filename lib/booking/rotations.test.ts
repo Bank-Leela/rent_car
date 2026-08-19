@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canChain,
   canTake,
+  sharesCarWith,
   pickGeneralRank,
   rankForRotation,
   type DriverRotationState,
@@ -246,5 +247,54 @@ describe("canChain — no-wait split legs", () => {
   });
   it("rejects a trip <2h from leg 1 (gap rule is per-leg)", () => {
     expect(canChain(trip("2026-06-10T11:00:00", "2026-06-10T13:00:00"), [SPLIT])).toBe(false);
+  });
+});
+
+// ---- §5c: in-Chula errands may share a car ----
+describe("sharesCarWith / canChain — the one exception to no-double-book", () => {
+  const chula = (h: number, m: number, endH: number) => ({
+    startAt: new Date(`2026-06-10T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`),
+    endAt: new Date(`2026-06-10T${String(endH).padStart(2, "0")}:00:00`),
+    jobType: "WERN" as const,
+    travelWithinChula: true,
+  });
+  const normal = (h: number, endH: number) => ({
+    startAt: new Date(`2026-06-10T${String(h).padStart(2, "0")}:00:00`),
+    endAt: new Date(`2026-06-10T${String(endH).padStart(2, "0")}:00:00`),
+    jobType: "NORMAL" as const,
+    travelWithinChula: false,
+  });
+
+  it("pairs two in-Chula errands 10 minutes apart", () => {
+    expect(sharesCarWith(chula(9, 0, 10), chula(9, 10, 11))).toBe(true);
+    expect(canChain(chula(9, 10, 11), [chula(9, 0, 10)])).toBe(true);
+  });
+
+  it("does not pair them at 11 minutes", () => {
+    expect(sharesCarWith(chula(9, 0, 10), chula(9, 11, 11))).toBe(false);
+    // …and without the exemption the ordinary rules apply: overlapping, so no.
+    expect(canChain(chula(9, 11, 11), [chula(9, 0, 10)])).toBe(false);
+  });
+
+  it("NEVER pairs an in-Chula trip with a normal one, however close", () => {
+    // The normal trip may be leaving the province — this is the case the
+    // two-constraint scheme exists to keep protected.
+    expect(sharesCarWith(chula(9, 0, 10), normal(9, 17))).toBe(false);
+    expect(canChain(chula(9, 0, 10), [normal(9, 17)])).toBe(false);
+  });
+
+  it("exempts the pair from the 2h gap, but only against each other", () => {
+    // Two paired errands, plus an afternoon NORMAL that starts 30 min after the
+    // second ends. The pair may ignore the gap between themselves; the third
+    // trip must still owe it.
+    const pair = [chula(9, 0, 10), chula(9, 5, 10)];
+    expect(canChain(chula(9, 5, 10), [chula(9, 0, 10)])).toBe(true);
+    expect(canChain(normal(10, 12), pair), "the gap still applies to everything else").toBe(false);
+  });
+
+  it("still refuses two in-Chula errands that are far apart and overlapping", () => {
+    // 09:00–17:00 and 12:00–13:00 are both in-Chula but three hours apart at the
+    // start: not a pair, and they overlap, so the ordinary rule refuses.
+    expect(canChain(chula(12, 0, 13), [chula(9, 0, 17)])).toBe(false);
   });
 });

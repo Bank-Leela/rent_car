@@ -62,6 +62,8 @@ export interface SolverBookingInput {
    * office routinely works around. See the two-pass pick below.
    */
   preferredVehicleType?: string | null;
+  /** In-Chula campus errand — eligible to share a car with another one (§5c). */
+  travelWithinChula?: boolean;
   outOfProvince: boolean;
   /** FCFS key; defaults to createdAt. */
   submittedAt: Date;
@@ -311,6 +313,7 @@ function placeBooking(
           startAt: booking.startAt,
           endAt: booking.endAt,
           jobType: booking.jobType,
+          travelWithinChula: booking.travelWithinChula,
           waitAtDestination: booking.waitAtDestination,
           dropOffDone: booking.dropOffDone,
           pickupReturnTime: booking.pickupReturnTime,
@@ -391,6 +394,9 @@ function canDriverTakeNew(
           startAt: booking.startAt,
           endAt: booking.endAt,
           jobType: booking.jobType,
+          // Without this the pairing exemption can never fire: sharesCarWith
+          // needs the flag on BOTH sides.
+          travelWithinChula: booking.travelWithinChula,
           waitAtDestination: booking.waitAtDestination,
           dropOffDone: booking.dropOffDone,
           pickupReturnTime: booking.pickupReturnTime,
@@ -422,6 +428,7 @@ function commitTrip(drivers: MutableDriver[], driverId: string, booking: SolverB
     startAt: booking.startAt,
     endAt: booking.endAt,
     jobType: booking.jobType,
+    travelWithinChula: booking.travelWithinChula,
     waitAtDestination: booking.waitAtDestination,
     dropOffDone: booking.dropOffDone,
     pickupReturnTime: booking.pickupReturnTime,
