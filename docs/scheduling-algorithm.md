@@ -215,6 +215,45 @@ Enforced in three places:
 
 ---
 
+## 5b. Requested vehicle type — a preference, never a filter
+
+The requester picks a category on the booking form (`preferredVehicleType`:
+รถตู้ / เก๋ง / กระบะ …) and the office sets each car's `type` on `/admin/fleet`.
+Until 2026-08-19 **the two never met**: `Vehicle.type` was read by no solver,
+matcher or recommender, and `preferredVehicleType` was only ever tested for
+`BUS_OUTSOURCED` (route to an outside rental). A request for a รถตู้ could be
+handed a เก๋ง and nothing in the app noticed.
+
+The rule now, applied identically in all three placement engines:
+
+> Walk the fairness order once considering only cars of the requested type.
+> If that finds nobody, walk the **same** order again with no type condition.
+
+Two passes rather than a sort key, so fairness is untouched *inside* each pass —
+the fairest matching car wins, and when none exists the fairest car of any type
+does. It is deliberately **not** a filter: the fleet is six cars, and leaving a
+trip unassigned because the only free one is the wrong body shape trades a real
+problem for a cosmetic one. No day becomes unsolvable because of this rule, and
+`preferredVehicleType: null` reproduces the previous behaviour exactly.
+
+Applies to the primary only. A co-driver rides in the primary's car, so their
+own car's type is irrelevant.
+
+| Engine | Where |
+|---|---|
+| Batch solver | `batch-solver.ts` — the two-pass `primaryRanked.find` |
+| Single matcher | `matching.ts` — same two passes over `ranked` |
+| Leftover recommendation | `placement-reco.ts` — matching car first, then `free[0]` |
+
+### Seats are a warning, not a rule
+
+`Vehicle.capacity` is likewise set on `/admin/fleet` and was compared against
+`passengerCount` nowhere — when this was written, 9 of 59 assigned bookings in
+the dev database had a car with fewer seats than passengers. It is now surfaced
+on the admin booking detail as an amber note and **nothing more**: the office
+knows its own vehicles, and the decision stays with P'Top. No engine filters or
+ranks on it.
+
 ## 6. Two assignment paths
 
 ### 6a. Single-booking matcher — `match()` (`matching.ts`, driven by `matching-actions.ts`)

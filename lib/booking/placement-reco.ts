@@ -32,6 +32,8 @@ export interface RecoDriver {
   driverId: string;
   /** Assigned car (car=driver). null = unpaired → not recommendable. */
   vehicleId: string | null;
+  /** The car's category, so the reco can prefer the type that was asked for. */
+  vehicleType?: string | null;
   registrationNumber: string | null;
   driverName: string | null;
   earningsScore: number;
@@ -42,7 +44,13 @@ export interface RecoDriver {
 }
 
 export interface RecoInput {
-  booking: { startAt: Date; endAt: Date; jobType: JobType };
+  booking: {
+    startAt: Date;
+    endAt: Date;
+    jobType: JobType;
+    /** Requested category — a first choice, never a filter (see below). */
+    preferredVehicleType?: string | null;
+  };
   /** >400 km trip → also recommend a co-driver. */
   needsSecondary: boolean;
   /** Excluded from the "free" pool; offered only as the reclaim fallback. */
@@ -103,7 +111,13 @@ export function recommendPlacement(input: RecoInput): Placement {
         a.driverId.localeCompare(b.driverId),
     );
 
-  let primary: RecoDriver | undefined = free[0];
+  // Requested type first, then anything — the same two passes the solver and the
+  // single matcher make. `free` is already in fairness order, so this picks the
+  // fairest MATCHING car and falls back to the fairest car of any type; it can
+  // never turn a recommendable trip into "no car available".
+  const wantedType = booking.preferredVehicleType ?? null;
+  let primary: RecoDriver | undefined =
+    (wantedType ? free.find((d) => d.vehicleType === wantedType) : undefined) ?? free[0];
   let kind: "fit" | "reclaim" = "fit";
   if (!primary) {
     // Nobody free → offer the duty car (reclaim). Reclaim means pulling the duty

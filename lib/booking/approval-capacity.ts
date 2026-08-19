@@ -111,6 +111,7 @@ export async function dayHasRoomForMany(
         endAt: b.endAt,
         estimatedDistance: b.estimatedDistance,
         needsSecondaryDriver: b.needsSecondaryDriver,
+        preferredVehicleType: b.preferredVehicleType,
         jobType: b.jobType,
       })),
       true,

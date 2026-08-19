@@ -31,6 +31,10 @@ export interface MatchInput {
   /** car=driver: assignedDriverId -> vehicleId. The booking's vehicle is the
    *  chosen primary driver's car; there is no independent slot search. */
   driverCar: Map<string, string>;
+  /** car=driver: the type of car each driver brings. */
+  vehicleTypeByDriver?: Map<string, string>;
+  /** What the requester asked for — a preference, never a filter. */
+  preferredVehicleType?: string | null;
   /** UI snapshot of current driver loads. Not used as a hard filter; see
    *  driverAvailability for the temporal rule. */
   driverMatrix: DriverMatrixCell[][];
@@ -84,7 +88,17 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
   // who actually has one — skipping an unpaired (e.g. just-added) top pick rather
   // than dead-ending on NO_SLOT while a paired driver below sits idle. Only if
   // NONE of the eligible drivers have a car is it genuinely NO_SLOT.
-  const primaryDriverId = ranked.find((id) => input.driverCar.has(id)) ?? null;
+  // Requested vehicle type: first choice, then fall back — the same two passes
+  // the day solver makes (batch-solver.ts). Kept identical on purpose: จัด and
+  // the single "จับคู่อัตโนมัติ" button picking different cars for the same trip
+  // is worse than either rule on its own.
+  const wantedType = input.preferredVehicleType ?? null;
+  const hasWantedType = (id: string) =>
+    !wantedType || input.vehicleTypeByDriver?.get(id) === wantedType;
+  const primaryDriverId =
+    ranked.find((id) => input.driverCar.has(id) && hasWantedType(id)) ??
+    ranked.find((id) => input.driverCar.has(id)) ??
+    null;
   if (!primaryDriverId) return { ok: false, error: "NO_SLOT" };
   const vehicleId = input.driverCar.get(primaryDriverId)!;
 

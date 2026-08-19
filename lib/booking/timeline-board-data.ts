@@ -89,6 +89,8 @@ export async function loadTimelineBoard(
         // See the note on the other booking select in this file: the flag, not
         // only the distance, decides whether a trip needs two drivers.
         needsSecondaryDriver: true,
+        // The requested car category — the reco prefers a matching car.
+        preferredVehicleType: true,
         // Whether the trip has physically left. setBookingTimeAction refuses to
         // re-time a departed trip (§9b), so without this the board offered a
         // clock on trips where every save is guaranteed to fail.
@@ -170,6 +172,7 @@ export async function loadTimelineBoard(
       endAt: b.endAt,
       estimatedDistance: b.estimatedDistance,
       needsSecondaryDriver: b.needsSecondaryDriver,
+      preferredVehicleType: b.preferredVehicleType,
       jobType: b.jobType,
     }));
   const recos = await recommendForBookings(dayStart, queueRaw, isThai);

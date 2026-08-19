@@ -28,6 +28,8 @@ export async function recommendForBookings(
      * cannot forget it the way these three did.
      */
     needsSecondaryDriver: boolean;
+    /** Requested category — the reco prefers a matching car, then falls back. */
+    preferredVehicleType?: string | null;
     jobType: JobType;
   }>,
   isThai: boolean,
@@ -50,7 +52,7 @@ export async function recommendForBookings(
       id: true,
       lastAssignedAt: true,
       user: { select: { name: true, thaiName: true } },
-      assignedVehicle: { select: { id: true, registrationNumber: true } },
+      assignedVehicle: { select: { id: true, registrationNumber: true, type: true } },
     },
   });
   const onCall = await prisma.onCallShift.findUnique({ where: { date: dayStart }, select: { driverId: true } });
@@ -90,6 +92,7 @@ export async function recommendForBookings(
     return {
       driverId: d.id,
       vehicleId: d.assignedVehicle?.id ?? null,
+      vehicleType: d.assignedVehicle?.type ?? null,
       registrationNumber: d.assignedVehicle?.registrationNumber ?? null,
       driverName,
       earningsScore: earnings.get(d.id) ?? 0,
@@ -103,7 +106,12 @@ export async function recommendForBookings(
     out.set(
       b.id,
       recommendPlacement({
-        booking: { startAt: b.startAt, endAt: b.endAt, jobType: b.jobType },
+        booking: {
+          startAt: b.startAt,
+          endAt: b.endAt,
+          jobType: b.jobType,
+          preferredVehicleType: b.preferredVehicleType,
+        },
         needsSecondary: b.needsSecondaryDriver || (b.estimatedDistance ?? 0) > LONG_TRIP_KM,
         dutyDriverId,
         drivers: recoDrivers,

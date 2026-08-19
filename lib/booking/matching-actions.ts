@@ -65,9 +65,11 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   // car=driver: vehicle = chosen driver's car. Load the pairing, no slot search.
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
-    select: { id: true, assignedDriverId: true },
+    select: { id: true, assignedDriverId: true, type: true },
   });
   const driverCar = driverVehicleMap(vehicles);
+  const vehicleTypeByDriver = new Map<string, string>();
+  for (const v of vehicles) if (v.assignedDriverId) vehicleTypeByDriver.set(v.assignedDriverId, v.type);
   const dayBookings = await prisma.booking.findMany({
     where: {
       // Overlap, not start-in-day: a multi-day trip that began earlier still
@@ -206,6 +208,8 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     estimatedDistance: booking.estimatedDistance,
     needsSecondaryDriver: booking.needsSecondaryDriver,
     driverCar,
+    vehicleTypeByDriver,
+    preferredVehicleType: booking.preferredVehicleType,
     driverMatrix,
     driverAvailability,
     driverRankInputs,

@@ -697,6 +697,7 @@
     "approvalStatusPending": "รอดำเนินการ",
     "assignment": "การจัดรถ",
     "currentAssignment": "การจัดรถปัจจุบัน",
+    "capacityWarning": "รถคันนี้มี {seats} ที่นั่ง แต่การจองนี้มีผู้โดยสาร {passengers} คน — ตรวจสอบก่อนจัด",
     "vehicle": "รถ",
     "driver": "พนักงานขับรถ",
     "coDriver": "พนักงานขับรถผู้ช่วย",

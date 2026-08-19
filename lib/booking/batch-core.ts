@@ -137,6 +137,9 @@ export async function runBatchForDay(
     endAt: b.endAt,
     estimatedDistance: b.estimatedDistance,
     needsSecondaryDriver: b.needsSecondaryDriver,
+    // The category the requester asked for. The solver treats it as a first
+    // choice and falls back, so this never turns a placeable trip into overflow.
+    preferredVehicleType: b.preferredVehicleType,
     outOfProvince: b.outOfProvince,
     submittedAt: b.createdAt,
     waitAtDestination: b.waitAtDestination,
@@ -147,12 +150,19 @@ export async function runBatchForDay(
   // car=driver: a booking's vehicle is its PRIMARY driver's assigned car.
   const vehicles = await prisma.vehicle.findMany({
     where: { isActive: true },
-    select: { id: true, assignedDriverId: true },
+    select: { id: true, assignedDriverId: true, type: true },
   });
   const driverCar = driverVehicleMap(vehicles);
+  // car=driver: what kind of car each driver brings, so the solver can prefer
+  // the type the requester asked for. Both columns on /admin/fleet were being
+  // filled in and then read by nothing.
+  const driverVehicleType = new Map<string, string>();
+  for (const v of vehicles) if (v.assignedDriverId) driverVehicleType.set(v.assignedDriverId, v.type);
 
   // A driver with no assigned car can't be dispatched → keep them out of the pool.
-  const pairedDriverStates = driverStates.filter((d) => driverCar.has(d.driverId));
+  const pairedDriverStates = driverStates
+    .filter((d) => driverCar.has(d.driverId))
+    .map((d) => ({ ...d, vehicleType: driverVehicleType.get(d.driverId) ?? null }));
   if (pairedDriverStates.length === 0) return { ok: false, error: te("noActiveDrivers") };
   const dutyDriverId =
     onCallDriverId && pairedDriverStates.some((d) => d.driverId === onCallDriverId)
