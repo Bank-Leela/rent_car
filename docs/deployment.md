@@ -10,8 +10,18 @@ Postgres alongside. Uploads live on local disk (fine on one persistent host).
 splits in *server-local* time. A default-UTC host assigns bookings to the wrong
 day and splits legs at the wrong hour. The systemd unit below sets it. In **production the app refuses to start** on a
 wrong zone — `instrumentation.ts` throws `[TZ FATAL]` — so a bad TZ shows up as a
-service that will not come up, not as a warning you might miss. (In dev it only
-warns, so a non-Bangkok laptop still runs.)
+service that will not come up. (In dev it only warns, so a non-Bangkok laptop
+still runs.)
+
+> **It does not show up as `failed`, though — and that is the trap.** The unit is
+> `Type=simple` with `Restart=on-failure` and no start-limit, so it loops forever
+> in `activating (auto-restart)` and `systemctl enable --now` returns *success*.
+> `systemctl status` tells you almost nothing. The only place the cause is
+> visible is the log:
+> ```bash
+> journalctl -u rent-car -f      # look for [TZ FATAL]
+> ```
+> Make that your first command whenever the site does not come up.
 
 **Set the HOST clock too**, not just the app process:
 ```bash
@@ -22,7 +32,14 @@ systemd resolves every `OnCalendar=` against the *host* zone, so the nightly
 the app's own TZ is correct.
 
 ## 1. Prerequisites
-- Node 20 (pin 20.x), npm.
+- Node 20 (pin 20.x), npm. **Install it system-wide, not with `nvm`** — the
+  service unit calls npm by absolute path and loads no user shell, so an nvm
+  install is invisible to systemd. On Debian/Ubuntu:
+  ```bash
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt install -y nodejs
+  node --version    # must be v20.x — package.json requires >=20.11 <21
+  ```
 - PostgreSQL 16 (native package or Docker; the repo ships `docker-compose.yml`
   for a container if you prefer).
 - nginx.
@@ -83,18 +100,31 @@ FACULTY_ORIGIN=คณะแพทยศาสตร์ จุฬาลงกร�
 ```
 > **`RESEND_API_KEY` is only "optional" in the sense that the app still boots.**
 > Without it `sendEmail` silently degrades to a `console.log` stub: approval and
-> assignment notices are never delivered, and **password-reset links are printed
-> into the systemd journal instead of being emailed** — which is both a broken
-> recovery path and a secret in your logs. Set it, or accept that the only
-> self-service password recovery does not work.
+> assignment notices are never delivered. **The reset link is not printed to the
+> journal either** — the body was deliberately removed from the log stub because
+> it leaked reset tokens, so all you get is
+> `[email:SUPPRESSED] no RESEND_API_KEY — "<subject>" was NOT delivered to <to>`
+> and the link is simply lost. Set it, or accept that self-service password
+> recovery does not work and recover accounts with `scripts/reset-password.ts`.
 
 > **`UPLOADS_DIR` is not optional either.** Unset, the app writes to
 > `<install dir>/uploads` while `deploy/backup.sh` looks in
 > `/var/lib/rent_car/uploads` — your backups would quietly contain no uploads.
 
-Create the uploads dir: `sudo mkdir -p /var/lib/rent_car/uploads && sudo chown rentcar /var/lib/rent_car/uploads`.
-It holds signatures, generated PDFs, and attachments — **back it up**;
-it is not in the database.
+**Create the uploads directory. This is a required step, not a note:**
+```bash
+sudo mkdir -p /var/lib/rent_car/uploads
+sudo chown rentcar /var/lib/rent_car/uploads
+```
+Nothing in `deploy/` creates it — no unit sets `StateDirectory=` or
+`ExecStartPre=` — and the app cannot create it itself, because `/var/lib` is
+owned by root and the service runs as `rentcar`. Skip it and the failure is
+nasty: the attachment is written *after* the booking transaction commits, so the
+requester gets a saved booking, a lost file, and a 500. The nightly backup fails
+too.
+
+It holds **signatures and attachments** — **back it up**, it is not in the
+database. PDFs are *not* stored here; they are rendered on demand.
 
 ## 4. Database
 
@@ -136,9 +166,15 @@ sudo -u rentcar --preserve-env=DATABASE_URL npx prisma db seed   # first time on
 > **Capture the seeded password — it is shown once.** `prisma db seed` generates
 > a random temporary password for the admin, requester, kiosk and driver
 > accounts and prints it when it finishes. It is not stored anywhere and cannot
-> be recovered afterwards; if you lose it, re-run the seed. Every account is
-> flagged `mustChangePassword`, so the first sign-in forces a real one. Set
-> `SEED_PASSWORD` in the environment first if you would rather choose it.
+> be recovered afterwards. Every account is flagged `mustChangePassword`, so the
+> first sign-in forces a real one. Set `SEED_PASSWORD` in the environment first
+> if you would rather choose it — **at least 8 characters**; the seed now refuses
+> a shorter one rather than falling back to a random password it would not show
+> you.
+>
+> **If you lose it, do NOT re-run the seed** (see the box above). It would not
+> even work: the fleet-driver branch never rewrites `passwordHash`, so
+> `driver2`–`driver7` keep the password you lost. Use `scripts/reset-password.ts`.
 
 `npm run build` also runs `prisma migrate deploy`, so subsequent deploys apply
 new migrations automatically. **Never** run `migrate reset` / `db push
@@ -165,12 +201,34 @@ journalctl -u rent-car -f      # must reach "ready"; a wrong TZ aborts with [TZ 
 `client_max_body_size 12m` so file uploads (10 MB cap in-app) aren't 413'd by
 nginx first.
 Issue the certificate **first** — the sample hardcodes
-`/etc/letsencrypt/live/...` paths, so `nginx -t` fails while they do not exist:
+`/etc/letsencrypt/live/...` paths, so `nginx -t` fails while they do not exist.
+
+Use `certonly`, **not `--nginx`**. The `--nginx` installer can only write into a
+server block nginx has actually loaded, and this one is still sitting unlinked in
+`sites-available`, which nginx never parses — so it exits with *"no matching
+virtual host"* and you are back where you started. `certonly` does not need the
+site to exist at all:
+
 ```bash
-sudo certbot --nginx -d booking.example.ac.th   # obtains the cert and reloads nginx
+# 1. get the certificate, with nginx briefly stopped so certbot can bind :80
+sudo systemctl stop nginx
+sudo certbot certonly --standalone -d booking.example.ac.th
+sudo systemctl start nginx
+
+# 2. NOW the paths in the sample exist, so the config will load
 sudo ln -s /etc/nginx/sites-available/rent_car /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
+If port 80 is already serving something you cannot stop, use
+`certbot certonly --webroot -w /var/www/html -d booking.example.ac.th` instead.
+
+Renewals afterwards are ordinary `certbot renew` — the config is loaded by then.
+
+> Two more things about the sample worth knowing: `server_name` appears in **two**
+> blocks (the :80 redirect and the :443 server) and editing only one leaves a
+> redirect pointing at the wrong host; and it sets no `ssl_protocols` /
+> `ssl_ciphers` / HSTS, so TLS policy falls back to your distro's defaults. Add
+> `include /etc/letsencrypt/options-ssl-nginx.conf;` if certbot installed it.
 
 ## 7. Firewall (ufw)
 The loopback binds (app on `127.0.0.1:3000`, Postgres on `127.0.0.1:5432`)
@@ -214,13 +272,26 @@ TJW is assigned by request order separately (still manual).
 evening, assigning **tomorrow's** OT/WERN/NORMAL rounds so the board is set the
 night before. To enable:
 1. Set `CRON_SECRET` in `/etc/rent_car.env` (a long random string).
-2. Install the timer + oneshot service:
+2. **Restart the app so it can see it** — this is the step everyone misses:
+   ```bash
+   sudo systemctl restart rent-car
+   ```
+   A running process's environment is fixed at exec, so a value added to the env
+   file afterwards is invisible to it. Skip this and the route keeps answering
+   503, the timer's `curl --fail` exits non-zero, and the unit quietly fails
+   **every night** with nothing to suggest why.
+3. Install the timer + oneshot service:
    ```bash
    sudo cp deploy/rent-car-batch.service.sample /etc/systemd/system/rent-car-batch.service
    sudo cp deploy/rent-car-batch.timer.sample   /etc/systemd/system/rent-car-batch.timer
    # edit the host + confirm EnvironmentFile in the .service
    sudo systemctl daemon-reload && sudo systemctl enable --now rent-car-batch.timer
    systemctl list-timers rent-car-batch.timer     # confirm next run
+   ```
+4. Prove it works now rather than finding out at 20:00:
+   ```bash
+   sudo systemctl start rent-car-batch      # run the oneshot by hand
+   journalctl -u rent-car-batch -n 20       # expect 200, not 503 or 401
    ```
 The route fails closed: no `CRON_SECRET` → 503; wrong bearer → 401. It attributes
 the run to an active admin in the audit log. Override the target day for a manual

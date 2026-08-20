@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the TEMPLATE must ship, or a fresh clone has nothing to copy and the
+# setup instructions cannot be followed. It holds names only, never values.
+!.env.example
 
 # vercel
 .vercel

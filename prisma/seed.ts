@@ -16,10 +16,19 @@ const prisma = new PrismaClient();
 // Now: SEED_PASSWORD from the environment if set (so a scripted install can
 // choose one), otherwise a random 24-char secret generated per run and printed
 // ONCE at the end. Nothing that reaches the repo is a credential.
-const SEED_PASSWORD =
-  process.env.SEED_PASSWORD && process.env.SEED_PASSWORD.length >= 8
-    ? process.env.SEED_PASSWORD
-    : randomBytes(18).toString("base64url");
+// Setting SEED_PASSWORD to something SHORTER than 8 characters used to be an
+// unrecoverable lockout: the length guard fell through to a random password while
+// the "was it generated" flag tested only whether the variable was SET — so the
+// print block was suppressed and all nine accounts ended up with a password nobody
+// had ever seen. Refuse loudly instead; the operator is right there in the terminal.
+if (process.env.SEED_PASSWORD && process.env.SEED_PASSWORD.length < 8) {
+  console.error(
+    "\nSEED_PASSWORD must be at least 8 characters. Nothing was seeded.\n" +
+      "Either pass a longer one, or unset it and let the seed generate one for you.\n",
+  );
+  process.exit(1);
+}
+const SEED_PASSWORD = process.env.SEED_PASSWORD ?? randomBytes(18).toString("base64url");
 const SEED_PASSWORD_GENERATED = !process.env.SEED_PASSWORD;
 let SEED_PASSWORD_HASH: string | null = null;
 async function getSeedPasswordHash(): Promise<string> {
