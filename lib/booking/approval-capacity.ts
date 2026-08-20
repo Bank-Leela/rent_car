@@ -40,6 +40,9 @@ export type Candidate = {
   jobType: JobType;
   isEmergency: boolean;
   preferredVehicleType: PreferredVehicleType | null;
+  /** §5c — a campus errand may share a car, so it must not be counted as needing
+   *  a free one. Optional: not every caller of this type has the column loaded. */
+  travelWithinChula?: boolean;
 };
 
 /**
@@ -113,6 +116,7 @@ export async function dayHasRoomForMany(
         needsSecondaryDriver: b.needsSecondaryDriver,
         preferredVehicleType: b.preferredVehicleType,
         jobType: b.jobType,
+        travelWithinChula: b.travelWithinChula,
       })),
       true,
     );

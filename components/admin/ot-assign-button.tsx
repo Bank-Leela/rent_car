@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Zap } from "lucide-react";
-import { approveBookingAction } from "@/lib/booking/approval-actions";
+import { approveBookingAction, approveDocumentAction } from "@/lib/booking/approval-actions";
 import { reassignVehicleAction } from "@/lib/booking/schedule-actions";
 
 // One-click act on a waitlist card's overtime recommendation: approve the
@@ -39,6 +39,19 @@ export function OtAssignButton({
         setError(approved.error);
         return;
       }
+      // approveBookingAction lands on AWAITING_DOCUMENT, not APPROVED — the
+      // paperwork step was added to the pipeline after this button was written.
+      // reassignVehicleAction only dispatches from DISPATCHABLE_STATUSES, so the
+      // second half of this "one click" always failed and the button was dead:
+      // it approved the trip and then reported that it could not place it.
+      const docFd = new FormData();
+      docFd.set("bookingId", bookingId);
+      const documented = await approveDocumentAction(docFd);
+      if (!documented.ok) {
+        setError(documented.error);
+        return;
+      }
+
       const assignFd = new FormData();
       assignFd.set("bookingId", bookingId);
       assignFd.set("vehicleId", vehicleId);

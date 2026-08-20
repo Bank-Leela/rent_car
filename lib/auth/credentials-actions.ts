@@ -9,6 +9,7 @@ import { z } from "zod";
 import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from "@/auth";
 import { requireUser, requireRole, homePathFor } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/db";
+import { checkLoginThrottle, recordLoginFailure } from "@/lib/login-throttle";
 import { sendEmail } from "@/lib/email/client";
 import type { Role } from "@prisma/client";
 
@@ -93,6 +94,12 @@ export async function changePasswordAction(formData: FormData): Promise<ActionRe
   const ok = await compare(parsed.data.currentPassword, user.passwordHash);
   if (!ok) {
     return { ok: false, field: "currentPassword", error: te("invalidCredentials") };
+  }
+  // Re-submitting the same password cleared mustChangePassword without rotating
+  // anything, so the admin-issued initial password stayed live while the account
+  // read as "has chosen their own".
+  if (await compare(parsed.data.newPassword, user.passwordHash)) {
+    return { ok: false, field: "newPassword", error: te("passwordMustDiffer") };
   }
 
   const newHash = await hash(parsed.data.newPassword, BCRYPT_ROUNDS);
@@ -199,6 +206,15 @@ export async function requestPasswordResetAction(formData: FormData): Promise<Ac
     return { ok: false, error: te("invalidInput") };
   }
   const email = parsed.data.email.toLowerCase();
+
+  // Unauthenticated and unthrottled, this action would send unlimited reset mail
+  // to any address someone knows — a mail-bomb aimed at one person, and a way to
+  // burn the SMTP quota the rest of the app needs. Reuse the sign-in limiter.
+  // Every outcome still returns ok:true so the anti-probing property below holds:
+  // a throttled caller and an unknown address are indistinguishable.
+  const throttleKeys = [`reset:${email}`];
+  if (checkLoginThrottle(throttleKeys).blocked) return { ok: true };
+  recordLoginFailure(throttleKeys);
 
   const user = await prisma.user.findUnique({ where: { email } });
   // Always return ok=true so the form can't be used to probe whether an
@@ -359,12 +375,18 @@ export async function adminResetPasswordAction(formData: FormData): Promise<Acti
   return { ok: true };
 }
 
+async function isAdminUser(userId: string): Promise<boolean> {
+  return (
+    (await prisma.userRole.count({ where: { userId, role: "ADMIN" } })) > 0
+  );
+}
+
 const toggleActiveSchema = z.object({
   userId: z.string().min(1),
 });
 
 export async function adminToggleActiveAction(formData: FormData): Promise<ActionResult> {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
   const te = await getTranslations("errors");
   const parsed = toggleActiveSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!parsed.success) {
@@ -372,6 +394,26 @@ export async function adminToggleActiveAction(formData: FormData): Promise<Actio
   }
   const user = await prisma.user.findUnique({ where: { id: parsed.data.userId } });
   if (!user) return { ok: false, error: te("userNotFound") };
+  // Deactivating is a one-way door from inside the app: a disabled account cannot
+  // sign in, and only an ADMIN can re-enable one. So the two moves that leave
+  // nobody able to undo them are refused here — locking yourself out, and removing
+  // the last admin. Recovering from either needs direct database access, which is
+  // not something the office has.
+  if (user.isActive) {
+    if (user.id === session.user.id) {
+      return { ok: false, error: te("cannotDeactivateSelf") };
+    }
+    const otherAdmins = await prisma.user.count({
+      where: {
+        id: { not: user.id },
+        isActive: true,
+        roles: { some: { role: "ADMIN" } },
+      },
+    });
+    if (otherAdmins === 0 && (await isAdminUser(user.id))) {
+      return { ok: false, error: te("cannotDeactivateLastAdmin") };
+    }
+  }
   await prisma.user.update({
     where: { id: user.id },
     data: { isActive: !user.isActive },

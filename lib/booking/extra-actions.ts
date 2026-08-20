@@ -31,8 +31,19 @@ export async function cancelBookingAction(formData: FormData): Promise<ActionRes
   }
   const { bookingId, reason } = parsed.data;
 
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { trip: { select: { startedAt: true } } },
+  });
   if (!booking) return { ok: false, error: te("bookingNotFound") };
+  // §9b: once the car has left, cancelling is not a decision the app can carry out
+  // — the driver is already on the road. Every dispatch path refuses this; the
+  // REQUESTER-reachable path did not, so a requester could free the vehicle and its
+  // occupancy row for a trip in progress and the board would show the car as idle.
+  // Ending it is the kiosk's job, not this one's.
+  if (booking.trip?.startedAt) {
+    return { ok: false, error: te("tripAlreadyStarted") };
+  }
 
   // Requester may cancel their own booking. Admins may cancel any.
   const isAdmin = session.user.roles.includes("ADMIN");

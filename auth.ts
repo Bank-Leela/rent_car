@@ -11,7 +11,13 @@ import {
 
 // A real bcrypt hash of a value nobody can supply, used only to spend the same
 // time on a miss as on a wrong password. Never compared for a truthy result.
-const DUMMY_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+//
+// The cost factor must match the one real hashes are stored at (BCRYPT_ROUNDS in
+// lib/auth/credentials-actions.ts). It was 10 while stored hashes were 12 — four
+// times less work — so "no such user" returned measurably faster than "wrong
+// password" and the constant-time branch leaked exactly the fact it was written to
+// hide. Keep these two in step.
+const DUMMY_HASH = "$2b$12$Vfohrlu6Fc0npXsd432fn.fHmmpdPT6WAZNJMky3fMPDr92QoJn7C";
 
 // CR-08: admin-managed credentials. Replaces Google OAuth.
 //
@@ -50,10 +56,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!identifier || !password) return null;
 
         // nginx is the only thing that can reach this app (see trustHost above),
-        // and it sets these itself, so the forwarded address is trustworthy here
-        // for the same reason the Host header is.
+        // but that does NOT make the whole X-Forwarded-For header trustworthy.
+        // deploy/nginx.conf.sample:34 uses $proxy_add_x_forwarded_for, which
+        // APPENDS $remote_addr to whatever the client already sent — so the
+        // LEFTMOST segment is attacker-written. Keying the throttle on it meant an
+        // attacker sent a fresh X-Forwarded-For on every attempt, landed in a new
+        // bucket each time, and the per-IP cap never once fired; worse, they could
+        // spend someone else's bucket by forging their address.
+        //
+        // X-Real-IP is set to $remote_addr by the same config and cannot be
+        // influenced by the client. The last XFF segment is nginx's own append and
+        // is the fallback for a proxy that omits X-Real-IP.
         const fwd = request?.headers?.get("x-forwarded-for") ?? "";
-        const ip = (fwd.split(",")[0] ?? "").trim() || "unknown";
+        const ip =
+          request?.headers?.get("x-real-ip")?.trim() ||
+          (fwd.split(",").pop() ?? "").trim() ||
+          "unknown";
         const idKey = `id:${identifier}`;
         const keys = [idKey, `ip:${ip}`];
 

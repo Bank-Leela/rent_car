@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { stampRotationForward } from "@/lib/booking/rotation-stamp";
 import { logTransition } from "@/lib/booking/audit";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
+import { findVehicleConflicts } from "@/lib/booking/vehicle-conflicts";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
@@ -247,13 +248,39 @@ export async function runBatchForDay(
   // The booking update and its rotation stamps stay atomic together, which is the
   // only grouping that actually matters — a stamped driver must always have the
   // trip that stamped them.
+  // Not an error condition — the trip simply lost its car between solve and write
+  // (a board drop, or a §5c stack the EXCLUDE cannot see). Handled exactly like a
+  // DB exclusion violation: recorded as overflow, the day carries on.
+  class VehicleTakenDuringBatch extends Error {}
+
   let conflicted = 0;
   for (const { item: a, vehicleId } of withVehicle) {
     const booking = pending.find((p) => p.id === a.bookingId)!;
     try {
       await prisma.$transaction(async (tx) => {
-        await tx.booking.update({
-          where: { id: a.bookingId },
+        // The §5c window has no database backstop: two in-Chula rows match neither
+        // exclusion constraint at ANY start distance, so the EXCLUDE below cannot
+        // catch a campus errand stacked hours away from its "partner". Check the
+        // vehicle explicitly. Inside the transaction so it reads the same snapshot
+        // the write lands in.
+        const shareConflicts = await findVehicleConflicts(
+          { id: a.bookingId, startAt: booking.startAt, endAt: booking.endAt,
+            travelWithinChula: booking.travelWithinChula,
+            waitAtDestination: booking.waitAtDestination,
+            dropOffDone: booking.dropOffDone,
+            pickupReturnTime: booking.pickupReturnTime },
+          vehicleId,
+          tx,
+        );
+        if (shareConflicts.length > 0) throw new VehicleTakenDuringBatch();
+
+        // Guard the write on the state the solve was computed FROM. จัด reads the
+        // day, solves in memory, then writes — and an unconditional update happily
+        // overwrote a board drop made in between, silently discarding P'Top's own
+        // decision. updateMany returns a count, so a lost race is detectable;
+        // update() would just succeed on top of the newer row.
+        const { count } = await tx.booking.updateMany({
+          where: { id: a.bookingId, status: "APPROVED", primaryDriverId: null },
           data: {
             primaryDriverId: a.primaryDriverId,
             secondaryDriverId: a.secondaryDriverId,
@@ -265,6 +292,7 @@ export async function runBatchForDay(
             escalatedToKhunTop: false,
           },
         });
+        if (count === 0) throw new VehicleTakenDuringBatch();
 
         const stamp = booking.startAt;
         await stampPrimary(tx, a.primaryDriverId, a.jobType, stamp);
@@ -287,7 +315,7 @@ export async function runBatchForDay(
         });
       });
     } catch (err) {
-      if (!isExclusionViolation(err)) throw err;
+      if (!isExclusionViolation(err) && !(err instanceof VehicleTakenDuringBatch)) throw err;
       // The solver believed this car was free and the DB disagrees — a stale
       // read, or another admin assigning the same car while the batch ran.
       // Record it the way any other unplaceable trip is recorded rather than

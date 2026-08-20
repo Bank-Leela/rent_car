@@ -30,6 +30,8 @@ export async function recommendForBookings(
     needsSecondaryDriver: boolean;
     /** Requested category — the reco prefers a matching car, then falls back. */
     preferredVehicleType?: string | null;
+    /** §5c — see placement-reco.RecoInput. */
+    travelWithinChula?: boolean;
     jobType: JobType;
   }>,
   isThai: boolean,
@@ -72,13 +74,14 @@ export async function recommendForBookings(
       startAt: { lt: dayEnd },
       endAt: { gt: dayStart },
     },
-    select: { startAt: true, endAt: true, jobType: true, primaryDriverId: true, secondaryDriverId: true },
+    select: { startAt: true, endAt: true, jobType: true, travelWithinChula: true, primaryDriverId: true, secondaryDriverId: true },
   });
-  const tripsByDriver = new Map<string, Array<{ startAt: Date; endAt: Date; jobType: JobType }>>();
-  const addTrip = (id: string | null, t: { startAt: Date; endAt: Date; jobType: JobType }) => {
+  type RecoTrip = { startAt: Date; endAt: Date; jobType: JobType; travelWithinChula?: boolean };
+  const tripsByDriver = new Map<string, RecoTrip[]>();
+  const addTrip = (id: string | null, t: RecoTrip) => {
     if (!id) return;
     const list = tripsByDriver.get(id) ?? [];
-    list.push({ startAt: t.startAt, endAt: t.endAt, jobType: t.jobType });
+    list.push({ startAt: t.startAt, endAt: t.endAt, jobType: t.jobType, travelWithinChula: t.travelWithinChula });
     tripsByDriver.set(id, list);
   };
   for (const a of assigned) {
@@ -110,6 +113,7 @@ export async function recommendForBookings(
           startAt: b.startAt,
           endAt: b.endAt,
           jobType: b.jobType,
+          travelWithinChula: b.travelWithinChula,
           preferredVehicleType: b.preferredVehicleType,
         },
         needsSecondary: b.needsSecondaryDriver || (b.estimatedDistance ?? 0) > LONG_TRIP_KM,

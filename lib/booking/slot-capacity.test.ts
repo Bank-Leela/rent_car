@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { BookingStatus } from "@prisma/client";
 import {
   bookingHalf,
   dayCapacity,
@@ -78,7 +79,25 @@ describe("dayCapacity / submitStatus — edges", () => {
 });
 
 describe("SLOT_HOLDING_STATUSES", () => {
-  it("is exactly the committed-ish statuses (waitlist/draft/cancelled/denied hold no slot)", () => {
-    expect(SLOT_HOLDING_STATUSES).toEqual(["PENDING_APPROVAL", "APPROVED", "ASSIGNED", "COMPLETED"]);
+  // Stated as the RULE, over the live enum, rather than as a copy of the list.
+  // The previous version pinned the four literals, so when AWAITING_DOCUMENT was
+  // added to the pipeline the test kept passing while the day's capacity silently
+  // stopped counting approved-but-unpapered trips. A test that restates the value
+  // cannot notice the value is wrong; this one fails until someone decides which
+  // side a new status belongs on.
+  const HOLDS_NO_SLOT: BookingStatus[] = ["DRAFT", "WAITLIST", "CANCELLED", "DENIED", "OUTSOURCED"];
+
+  it("holds a slot for every status that is not explicitly excluded", () => {
+    const all = Object.values(BookingStatus) as BookingStatus[];
+    const expected = all.filter((st) => !HOLDS_NO_SLOT.includes(st)).sort();
+    expect([...SLOT_HOLDING_STATUSES].sort()).toEqual(expected);
+  });
+
+  it("excludes the statuses that are not a live claim on the day", () => {
+    for (const st of HOLDS_NO_SLOT) expect(SLOT_HOLDING_STATUSES).not.toContain(st);
+  });
+
+  it("counts AWAITING_DOCUMENT — approved, merely waiting on paperwork", () => {
+    expect(SLOT_HOLDING_STATUSES).toContain("AWAITING_DOCUMENT");
   });
 });

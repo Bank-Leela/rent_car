@@ -175,9 +175,15 @@ export function canTake(next: TimedJob, existing: ScheduledTrip[]): boolean {
 
 /** Comparator: older-or-null wins. Returns negative if `a` comes first. */
 function olderFirst(a: Date | null, b: Date | null): number {
-  const at = a ? a.getTime() : -Infinity;
-  const bt = b ? b.getTime() : -Infinity;
-  return at - bt;
+  // Total, not arithmetic. The -Infinity trick reads well and is right for every
+  // case but one: two nulls gave -Infinity - -Infinity = NaN, and a NaN comparator
+  // result makes Array.sort treat the pair as equal AND abandon the remaining
+  // tie-breaks in rankForRotation / pickGeneralRank — so two brand-new drivers were
+  // ordered by whatever the engine happened to do, not by earnings.
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  return a.getTime() - b.getTime();
 }
 
 /** Pick the driver whose `lastDutyAt` is oldest. Tie → general ledger. */

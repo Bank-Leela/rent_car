@@ -6,6 +6,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { prisma } from "@/lib/db";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
+import { findVehicleConflicts } from "@/lib/booking/vehicle-conflicts";
 
 /**
  * §5c against the real constraints.
@@ -82,5 +83,38 @@ describe("§5c — the database permits exactly the intended overlap", () => {
       await book({ label: "normal-b", startMin: 30, durationMin: 60, inChula: false, vehicleId: other.id });
     } catch (e) { pairErr = e; }
     expect(isExclusionViolation(pairErr), "§5 still holds for everything else").toBe(true);
+  });
+
+  it("bounds the pairing window in the app, since the constraints cannot", async () => {
+    const car = await prisma.vehicle.findFirstOrThrow({
+      where: { isActive: true }, select: { id: true },
+    });
+    // 09:00 for three hours.
+    const long = await book({ label: "window-long", startMin: 0, durationMin: 180, inChula: true, vehicleId: car.id });
+
+    // 10:00 — an hour later, so NOT a §5c partner. The database accepts it: two
+    // inChula rows match neither exclusion constraint at any distance. This is the
+    // hole findVehicleConflicts exists to close.
+    const far = { startAt: new Date(long.startAt.getTime() + 60 * 60_000),
+                  endAt: new Date(long.startAt.getTime() + 120 * 60_000),
+                  travelWithinChula: true };
+    expect(
+      await findVehicleConflicts(far, car.id),
+      "an in-Chula trip an hour away is not a partner and must be refused",
+    ).not.toHaveLength(0);
+
+    // 09:05 — inside the window, so genuinely shareable.
+    const near = { startAt: new Date(long.startAt.getTime() + 5 * 60_000),
+                   endAt: new Date(long.startAt.getTime() + 50 * 60_000),
+                   travelWithinChula: true };
+    expect(
+      await findVehicleConflicts(near, car.id),
+      "a real §5c partner must still be allowed",
+    ).toHaveLength(0);
+
+    // A NORMAL trip in the same window is refused whatever the neighbour is.
+    expect(
+      await findVehicleConflicts({ ...near, travelWithinChula: false }, car.id),
+    ).not.toHaveLength(0);
   });
 });

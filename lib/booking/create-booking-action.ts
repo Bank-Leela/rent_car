@@ -17,6 +17,7 @@ import { buildRrule, expandRecurringDates } from "@/lib/booking/recurrence";
 import { writeBookingAttachment } from "@/lib/storage";
 import { type ActionResult } from "@/lib/booking/actions";
 import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
+import { stampRotationForward } from "@/lib/booking/rotation-stamp";
 
 // Requester-facing booking submission: lead-time + evaluation-gate + attachment
 // validation, capacity/waitlist status, recurrence expansion, then notify the
@@ -67,6 +68,26 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
     requesterId = target.id;
   }
   const backdated = wantsBackdate && isAdmin;
+
+  // jobType decides scheduling priority (TJW → OT → WERN → NORMAL) and, for WERN,
+  // which car is asked for. schema.ts says in a comment that the requester no
+  // longer picks it and that createBookingAction computes it — but the field was
+  // still DECLARED in the schema, so it survived zod's strip pass, and the create
+  // read `data.jobType ?? classify(...)`, letting a submitted value BEAT the
+  // classifier. Posting jobType=TJW to this action put an ordinary errand at the
+  // top of the queue and let it pull the duty car. The comment was right; the code
+  // was not.
+  //
+  // SMUS stays requester-declarable because the form legitimately sends it
+  // (booking-form.tsx) — it is a bus/outsourcing declaration, not a priority.
+  // An admin may still set any value explicitly, which is what the admin form is for.
+  const requestedJobType = isAdmin || data.jobType === "SMUS" ? data.jobType : undefined;
+
+  // A trip cannot be both "stays on the Chula campus" and "leaves the province".
+  // This flag is not cosmetic any more: §5c makes it the thing that decides
+  // whether the database will let two bookings share one car, so a requester who
+  // ticks both would switch off the no-double-book backstop for a province run.
+  const travelWithinChula = data.travelWithinChula && !data.outOfProvince;
 
   // Who actually drove, for a trip being recorded after the fact. car=driver, so
   // the driver names the car. Verified active and car-paired: the picker is a
@@ -246,7 +267,7 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       tripType: data.tripType,
       remark: data.remark,
       outOfProvince: data.outOfProvince,
-      travelWithinChula: data.travelWithinChula,
+      travelWithinChula,
       outOfHoursReason,
       passengerCount: data.passengerCount,
       passengerNotes: data.passengerNotes,
@@ -276,8 +297,8 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         startAt: data.startAt,
         endAt: data.endAt,
         jobType:
-          data.jobType ??
-          (data.travelWithinChula
+          requestedJobType ??
+          (travelWithinChula
             ? "WERN"
             : classifyJobType({
                 startAt: data.startAt,
@@ -296,6 +317,15 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
       action: submitAction,
       tx,
     });
+
+    // A backdated trip was DRIVEN. It has to count for fairness, or recording the
+    // paperwork silently rewards the driver who did the work by leaving them at the
+    // head of the rotation. stampRotationForward only ever moves a clock forward
+    // (its updateMany is guarded on lt), so filing last month's paperwork today
+    // cannot rewind a driver who has worked since.
+    if (actualCrew) {
+      await stampRotationForward(tx, actualCrew.driverId, data.startAt, parent.jobType);
+    }
 
     // Recurrence (Phase 5): expand weekdays + until date into child bookings.
     if (data.recurringWeekdays.length > 0 && data.recurringUntil) {
@@ -320,15 +350,30 @@ export async function createBookingAction(formData: FormData): Promise<ActionRes
         const childStart = new Date(d);
         childStart.setHours(data.startAt.getHours(), data.startAt.getMinutes(), 0, 0);
         const childEnd = new Date(childStart.getTime() + trip);
-        const childStatus = await slotStatusFor(childStart);
+        // dropOffDone is an ABSOLUTE datetime, and it sat in sharedData, so every
+        // child inherited the PARENT's date: a child two weeks later got a drop-off
+        // two weeks before its own departure. That inverts leg 2, which crashes จัด
+        // and hides the car from every overlap check that reads the legs. Rebase the
+        // clock time onto this occurrence's date, the same way childStart is built.
+        const childDropOffDone = data.dropOffDone
+          ? (() => {
+              const d = new Date(childStart);
+              d.setHours(data.dropOffDone.getHours(), data.dropOffDone.getMinutes(), 0, 0);
+              return d;
+            })()
+          : null;
+        // Same reasoning as parentStatus: a backdated series is not competing for
+        // slots on days that are already over.
+        const childStatus = backdated ? "PENDING_APPROVAL" : await slotStatusFor(childStart);
         const child = await tx.booking.create({
           data: {
             ...sharedData,
             startAt: childStart,
             endAt: childEnd,
+            dropOffDone: childDropOffDone,
             jobType:
-              data.jobType ??
-              (data.travelWithinChula
+              requestedJobType ??
+              (travelWithinChula
                 ? "WERN"
                 : classifyJobType({
                     startAt: childStart,

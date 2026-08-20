@@ -6,6 +6,8 @@ import { getLocale } from "next-intl/server";
 import type { JobType, OverflowReason } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
+import { isSimulationEnabled } from "@/lib/config/features";
+import { stampRotationForward } from "@/lib/booking/rotation-stamp";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
 import { solveDay, type SolverBookingInput, type TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
@@ -218,6 +220,11 @@ async function runPlacement(formData: FormData): Promise<PlacementOutcome> {
 // Read-only preview — nothing is written. Surfaces the slot auto-assign would pick.
 export async function simulatePlacementAction(formData: FormData): Promise<SimResult> {
   await requireRole("ADMIN");
+  // The page 404s in production via isSimulationEnabled(), but a server action is
+  // callable whether or not its button ever rendered — the exact lesson
+  // demo-guard.test.ts was written for, applied to batch-demo-actions and missed
+  // here. This one writes REAL ASSIGNED bookings on real cars.
+  if (!isSimulationEnabled()) return { ok: false, error: "simulationDisabled" };
   const r = await runPlacement(formData);
   if (!r.ok) return r;
   if (r.kind === "none") return { ok: true, kind: "none", reason: r.reason, dutyDriverName: r.dutyDriverName, jobType: r.jobType };
@@ -240,6 +247,8 @@ export type BookSlotResult = { ok: true } | { ok: false; error: string };
 // as requester, "[จำลอง]"-marked purpose) — the booking is identifiable and cancelable.
 export async function bookSimulatedSlotAction(formData: FormData): Promise<BookSlotResult> {
   const session = await requireRole("ADMIN");
+  // See above — hiding the button is not a guard.
+  if (!isSimulationEnabled()) return { ok: false, error: "simulationDisabled" };
   const r = await runPlacement(formData);
   if (!r.ok) return r;
   if (r.kind === "none") return { ok: false, error: r.reason };
@@ -290,11 +299,15 @@ export async function bookSimulatedSlotAction(formData: FormData): Promise<BookS
         secondaryDriverId: r.secondaryDriverId,
       },
     });
-    await tx.driver.update({ where: { id: r.primaryDriverId }, data: stampData });
+    // stampRotationForward, not a plain update: a plain update SETS the clock, so
+    // booking a simulated slot dated in the past dragged the driver's rotation
+    // backwards and they won the next several real rotations they should have lost.
+    // Every other write path in the system learned this already.
+    await stampRotationForward(tx, r.primaryDriverId, stamp, i.jobType);
     if (r.secondaryDriverId) {
-      const co: typeof stampData = { lastAssignedAt: stamp };
-      if (i.jobType === "TJW") co.lastTjwAt = stamp;
-      await tx.driver.update({ where: { id: r.secondaryDriverId }, data: co });
+      // Co-driver keeps the narrower semantics this path already had: the general
+      // clock always, the category clock only for TJW.
+      await stampRotationForward(tx, r.secondaryDriverId, stamp, i.jobType === "TJW" ? "TJW" : undefined);
     }
   });
 

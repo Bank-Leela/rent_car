@@ -726,7 +726,8 @@ export function AdHocRow({
   dayHours: number;
   hours: number[];
   removeLabel: string;
-  onRemove: (id: string) => void;
+  /** Absent for the synthetic external-charter lane, which has no row to delete. */
+  onRemove?: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `adhoc:${row.id}` });
   const sorted = [...row.bookings].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
@@ -750,6 +751,7 @@ export function AdHocRow({
           {row.label}
         </span>
         {row.cost && <span className="shrink-0 text-[10px] text-muted-foreground">{formatBaht(row.cost)}</span>}
+        {onRemove && (
         <button
           type="button"
           title={removeLabel}
@@ -759,6 +761,7 @@ export function AdHocRow({
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
+        )}
       </div>
       <div
         ref={setNodeRef}

@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { format } from "date-fns";
 import { prisma } from "@/lib/db";
+import { withTimeOfDay } from "@/lib/booking/trip-legs";
 import { runBatchForDay } from "@/lib/booking/batch-core";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { dayHasRoomFor } from "@/lib/booking/approval-capacity";
@@ -100,6 +101,25 @@ export async function approveBookingAction(formData: FormData): Promise<ActionRe
       return { ok: false, field: "endAt", error: te("endBeforeStart") };
     }
     confirmedEndAt = endAt;
+
+    // A no-wait trip is two legs, and the split points (dropOffDone, and the
+    // pickupReturnTime that begins leg 2) are NOT edited here. Approving with an
+    // end time that lands before them inverts leg 2 — and an inverted leg reads as
+    // "the car is free" to every overlap check that goes through trip-legs, which
+    // is all of them. setBookingTimeAction has refused this since it was written;
+    // approval, which sets the same field on the same trip, never did.
+    if (!booking.waitAtDestination && booking.dropOffDone && booking.pickupReturnTime) {
+      const leg2Start = withTimeOfDay(booking.startAt, booking.pickupReturnTime);
+      const dropOff = booking.dropOffDone;
+      if (
+        !leg2Start ||
+        booking.startAt >= dropOff ||
+        leg2Start <= dropOff ||
+        leg2Start >= confirmedEndAt
+      ) {
+        return { ok: false, field: "endAt", error: te("timeBreaksLegs") };
+      }
+    }
   }
 
   // Is there a car for this trip at all? Asked here, at the decision point,

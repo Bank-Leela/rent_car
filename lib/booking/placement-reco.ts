@@ -40,7 +40,13 @@ export interface RecoDriver {
   lastAssignedAt: Date | null;
   /** The driver's other committed trips that day — checked against the booking
    *  for overlap + the 2h gap + the NORMAL cap (job-type aware). */
-  trips: Array<{ startAt: Date; endAt: Date; jobType: JobType }>;
+  trips: Array<{
+    startAt: Date;
+    endAt: Date;
+    jobType: JobType;
+    /** §5c — carried so canChain can exempt a paired campus errand here too. */
+    travelWithinChula?: boolean;
+  }>;
 }
 
 export interface RecoInput {
@@ -48,6 +54,10 @@ export interface RecoInput {
     startAt: Date;
     endAt: Date;
     jobType: JobType;
+    /** §5c — an in-Chula errand may share a car with one already placed. Without
+     *  it canChain sees a raw overlap, the WERN branch dead-ends, and the board
+     *  shows no suggestion for a trip the solver places without hesitation. */
+    travelWithinChula?: boolean;
     /** Requested category — a first choice, never a filter (see below). */
     preferredVehicleType?: string | null;
   };

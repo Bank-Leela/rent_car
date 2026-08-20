@@ -545,7 +545,12 @@ export function BookingForm({
     { name: "province", labelKey: "province" },
     { name: "passengerCount", labelKey: "passengerCount" },
     { name: "ajarnName", labelKey: "ajarnName" },
-    { name: "departmentId", labelKey: "department" },
+    // departmentId is deliberately NOT here. It is stripped by newBookingSchema
+    // and resolved server-side from the requester, so there is nothing for the
+    // client to validate — but listing it made the form block on a hidden field
+    // with no control, which an admin who has no department of their own could
+    // never satisfy. createBookingAction remains the authority and returns a real
+    // message when the requester's department is genuinely missing.
     { name: "ajarnPhone", labelKey: "ajarnPhone" },
     { name: "ajarnEmail", labelKey: "ajarnEmail" },
     { name: "coordinatorName", labelKey: "coordinatorName" },
@@ -1165,8 +1170,17 @@ export function BookingForm({
                   // is what the server resolves. Showing P'Top's own department
                   // here while writing someone else's would be the field
                   // contradicting the row above it and the stored row below it.
-                  onBehalfDepartment ??
-                  (defaultDepartment ? defaultDepartment.nameTh : t("departmentNotSet"))
+                  // `??` fell through to the admin's own department when the
+                  // chosen requester simply has none set — so the form displayed
+                  // P'Top's department for a booking the server would refuse,
+                  // with an error naming a field the admin cannot edit here.
+                  // Once a requester is chosen, their department is the only
+                  // answer; "not set" is the honest one.
+                  onBehalfOfUserId
+                    ? onBehalfDepartment ?? t("departmentNotSet")
+                    : defaultDepartment
+                      ? defaultDepartment.nameTh
+                      : t("departmentNotSet")
                 }
                 readOnly
                 disabled

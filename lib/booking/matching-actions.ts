@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { startOfDay } from "date-fns";
 import { prisma } from "@/lib/db";
 import { stampRotationForward } from "@/lib/booking/rotation-stamp";
+import { findVehicleConflicts } from "@/lib/booking/vehicle-conflicts";
 import { requireRole } from "@/lib/auth-helpers";
 import { logEvent, logTransition } from "@/lib/booking/audit";
 import { matchBookingSchema } from "@/lib/booking/schema";
@@ -92,6 +93,13 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       waitAtDestination: true,
       dropOffDone: true,
       pickupReturnTime: true,
+      // §5c: canChain exempts a pair of in-Chula errands starting within ten
+      // minutes of each other. Without this column the flag arrives as undefined,
+      // the exemption can never fire, and this matcher reaches the OPPOSITE
+      // conclusion from จัด on identical inputs — refusing the duty car and pushing
+      // a campus errand onto an ordinary driver, or reporting no eligible driver
+      // for a trip the solver places without complaint.
+      travelWithinChula: true,
     },
   });
   // --- Algorithm 2 inputs ---
@@ -102,7 +110,11 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     where: {
       isActive: true,
       user: { is: { isActive: true } },
-      unavailabilities: { none: { date: tripDay } },
+      // Across the trip's whole span, not just its first day. The conflict window
+      // above already uses spanEnd, so a multi-day TJW was checked for OVERLAP over
+      // every day it covers but for LEAVE only on day one — an on-leave driver was
+      // eligible for a trip that runs straight through their sick day.
+      unavailabilities: { none: { date: { gte: tripDay, lte: startOfDay(booking.endAt) } } },
     },
     select: { id: true, createdAt: true, lastAssignedAt: true, lastDutyAt: true },
   });
@@ -158,10 +170,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   for (const d of drivers) tripsByDriver.set(d.id, []);
   for (const b of dayBookings) {
     if (b.primaryDriverId && tripsByDriver.has(b.primaryDriverId)) {
-      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
+      tripsByDriver.get(b.primaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, travelWithinChula: b.travelWithinChula, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
     }
     if (b.secondaryDriverId && tripsByDriver.has(b.secondaryDriverId)) {
-      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
+      tripsByDriver.get(b.secondaryDriverId)!.push({ startAt: b.startAt, endAt: b.endAt, jobType: b.jobType, travelWithinChula: b.travelWithinChula, waitAtDestination: b.waitAtDestination, dropOffDone: b.dropOffDone, pickupReturnTime: b.pickupReturnTime });
     }
   }
   // Snapshot the WERN driver's REAL same-day trips BEFORE the 08:00–16:00 duty
@@ -201,6 +213,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       startAt: booking.startAt,
       endAt: booking.endAt,
       jobType: booking.jobType,
+      travelWithinChula: booking.travelWithinChula,
       waitAtDestination: booking.waitAtDestination,
       dropOffDone: booking.dropOffDone,
       pickupReturnTime: booking.pickupReturnTime,
@@ -221,6 +234,17 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     return { ok: false, error: te("noEligibleDriver") };
   }
   const { vehicleId, primaryDriverId, secondaryDriverId } = decision.result;
+
+  // The §5c window has no database backstop and this is one of the two paths that
+  // needs one. Two in-Chula rows match NEITHER exclusion constraint, at any start
+  // distance, so Postgres will happily accept two campus errands six hours apart on
+  // one car. The driver-keyed capacity model above cannot see it either: a car
+  // allocated with no driver (assignBookingAction's CR-02 state) is invisible to
+  // tripsByDriver, so nothing between here and the disk was checking the vehicle.
+  const vehicleConflicts = await findVehicleConflicts(booking, vehicleId);
+  if (vehicleConflicts.length > 0) {
+    return { ok: false, error: te("vehicleBusy") };
+  }
 
   // The matcher's conflict model is DRIVER-based: it builds tripsByDriver from
   // primaryDriverId/secondaryDriverId, so a car allocated with no driver yet
@@ -254,9 +278,10 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
       });
     }
     const stamp = booking.startAt;
-    await stampRotationForward(tx, primaryDriverId, stamp);
+    // With the job type, so the CATEGORY clock moves too — see schedule-actions.
+    await stampRotationForward(tx, primaryDriverId, stamp, booking.jobType);
     if (secondaryDriverId) {
-      await stampRotationForward(tx, secondaryDriverId, stamp);
+      await stampRotationForward(tx, secondaryDriverId, stamp, booking.jobType);
     }
     await logTransition({
       bookingId,

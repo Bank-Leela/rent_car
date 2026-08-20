@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
 import { recomputeRotationStamp, stampRotationForward } from "@/lib/booking/rotation-stamp";
-import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
+import { legsOverlap, type LegSource, withTimeOfDay } from "@/lib/booking/trip-legs";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
 import { COMMITTED_STATUSES, DISPATCHABLE_STATUSES } from "@/lib/booking/booking-status";
 import { sharesCarWith } from "@/lib/booking/rotations";
@@ -36,7 +36,7 @@ type ReassignResult =
   | { ok: true };
 
 export async function reassignVehicleAction(formData: FormData): Promise<ReassignResult> {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
   const bookingId = String(formData.get("bookingId") ?? "");
   const vehicleId = String(formData.get("vehicleId") ?? "");
   // Optional co-driver for >400km trips (recommendation-assign). Only set when
@@ -44,8 +44,19 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   const secondaryDriverIdIn = String(formData.get("secondaryDriverId") ?? "") || null;
   if (!bookingId || !vehicleId) return { ok: false, error: "invalidInput" };
 
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { trip: { select: { startedAt: true } } },
+  });
   if (!booking) return { ok: false, error: "bookingNotFound" };
+  // §9b: a trip that has left is not re-dispatchable — the car and the driver are
+  // physically out. setBookingTimeAction has always refused this; the two actions
+  // that move a trip between CARS did not, so the board could hand a departed
+  // errand to a different driver, or unassign it, and the occupancy row would move
+  // out from under a vehicle that is on the road.
+  if (booking.trip?.startedAt) {
+    return { ok: false, error: "tripAlreadyStarted" };
+  }
   // A dead booking is not dispatchable. This action used to read no status at
   // all: cancelBookingAction and the deny paths leave `overflowReason` set, and
   // the /admin/batch overflow list is keyed on `overflowReason: { not: null }`,
@@ -197,6 +208,11 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
   const secondaryCollides = booking.secondaryDriverId === driverId;
   const stillNeedsCoDriver =
     booking.needsSecondaryDriver || (booking.estimatedDistance ?? 0) > LONG_TRIP_KM;
+  // What will actually be sitting in the co-driver seat once this write lands.
+  // The flag below used to be decided by the COLLISION case alone, so the much
+  // commoner path — dispatching a >400 km trip that simply never had a co-driver —
+  // cleared NO_SECONDARY_DRIVER and filed a half-staffed long-haul as resolved.
+  const finalSecondary = secondary ?? (secondaryCollides ? null : booking.secondaryDriverId);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -218,12 +234,29 @@ export async function reassignVehicleAction(formData: FormData): Promise<Reassig
           // Except when the move just emptied the co-driver seat on a trip that
           // legally needs one: clearing the flag there would file a half-staffed
           // long-haul as resolved.
-          overflowReason:
-            secondaryCollides && !secondary && stillNeedsCoDriver ? "NO_SECONDARY_DRIVER" : null,
+          overflowReason: stillNeedsCoDriver && !finalSecondary ? "NO_SECONDARY_DRIVER" : null,
         },
       });
-      await stampRotationForward(tx, driverId, booking.startAt);
-      if (secondary) await stampRotationForward(tx, secondary, booking.startAt);
+      // Pass the job type. Without it stampRotationForward moves only
+      // lastAssignedAt, and lastTjwAt / lastOtAt / lastDutyAt are the PRIMARY sort
+      // key for their categories — so every OT, TJW and WERN placed by hand was
+      // invisible to its own rotation and the driver who just worked stayed at the
+      // head of the queue.
+      await stampRotationForward(tx, driverId, booking.startAt, booking.jobType);
+      if (secondary) await stampRotationForward(tx, secondary, booking.startAt, booking.jobType);
+      // The board's main dispatch path left no trace at all: every other status
+      // move in this system writes an AuditLog row, so "who put this car on this
+      // trip, and when" was the one question the history could not answer — for
+      // the action P'Top uses most.
+      await logTransition({
+        bookingId,
+        actorUserId: session.user.id,
+        fromStatus: booking.status,
+        toStatus: "ASSIGNED",
+        action: "ASSIGNED",
+        metadata: { vehicleId, primaryDriverId: driverId, secondaryDriverId: secondary ?? null },
+        tx,
+      });
     });
   } catch (e) {
     // DB backstop: the no-double-book EXCLUDE caught an overlap the per-leg
@@ -253,7 +286,9 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
     select: {
       id: true, primaryDriverId: true, startAt: true, endAt: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
-      overflowReason: true, status: true,
+      // jobType so the co-driver's CATEGORY rotation clock moves too, not just
+      // lastAssignedAt — a co-driven TJW is still a TJW that driver has done.
+      overflowReason: true, status: true, jobType: true,
     },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
@@ -323,7 +358,7 @@ export async function reassignSecondaryAction(formData: FormData): Promise<Reass
         ...(booking.overflowReason === "NO_SECONDARY_DRIVER" ? { overflowReason: null } : {}),
       },
     });
-    await stampRotationForward(tx, newSecondary, booking.startAt);
+    await stampRotationForward(tx, newSecondary, booking.startAt, booking.jobType);
   });
   revalidatePath("/admin/schedule");
   return { ok: true };
@@ -340,9 +375,20 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true, status: true },
+    select: {
+      primaryDriverId: true,
+      secondaryDriverId: true,
+      jobType: true,
+      status: true,
+      vehicleId: true,
+      trip: { select: { startedAt: true } },
+    },
   });
   if (!booking) return { ok: false, error: "bookingNotFound" };
+  // §9b again: the car is on the road. See reassignVehicleAction.
+  if (booking.trip?.startedAt) {
+    return { ok: false, error: "tripAlreadyStarted" };
+  }
   // A COMPLETED trip's crew is history, not an assignment to undo — stripping it
   // would erase who actually drove, and the same board control reaches it.
   // CANCELLED / DENIED never reach here with a driver, but the gate is the same
@@ -350,8 +396,12 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
   if (!DISPATCHABLE_STATUSES.includes(booking.status)) {
     return { ok: false, error: "cannotAssignInStatus" };
   }
-  // Nothing assigned → already in the queue.
-  if (!booking.primaryDriverId) return { ok: true };
+  // Nothing assigned → already in the queue. Both seats matter: assignBookingAction
+  // can commit a CAR with no driver (the documented CR-02 state), and testing only
+  // primaryDriverId made this a silent success that left the vehicle — and its
+  // occupancy row — held forever, with the board's only release control reporting
+  // that it had worked.
+  if (!booking.primaryDriverId && !booking.vehicleId) return { ok: true };
 
   const freedDrivers = [booking.primaryDriverId, booking.secondaryDriverId].filter(
     (id): id is string => !!id,
@@ -393,15 +443,6 @@ export async function unassignBookingAction(formData: FormData): Promise<Reassig
   return { ok: true };
 }
 
-/** "HH:mm" onto the calendar day of `ref` — the date is kept, the clock replaced. */
-function withTimeOfDay(ref: Date, hhmm: string): Date | null {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
-  if (!m) return null;
-  const d = new Date(ref);
-  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  return d;
-}
-
 /**
  * Move a trip's hours — any job type, TIME ONLY.
  *
@@ -433,7 +474,7 @@ export async function setBookingTimeAction(formData: FormData): Promise<Reassign
     where: { id: bookingId },
     select: {
       id: true, jobType: true, vehicleId: true, status: true, startAt: true, endAt: true,
-      primaryDriverId: true, secondaryDriverId: true,
+      primaryDriverId: true, secondaryDriverId: true, travelWithinChula: true,
       waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
       trip: { select: { startedAt: true } },
     },
@@ -485,7 +526,7 @@ export async function setBookingTimeAction(formData: FormData): Promise<Reassign
         endAt: { gt: startAt },
       },
       select: {
-        destination: true, startAt: true, endAt: true,
+        destination: true, startAt: true, endAt: true, travelWithinChula: true,
         waitAtDestination: true, dropOffDone: true, pickupReturnTime: true,
       },
     });
@@ -493,6 +534,12 @@ export async function setBookingTimeAction(formData: FormData): Promise<Reassign
     // whole-trip comparison refused เวร hours that legally fit inside that gap.
     // The SQL bounds above stay as a cheap pre-filter.
     const carConflicts = clashes
+      // §5c: two in-Chula errands starting within ten minutes may share this car,
+      // so a partner is not a conflict. Judged against the NEW start time, not the
+      // old one — nudging a trip OUT of the pairing window must still be refused,
+      // which is the whole reason the exemption is evaluated here rather than
+      // being baked into the SQL bounds above.
+      .filter((c) => !sharesCarWith({ startAt, endAt, travelWithinChula: booking.travelWithinChula }, c))
       .filter((c) => legsOverlap(movedLeg, toLegSrc(c)))
       .map((c) => ({ destination: c.destination, startAt: c.startAt, endAt: c.endAt }));
     if (carConflicts.length > 0) {

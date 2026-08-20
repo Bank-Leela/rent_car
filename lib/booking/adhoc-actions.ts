@@ -6,6 +6,7 @@ import type { BookingStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth-helpers";
 import { logTransition } from "@/lib/booking/audit";
+import { recomputeRotationStamp } from "@/lib/booking/rotation-stamp";
 import type { ActionResult } from "@/lib/booking/actions";
 
 function dayMidnight(dateStr: string): Date | null {
@@ -26,12 +27,15 @@ export async function addAdHocRowAction(formData: FormData): Promise<ActionResul
   const contactName = String(formData.get("contactName") ?? "").trim() || null;
   const contactPhone = String(formData.get("contactPhone") ?? "").trim() || null;
   if (!date || !label) return { ok: false, error: "invalidInput" };
-  const cost = costRaw === "" ? null : Number(costRaw);
+  // Same validation the edit path applies. Create accepted a negative or Infinity
+  // baht figure that editing the very same row would then refuse — and the number
+  // feeds the outsourcing cost reports.
+  const parsedCost = costRaw === "" ? null : Number(costRaw);
   await prisma.adHocVehicle.create({
     data: {
       date,
       label,
-      cost: cost != null && !Number.isNaN(cost) ? cost : null,
+      cost: parsedCost != null && Number.isFinite(parsedCost) && parsedCost >= 0 ? parsedCost : null,
       note,
       contactName,
       contactPhone,
@@ -146,6 +150,12 @@ async function attachToRow(
   args: { bookingId: string; fromStatus: BookingStatus; rowId: string; vendor: Vendor; actorUserId: string },
 ) {
   const { bookingId, fromStatus, rowId, vendor, actorUserId } = args;
+  // Who is losing this trip, captured BEFORE the seats are nulled — the rollback
+  // below cannot read them back off the row afterwards.
+  const before = await tx.booking.findUnique({
+    where: { id: bookingId },
+    select: { primaryDriverId: true, secondaryDriverId: true, jobType: true },
+  });
   await tx.booking.update({
     where: { id: bookingId },
     data: {
@@ -159,6 +169,15 @@ async function attachToRow(
       outsourceContactPhone: vendor.contactPhone,
     },
   });
+  // Roll the crew's rotation clocks back, exactly as cancellation does. Losing a
+  // trip to an outside vehicle and losing it to a cancellation are the same event
+  // for fairness: the driver did not drive it. OUTSOURCED is not in
+  // COMMITTED_STATUSES, so the earnings ledger already drops it — the category
+  // stamp was the one surviving trace, and it is the PRIMARY sort key, so a driver
+  // whose TJW was outsourced sorted last for real TJW work she never did.
+  for (const driverId of [before?.primaryDriverId, before?.secondaryDriverId]) {
+    if (driverId && before) await recomputeRotationStamp(driverId, before.jobType);
+  }
   await logTransition({
     bookingId, actorUserId, fromStatus, toStatus: "OUTSOURCED",
     action: "BOOKING_OUTSOURCED", metadata: { row: vendor.label }, tx,

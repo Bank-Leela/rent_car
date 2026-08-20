@@ -16,6 +16,12 @@ import { runBatchForDay, BATCH_SOLVABLE_WHERE } from "@/lib/booking/batch-core";
 // Fail-closed: no secret configured → 503; wrong/absent bearer → 401.
 // TZ note: "tomorrow" is computed in server-local time, which MUST be
 // Asia/Bangkok in production (see docs/deployment.md) or the day is wrong.
+/**
+ * How far ahead the nightly sweep looks. Comfortably past the longest lead time a
+ * booking can carry, so a trip is always solved well before its day.
+ */
+const CRON_SWEEP_HORIZON_DAYS = 60;
+
 export async function POST(req: Request) {
   if (!getCronSecret()) return new NextResponse("not configured", { status: 503 });
   if (!isValidCronAuth(req.headers.get("authorization"))) {
@@ -25,6 +31,11 @@ export async function POST(req: Request) {
   // Default target = tomorrow; `?date=YYYY-MM-DD` overrides for a manual re-run.
   const url = new URL(req.url);
   const override = url.searchParams.get("date");
+  // Validate before it reaches runBatchForDay — this is the WRITE path, and an
+  // unparseable value would either 500 or, worse, resolve to a day nobody meant.
+  if (override !== null && !/^\d{4}-\d{2}-\d{2}$/.test(override)) {
+    return NextResponse.json({ ok: false, error: "invalid date" }, { status: 400 });
+  }
   const dateStr = override ?? format(addDays(startOfDay(new Date()), 1), "yyyy-MM-dd");
 
   // The automated run is attributed to an admin in the audit log (there is no
@@ -55,8 +66,17 @@ export async function POST(req: Request) {
   // and nothing could ever clear it. Every such booking permanently added a day
   // to the nightly run, so the sweep only grew. They still need a human, and the
   // per-day board is where they are shown.
+  //
+  // Bounded ahead as well as behind. Without an upper bound a trip approved a year
+  // out put its day in EVERY nightly run from now until it happens — hundreds of
+  // pointless solves a night, growing with the booking horizon. Nothing is lost:
+  // the day re-enters the window as it approaches, and การจัด also runs on approval.
+  const sweepHorizon = addDays(startOfDay(new Date()), CRON_SWEEP_HORIZON_DAYS);
   const outstanding = await prisma.booking.findMany({
-    where: { ...BATCH_SOLVABLE_WHERE, startAt: { gte: startOfDay(new Date()) } },
+    where: {
+      ...BATCH_SOLVABLE_WHERE,
+      startAt: { gte: startOfDay(new Date()), lt: sweepHorizon },
+    },
     select: { startAt: true },
     orderBy: { startAt: "asc" },
   });
