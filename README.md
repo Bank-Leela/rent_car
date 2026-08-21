@@ -229,7 +229,8 @@ your settings file was found. If your computer's clock is not on Bangkok time yo
 will also see a long `[TZ WARNING]` block — on your own machine that is a
 warning, not a failure.
 
-Now open **<http://localhost:3000/login>**.
+Now open **<http://localhost:3000>**. The sign-in screen is the site root
+itself — `/login` still works, but it only redirects there.
 
 ## A9. Your first login
 
@@ -247,7 +248,7 @@ Now open **<http://localhost:3000/login>**.
 > immediately: stop `npm run dev` and start it again — the counter is held in
 > memory. On the server, wait it out.
 
-> On your own machine only, the login page also shows a **เข้าใช้ในบทบาท** row of
+> On your own machine only, the sign-in screen also shows a **เข้าใช้ในบทบาท** row of
 > buttons — one per seeded role — that sign you in with no password and no forced
 > change. Useful for the walkthrough below. They do not appear in production.
 
@@ -453,7 +454,7 @@ awkward to diagnose — check both.
 | What you see | What it means | What to do |
 |---|---|---|
 | *"อีเมล/ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"* with a password you know is right | `AUTH_SECRET` is missing or empty | Set it in `.env`, restart the app |
-| Sign-in submits and lands back on **/login** with no message | Same cause — `AUTH_SECRET` missing | Set it in `.env`, restart the app |
+| Sign-in submits and lands back on the sign-in screen (**/**) with no message | Same cause — `AUTH_SECRET` missing | Set it in `.env`, restart the app |
 | Same message, suddenly, after several tries | 8 failures locked that username for 15 minutes | Wait 15 minutes |
 | `Can't reach database server` | Database not running, or `DATABASE_URL` wrong | `docker compose up -d`, check the URL |
 | `permission denied to create extension "btree_gist"` | Database account lacks rights | Use an account that owns the database |
