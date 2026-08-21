@@ -83,8 +83,12 @@ runs จัด. DRAFT exists in the enum but is never written.
    which this section used to contradict.
    The requester gets a read-only confirmation of their assigned driver for
    today/tomorrow at `/requester/upcoming`.
-5. **Evaluation** — requester rates the completed trip (`EvaluationRating`); a
-   pending evaluation blocks the requester's next submission.
+5. **Evaluation** — requester rates the completed trip (`EvaluationRating`). A
+   pending evaluation blocks the requester's next submission only while the
+   `EVALUATION_GATE_ENABLED` kill switch (`lib/booking/rules.ts`) is `true`; it
+   is `false` right now, so an unevaluated trip blocks nothing. Even with the
+   switch back on, `createBookingAction` skips the gate for admin-on-behalf
+   filings.
 
 Every status transition writes an **`AuditLog`** row through one shared helper
 (`lib/booking/audit.ts:logTransition`).

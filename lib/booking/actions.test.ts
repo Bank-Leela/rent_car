@@ -50,7 +50,9 @@ beforeAll(async () => {
   if (!dept) throw new Error("No department seeded. Run `npx prisma db seed`.");
   deptId = dept.id;
   await prisma.user.update({ where: { id: REQUESTER_ID }, data: { departmentId: deptId } });
-  // Clear pending evaluations that would block submission.
+  // Clear pending evaluations that would block submission whenever
+  // EVALUATION_GATE_ENABLED is flipped back on — the gate is off right now, so
+  // this cleanup is insurance, not a precondition.
   await prisma.trip.deleteMany({
     where: { booking: { requesterId: REQUESTER_ID, status: "COMPLETED" }, evaluation: null },
   });
