@@ -46,6 +46,19 @@ import {
 
 export { LONG_TRIP_KM };
 
+/**
+ * PreferredVehicleType (requester's category) → VehicleType (owned-fleet class).
+ * null = nothing in the fleet can satisfy it: a bus is always outsourced, so a
+ * BUS_OUTSOURCED preference must not narrow the internal pick at all.
+ */
+const FLEET_TYPE_FOR_PREFERENCE: Record<string, string | null> = {
+  VAN: "VAN",
+  PICKUP: "PICKUP",
+  SEDAN_DEAN: "SEDAN",
+  TRUCK_6_WHEEL: "OTHER",
+  BUS_OUTSOURCED: null,
+};
+
 export interface SolverBookingInput {
   bookingId: string;
   jobType: JobType;
@@ -55,6 +68,15 @@ export interface SolverBookingInput {
   /** Admin's manual "needs a co-driver" flag — triggers pairing even when
    *  estimatedDistance is null (Maps is env-gated, so distance is usually unset). */
   needsSecondaryDriver?: boolean;
+  /**
+   * The category the requester asked for (รถตู้ / เก๋ง / กระบะ …). A PREFERENCE,
+   * never a filter: the fleet is small, and refusing to place a trip because the
+   * one free car is the wrong shape would leave it unassigned over a detail the
+   * office routinely works around. See the two-pass pick below.
+   */
+  preferredVehicleType?: string | null;
+  /** In-Chula campus errand — eligible to share a car with another one (§5c). */
+  travelWithinChula?: boolean;
   outOfProvince: boolean;
   /** FCFS key; defaults to createdAt. */
   submittedAt: Date;
@@ -109,6 +131,8 @@ export interface SolverOutput {
 
 interface MutableDriver extends DriverRotationState {
   scheduledToday: ScheduledTrip[];
+  /** car=driver, so this is the type of the car this driver brings. */
+  vehicleType?: string | null;
   /** Locked away on a TJW that hasn't returned yet. */
   awayOnTjw: boolean;
   /** TJW commitment returns today before WORK_DAY_END_HOUR; Phase-C
@@ -254,7 +278,28 @@ function placeBooking(
   // Primary candidates depend on category.
   const primaryEligible = eligibleForPrimary(drivers, booking, dutyDriverId, phaseC);
   const primaryRanked = rankForCategory(primaryEligible, booking.jobType, drivers);
-  const primaryId = primaryRanked.find((id) => canDriverTakeNew(drivers, id, booking)) ?? null;
+  // Requested vehicle type, applied as FIRST CHOICE and nothing stronger: walk
+  // the fairness order once considering only cars of the right type, then walk
+  // the same order again with no type condition.
+  //
+  // Two passes rather than a sort key, so fairness is untouched INSIDE each
+  // pass — the fairest matching car wins, and when none exists the fairest car
+  // of any type does. A filter would have been wrong here: the fleet is six
+  // cars, and leaving a trip unassigned because the only free one is a เก๋ง
+  // rather than a ตู้ trades a real problem for a cosmetic one. Nothing before
+  // this read the requester's choice at all — it was stored and never consulted.
+  // §5b compares a PreferredVehicleType (what the requester asked for) against a
+  // VehicleType (what the fleet physically is). They are two different enums that
+  // happen to share VAN and PICKUP, so those two worked by coincidence while
+  // SEDAN_DEAN and TRUCK_6_WHEEL could never match anything and the preference was
+  // silently dead for them. Translate instead of comparing raw strings.
+  const wanted = FLEET_TYPE_FOR_PREFERENCE[booking.preferredVehicleType ?? ""] ?? null;
+  const typeMatches = (id: string) =>
+    !wanted || drivers.find((d) => d.driverId === id)?.vehicleType === wanted;
+  const primaryId =
+    primaryRanked.find((id) => typeMatches(id) && canDriverTakeNew(drivers, id, booking)) ??
+    primaryRanked.find((id) => canDriverTakeNew(drivers, id, booking)) ??
+    null;
   if (!primaryId) {
     return { kind: "fail", reason: "NO_PRIMARY_DRIVER" };
   }
@@ -286,6 +331,7 @@ function placeBooking(
           startAt: booking.startAt,
           endAt: booking.endAt,
           jobType: booking.jobType,
+          travelWithinChula: booking.travelWithinChula,
           waitAtDestination: booking.waitAtDestination,
           dropOffDone: booking.dropOffDone,
           pickupReturnTime: booking.pickupReturnTime,
@@ -366,6 +412,9 @@ function canDriverTakeNew(
           startAt: booking.startAt,
           endAt: booking.endAt,
           jobType: booking.jobType,
+          // Without this the pairing exemption can never fire: sharesCarWith
+          // needs the flag on BOTH sides.
+          travelWithinChula: booking.travelWithinChula,
           waitAtDestination: booking.waitAtDestination,
           dropOffDone: booking.dropOffDone,
           pickupReturnTime: booking.pickupReturnTime,
@@ -397,9 +446,25 @@ function commitTrip(drivers: MutableDriver[], driverId: string, booking: SolverB
     startAt: booking.startAt,
     endAt: booking.endAt,
     jobType: booking.jobType,
+    travelWithinChula: booking.travelWithinChula,
     waitAtDestination: booking.waitAtDestination,
     dropOffDone: booking.dropOffDone,
     pickupReturnTime: booking.pickupReturnTime,
   });
   d.earningsScore += tripEffort(booking.jobType, booking.startAt, booking.endAt);
+  // Provisional rotation stamping, as docs/scheduling-algorithm.md §6 has always
+  // claimed the solver does. It did not, and nothing caught it: rankForCategory
+  // sorts on these stamps, so within ONE solve the same driver stayed at the head
+  // of the queue and took every OT of the day. The rule-check counters in
+  // scripts/simulate-cr07.ts only measure legality (gap, cap, overlap) — three OTs
+  // on one driver two hours apart is perfectly legal and perfectly unfair, so the
+  // CI gate stayed green over it. Proven with solveDay directly: three same-day
+  // OTs, three drivers, all three went to the same driver.
+  //
+  // Only the in-memory copy moves. The durable write still happens once per day in
+  // batch-core, so a bump here can never outlive a solve that is thrown away.
+  if (booking.jobType === "TJW") d.lastTjwAt = booking.startAt;
+  else if (booking.jobType === "OT") d.lastOtAt = booking.startAt;
+  else if (booking.jobType === "WERN") d.lastDutyAt = booking.startAt;
+  d.lastAssignedAt = booking.startAt;
 }

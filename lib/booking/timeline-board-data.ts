@@ -33,6 +33,14 @@ function dayRangeLabel(startAt: Date, endAt: Date, locale: Locale): string {
  * without that page carrying ~270 lines of mapping for a view it may not render.
  * The mapping itself is unchanged — this is a move, not a rewrite.
  */
+/**
+ * The external-charter lane is SYNTHETIC — it groups SMUS bookings for display and
+ * has no AdHocVehicle row behind it. Exported so the board can tell it apart from a
+ * real hired-vehicle row: its delete button called removeAdHocRowAction with this
+ * id and threw on a record that does not exist.
+ */
+export const SYNTHETIC_SMUS_ROW_ID = "__smus__";
+
 export async function loadTimelineBoard(
   dayStart: Date,
   isThai: boolean,
@@ -89,6 +97,8 @@ export async function loadTimelineBoard(
         // See the note on the other booking select in this file: the flag, not
         // only the distance, decides whether a trip needs two drivers.
         needsSecondaryDriver: true,
+        // The requested car category — the reco prefers a matching car.
+        preferredVehicleType: true,
         // Whether the trip has physically left. setBookingTimeAction refuses to
         // re-time a departed trip (§9b), so without this the board offered a
         // clock on trips where every save is guaranteed to fail.
@@ -170,7 +180,11 @@ export async function loadTimelineBoard(
       endAt: b.endAt,
       estimatedDistance: b.estimatedDistance,
       needsSecondaryDriver: b.needsSecondaryDriver,
+      preferredVehicleType: b.preferredVehicleType,
       jobType: b.jobType,
+      // §5c — without it the queue shows no recommendation for a campus errand
+      // the solver would place on the duty car.
+      travelWithinChula: b.travelWithinChula,
     }));
   const recos = await recommendForBookings(dayStart, queueRaw, isThai);
   const dutyTag = t("duty");
@@ -362,7 +376,7 @@ export async function loadTimelineBoard(
   });
   if (smusBookings.length > 0) {
     adHocRows.push({
-      id: "__smus__",
+      id: SYNTHETIC_SMUS_ROW_ID,
       label: t("externalRow"),
       cost: null,
       bookings: smusBookings,

@@ -30,7 +30,7 @@ export async function logTransition(args: {
 }
 
 /** What a non-booking audit row is about. */
-export type AuditEntity = "DRIVER" | "ON_CALL" | "VEHICLE";
+export type AuditEntity = "DRIVER" | "ON_CALL" | "VEHICLE" | "USER";
 
 /**
  * Log a change that is not about one booking.

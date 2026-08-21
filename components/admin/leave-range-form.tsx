@@ -21,6 +21,7 @@ type Driver = { driverId: string; name: string };
 // rather than assuming the range behaved uniformly.
 export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; defaultFrom: string }) {
   const t = useTranslations("roster");
+  const te = useTranslations("errors");
   const router = useRouter();
   const [driverId, setDriverId] = useState(drivers[0]?.driverId ?? "");
   const [from, setFrom] = useState(defaultFrom);
@@ -49,7 +50,9 @@ export function LeaveRangeForm({ drivers, defaultFrom }: { drivers: Driver[]; de
         needsReview?: number;
       };
       if (!res.ok) {
-        setError(res.error ?? null);
+        // res.error is a CODE (e.g. "invalidInput"), not a sentence. Printed raw it
+        // showed a Thai admin an English identifier from the source.
+        setError(res.error ? te(res.error) : null);
         return;
       }
       setMsg(

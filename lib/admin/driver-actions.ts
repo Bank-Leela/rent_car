@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Prisma, DriverPool, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { DISPATCHABLE_STATUSES } from "@/lib/booking/booking-status";
 import { requireRole } from "@/lib/auth-helpers";
 
 export type DriverActionResult = { ok: true } | { ok: false; error: string };
@@ -174,6 +175,23 @@ export async function adminRemoveDriverAction(formData: FormData): Promise<Drive
     },
   });
   if (!driver) return { ok: false, error: "driverNotFound" };
+
+  // Same reasoning as removeVehicleAction: a driver with upcoming trips cannot be
+  // removed out from under them. Deactivating here bypasses the entire §9b
+  // leave/hand-off machinery in leave-core, so a resigning driver's next-week trips
+  // kept pointing at an inactive driver — never re-dispatched, never flagged, and
+  // with no audit row on the bookings to say why. Record leave, or hand the trips
+  // off, and then remove them.
+  const liveTrips = await prisma.booking.count({
+    where: {
+      status: { in: DISPATCHABLE_STATUSES },
+      endAt: { gte: new Date() },
+      OR: [{ primaryDriverId: driverId }, { secondaryDriverId: driverId }],
+    },
+  });
+  if (liveTrips > 0) {
+    return { ok: false, error: "driverHasUpcomingTrips" };
+  }
 
   const hasHistory =
     driver._count.primaryBookings +

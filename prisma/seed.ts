@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // rotation on first sign-in.
 //
 // It used to be the literal "changeme", hardcoded here and printed in tracked
-// SETUP.md — i.e. published. The deploy runbook tells the operator to run
+// a tracked setup document — i.e. published. The runbook tells the operator to run
 // `prisma db seed` on the production box, so a fresh install shipped with a
 // world-readable admin password and nothing in the go-live checklist telling
 // anyone to change it.
@@ -16,10 +16,19 @@ const prisma = new PrismaClient();
 // Now: SEED_PASSWORD from the environment if set (so a scripted install can
 // choose one), otherwise a random 24-char secret generated per run and printed
 // ONCE at the end. Nothing that reaches the repo is a credential.
-const SEED_PASSWORD =
-  process.env.SEED_PASSWORD && process.env.SEED_PASSWORD.length >= 8
-    ? process.env.SEED_PASSWORD
-    : randomBytes(18).toString("base64url");
+// Setting SEED_PASSWORD to something SHORTER than 8 characters used to be an
+// unrecoverable lockout: the length guard fell through to a random password while
+// the "was it generated" flag tested only whether the variable was SET — so the
+// print block was suppressed and all nine accounts ended up with a password nobody
+// had ever seen. Refuse loudly instead; the operator is right there in the terminal.
+if (process.env.SEED_PASSWORD && process.env.SEED_PASSWORD.length < 8) {
+  console.error(
+    "\nSEED_PASSWORD must be at least 8 characters. Nothing was seeded.\n" +
+      "Either pass a longer one, or unset it and let the seed generate one for you.\n",
+  );
+  process.exit(1);
+}
+const SEED_PASSWORD = process.env.SEED_PASSWORD ?? randomBytes(18).toString("base64url");
 const SEED_PASSWORD_GENERATED = !process.env.SEED_PASSWORD;
 let SEED_PASSWORD_HASH: string | null = null;
 async function getSeedPasswordHash(): Promise<string> {
@@ -248,7 +257,7 @@ async function main() {
     vehicles: await prisma.vehicle.count(),
   });
 
-  // Printed once, here, and nowhere else — not committed, not in SETUP.md, not
+  // Printed once, here, and nowhere else — not committed, not in any tracked doc, not
   // recoverable later. Every seeded account has mustChangePassword set, so this
   // only has to survive long enough for the first sign-in.
   if (SEED_PASSWORD_GENERATED) {

@@ -13,8 +13,16 @@ export type DayHalf = "MORNING" | "AFTERNOON";
 
 // A booking in one of these statuses occupies a slot for its day.
 // WAITLIST / DRAFT / CANCELLED / DENIED do not hold a slot.
+//
+// AWAITING_DOCUMENT is in the list: it is a LIVE post-decision state — the trip
+// has been approved and is only waiting on paperwork. It was added to the pipeline
+// after this constant was written and never added here, so a day whose approvals
+// were all parked on documents read as empty. New requests for that day then came
+// in as PENDING_APPROVAL instead of WAITLIST, overselling the day, and the
+// "x/y slots used" readout under-reported what was actually committed.
 export const SLOT_HOLDING_STATUSES: BookingStatus[] = [
   BookingStatus.PENDING_APPROVAL,
+  BookingStatus.AWAITING_DOCUMENT,
   BookingStatus.APPROVED,
   BookingStatus.ASSIGNED,
   BookingStatus.COMPLETED,

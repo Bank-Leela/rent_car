@@ -85,7 +85,14 @@ type HandOffOutcome = "handedOff" | "released" | "coDriverReplaced" | "coDriverL
  */
 async function dutyCanAbsorb(
   dutyDriverId: string,
-  booking: { id: string; jobType: JobType; startAt: Date; endAt: Date },
+  booking: {
+    id: string;
+    jobType: JobType;
+    startAt: Date;
+    endAt: Date;
+    /** §5c — a campus errand may pair with one the เวร driver already holds. */
+    travelWithinChula?: boolean;
+  },
 ): Promise<boolean> {
   const existing = await prisma.booking.findMany({
     where: {
@@ -95,10 +102,18 @@ async function dutyCanAbsorb(
       endAt: { gt: startOfDay(booking.startAt) },
       OR: [{ primaryDriverId: dutyDriverId }, { secondaryDriverId: dutyDriverId }],
     },
-    select: { startAt: true, endAt: true, jobType: true, waitAtDestination: true, dropOffDone: true, pickupReturnTime: true },
+    select: { startAt: true, endAt: true, jobType: true, travelWithinChula: true, waitAtDestination: true, dropOffDone: true, pickupReturnTime: true },
   });
   return canTakeTrip(
-    { startAt: booking.startAt, endAt: booking.endAt, jobType: booking.jobType },
+    // §5c on both sides, or the เวร driver is told they cannot absorb a campus
+    // errand that จัด would hand them without a second thought — and the trip is
+    // released to the queue for no reason.
+    {
+      startAt: booking.startAt,
+      endAt: booking.endAt,
+      jobType: booking.jobType,
+      travelWithinChula: booking.travelWithinChula,
+    },
     existing,
   );
 }
@@ -129,12 +144,14 @@ async function handOffToDuty(
   dutyDriverId: string | null,
   adminId: string,
   reason: string | null,
+  /** The leave day being processed — the เวร driver must be free on it too. */
+  day: Date,
 ): Promise<HandOffOutcome> {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     select: {
       id: true, status: true, jobType: true, startAt: true, endAt: true,
-      primaryDriverId: true, secondaryDriverId: true,
+      primaryDriverId: true, secondaryDriverId: true, travelWithinChula: true,
       needsSecondaryDriver: true, estimatedDistance: true,
     },
   });
@@ -152,8 +169,17 @@ async function handOffToDuty(
     // of their own; they must only be a real, present, non-colliding body.
     let replacement: string | null = null;
     if (dutyDriverId && dutyDriverId !== booking.primaryDriverId) {
-      const duty = await prisma.driver.findUnique({
-        where: { id: dutyDriverId },
+      // Not just active — PRESENT. The เวร driver can be on leave the same day as
+      // the driver being handed off (a flu going round the office is the ordinary
+      // case), and nothing here asked. The absent driver was then named as the
+      // catcher and the trip dispatched to someone who is not coming in.
+      const duty = await prisma.driver.findFirst({
+        where: {
+          id: dutyDriverId,
+          isActive: true,
+          user: { is: { isActive: true } },
+          unavailabilities: { none: { date: day } },
+        },
         select: { id: true, isActive: true, user: { select: { isActive: true } } },
       });
       if (duty?.isActive && duty.user?.isActive && (await dutyCanAbsorb(duty.id, booking))) {
@@ -197,8 +223,14 @@ async function handOffToDuty(
   // ── The away driver was the PRIMARY — the whole trip needs a new car ───────
   let target: { driverId: string; vehicleId: string } | null = null;
   if (dutyDriverId) {
-    const duty = await prisma.driver.findUnique({
-      where: { id: dutyDriverId },
+    // Same presence check as the co-driver branch above.
+    const duty = await prisma.driver.findFirst({
+      where: {
+        id: dutyDriverId,
+        isActive: true,
+        user: { is: { isActive: true } },
+        unavailabilities: { none: { date: day } },
+      },
       select: { id: true, isActive: true, assignedVehicle: { select: { id: true, isActive: true } } },
     });
     if (duty?.isActive && duty.assignedVehicle?.isActive && (await dutyCanAbsorb(duty.id, booking))) {
@@ -404,7 +436,7 @@ export async function applyLeaveDay(
       continue;
     }
 
-    const outcome = await handOffToDuty(b.id, driverId, duty?.driverId ?? null, adminId, reason);
+    const outcome = await handOffToDuty(b.id, driverId, duty?.driverId ?? null, adminId, reason, day);
     if (outcome === "handedOff") handedOff.push(b.id);
     else if (outcome === "released") released.push(b.id);
     else if (outcome === "coDriverReplaced") coDriverReplaced.push(b.id);

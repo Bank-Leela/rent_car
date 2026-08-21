@@ -65,3 +65,19 @@ export function minLegGapMinutes(a: LegSource, b: LegSource): number {
   }
   return Math.round(min / 60000);
 }
+
+/**
+ * "HH:mm" onto the calendar day of `ref` — the date is kept, the clock replaced.
+ *
+ * Lives here rather than in schedule-actions because approval-actions needs the
+ * SAME parse to apply the same leg guard, and schedule-actions is a "use server"
+ * module whose every export must be an async action. Both callers ask one
+ * question — where does leg 2 start — so they should not answer it twice.
+ */
+export function withTimeOfDay(ref: Date, hhmm: string): Date | null {
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!m) return null;
+  const d = new Date(ref);
+  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return d;
+}

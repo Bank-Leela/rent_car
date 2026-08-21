@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { logEvent } from "@/lib/booking/audit";
 import { requireUser } from "@/lib/auth-helpers";
 import type { ActionResult } from "@/lib/booking/actions";
 
@@ -30,9 +31,26 @@ export async function changeDepartmentAction(formData: FormData): Promise<Action
     return { ok: false, error: te("invalidInput"), field: "departmentId" };
   }
 
+  // Leave a trace. A booking snapshots the requester's department at create time,
+  // and that snapshot decides which department the trip is billed to and whose
+  // head can read the official PDF — so this self-service field is a real lever,
+  // and it was being moved with nothing recorded anywhere.
+  const before = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { departmentId: true },
+  });
+  if (before?.departmentId === dept.id) return { ok: true };
+
   await prisma.user.update({
     where: { id: session.user.id },
     data: { departmentId: dept.id },
+  });
+  await logEvent({
+    actorUserId: session.user.id,
+    entityType: "USER",
+    entityId: session.user.id,
+    action: "DEPARTMENT_CHANGED",
+    metadata: { from: before?.departmentId ?? null, to: dept.id },
   });
   revalidatePath("/account");
   revalidatePath("/requester/new");

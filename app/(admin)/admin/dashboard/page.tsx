@@ -158,10 +158,16 @@ export default async function AdminDashboard({
           <CardContent>
             <FunnelPieChart
               data={[
-                { label: t("funnelApproved"), value: funnel.approved },
+                // A pie's wedges must be DISJOINT or the percentages are
+                // meaningless. funnel.outsourced is a subset of funnel.approved —
+                // an outsourced trip was approved first — so drawing both counted
+                // it twice and the approved wedge disagreed with the KPI card
+                // directly above it. The card keeps the true total; the wedge shows
+                // the part that stayed in-house.
+                { label: t("funnelApproved"), value: funnel.approved - funnel.outsourced },
+                { label: t("funnelOutsourced"), value: funnel.outsourced },
                 { label: t("funnelDenied"), value: funnel.denied },
                 { label: t("funnelCancelled"), value: funnel.cancelled },
-                { label: t("funnelOutsourced"), value: funnel.outsourced },
               ]}
             />
           </CardContent>

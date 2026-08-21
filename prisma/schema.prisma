@@ -307,6 +307,11 @@ model VehicleOccupancy {
   vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
   startAt   DateTime
   endAt     DateTime
+  /// Copied off Booking.travelWithinChula by the occupancy trigger. It has to
+  /// live on THIS row, not be joined from Booking: an exclusion constraint can
+  /// only see columns of its own table, and this is the column that decides
+  /// which of the two constraints a row is judged by (docs §5c).
+  inChula   Boolean  @default(false)
 
   @@index([vehicleId])
   @@index([bookingId])

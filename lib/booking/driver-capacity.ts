@@ -62,6 +62,10 @@ export function buildDriverMatrix(
 }
 
 export interface TripWindow {
+  /** In-Chula campus errand. Carried so canChain can apply the §5c pairing
+   *  exemption here too — without it the single matcher and the leave hand-off
+   *  reach the opposite conclusion from the solver on identical inputs. */
+  travelWithinChula?: boolean;
   startAt: Date;
   endAt: Date;
   // Drives the job-type-aware chaining rule (OT uncapped vs NORMAL morning/

@@ -70,4 +70,6 @@ Break one of these and the app is wrong in a way tests may not catch.
 - Bringing back individual driver logins. Drivers sign in at the shared kiosk.
 - Re-adding an English locale.
 - Splitting the four big files `AGENTS.md` lists as deliberately whole.
-- A cron for จัดรอบ — it stays a manual decision.
+- An automatic cron that DECIDES จัดรอบ — it stays a human call. (The optional
+  20:00 timer in the deploy kit is only a retry for bookings that could not be
+  placed at approval time; it does not replace the decision.)

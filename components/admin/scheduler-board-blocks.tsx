@@ -17,6 +17,10 @@ import {
   WORK_END_HOUR,
   LANE_PAD,
 } from "@/components/admin/scheduler-board-shared";
+// The §5c pairing window, imported rather than restated: this row decides whether
+// a stack of blocks is legal, and a second copy of "10 minutes" here would become
+// a second rule the moment the office changed the first.
+import { IN_CHULA_PAIR_WINDOW_MINUTES } from "@/lib/booking/rotations";
 
 // A timeline block: absolutely positioned by exact minute (startHour carries
 // minutes/60), draggable via @dnd-kit. The source dims while a DragOverlay
@@ -396,7 +400,8 @@ export function CarRow({
   // passed down from the board, but the board is LOCKED to another session right
   // now and a new required prop would force an edit to it. This component is
   // already a client component with next-intl available, so it can ask directly.
-  const freeLabel = useTranslations("scheduler")("roundsFree");
+  const ts = useTranslations("scheduler");
+  const freeLabel = ts("roundsFree");
 
   // Row items = the car's own trips (draggable) + co-driver ghosts (read-only).
   // Both occupy time, so both feed the lane packing.
@@ -439,6 +444,30 @@ export function CarRow({
     laneOf.set(it.key, lane);
   }
   const laneCount = Math.max(1, laneEnds.length);
+
+  // §5c: two in-Chula errands starting within ten minutes of each other may ride
+  // on one car, so a stack of PRIMARY blocks here is legal — but it looks exactly
+  // like the double-book the database used to make impossible, and P'Top would be
+  // right to read it as a bug. Name it on the row instead.
+  //
+  // There is deliberately NO ceiling on how many may stack (the office's call —
+  // see the accepted risk in docs/scheduling-algorithm.md §5c), which makes this
+  // chip the only thing between "two errands share a car" and "five bookings
+  // quietly assigned to one van". Three or more turns it amber.
+  //
+  // `continuesBefore` trips are excluded: their startHour is clamped to the top of
+  // the viewed day, so two unrelated overnight trips would both read as 0 and pair
+  // with each other.
+  const shareWindowHours = IN_CHULA_PAIR_WINDOW_MINUTES / 60;
+  const campus = bookings.filter((b) => b.travelWithinChula && !b.continuesBefore);
+  const maxShare = campus.reduce(
+    (max, b) =>
+      Math.max(
+        max,
+        campus.filter((o) => Math.abs(o.startHour - b.startHour) <= shareWindowHours).length,
+      ),
+    0,
+  );
 
   // A driver on leave takes their car with them (car = driver), so the row is
   // marked the same way the rounds board marks it: amber edge stripe, struck-out
@@ -511,6 +540,19 @@ export function CarRow({
             <span className="tabular-nums">
               {bookings.length > 0 ? bookings.length : freeLabel}
             </span>
+            {maxShare >= 2 && (
+              <span
+                title={ts("sharedCarHint")}
+                className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1 font-medium ${
+                  maxShare > 2
+                    ? "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <Link2 className="h-2.5 w-2.5" aria-hidden />
+                <span className="tabular-nums">{ts("sharedCar", { count: maxShare })}</span>
+              </span>
+            )}
           </span>
         </span>
         {off ? (
@@ -684,7 +726,8 @@ export function AdHocRow({
   dayHours: number;
   hours: number[];
   removeLabel: string;
-  onRemove: (id: string) => void;
+  /** Absent for the synthetic external-charter lane, which has no row to delete. */
+  onRemove?: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `adhoc:${row.id}` });
   const sorted = [...row.bookings].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
@@ -708,6 +751,7 @@ export function AdHocRow({
           {row.label}
         </span>
         {row.cost && <span className="shrink-0 text-[10px] text-muted-foreground">{formatBaht(row.cost)}</span>}
+        {onRemove && (
         <button
           type="button"
           title={removeLabel}
@@ -717,6 +761,7 @@ export function AdHocRow({
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
+        )}
       </div>
       <div
         ref={setNodeRef}

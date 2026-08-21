@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { SYNTHETIC_SMUS_ROW_ID } from "@/lib/booking/timeline-board-data";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { useActionToast } from "@/components/hooks/use-action-toast";
@@ -275,7 +276,22 @@ export function SchedulerBoard({
           res = await matchBookingAction(fd);
         }
         if (res?.ok) assigned += 1;
-        else failures.push(`${b.purpose} → ${b.destination}: ${res?.error ?? "error"}`);
+        else {
+          // res.error is a CODE. Pushed raw, the failure list showed a Thai admin
+          // strings like "cannotAssignInStatus" — the same mapping the single-drop
+          // path above already does, so reuse its shape rather than inventing one.
+          const key =
+            res?.error === "vehicleBusy"
+              ? "dropConflict"
+              : res?.error === "noAssignedDriver"
+                ? "noAssignedDriver"
+                : res?.error === "cannotAssignInStatus"
+                  ? "assignBadStatus"
+                  : res?.error === "tripAlreadyStarted"
+                    ? "assignTripStarted"
+                    : "dropFailed";
+          failures.push(`${b.purpose} → ${b.destination}: ${t(key)}`);
+        }
       }
       setResult({ assigned, failures });
       router.refresh();
@@ -565,7 +581,10 @@ export function SchedulerBoard({
                   dayHours={dayHours}
                   hours={hours}
                   removeLabel={t("removeExternalRow")}
-                  onRemove={removeRow}
+                  // The external-charter lane is synthetic: it groups SMUS
+                  // bookings and has no AdHocVehicle behind it, so its delete
+                  // button called the server action with the fake id and threw.
+                  onRemove={r.id === SYNTHETIC_SMUS_ROW_ID ? undefined : removeRow}
                 />
               ))
             )}

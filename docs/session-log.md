@@ -9,6 +9,58 @@ Anything below may have been superseded by a later entry or by the current code.
 Where a newer change overrode an older one it is flagged ⚠️, but the code always
 wins over this file.
 
+## 2026-08-19 → 08-21 — the in-Chula exception, two bug sweeps, and one runbook
+
+**§5c — in-Chula errands may share a car.** Two bookings with
+`travelWithinChula` starting within `IN_CHULA_PAIR_WINDOW_MINUTES` (10) may hold
+one vehicle at the same time. Keyed on the FLAG, not `jobType === "WERN"`,
+because `createBookingAction` only *defaults* the job type from it. Measured
+start-to-start.
+
+Enforcement needs **two** exclusion constraints, not one: making the existing
+EXCLUDE partial (`WHERE (NOT "inChula")`) does not *contain* in-Chula rows, so a
+campus errand could stack onto a car away on a 400 km TJW. See §5c of
+`docs/scheduling-algorithm.md` for the table.
+
+⚠️ **The constraints enforce the exception, not the bound.** Two `inChula` rows
+match neither constraint at ANY start distance — an EXCLUDE cannot express
+"conflict unless the starts are close". The 10-minute window therefore lives in
+`lib/booking/vehicle-conflicts.ts:findVehicleConflicts`, which every write path
+calls. If you add a path that assigns a vehicle, it must call that function or
+the window is not enforced on it.
+
+**Two adversarial sweeps (54 findings) — the ones worth remembering:**
+
+- The solver never applied the provisional rotation bump `docs/scheduling-algorithm.md`
+  §6 has always claimed it did. Three same-day OTs all went to one driver.
+  `make sim`'s counters measure LEGALITY (gap, cap, overlap), not fairness — three
+  OTs two hours apart are perfectly legal and perfectly unfair, so CI stayed
+  green over it. **A green sim does not mean a fair schedule.**
+- `jobType` was declared in `newBookingSchema`, so it survived zod's strip pass,
+  and the action read `data.jobType ?? classify(...)` — a requester could post
+  `jobType=TJW` and reach the head of the priority order. The schema comment
+  already said the requester no longer picks it; only the code disagreed.
+- The login throttle keyed on the leftmost `X-Forwarded-For` segment. nginx uses
+  `$proxy_add_x_forwarded_for`, which APPENDS the real address, so that segment
+  is attacker-written and the per-IP cap never fired.
+- Manual dispatch never passed a job type to `stampRotationForward`, which only
+  moves the category clock when given one — so every hand-placed OT/TJW/WERN was
+  invisible to its own rotation.
+
+**Documentation.** `SETUP.md` and `SETUP-NEW-PC.md` are deleted; `README.md` is
+the single setup document and `docs/deployment.md` the server runbook. `.gitignore`
+was `.env*`, which also ignored `.env.example` — the template was never tracked,
+so a fresh clone could not follow step one. It is tracked now (`!.env.example`).
+
+⚠️ Two traps a second audit found in that rewrite, both worth not re-learning:
+`postgresql@16` is keg-only so `createuser`/`createdb` are NOT on PATH, and
+`certbot --nginx` cannot install into a site nginx has not loaded yet — use
+`certonly`.
+
+**Agent config.** The deny floor was widened to `**/` forms on 2026-08-21; the
+pipe-to-shell PreToolUse hook is tracked and verified working. `.env.example` is
+denied on purpose — read it with `git show HEAD:.env.example`.
+
 ## Where we were (as of 2026-08-11)
 
 All 5 phases of `claude_code_implementation_plan.md` shipped. Since

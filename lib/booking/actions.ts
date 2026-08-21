@@ -11,6 +11,7 @@ import { sendEmail } from "@/lib/email/client";
 import { requesterAssignedEmail, requesterDeniedEmail } from "@/lib/email/templates";
 import { bookingDetailInclude } from "@/lib/booking/booking-detail-include";
 import { COMMITTED_STATUSES } from "@/lib/booking/booking-status";
+import { sharesCarWith } from "@/lib/booking/rotations";
 import { isExclusionViolation } from "@/lib/booking/db-errors";
 
 export type ActionResult =
@@ -58,11 +59,15 @@ export async function assignBookingAction(formData: FormData): Promise<ActionRes
       status: { in: COMMITTED_STATUSES },
       id: { not: data.bookingId },
     },
-    select: { id: true, startAt: true, endAt: true },
+    select: { id: true, startAt: true, endAt: true, travelWithinChula: true },
   });
   const conflicts = findBufferConflicts(
     { startAt: booking.startAt, endAt: booking.endAt },
-    otherBookings,
+    // §5c: a campus errand starting within ten minutes of this one may share the
+    // car, so it is not a conflict. Drop partners before the buffer test — without
+    // this, the admin detail page refuses to allocate the duty car to the second
+    // campus errand that จัด and the board both accept.
+    otherBookings.filter((o) => !sharesCarWith(booking, o)),
   );
   if (conflicts.length > 0) {
     return { ok: false, field: "vehicleId", error: te("vehicleConflict") };

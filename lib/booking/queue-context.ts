@@ -71,7 +71,16 @@ export async function loadQueueContext(opts: {
         select: { id: true, registrationNumber: true, assignedDriverId: true },
       }),
       prisma.booking.findMany({
-        where: { startAt: { lt: rangeEnd }, endAt: { gt: rangeStart }, status: { in: ["APPROVED", "ASSIGNED"] } },
+        // COMPLETED belongs here, as it does in every sibling loader. The kiosk
+        // flips a trip to COMPLETED the moment it ends, so an 08:00-17:00 job was
+        // invisible by the evening — and the overtime reco then proposed an 18:30
+        // start to the driver who had just got back, a 90-minute turnaround that
+        // canChain refuses and §7 says is never offered. One click committed it.
+        where: {
+          startAt: { lt: rangeEnd },
+          endAt: { gt: rangeStart },
+          status: { in: ["APPROVED", "ASSIGNED", "COMPLETED"] },
+        },
         select: { primaryDriverId: true, secondaryDriverId: true, vehicleId: true, startAt: true, endAt: true },
       }),
       prisma.onCallShift.findMany({ where: { date: { in: dayStartMs.map((t) => new Date(t)) } } }),

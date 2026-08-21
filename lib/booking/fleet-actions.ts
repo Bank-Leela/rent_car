@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { DriverPool, Role, VehicleType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { DISPATCHABLE_STATUSES } from "@/lib/booking/booking-status";
 import { requireRole } from "@/lib/auth-helpers";
 import { isStationEmail } from "@/lib/auth/station";
 import { logEvent } from "@/lib/booking/audit";
@@ -157,6 +158,22 @@ export async function removeVehicleAction(formData: FormData): Promise<ActionRes
     select: { id: true, assignedDriverId: true, _count: { select: { bookings: true } } },
   });
   if (!vehicle) return { ok: false, error: "vehicleNotFound" };
+
+  // Refuse while the car still has work on it. Every board query filters on
+  // `isActive: true`, so deactivating a car with future ASSIGNED trips made those
+  // trips DISAPPEAR from the schedule while still assigned — the driver read as
+  // free, จัด would not re-place work it cannot see, and nobody was told. The trips
+  // have to be moved first; this action cannot decide where they should go.
+  const liveTrips = await prisma.booking.count({
+    where: {
+      vehicleId,
+      status: { in: DISPATCHABLE_STATUSES },
+      endAt: { gte: new Date() },
+    },
+  });
+  if (liveTrips > 0) {
+    return { ok: false, error: "vehicleHasUpcomingTrips" };
+  }
 
   if (vehicle._count.bookings === 0) {
     await prisma.vehicle.delete({ where: { id: vehicleId } });

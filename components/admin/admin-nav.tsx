@@ -60,7 +60,16 @@ export function AdminSubnav({ sections }: { sections: LabeledSection[] }) {
   const section = sections.find((s) => s.key === sectionKey);
   if (!section || section.tabs.length === 0) return null;
   return (
-    <div className="-mt-2 mb-6 flex items-center gap-1 overflow-x-auto border-b border-border pb-px">
+    // Chips, not an underline rule. Three words in a row, separated only by a
+    // 2px line under one of them, made the inactive tabs read as page text —
+    // there was nothing to say they could be clicked. Each tab is now a shape
+    // you can see and aim at, which is the same move the buttons made.
+    //
+    // The active chip is NEUTRAL (inverted foreground), not indigo. Navigation
+    // is not what a page is asking you to do — the one saturated thing on screen
+    // stays the page's real action, and an indigo chip up here would compete
+    // with it. Exactly how YouTube's category chips sit above its red.
+    <div className="-mt-2 mb-6 flex items-center gap-2 overflow-x-auto pb-1">
       {section.tabs.map((tab) => {
         const active = tab.href === activeTabHref;
         return (
@@ -69,11 +78,11 @@ export function AdminSubnav({ sections }: { sections: LabeledSection[] }) {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={[
-              "inline-flex h-11 shrink-0 items-center border-b-2 px-3 text-sm font-medium transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "inline-flex h-9 shrink-0 cursor-pointer items-center rounded-full px-4 text-sm font-medium transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               active
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "bg-foreground text-background"
+                : "bg-foreground/[0.07] text-muted-foreground hover:bg-foreground/[0.12] hover:text-foreground dark:bg-foreground/[0.10] dark:hover:bg-foreground/[0.16]",
             ].join(" ")}
           >
             {tab.label}

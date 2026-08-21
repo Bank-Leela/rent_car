@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { addDays, format, parse, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -31,6 +32,11 @@ export default async function SchedulePage({
   // `?view=` is deliberately no longer read. A bookmarked ?view=timeline link
   // still lands here correctly because there is nothing else to land on.
   const day = date ? parse(date, "yyyy-MM-dd", new Date()) : new Date();
+  // date-fns `parse` returns Invalid Date for junk rather than throwing, and an
+  // Invalid Date reaches Prisma as a malformed timestamp — so ?date=lol replaced
+  // the board with the error boundary instead of a 404. The calendar day view has
+  // had this guard since it was written; the two boards never got it.
+  if (Number.isNaN(day.getTime())) notFound();
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
 

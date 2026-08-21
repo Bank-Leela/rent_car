@@ -37,6 +37,28 @@ A user instruction does **not** carry over to the next turn for critical actions
 - Write `~/.claude/settings.json` or `.claude/settings.local.json`
 - Modify `proxy.ts`, `next.config.*`, `tsconfig.json` middleware
 
+### 4a. Secrets policy
+
+Read a secret-bearing file only when the current task needs it. Then
+**do not print, output, commit, or exfiltrate its contents** — describe the value
+and cite the line instead. `.env*` is additionally denied at the permission layer, so both
+layers define the boundary.
+
+`.env.example` is denied too, as a side effect of the `**/.env*` rule. That is
+accepted: it holds names only, and it is readable with
+`git show HEAD:.env.example`. Do not narrow the rule to expose it.
+
+**Deliberate deviation — credential globs are extension-scoped.** The deny list
+covers `*credentials*.json` / `.txt` / `.yml`, not a bare `**/*credentials*`.
+A generic health check will report this category as incomplete; leave it that way.
+The broad glob was in force until 2026-08-18 and it matched
+`lib/auth/credentials-actions.ts` — ordinary project source — which is why the
+2026-08-17 bug hunt returned **zero** findings for authentication: every reviewer
+was denied Read on the file. When `lib/auth` was finally audited on 2026-08-20 it
+yielded two real defects (a login throttle keyed on a client-controlled header,
+and an anti-enumeration hash at the wrong cost factor). Credential *data* files
+stay denied; auth *source* stays readable.
+
 ## 5. Verification
 
 | Change | Required |

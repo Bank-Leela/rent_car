@@ -178,14 +178,14 @@ the property-fuzz tests and `scripts/simulate-cr07.ts` scenarios.
 
 ## 7. Running & verifying
 
-Setup (Node 20, Postgres 16, migrate + seed): **[`SETUP.md`](../SETUP.md)** /
-**[`README.md`](../README.md)**.
+Setup and first run: **[`README.md`](../README.md)** — the single setup
+document. Server install: **[`docs/deployment.md`](deployment.md)**.
 
 ```bash
 npm run dev          # dev server (localhost:3000)
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
-npm test             # vitest (21 suites / 233 tests incl. solver invariants + fuzz)
+npm test             # vitest — the whole suite (solver invariants + fuzz)
 npx tsx scripts/simulate-cr07.ts --scenario=<mixed|tjw|chain|tight|reclaim|…>
 ```
 
@@ -210,7 +210,8 @@ npx tsx scripts/simulate-cr07.ts --scenario=<mixed|tjw|chain|tight|reclaim|…>
 | Doc | Purpose |
 |-----|---------|
 | **This file** | High-level project overview. |
-| [`SETUP.md`](../SETUP.md) / [`README.md`](../README.md) | First-run setup, stack, deploy. |
+| [`README.md`](../README.md) | **Start here.** First run on your own machine, first login, smoke test. |
+| [`deployment.md`](deployment.md) | The server runbook: nginx, systemd, TLS, backups, the nightly จัดรอบ timer. |
 | [`AGENTS.md`](../AGENTS.md) | Agent rules: Next-16 caveat, scheduling source-of-truth + verification. |
 | [`HANDOFF.md`](../HANDOFF.md) | What a fresh session needs first: invariants, open items, conventions. |
 | [`docs/session-log.md`](session-log.md) | The chronological record — read for the history of one decision, not to start work. |

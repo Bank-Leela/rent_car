@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { getTranslations } from "next-intl/server";
 import { requireAnyRole } from "@/lib/auth-helpers";
@@ -240,6 +240,23 @@ export default async function AdminBookingDetail({
               </Link>
             </CardTitle>
           </CardHeader>
+          {/* Seats vs passengers. A warning, not a block: the office knows its
+              own cars and sometimes fits more than the paperwork says, so this
+              says the number out loud and leaves the decision alone. Until now
+              Vehicle.capacity was written on /admin/fleet and compared against
+              nothing anywhere — a 4-seat car could be assigned to twelve people
+              with no surface in the app noticing. */}
+          {booking.vehicle.capacity < booking.passengerCount && (
+            <div className="mx-6 mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <span>
+                {t("capacityWarning", {
+                  seats: booking.vehicle.capacity,
+                  passengers: booking.passengerCount,
+                })}
+              </span>
+            </div>
+          )}
           <CardContent className="grid sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
             <Field label={t("vehicle")} value={booking.vehicle.registrationNumber} />
             <Field

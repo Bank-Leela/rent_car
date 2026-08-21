@@ -183,4 +183,56 @@ describe("a REQUESTER cannot use the admin fields", () => {
     expect(res && "ok" in res ? res.ok : true, "must be refused, not redirected").toBe(false);
     expect(await bookingsFiled()).toHaveLength(before);
   });
+
+  it("refuses a requester's forged jobType and classifies the trip itself", async () => {
+    // jobType decides scheduling priority (TJW → OT → WERN → NORMAL) and, for
+    // WERN, which car is asked for. It is DECLARED in newBookingSchema, so it
+    // survives zod's strip pass and reaches the action — and the action used to
+    // prefer it over the classifier. A requester posting jobType=TJW put an
+    // ordinary errand at the head of the queue and could pull the duty car.
+    who.user = { id: REQUESTER_ID, roles: ["REQUESTER"] };
+    const when = startOfDay(addDays(new Date(), 14));
+    when.setHours(9, 0, 0, 0);
+
+    await expect(
+      createBookingAction(payload({ purpose: "forged-priority", jobType: "TJW" }, when)),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    const filed = (await bookingsFiled()).find((b) => b.purpose.includes("forged-priority"));
+    expect(filed, "the booking is still created — it is the PRIORITY that is refused").toBeTruthy();
+    expect(filed!.jobType, "a requester cannot self-classify as TJW").not.toBe("TJW");
+    expect(filed!.jobType).toBe("NORMAL");
+  });
+
+  it("still lets an admin set the job type deliberately", async () => {
+    who.user = { id: "seed-user-admin", roles: ["ADMIN"] };
+    const when = startOfDay(addDays(new Date(), 15));
+    when.setHours(9, 0, 0, 0);
+    await expect(
+      createBookingAction(
+        payload({ purpose: "admin-typed", jobType: "TJW", onBehalfOfUserId: REQUESTER_ID }, when),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    const filed = (await bookingsFiled()).find((b) => b.purpose.includes("admin-typed"));
+    expect(filed!.jobType).toBe("TJW");
+  });
+
+  it("will not let a requester switch off the no-double-book backstop", async () => {
+    // travelWithinChula is no longer cosmetic: §5c makes it the flag that decides
+    // whether the database permits two bookings to share one car. Ticked together
+    // with outOfProvince it would mark a province run as a campus errand.
+    who.user = { id: REQUESTER_ID, roles: ["REQUESTER"] };
+    const when = startOfDay(addDays(new Date(), 16));
+    when.setHours(9, 0, 0, 0);
+    await expect(
+      createBookingAction(
+        payload(
+          { purpose: "chula-and-away", travelWithinChula: "true", outOfProvince: "true" },
+          when,
+        ),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    const filed = (await bookingsFiled()).find((b) => b.purpose.includes("chula-and-away"));
+    expect(filed!.travelWithinChula, "cannot be in Chula and out of province at once").toBe(false);
+  });
 });

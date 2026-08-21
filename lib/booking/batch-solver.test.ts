@@ -612,3 +612,69 @@ describe("solveDay — no-wait split frees the middle", () => {
     expect(out.overflows).toHaveLength(1);
   });
 });
+
+// ---- Requested vehicle type: a first choice, never a filter ----
+//
+// Both columns on /admin/fleet — ประเภทรถ and จำนวนที่นั่ง — were being filled in
+// by the office and read by nothing: `Vehicle.type` appeared in no solver,
+// matcher or recommender, and the requester's `preferredVehicleType` was only
+// ever tested for BUS_OUTSOURCED. So a request for a รถตู้ could be handed a
+// เก๋ง with nothing anywhere noticing.
+describe("solveDay — preferredVehicleType is a preference, not a filter", () => {
+  const typed = (id: string, vehicleType: string, earningsScore = 0) =>
+    ({ ...driver({ driverId: id, earningsScore }), vehicleType }) as DriverRotationState;
+
+  it("takes the matching car even when a fairer driver has the wrong one", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      // A is fairer (lower earnings) but drives a SEDAN; B drives the VAN asked for.
+      bookings: [booking({ bookingId: "wants-van", preferredVehicleType: "VAN" })],
+      drivers: [typed("A", "SEDAN_DEAN", 0), typed("B", "VAN", 10)],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    });
+    expect(out.assignments[0]?.primaryDriverId).toBe("B");
+  });
+
+  it("falls back to any car rather than leaving the trip unplaced", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [booking({ bookingId: "wants-van", preferredVehicleType: "VAN" })],
+      // Nobody drives a VAN. The trip must still be placed — the fleet is six
+      // cars and an unassigned trip is a real problem; the wrong body shape is not.
+      drivers: [typed("A", "SEDAN_DEAN", 0), typed("B", "PICKUP", 10)],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    });
+    expect(out.overflows).toHaveLength(0);
+    expect(out.assignments[0]?.primaryDriverId, "the fairest car of any type").toBe("A");
+  });
+
+  it("keeps pure fairness order when nothing is requested", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [booking({ bookingId: "no-pref", preferredVehicleType: null })],
+      drivers: [typed("A", "SEDAN_DEAN", 0), typed("B", "VAN", 10)],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    });
+    expect(out.assignments[0]?.primaryDriverId).toBe("A");
+  });
+
+  it("prefers within the eligible set only — a busy matching car does not win", () => {
+    const out = solveDay({
+      date: D("2026-06-10"),
+      bookings: [
+        booking({ bookingId: "first", preferredVehicleType: "VAN", startAt: D("2026-06-10T09:00:00"), endAt: D("2026-06-10T11:00:00") }),
+        booking({ bookingId: "second", preferredVehicleType: "VAN", startAt: D("2026-06-10T10:00:00"), endAt: D("2026-06-10T12:00:00") }),
+      ],
+      drivers: [typed("VANNY", "VAN", 0), typed("SEDANNY", "SEDAN_DEAN", 5)],
+      dutyDriverId: null,
+      activeTjwCommitments: [],
+    });
+    // Both want the van; the second overlaps the first, so it takes the sedan
+    // rather than double-booking the van or overflowing.
+    expect(out.assignments.find((a) => a.bookingId === "first")?.primaryDriverId).toBe("VANNY");
+    expect(out.assignments.find((a) => a.bookingId === "second")?.primaryDriverId).toBe("SEDANNY");
+  });
+});

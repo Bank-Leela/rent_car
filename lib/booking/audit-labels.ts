@@ -14,6 +14,7 @@
  * app makes for message keys it cannot enumerate.
  */
 const AUDIT_ACTION_TH: Record<string, string> = {
+  DEPARTMENT_CHANGED: "เปลี่ยนภาควิชา",
   // Booking lifecycle
   BOOKING_SUBMITTED: "ส่งคำขอ",
   BOOKING_SUBMITTED_ON_BEHALF: "ส่งคำขอแทนผู้ขอ (โดยผู้ดูแล)",
@@ -34,6 +35,7 @@ const AUDIT_ACTION_TH: Record<string, string> = {
   BATCH_MATCHED: "จัดรอบอัตโนมัติ",
   TJW_REQUEST_ORDER_MATCHED: "จัด ตจว. ตามลำดับคำขอ",
   VEHICLE_ALLOCATED: "จัดรถ",
+  ASSIGNED: "จัดรถและคนขับ",
   UNASSIGNED: "ถอนรถและคนขับ",
   TIME_CHANGED: "แก้เวลาเดินทาง",
   // Written before TIME_CHANGED became general; old rows still render.
