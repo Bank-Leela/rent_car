@@ -185,7 +185,7 @@ document. Server install: **[`docs/deployment.md`](deployment.md)**.
 npm run dev          # dev server (localhost:3000)
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
-npm test             # vitest (21 suites / 233 tests incl. solver invariants + fuzz)
+npm test             # vitest — the whole suite (solver invariants + fuzz)
 npx tsx scripts/simulate-cr07.ts --scenario=<mixed|tjw|chain|tight|reclaim|…>
 ```
 

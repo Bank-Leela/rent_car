@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // rotation on first sign-in.
 //
 // It used to be the literal "changeme", hardcoded here and printed in tracked
-// SETUP.md — i.e. published. The deploy runbook tells the operator to run
+// a tracked setup document — i.e. published. The runbook tells the operator to run
 // `prisma db seed` on the production box, so a fresh install shipped with a
 // world-readable admin password and nothing in the go-live checklist telling
 // anyone to change it.
@@ -257,7 +257,7 @@ async function main() {
     vehicles: await prisma.vehicle.count(),
   });
 
-  // Printed once, here, and nowhere else — not committed, not in SETUP.md, not
+  // Printed once, here, and nowhere else — not committed, not in any tracked doc, not
   // recoverable later. Every seeded account has mustChangePassword set, so this
   // only has to survive long enough for the first sign-in.
   if (SEED_PASSWORD_GENERATED) {

@@ -9,11 +9,20 @@ server {
     server_name booking.example.ac.th;   # <-- your host
 
     # Redirect all HTTP to HTTPS.
-    return 301 https://$host$request_uri;
+    # Let Let's Encrypt's HTTP-01 check through BEFORE the redirect, or a webroot
+    # renewal is bounced to https and fails. Harmless when unused.
+    location ^~ /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
 }
 
 server {
+    # nginx >= 1.25.1 warns about "http2" here and wants a separate `http2 on;`
+    # line instead. Both forms work today; if `nginx -t` warns, split them.
     listen 443 ssl http2;
+    # TLS policy falls back to your distro's defaults. If certbot installed its
+    # recommended profile, prefer it:
+    #   include /etc/letsencrypt/options-ssl-nginx.conf;
+    #   ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
     server_name booking.example.ac.th;    # <-- your host
 
     ssl_certificate     /etc/letsencrypt/live/booking.example.ac.th/fullchain.pem;   # <-- your cert

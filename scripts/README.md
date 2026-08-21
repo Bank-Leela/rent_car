@@ -35,5 +35,7 @@ All dev-only except `reset-password.ts`, which is written to be safe on a live i
 | `reset-password.ts` | **Account recovery — safe on production.** Resets `passwordHash` + `mustChangePassword` and nothing else. Use instead of re-seeding when someone loses the password the seed printed: `db seed` also re-pairs every car to its seeded driver, silently undoing pairing work done in /admin/fleet. Defaults to `admin` alone; `--user=<username\|email>`, `--all`, `--dry-run`, `NEW_PASSWORD=…`. |
 
 > The canonical seed is `prisma/seed.ts` (`npm run db:seed`) — departments, role
-> users, and the 6 per-car driver logins (`driverA`–`driverF`). The scripts above
-> layer scenario-specific data on top.
+> users, and the 6 per-car driver logins. The scripts above layer
+> scenario-specific data on top.
+> Accounts: `admin`, `requester`, the shared kiosk `driverstation`, and
+> `driver2`–`driver7`. Full table in [README.md](../README.md).

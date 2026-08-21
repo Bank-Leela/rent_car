@@ -41,8 +41,12 @@ the app's own TZ is correct.
   node --version    # must be v20.x — package.json requires >=20.11 <21
   ```
 - PostgreSQL 16 (native package or Docker; the repo ships `docker-compose.yml`
-  for a container if you prefer).
-- nginx.
+  for a container if you prefer). On Ubuntu 24.04+/Debian 13 the default repos
+  have it: `sudo apt install -y postgresql-16`. On Ubuntu 22.04 or Debian 12 you
+  must add PGDG first (`apt.postgresql.org`) — the plain `postgresql` package
+  there is version 14 or 15, which is fine for this app but not what this
+  document was tested against.
+- nginx and certbot: `sudo apt install -y nginx certbot python3-certbot-nginx`.
 - A Linux user to own the app (e.g. `rentcar`).
 
 Create the service user and the database role/database before anything below
@@ -89,7 +93,7 @@ RESEND_API_KEY=<key>               # WITHOUT THIS NO EMAIL IS EVER SENT — see 
 EMAIL_FROM="ระบบจองรถ <noreply@booking.example.ac.th>"
 DRIVER_STATION_EMAILS=driverstation@chula.ac.th   # the shared kiosk account(s)
 CRON_SECRET=<openssl rand -hex 32>  # enables the daily จัดรอบ auto-run route
-GOOGLE_MAPS_API_KEY=...            # enables the "Estimate distance" button
+GOOGLE_MAPS_API_KEY=...            # enables the "ประเมินระยะทาง (Google Maps)" button
 FACULTY_ORIGIN=คณะแพทยศาสตร์ จุฬาลงกรณ์มหาวิทยาลัย   # Maps distance origin override
 # ENABLE_SIMULATION=true          # show the /admin/simulate debug tool in prod (default: hidden)
 # PUBLIC_BASE_URL=https://...      # redundant override for links in emails; APP_URL already covers it
@@ -144,6 +148,12 @@ still runs natively via systemd — only the DB is containerized.
 cd /opt/rent_car
 set -a; source /etc/rent_car.env; set +a
 sudo -u rentcar --preserve-env=DATABASE_URL npx prisma migrate deploy
+# If Chula IT hands you the database rather than you creating it, the account in
+# DATABASE_URL must be able to run CREATE EXTENSION btree_gist. Owning the
+# database is enough — no superuser needed — but a plain login role is not, and
+# this command stops on the first migration with
+#   permission denied to create extension "btree_gist"
+# Ask for database ownership explicitly.
 sudo -u rentcar --preserve-env=DATABASE_URL npx prisma db seed   # first time only
 ```
 
@@ -172,9 +182,16 @@ sudo -u rentcar --preserve-env=DATABASE_URL npx prisma db seed   # first time on
 > a shorter one rather than falling back to a random password it would not show
 > you.
 >
-> **If you lose it, do NOT re-run the seed** (see the box above). It would not
-> even work: the fleet-driver branch never rewrites `passwordHash`, so
-> `driver2`–`driver7` keep the password you lost. Use `scripts/reset-password.ts`.
+> **If you lose it, do NOT re-run the seed** (see the box above). It would only
+> half work: the seed *does* rewrite the password for `admin`, `requester` and
+> `driverstation`, but never for `driver2`–`driver7` — and on the way it unpairs
+> the whole fleet. Use the targeted script:
+> ```bash
+> npx tsx scripts/reset-password.ts --all --dry-run   # who would change
+> npx tsx scripts/reset-password.ts                   # admin only (the default)
+> npx tsx scripts/reset-password.ts --user=driver3    # one account
+> npx tsx scripts/reset-password.ts --all             # every account
+> ```
 
 `npm run build` also runs `prisma migrate deploy`, so subsequent deploys apply
 new migrations automatically. **Never** run `migrate reset` / `db push
@@ -196,8 +213,13 @@ journalctl -u rent-car -f      # must reach "ready"; a wrong TZ aborts with [TZ 
 ```
 
 ## 6. nginx
-`deploy/nginx.conf.sample` → `/etc/nginx/sites-available/rent_car`. Edit
-`server_name` + TLS cert paths (use certbot/Let's Encrypt). Key detail:
+Put the config in place and edit it **first** — everything below assumes it
+exists:
+```bash
+sudo cp deploy/nginx.conf.sample /etc/nginx/sites-available/rent_car
+sudo nano /etc/nginx/sites-available/rent_car   # server_name in BOTH blocks + both cert paths
+```
+Key detail:
 `client_max_body_size 12m` so file uploads (10 MB cap in-app) aren't 413'd by
 nginx first.
 Issue the certificate **first** — the sample hardcodes
@@ -219,10 +241,25 @@ sudo systemctl start nginx
 sudo ln -s /etc/nginx/sites-available/rent_car /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
-If port 80 is already serving something you cannot stop, use
-`certbot certonly --webroot -w /var/www/html -d booking.example.ac.th` instead.
+If port 80 is serving something you cannot stop, use webroot instead — **but the
+sample's `:80` block redirects everything to https, which would send the ACME
+check away too.** Add the exception above the redirect first:
+```nginx
+location ^~ /.well-known/acme-challenge/ { root /var/www/html; }
+location / { return 301 https://$host$request_uri; }
+```
+then `sudo certbot certonly --webroot -w /var/www/html -d booking.example.ac.th`.
 
-Renewals afterwards are ordinary `certbot renew` — the config is loaded by then.
+Renewals afterwards are ordinary `certbot renew`. Because the certificate was
+issued with `--standalone`, certbot will want port 80 again at renewal time — so
+give it hooks that step nginx aside, once:
+```bash
+sudo certbot renew --dry-run \
+  --pre-hook "systemctl stop nginx" --post-hook "systemctl start nginx"
+```
+certbot stores the hooks with the certificate, so the automatic timer uses them
+from then on. (If you would rather not stop nginx at renewal, switch the
+certificate to webroot renewal after the ACME location below is in place.)
 
 > Two more things about the sample worth knowing: `server_name` appears in **two**
 > blocks (the :80 redirect and the :443 server) and editing only one leaves a
@@ -291,8 +328,12 @@ night before. To enable:
 4. Prove it works now rather than finding out at 20:00:
    ```bash
    sudo systemctl start rent-car-batch      # run the oneshot by hand
-   journalctl -u rent-car-batch -n 20       # expect 200, not 503 or 401
+   journalctl -u rent-car-batch -n 20
    ```
+   Success is a JSON line such as `{"days":1,...}`. `curl: (22) … error: 503`
+   means the app never picked up `CRON_SECRET` — you skipped the restart in step
+   2. `… error: 401` means the secret in `/etc/rent_car.env` and the one in the
+   service file disagree.
 The route fails closed: no `CRON_SECRET` → 503; wrong bearer → 401. It attributes
 the run to an active admin in the audit log. Override the target day for a manual
 re-run: `POST /api/cron/run-batch?date=YYYY-MM-DD`.
@@ -340,7 +381,7 @@ repo dev script (never deployed) and always available for debugging.
 - [ ] `TZ=Asia/Bangkok` in the unit **and** `timedatectl` on the host (timers use the host zone).
 - [ ] Service reaches "ready" — a wrong TZ aborts the boot with `[TZ FATAL]`.
 - [ ] Seeded temporary password captured from the seed output, and rotated on every account (admin, requester, kiosk, drivers).
-- [ ] `RESEND_API_KEY` set — without it password-reset links go to the journal, not to the user.
+- [ ] `RESEND_API_KEY` set — without it no mail is delivered at all, and a password-reset link is **lost, not logged** (the body was removed from the log stub because it leaked tokens). Accounts can then only be recovered with `scripts/reset-password.ts`.
 - [ ] `AUTH_SECRET` is a real random value; `NEXTAUTH_URL`/`APP_URL` = the real HTTPS host.
 - [ ] `UPLOADS_DIR` on a persistent, backed-up path.
 - [ ] HTTPS via nginx; `client_max_body_size 12m`.
