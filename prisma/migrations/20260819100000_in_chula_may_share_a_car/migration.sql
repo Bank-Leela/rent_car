@@ -18,9 +18,19 @@
 --   c2  adds "inChula" WITH <>    → in-Chula vs normal still conflicts
 --   (in-Chula vs in-Chula falls in neither → permitted)
 --
--- Verified against this database before the design was written: both constraints
--- create cleanly (btree_gist covers bool with the <> strategy), normal-vs-normal
--- is refused by c1, Chula-vs-normal by c2, and Chula-vs-Chula is accepted.
+-- The flag is cast to int in c2, and that cast is NOT cosmetic. btree_gist only
+-- grew a bool operator class in version 1.7, which ships with PostgreSQL 16.
+-- The faculty server runs PostgreSQL 14, whose newest btree_gist is 1.6, so
+-- `"inChula" WITH <>` there fails at ALTER TABLE with
+--   ERROR: data type boolean has no default operator class for access method "gist"
+-- and takes the whole migration down with it (observed on the live database
+-- 2026-08-21; it rolled back cleanly, but the deploy was blocked until this was
+-- fixed). int4 has had a gist opclass since btree_gist 1.0, and bool::int is
+-- 0/1, so <> on the cast is the same predicate on every server version.
+--
+-- Verified on the deployed PostgreSQL 14: both constraints create cleanly,
+-- normal-vs-normal is refused by c1, Chula-vs-normal by c2, and Chula-vs-Chula
+-- is accepted.
 --
 -- ACCEPTED RISK, recorded because the database can no longer catch it: there is
 -- no ceiling. Five in-Chula bookings at 09:00 will all stack on the duty car and
@@ -77,4 +87,4 @@ ALTER TABLE "VehicleOccupancy"
 
 ALTER TABLE "VehicleOccupancy"
   ADD CONSTRAINT vehicle_occupancy_chula_vs_normal
-  EXCLUDE USING gist ("vehicleId" WITH =, tsrange("startAt","endAt",'[)') WITH &&, "inChula" WITH <>);
+  EXCLUDE USING gist ("vehicleId" WITH =, tsrange("startAt","endAt",'[)') WITH &&, (("inChula")::int) WITH <>);
