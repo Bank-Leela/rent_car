@@ -33,6 +33,7 @@
 //     returning from TJW today before the 16:00 cutoff.
 
 import type { JobType, OverflowReason } from "@prisma/client";
+import { fleetTypeFor } from "./vehicle-type";
 import { tripEffort, WORK_DAY_END_HOUR, LONG_TRIP_KM } from "./classification";
 import {
   canTake,
@@ -45,19 +46,6 @@ import {
 } from "./rotations";
 
 export { LONG_TRIP_KM };
-
-/**
- * PreferredVehicleType (requester's category) → VehicleType (owned-fleet class).
- * null = nothing in the fleet can satisfy it: a bus is always outsourced, so a
- * BUS_OUTSOURCED preference must not narrow the internal pick at all.
- */
-const FLEET_TYPE_FOR_PREFERENCE: Record<string, string | null> = {
-  VAN: "VAN",
-  PICKUP: "PICKUP",
-  SEDAN_DEAN: "SEDAN",
-  TRUCK_6_WHEEL: "OTHER",
-  BUS_OUTSOURCED: null,
-};
 
 export interface SolverBookingInput {
   bookingId: string;
@@ -293,7 +281,7 @@ function placeBooking(
   // happen to share VAN and PICKUP, so those two worked by coincidence while
   // SEDAN_DEAN and TRUCK_6_WHEEL could never match anything and the preference was
   // silently dead for them. Translate instead of comparing raw strings.
-  const wanted = FLEET_TYPE_FOR_PREFERENCE[booking.preferredVehicleType ?? ""] ?? null;
+  const wanted = fleetTypeFor(booking.preferredVehicleType);
   const typeMatches = (id: string) =>
     !wanted || drivers.find((d) => d.driverId === id)?.vehicleType === wanted;
   const primaryId =

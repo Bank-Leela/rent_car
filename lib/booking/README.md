@@ -76,14 +76,16 @@ one once made days that could never clear pile up on the sweep forever.
 
 Both write paths run the same two-pass vehicle-type fallback — requested type
 first, then the same fairness order with no type condition — because the
-requested car type is a preference, never a filter (§5b). **The two passes are
-mirrored; the comparison is not.** `batch-solver.ts:296` translates
-`PreferredVehicleType` → `VehicleType` through `FLEET_TYPE_FOR_PREFERENCE`
-(`:54`), while `matching.ts:95-100` and `placement-reco.ts:128-130` compare the
-two enums raw. They share only `VAN` and `PICKUP`, so on those two paths
-`SEDAN_DEAN` and `TRUCK_6_WHEEL` match nothing and the preference is inert.
-`docs/scheduling-algorithm.md` §5b says all three engines apply it identically;
-today they do not.
+requested car type is a preference, never a filter (§5b).
+
+All three go through `fleetTypeFor` (`vehicle-type.ts:36`) to translate the
+requested `PreferredVehicleType` into the fleet's own `VehicleType` before
+comparing. **Never compare those two enums directly.** They share only `VAN` and
+`PICKUP`, so a raw comparison looks right on two of five values and silently
+matches nothing on `SEDAN_DEAN` and `TRUCK_6_WHEEL` — which is exactly what
+`matching.ts` and `placement-reco.ts` did until 2026-08-21, while their own
+comments claimed they matched the solver. `vehicle-type.test.ts` pins the
+translation and asserts all three engines pick the same car.
 
 ### The manual path
 

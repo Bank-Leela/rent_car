@@ -3,6 +3,7 @@
 // assignment. Pure orchestration; DB I/O lives in matching-actions.ts.
 
 import type { JobType, TimeBucket } from "@prisma/client";
+import { fleetTypeFor } from "./vehicle-type";
 import {
   canTakeTrip,
   filterAvailable,
@@ -92,7 +93,12 @@ export function match(input: MatchInput): { ok: true; result: MatchResult } | { 
   // the day solver makes (batch-solver.ts). Kept identical on purpose: จัด and
   // the single "จับคู่อัตโนมัติ" button picking different cars for the same trip
   // is worse than either rule on its own.
-  const wantedType = input.preferredVehicleType ?? null;
+  // Translate the requested CATEGORY to the fleet's own classification before
+  // comparing. This used to compare the two enums raw, and they share only VAN
+  // and PICKUP — so SEDAN_DEAN and TRUCK_6_WHEEL matched no car at all and the
+  // preference was silently inert here while the day solver honoured it. The
+  // comment below has always claimed these two paths agree; now they do.
+  const wantedType = fleetTypeFor(input.preferredVehicleType);
   const hasWantedType = (id: string) =>
     !wantedType || input.vehicleTypeByDriver?.get(id) === wantedType;
   const primaryDriverId =

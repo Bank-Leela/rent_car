@@ -11,6 +11,7 @@
 // driver who can legally take it (rides in the primary's car), or null if none.
 
 import type { JobType } from "@prisma/client";
+import { fleetTypeFor } from "./vehicle-type";
 import { canChain } from "@/lib/booking/rotations";
 import { legsOverlap, type LegSource } from "@/lib/booking/trip-legs";
 
@@ -125,7 +126,10 @@ export function recommendPlacement(input: RecoInput): Placement {
   // single matcher make. `free` is already in fairness order, so this picks the
   // fairest MATCHING car and falls back to the fairest car of any type; it can
   // never turn a recommendable trip into "no car available".
-  const wantedType = booking.preferredVehicleType ?? null;
+  // Same translation the solver and the matcher use — see vehicle-type.ts. A raw
+  // comparison here made the reco offer a car of the wrong category for
+  // SEDAN_DEAN / TRUCK_6_WHEEL requests, disagreeing with what จัด would place.
+  const wantedType = fleetTypeFor(booking.preferredVehicleType);
   let primary: RecoDriver | undefined =
     (wantedType ? free.find((d) => d.vehicleType === wantedType) : undefined) ?? free[0];
   let kind: "fit" | "reclaim" = "fit";

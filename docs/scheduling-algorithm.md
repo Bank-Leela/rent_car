@@ -229,6 +229,19 @@ The rule now, applied identically in all three placement engines:
 > Walk the fairness order once considering only cars of the requested type.
 > If that finds nobody, walk the **same** order again with no type condition.
 
+**The two sides are different enums.** `PreferredVehicleType` (what the form
+offers) and `VehicleType` (how the fleet is classified) share only `VAN` and
+`PICKUP`, so comparing them directly appears to work on two of five values and
+matches nothing on `SEDAN_DEAN` and `TRUCK_6_WHEEL`. Every engine must translate
+through `fleetTypeFor` (`lib/booking/vehicle-type.ts`). `BUS_OUTSOURCED` maps to
+`null` — no owned car satisfies it, so it must not narrow the internal pick at
+all rather than narrowing it to zero.
+
+This paragraph exists because "applied identically in all three engines" was
+true of the batch solver and false of the other two from 2026-08-19 until
+2026-08-21: both compared the enums raw while their comments claimed otherwise.
+`lib/booking/vehicle-type.test.ts` now asserts the three agree.
+
 Two passes rather than a sort key, so fairness is untouched *inside* each pass —
 the fairest matching car wins, and when none exists the fairest car of any type
 does. It is deliberately **not** a filter: the fleet is six cars, and leaving a
