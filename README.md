@@ -524,6 +524,16 @@ Start here:
   truth for every dispatch rule. Read it before changing anything under
   `lib/booking/`.
 - [`docs/deployment.md`](docs/deployment.md) — the full server runbook.
+- [`lib/booking/README.md`](lib/booking/README.md) — the dispatch subsystem: the
+  three dispatch paths (people confuse the first two), and where each rule lives.
+- [`docs/data-model.md`](docs/data-model.md) — the schema, and the invariants the
+  database enforces on its own.
+- [`docs/booking-lifecycle.md`](docs/booking-lifecycle.md) — the status machine.
+- [`docs/auth-and-roles.md`](docs/auth-and-roles.md) — roles, the shared driver
+  kiosk, sign-in.
+- [`docs/testing.md`](docs/testing.md) — how to prove a change is correct here.
+- [`docs/i18n.md`](docs/i18n.md) — the Thai-only UI and how not to break it.
+- [`components/README.md`](components/README.md) — how the UI is organised.
 - [`AGENTS.md`](AGENTS.md) — conventions, and which large files are deliberately
   left large.
 - [`HANDOFF.md`](HANDOFF.md) — project context and decisions already settled.

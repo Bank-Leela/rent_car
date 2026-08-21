@@ -216,4 +216,11 @@ npx tsx scripts/simulate-cr07.ts --scenario=<mixed|tjw|chain|tight|reclaim|…>
 | [`HANDOFF.md`](../HANDOFF.md) | What a fresh session needs first: invariants, open items, conventions. |
 | [`docs/session-log.md`](session-log.md) | The chronological record — read for the history of one decision, not to start work. |
 | [`docs/scheduling-algorithm.md`](./scheduling-algorithm.md) | The assignment rules, solver/matcher, source map. |
+| [`lib/booking/README.md`](../lib/booking/README.md) | Map of the dispatch subsystem — the three dispatch paths, where each rule lives. |
+| [`docs/data-model.md`](data-model.md) | The schema, the invariants Postgres enforces itself, and the `@db.Date` trap. |
+| [`docs/booking-lifecycle.md`](booking-lifecycle.md) | Every booking status, who moves it, and which status GROUP a query needs. |
+| [`docs/auth-and-roles.md`](auth-and-roles.md) | Roles, the shared kiosk, sign-in, and the security decisions not to undo. |
+| [`docs/testing.md`](testing.md) | What each kind of test proves — and what a green `make sim` does not. |
+| [`docs/i18n.md`](i18n.md) | Thai-only UI; keys resolve at runtime, so the build cannot catch a missing one. |
+| [`components/README.md`](../components/README.md) | UI layout, and the two boards people confuse. |
 | `docs/superpowers/specs/*`, `plans/*` | Point-in-time design/decision records. |
