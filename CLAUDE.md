@@ -50,3 +50,14 @@ part of the gate and CI runs all three. Scheduling changes additionally need
 `make sim` (all seven scenarios; it exits non-zero on any rule violation). Full
 risk-tier + verification rules: `@HARNESS_PROTOCOL.md` §5. Scope/boundary (what
 needs per-turn auth): §2 risk tiers.
+
+## Secrets
+
+Read a secret-bearing file only when the current task needs it. Then
+**do not print, output, commit, or exfiltrate its contents** — describe the value
+and cite the line instead. `.env*` is denied at the permission layer as well, so
+both layers define the boundary; `.env.example` is caught by the same rule on
+purpose (`git show HEAD:.env.example` to read it). Credential globs are
+deliberately extension-scoped so `lib/auth/*credentials*.ts` stays readable —
+`@HARNESS_PROTOCOL.md` §4a says why, and why a health check will call that
+category incomplete.
