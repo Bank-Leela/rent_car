@@ -19,7 +19,7 @@
 //   earnings ↑, trips this month ↑, lastAssignedAt ↑ (oldest/null first).
 
 import type { JobType } from "@prisma/client";
-import { canChain } from "./rotations";
+import { canChain, compareGeneralFairness } from "./rotations";
 
 export const JOB_TYPES = [
   "TJW",
@@ -122,16 +122,17 @@ export interface RankInput {
  * longer depends on the DB's row order.
  */
 export function rankCandidates(rows: RankInput[]): string[] {
-  return [...rows]
-    .sort((a, b) => {
-      if (a.earningsScore !== b.earningsScore) return a.earningsScore - b.earningsScore;
-      if (a.tripsThisMonth !== b.tripsThisMonth) return a.tripsThisMonth - b.tripsThisMonth;
-      const at = a.lastAssignedAt ? a.lastAssignedAt.getTime() : -Infinity;
-      const bt = b.lastAssignedAt ? b.lastAssignedAt.getTime() : -Infinity;
-      if (at !== bt) return at - bt;
-      return a.driverId.localeCompare(b.driverId);
-    })
-    .map((r) => r.driverId);
+  // The SAME order the solver uses — compareGeneralFairness, §3's ledger.
+  //
+  // This used to insert `tripsThisMonth` as the second key, and §6a of the
+  // scheduling doc specified it that way, so จัดรอบ and the board's
+  // จับคู่อัตโนมัติ button could name different drivers on an earnings tie —
+  // by specification, in two places that contradicted each other. Settled
+  // 2026-08-24: the matcher ranks identically to จัดรอบ. §6a updated to match.
+  //
+  // `tripsThisMonth` stays on RankInput because the UI displays it; it no
+  // longer orders anybody.
+  return [...rows].sort(compareGeneralFairness).map((r) => r.driverId);
 }
 
 export interface FreeDriverInput {
@@ -156,11 +157,6 @@ export function pickFreeDriver(
   const eligible = drivers
     .filter((d) => d.driverId !== dutyDriverId)
     .filter((d) => canTakeTrip(trip, d.trips))
-    .sort(
-      (a, b) =>
-        a.earningsScore - b.earningsScore ||
-        (a.lastAssignedAt?.getTime() ?? -Infinity) - (b.lastAssignedAt?.getTime() ?? -Infinity) ||
-        a.driverId.localeCompare(b.driverId),
-    );
+    .sort(compareGeneralFairness);
   return eligible[0]?.driverId ?? null;
 }

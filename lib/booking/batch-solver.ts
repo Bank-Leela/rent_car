@@ -78,6 +78,13 @@ export interface TjwCommitment {
   driverId: string;
   startAt: Date;
   endAt: Date;
+  /**
+   * "trip" (the default) — a real booking; the §4 2h gap applies to it.
+   * "block" — a synthetic whole-day marker such as a leave day, where only
+   * overlap applies. Adding a gap to a 00:00–24:00 block would extend it two
+   * hours into both neighbouring days. Read by tjw-request-solver.
+   */
+  kind?: "trip" | "block";
 }
 
 export interface SolverInput {

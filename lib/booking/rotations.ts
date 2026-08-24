@@ -173,6 +173,26 @@ export function canTake(next: TimedJob, existing: ScheduledTrip[]): boolean {
   return canChain(next, existing);
 }
 
+/**
+ * THE fairness comparator. §3's general ledger: lowest earnings first, then the
+ * driver who has waited longest, then driverId so a full tie is deterministic.
+ *
+ * Exported because it was copied — with drift. `driver-capacity.rankCandidates`
+ * had an extra `tripsThisMonth` key wedged in at position two, which §3 does not
+ * have, so จัดรอบ and the board's match button named different drivers on an
+ * earnings tie and both looked internally consistent. Every path that orders
+ * drivers by fairness must call this; do not write a fourth copy.
+ */
+export function compareGeneralFairness(
+  a: { earningsScore: number; lastAssignedAt: Date | null; driverId: string },
+  b: { earningsScore: number; lastAssignedAt: Date | null; driverId: string },
+): number {
+  if (a.earningsScore !== b.earningsScore) return a.earningsScore - b.earningsScore;
+  const t = olderFirst(a.lastAssignedAt, b.lastAssignedAt);
+  if (t !== 0) return t;
+  return a.driverId.localeCompare(b.driverId);
+}
+
 /** Comparator: older-or-null wins. Returns negative if `a` comes first. */
 function olderFirst(a: Date | null, b: Date | null): number {
   // Total, not arithmetic. The -Infinity trick reads well and is right for every
@@ -197,14 +217,7 @@ export function pickDutyRotation(eligible: DriverRotationState[]): string | null
  * determinism.
  */
 export function pickGeneralRank(eligible: DriverRotationState[]): string[] {
-  return [...eligible]
-    .sort((a, b) => {
-      if (a.earningsScore !== b.earningsScore) return a.earningsScore - b.earningsScore;
-      const t = olderFirst(a.lastAssignedAt, b.lastAssignedAt);
-      if (t !== 0) return t;
-      return a.driverId.localeCompare(b.driverId);
-    })
-    .map((d) => d.driverId);
+  return [...eligible].sort(compareGeneralFairness).map((d) => d.driverId);
 }
 
 /** Generic rotation ranker. Exported for the solver's secondary-pass logic. */
@@ -216,11 +229,8 @@ export function rankForRotation(
     .sort((a, b) => {
       const t = olderFirst(key(a), key(b));
       if (t !== 0) return t;
-      // General-ledger tie-break.
-      if (a.earningsScore !== b.earningsScore) return a.earningsScore - b.earningsScore;
-      const lt = olderFirst(a.lastAssignedAt, b.lastAssignedAt);
-      if (lt !== 0) return lt;
-      return a.driverId.localeCompare(b.driverId);
+      // General-ledger tie-break — the same one, not a restatement of it.
+      return compareGeneralFairness(a, b);
     })
     .map((d) => d.driverId);
 }

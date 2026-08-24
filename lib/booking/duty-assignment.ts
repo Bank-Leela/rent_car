@@ -4,14 +4,30 @@
 // "never give WERN to an away driver" rule holds on EVERY assignment path
 // (docs/scheduling-algorithm.md §1 + §6).
 
-export type DutyCandidate = { driverId: string; lastDutyAt: Date | null };
+import { compareGeneralFairness } from "./rotations";
 
-// Oldest-`lastDutyAt`-first (null = never on duty = oldest), then driverId for
-// determinism — the same order the solver's pickDutyRotation uses.
+export type DutyCandidate = {
+  driverId: string;
+  lastDutyAt: Date | null;
+  /** §3's ledger breaks a duty-clock tie. Optional so existing callers still
+   *  compile; supply them, or two never-on-duty drivers sort alphabetically. */
+  earningsScore?: number;
+  lastAssignedAt?: Date | null;
+};
+
+// Oldest-`lastDutyAt` first (null = never on duty = oldest), then §3's general
+// ledger — earnings, then who has waited longest, then driverId.
+//
+// The ledger step used to be missing, so two drivers who had never held เวร were
+// a genuine tie on the duty clock and this broke it ALPHABETICALLY while the
+// solver's rankForRotation broke it on earnings. Same day, same drivers,
+// different WERN.
 function byDutyRotation(a: DutyCandidate, b: DutyCandidate): number {
-  return (
-    (a.lastDutyAt?.getTime() ?? -Infinity) - (b.lastDutyAt?.getTime() ?? -Infinity) ||
-    a.driverId.localeCompare(b.driverId)
+  const clock = (a.lastDutyAt?.getTime() ?? -Infinity) - (b.lastDutyAt?.getTime() ?? -Infinity);
+  if (clock !== 0) return clock;
+  return compareGeneralFairness(
+    { driverId: a.driverId, earningsScore: a.earningsScore ?? 0, lastAssignedAt: a.lastAssignedAt ?? null },
+    { driverId: b.driverId, earningsScore: b.earningsScore ?? 0, lastAssignedAt: b.lastAssignedAt ?? null },
   );
 }
 

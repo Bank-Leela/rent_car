@@ -1,5 +1,5 @@
 import { startOfDay } from "date-fns";
-import { rankForRotation, type DriverRotationState } from "./rotations";
+import { canChain, rankForRotation, type DriverRotationState } from "./rotations";
 import type { TjwCommitment } from "./batch-solver";
 import { LONG_TRIP_KM } from "./classification";
 
@@ -44,7 +44,16 @@ export interface TjwSolveResult {
 }
 
 type Span = { startAt: Date; endAt: Date };
-const overlaps = (a: Span, b: Span) => a.startAt < b.endAt && b.startAt < a.endAt;
+
+/**
+ * A driver's existing commitment, and whether the §4 gap applies to it.
+ *
+ * "trip" — a real booking. The ≥2h chaining gap applies, via canChain.
+ * "block" — a synthetic whole-day marker (leave, duty). Bare overlap ONLY:
+ *   these are already 00:00–24:00, and adding a 2h gap either side would
+ *   silently extend a leave day two hours into both neighbouring days.
+ */
+type BusySpan = Span & { kind: "trip" | "block" };
 
 // Every local-midnight day a span touches (half-open on the end, like daysSpanned).
 function daysOf(span: Span): number[] {
@@ -67,17 +76,35 @@ export function solveTjwByRequest(input: TjwSolveInput): TjwSolveResult {
   // Mutable rotation snapshot so provisional bumps affect later requests.
   const state = new Map(input.drivers.map((d) => [d.driverId, { ...d }]));
   // Committed spans per driver (seeded from fixed commitments; grown as we assign).
-  const busy = new Map<string, Span[]>();
+  const busy = new Map<string, BusySpan[]>();
   for (const c of input.existingCommitments) {
     const arr = busy.get(c.driverId) ?? [];
-    arr.push({ startAt: c.startAt, endAt: c.endAt });
+    arr.push({ startAt: c.startAt, endAt: c.endAt, kind: c.kind ?? "trip" });
     busy.set(c.driverId, arr);
   }
 
   const free = (driverId: string, span: Span): boolean => {
     if (!input.driverCar.has(driverId)) return false; // car=driver: must be paired
     if (daysOf(span).some((d) => input.dutyByDay.get(d) === driverId)) return false; // duty
-    return !(busy.get(driverId) ?? []).some((s) => overlaps(s, span));
+    const mine = busy.get(driverId) ?? [];
+
+    // Whole-day markers: overlap only, no gap. See BusySpan.
+    if (mine.some((s) => s.kind === "block" && s.startAt < span.endAt && span.startAt < s.endAt)) {
+      return false;
+    }
+
+    // Real trips go through canChain — the SAME predicate the solver, the
+    // matcher and the reco use. This file used to ask a private `overlaps()`
+    // instead, which is bare interval non-overlap: a ZERO gap where §4 requires
+    // 120 minutes, universally, for every job type. A driver could be sent out
+    // of province an hour after a morning job by this button, while the
+    // จับคู่อัตโนมัติ button on the same booking refused them.
+    //
+    // No leg handling is needed: a TJW is never a no-wait trip (see the header).
+    const realTrips = mine
+      .filter((s) => s.kind === "trip")
+      .map((s) => ({ startAt: s.startAt, endAt: s.endAt, jobType: "TJW" as const }));
+    return canChain({ startAt: span.startAt, endAt: span.endAt, jobType: "TJW" }, realTrips);
   };
 
   const sorted = [...input.requests].sort(
@@ -114,7 +141,7 @@ export function solveTjwByRequest(input: TjwSolveInput): TjwSolveResult {
       d.lastTjwAt = r.startAt;
       d.earningsScore += 1; // coarse fairness nudge; authoritative stamp set on write
       const arr = busy.get(id) ?? [];
-      arr.push(span);
+      arr.push({ ...span, kind: "trip" });
       busy.set(id, arr);
     }
   }

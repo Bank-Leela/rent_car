@@ -162,4 +162,40 @@ describe("solveTjwByRequest", () => {
     expect(longA?.secondaryDriverId).toBe("B");
     expect(out.overflows).toContainEqual({ bookingId: "next", reason: "NO_PRIMARY_DRIVER" });
   });
+
+  it("applies the §4 2h gap, like every other engine", () => {
+    // This file used to ask a private `overlaps()` — bare interval non-overlap,
+    // i.e. a ZERO gap — while §4 requires 120 minutes for every job type. The
+    // same booking through จับคู่อัตโนมัติ refused this driver.
+    const day = (h: number, d = 1) => new Date(2026, 8, d, h, 0, 0, 0);
+    const out = solveTjwByRequest({
+      requests: [{ bookingId: "b1", startAt: day(11), endAt: day(18, 3), createdAt: day(1), estimatedDistance: null, needsSecondaryDriver: false }],
+      drivers: [{ driverId: "A", lastTjwAt: null, lastOtAt: null, lastDutyAt: null, earningsScore: 0, lastAssignedAt: null }],
+      driverCar: new Map([["A", "car-a"]]),
+      dutyByDay: new Map(),
+      // A real trip ending 10:00 — one hour before the TJW departs.
+      existingCommitments: [{ driverId: "A", startAt: day(8), endAt: day(10), kind: "trip" }],
+    } as never) as { assignments: unknown[]; overflows: { reason: string }[] };
+
+    expect(out.assignments, "a 60-minute turnaround must not be dispatched").toHaveLength(0);
+    expect(out.overflows[0]?.reason).toBe("NO_PRIMARY_DRIVER");
+  });
+
+  it("does not extend a whole-day leave block by the gap", () => {
+    // Leave arrives as a synthetic 00:00–24:00 span. Applying the 2h gap to it
+    // would block two hours of the neighbouring days as well, quietly turning
+    // one day off into one and a bit.
+    const day = (h: number, d = 1) => new Date(2026, 8, d, h, 0, 0, 0);
+    const out = solveTjwByRequest({
+      requests: [{ bookingId: "b1", startAt: day(6, 2), endAt: day(18, 4), createdAt: day(1), estimatedDistance: null, needsSecondaryDriver: false }],
+      drivers: [{ driverId: "A", lastTjwAt: null, lastOtAt: null, lastDutyAt: null, earningsScore: 0, lastAssignedAt: null }],
+      driverCar: new Map([["A", "car-a"]]),
+      dutyByDay: new Map(),
+      // Off on the 1st. The trip starts 06:00 on the 2nd — inside the gap, but
+      // the block is a whole day, so only real overlap should count.
+      existingCommitments: [{ driverId: "A", startAt: day(0, 1), endAt: day(0, 2), kind: "block" }],
+    } as never) as { assignments: { primaryDriverId: string }[] };
+
+    expect(out.assignments[0]?.primaryDriverId, "leave must not bleed into the next day").toBe("A");
+  });
 });

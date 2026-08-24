@@ -138,13 +138,26 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
   }
   // WERN routes to the on-call driver unless they're away — then the duty rotation
   // falls back. For non-WERN, this is just the (reserved) real on-call driver.
+  // Loaded before the WERN resolution, not after: resolveWernDriver breaks a
+  // duty-clock tie on §3's ledger, which needs earnings.
+  const driverIds = drivers.map((d) => d.id);
+  const [earnings, monthCounts] = await Promise.all([
+    loadWeightedEarnings(driverIds),
+    loadTripsThisMonth(driverIds),
+  ]);
+
   const wernDriverId =
     booking.jobType === "WERN"
       ? resolveWernDriver({
           onCallDriverId,
           awayDriverIds: awayTjwDriverIds,
           hasCar: (id) => driverCar.has(id),
-          candidates: drivers.map((d) => ({ driverId: d.id, lastDutyAt: d.lastDutyAt })),
+          candidates: drivers.map((d) => ({
+            driverId: d.id,
+            lastDutyAt: d.lastDutyAt,
+            earningsScore: earnings.get(d.id) ?? 0,
+            lastAssignedAt: d.lastAssignedAt,
+          })),
         })
       : onCallDriverId;
 
@@ -193,11 +206,7 @@ export async function matchBookingAction(formData: FormData): Promise<ActionResu
     existing: tripsByDriver.get(d.id) ?? [],
   }));
 
-  const driverIds = drivers.map((d) => d.id);
-  const [earnings, monthCounts] = await Promise.all([
-    loadWeightedEarnings(driverIds),
-    loadTripsThisMonth(driverIds),
-  ]);
+
   const driverRankInputs: RankInput[] = drivers.map((d) => ({
     driverId: d.id,
     earningsScore: earnings.get(d.id) ?? 0,

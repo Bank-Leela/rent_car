@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pickGeneralRank } from "@/lib/booking/rotations";
 import {
   buildDriverMatrix,
   canTakeTrip,
@@ -187,13 +188,36 @@ describe("rankCandidates", () => {
     expect(rankCandidates([...tie].reverse())).toEqual(["A", "M", "Z"]); // order-independent
   });
 
-  it("tripsThisMonth breaks an earnings tie before lastAssignedAt", () => {
+  it("ranks identically to the solver — tripsThisMonth does not order anybody", () => {
+    // Settled 2026-08-24. The matcher used to break an earnings tie on
+    // tripsThisMonth while the solver broke it on lastAssignedAt, so the two
+    // engines named different drivers for the same booking — and §6a of the
+    // scheduling doc specified the divergence while §3 specified the ledger.
+    // A ranks first: both have a null lastAssignedAt and "A" < "B"; the higher
+    // tripsThisMonth is ignored.
     expect(
       rankCandidates([
         { driverId: "A", earningsScore: 5, tripsThisMonth: 3, lastAssignedAt: null },
         { driverId: "B", earningsScore: 5, tripsThisMonth: 1, lastAssignedAt: null },
       ]),
-    ).toEqual(["B", "A"]);
+    ).toEqual(["A", "B"]);
+  });
+
+  it("agrees with the solver's own ranker on the same input", () => {
+    // The regression that matters is not "what order is it" but "is it the SAME
+    // order the other engine produces". Nothing compared them before.
+    const rows = [
+      { driverId: "x", earningsScore: 5, tripsThisMonth: 9, lastAssignedAt: new Date(2026, 0, 3) },
+      { driverId: "y", earningsScore: 5, tripsThisMonth: 0, lastAssignedAt: new Date(2026, 0, 1) },
+      { driverId: "z", earningsScore: 2, tripsThisMonth: 4, lastAssignedAt: null },
+    ];
+    const solverOrder = pickGeneralRank(
+      rows.map((r) => ({
+        driverId: r.driverId, earningsScore: r.earningsScore, lastAssignedAt: r.lastAssignedAt,
+        lastTjwAt: null, lastOtAt: null, lastDutyAt: null,
+      })),
+    );
+    expect(rankCandidates(rows)).toEqual(solverOrder);
   });
 
   it("does not mutate its input array", () => {

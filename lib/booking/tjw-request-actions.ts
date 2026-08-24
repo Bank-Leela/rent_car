@@ -14,6 +14,7 @@ import type { TjwCommitment } from "@/lib/booking/batch-solver";
 import { driverVehicleMap } from "@/lib/booking/fleet";
 import { loadWeightedEarnings } from "@/lib/booking/earnings";
 import type { DriverRotationState } from "@/lib/booking/rotations";
+import { MIN_GAP_MINUTES } from "@/lib/booking/rotations";
 import { solveTjwByRequest, type TjwRequestInput } from "@/lib/booking/tjw-request-solver";
 import { localDayOfDbDate } from "@/lib/booking/db-date";
 
@@ -75,15 +76,19 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     where: {
       status: { in: COMMITTED_STATUSES },
       primaryDriverId: { not: null },
-      startAt: { lt: maxEnd },
-      endAt: { gt: minStart },
+      // Widened by the §4 gap on both edges. The solver now applies canChain to
+      // these, and a trip that ENDS shortly before a request starts is exactly
+      // what the gap exists to catch — but a window bounded at minStart/maxEnd
+      // never fetches it, so the check would have nothing to fire on.
+      startAt: { lt: new Date(maxEnd.getTime() + MIN_GAP_MINUTES * 60_000) },
+      endAt: { gt: new Date(minStart.getTime() - MIN_GAP_MINUTES * 60_000) },
     },
     select: { primaryDriverId: true, secondaryDriverId: true, startAt: true, endAt: true },
   });
   const existingCommitments: TjwCommitment[] = [];
   for (const t of committed) {
-    if (t.primaryDriverId) existingCommitments.push({ driverId: t.primaryDriverId, startAt: t.startAt, endAt: t.endAt });
-    if (t.secondaryDriverId) existingCommitments.push({ driverId: t.secondaryDriverId, startAt: t.startAt, endAt: t.endAt });
+    if (t.primaryDriverId) existingCommitments.push({ driverId: t.primaryDriverId, startAt: t.startAt, endAt: t.endAt, kind: "trip" });
+    if (t.secondaryDriverId) existingCommitments.push({ driverId: t.secondaryDriverId, startAt: t.startAt, endAt: t.endAt, kind: "trip" });
   }
 
   // Sick / leave days across the same span, as commitments the solver already
@@ -106,7 +111,8 @@ export async function assignTjwByRequestOrder(): Promise<TjwAssignResult> {
     const from = localDayOfDbDate(o.date);
     const to = new Date(from);
     to.setDate(to.getDate() + 1);
-    existingCommitments.push({ driverId: o.driverId, startAt: from, endAt: to });
+    // kind "block": overlap only, no 2h gap — this is already a whole day.
+    existingCommitments.push({ driverId: o.driverId, startAt: from, endAt: to, kind: "block" });
   }
 
   // Duty driver per day across the requested span (excluded from TJW on that day).

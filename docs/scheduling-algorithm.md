@@ -346,8 +346,14 @@ Used for one approved booking (auto-match button / drag).
    jobs (`matching-actions.ts:110-116`).
 2. **Eligible** = drivers who pass `filterAvailable` **and are not** the on-call
    driver (`matching.ts:53-54`).
-3. **Rank** (`rankCandidates`): `earningsScore` ↑, `tripsThisMonth` ↑,
-   `lastAssignedAt` ↑, then `driverId` (final tie-break for determinism).
+3. **Rank** (`rankCandidates`): §3's ledger, **identical to the solver** —
+   `earningsScore` ↑, `lastAssignedAt` ↑, then `driverId`. It runs the same
+   `compareGeneralFairness` (`rotations.ts`) that `pickGeneralRank` does.
+   > Until 2026-08-24 this step inserted `tripsThisMonth` ↑ as the second key, so
+   > the matcher and จัดรอบ named different drivers on an earnings tie — a
+   > divergence this document specified here and contradicted in §3. Settled: the
+   > matcher matches จัดรอบ. `tripsThisMonth` is still shown in the UI; it no
+   > longer orders anybody.
 4. **Primary** = top ranked. Its car = `driverCar.get(primary)`; no car →
    `NO_SLOT`.
 5. **Long trip (> 400 km)** → also take rank #2 as **secondary**; none →
