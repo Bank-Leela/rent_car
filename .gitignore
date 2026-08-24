@@ -54,3 +54,30 @@ __pycache__/
 
 # Scratch space for probe scripts and screenshots — not build output, not source
 scripts/tmp/
+
+# Third-party skills installed via `npx skills add`. Vendored copies of other
+# people's markdown — not this project's source, and this repo is public.
+.agents/
+
+# Symlinks created by `npx skills add`, pointing into the ignored .agents/.
+# The real project skills in .claude/skills/ (debug-issue, explore-codebase,
+# refactor-safely, review-changes) stay tracked. Listed explicitly rather than
+# globbed, so a future hand-written project skill is never silently ignored.
+# Provenance lives in skills-lock.json, which IS tracked — restore with
+# `npx skills install`.
+.claude/skills/brandkit
+.claude/skills/design-taste-frontend
+.claude/skills/design-taste-frontend-v1
+.claude/skills/dev
+.claude/skills/full-output-enforcement
+.claude/skills/gpt-taste
+.claude/skills/high-end-visual-design
+.claude/skills/image-to-code
+.claude/skills/imagegen-frontend-mobile
+.claude/skills/imagegen-frontend-web
+.claude/skills/industrial-brutalist-ui
+.claude/skills/minimalist-ui
+.claude/skills/playwright-cli
+.claude/skills/redesign-existing-projects
+.claude/skills/stitch-design-taste
+.claude/skills/web-design-guidelines
